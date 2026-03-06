@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Globe, MapPin, Users, TrendingUp, Building2, Tag } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { COMPANY_TYPE_LABELS, OWNERSHIP_LABELS, EMPLOYEE_RANGE_LABELS, REVENUE_RANGE_LABELS, SENIORITY_LABELS, DEAL_TYPE_LABELS, DEAL_STAGE_LABELS } from '@/types'
-import type { CompanyType, OwnershipStatus, SeniorityLevel, DealType, DealStage } from '@/types'
+import type { CompanyType, OwnershipStatus, SeniorityLevel, DealType, DealStage, EmployeeCountRange, AnnualRevenueRange } from '@/types'
 
 async function fetchCompany(id: string) {
   const res = await fetch(`/api/companies/${id}`)
@@ -94,8 +94,8 @@ export default function CompanyProfilePage({ params }: { params: { id: string } 
                 </a>
               )}
               {company.founded_year && <span>Est. {company.founded_year}</span>}
-              {company.employee_count_range && <span>{EMPLOYEE_RANGE_LABELS[company.employee_count_range as any]} employees</span>}
-              {company.annual_revenue_range && <span>{REVENUE_RANGE_LABELS[company.annual_revenue_range as any]}</span>}
+              {company.employee_count_range && <span>{EMPLOYEE_RANGE_LABELS[company.employee_count_range as EmployeeCountRange]} employees</span>}
+              {company.annual_revenue_range && <span>{REVENUE_RANGE_LABELS[company.annual_revenue_range as AnnualRevenueRange]}</span>}
             </div>
           </div>
         </div>
