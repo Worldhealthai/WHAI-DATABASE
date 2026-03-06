@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Search, Lock, BookOpen, BarChart2, Newspaper, TrendingUp, Mic } from 'lucide-react'
+import Image from 'next/image'
+import { Search, Lock, BookOpen, BarChart2, Newspaper, TrendingUp, Mic, ExternalLink, Globe } from 'lucide-react'
 import { Pagination } from '@/components/search/Pagination'
 import type { InsightFilters, ContentType } from '@/types'
 import { CONTENT_TYPE_LABELS } from '@/types'
-import { cn, formatDate, truncate } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 async function fetchInsights(filters: InsightFilters, page: number, pageSize: number) {
   const params = new URLSearchParams()
@@ -23,8 +24,14 @@ async function fetchInsights(filters: InsightFilters, page: number, pageSize: nu
   return res.json()
 }
 
-async function fetchTaxonomy() {
-  const res = await fetch('/api/taxonomy')
+async function fetchExternalInsights(filters: InsightFilters, page: number, pageSize: number) {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('pageSize', String(pageSize))
+  if (filters.query) params.set('query', filters.query)
+  filters.contentTypes?.forEach((t) => params.append('contentTypes', t))
+  const res = await fetch(`/api/external-insights?${params}`)
+  if (!res.ok) return null
   return res.json()
 }
 
@@ -46,25 +53,103 @@ const CONTENT_COLORS: Record<string, string> = {
   PODCAST_SUMMARY: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
 }
 
+function InsightCard({ insight, isExternal = false }: { insight: any; isExternal?: boolean }) {
+  const Icon = CONTENT_ICONS[insight.content_type] ?? BookOpen
+  const card = (
+    <div className="whai-card hover:border-[#00B4D8]/40 transition-all group overflow-hidden flex flex-col">
+      {/* Thumbnail */}
+      <div className="h-36 bg-gradient-to-br from-[#0D1F3C] to-[#1a3a5c] flex items-center justify-center relative overflow-hidden">
+        {insight.thumbnail_url ? (
+          <Image
+            src={insight.thumbnail_url}
+            alt={insight.title}
+            fill
+            className="object-cover opacity-60"
+            unoptimized
+          />
+        ) : (
+          <Icon className="w-10 h-10 text-[#00B4D8]/20" />
+        )}
+        {insight.is_premium && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 bg-amber-400/20 border border-amber-400/30 text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full">
+            <Lock className="w-2.5 h-2.5" /> Premium
+          </div>
+        )}
+        {isExternal && (
+          <div className="absolute top-2 left-2 flex items-center gap-1 bg-[#00B4D8]/20 border border-[#00B4D8]/30 text-[#00B4D8] text-[10px] px-1.5 py-0.5 rounded-full">
+            <Globe className="w-2.5 h-2.5" /> worldhealthai.com
+          </div>
+        )}
+      </div>
+      <div className="p-4 flex flex-col flex-1">
+        <div className="flex items-center justify-between mb-2">
+          <span className={cn('whai-badge border text-[10px]', CONTENT_COLORS[insight.content_type])}>
+            {CONTENT_TYPE_LABELS[insight.content_type as ContentType]}
+          </span>
+          <span className="text-[10px] text-slate-500">{formatDate(insight.published_at)}</span>
+        </div>
+        <h3 className="font-semibold text-white group-hover:text-[#00B4D8] transition-colors text-sm leading-snug mb-2 line-clamp-2">
+          {insight.title}
+        </h3>
+        <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 flex-1">{insight.summary}</p>
+        {isExternal ? (
+          <div className="flex items-center gap-1 mt-3 text-[10px] text-[#00B4D8]">
+            <ExternalLink className="w-3 h-3" />
+            Read on worldhealthai.com
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1 mt-3">
+            {insight.verticals?.slice(0, 2).map((iv: any) => (
+              <span key={iv.vertical.id} className="text-[10px] px-1.5 py-0.5 rounded bg-[#112850] text-slate-400 border border-[#1a3a5c]">
+                {iv.vertical.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  if (isExternal) {
+    return (
+      <a href={insight.source_url} target="_blank" rel="noopener noreferrer">
+        {card}
+      </a>
+    )
+  }
+
+  return (
+    <Link href={`/insights/${insight.slug}`}>
+      {card}
+    </Link>
+  )
+}
+
 export default function InsightsPage() {
   const [filters, setFilters] = useState<InsightFilters>({})
   const [page, setPage] = useState(1)
+  const [extPage, setExtPage] = useState(1)
 
-  const { data: taxonomy } = useQuery({ queryKey: ['taxonomy'], queryFn: fetchTaxonomy })
   const { data, isLoading } = useQuery({
     queryKey: ['insights', filters, page],
     queryFn: () => fetchInsights(filters, page, 12),
     placeholderData: (prev) => prev,
   })
 
-  useEffect(() => { setPage(1) }, [filters])
+  const { data: extData, isLoading: extLoading } = useQuery({
+    queryKey: ['external-insights', filters, extPage],
+    queryFn: () => fetchExternalInsights(filters, extPage, 6),
+    placeholderData: (prev) => prev,
+  })
+
+  useEffect(() => { setPage(1); setExtPage(1) }, [filters])
 
   const update = (partial: Partial<InsightFilters>) => setFilters((prev) => ({ ...prev, ...partial }))
 
   const ALL_TYPES = Object.keys(CONTENT_TYPE_LABELS) as ContentType[]
 
   return (
-    <div className="max-w-screen-xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-screen-xl mx-auto px-4 py-6 space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Insights & Trends</h1>
@@ -134,63 +219,86 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      {/* Results count */}
-      {data && (
-        <p className="text-sm text-slate-400">
-          <span className="font-semibold text-white">{data.total}</span> articles
-        </p>
-      )}
-
-      {/* Cards grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-slate-500 text-sm">Loading insights…</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {(data?.data ?? []).map((insight: any) => {
-            const Icon = CONTENT_ICONS[insight.content_type] ?? BookOpen
-            return (
-              <Link key={insight.id} href={`/insights/${insight.slug}`} className="whai-card hover:border-[#00B4D8]/40 transition-all group overflow-hidden flex flex-col">
-                {/* Thumbnail / placeholder */}
-                <div className="h-36 bg-gradient-to-br from-[#0D1F3C] to-[#1a3a5c] flex items-center justify-center relative overflow-hidden">
-                  <Icon className="w-10 h-10 text-[#00B4D8]/20" />
-                  {insight.is_premium && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-amber-400/20 border border-amber-400/30 text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full">
-                      <Lock className="w-2.5 h-2.5" /> Premium
-                    </div>
-                  )}
-                </div>
-                <div className="p-4 flex flex-col flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={cn('whai-badge border text-[10px]', CONTENT_COLORS[insight.content_type])}>
-                      {CONTENT_TYPE_LABELS[insight.content_type as ContentType]}
-                    </span>
-                    <span className="text-[10px] text-slate-500">{formatDate(insight.published_at)}</span>
-                  </div>
-                  <h3 className="font-semibold text-white group-hover:text-[#00B4D8] transition-colors text-sm leading-snug mb-2 line-clamp-2">
-                    {insight.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 flex-1">{insight.summary}</p>
-                  <div className="flex flex-wrap gap-1 mt-3">
-                    {insight.verticals?.slice(0, 2).map((iv: any) => (
-                      <span key={iv.vertical.id} className="text-[10px] px-1.5 py-0.5 rounded bg-[#112850] text-slate-400 border border-[#1a3a5c]">
-                        {iv.vertical.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
+      {/* ── Intelligence Hub (from worldhealthai.com) ── */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-[#00B4D8]" />
+            <h2 className="text-base font-semibold text-white">Intelligence Hub</h2>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00B4D8]/10 border border-[#00B4D8]/20 text-[#00B4D8]">
+              worldhealthai.com
+            </span>
+          </div>
+          {extData && extData.total > 0 && (
+            <span className="text-xs text-slate-500">{extData.total} articles</span>
+          )}
         </div>
-      )}
 
-      {(data?.data ?? []).length === 0 && !isLoading && (
-        <div className="text-center py-16 text-slate-500 text-sm">No insights match your filters.</div>
-      )}
+        {extLoading ? (
+          <div className="flex items-center justify-center py-10 text-slate-500 text-sm">
+            Loading intelligence insights…
+          </div>
+        ) : extData === null ? (
+          <div className="flex items-center gap-2 py-6 px-4 rounded-lg bg-[#0D1F3C] border border-[#1a3a5c] text-slate-500 text-sm">
+            Intelligence Hub is unavailable — set <code className="text-[#00B4D8]">WORLD_HEALTH_AI_URL</code> to enable it.
+          </div>
+        ) : (extData?.data ?? []).length === 0 ? (
+          <div className="text-center py-10 text-slate-500 text-sm">No intelligence insights match your filters.</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {(extData?.data ?? []).map((insight: any) => (
+                <InsightCard key={insight.id} insight={insight} isExternal />
+              ))}
+            </div>
+            {extData && extData.total > 6 && (
+              <Pagination
+                page={extPage}
+                totalPages={extData.totalPages}
+                total={extData.total}
+                pageSize={6}
+                onPage={setExtPage}
+                onPageSize={() => {}}
+              />
+            )}
+          </>
+        )}
+      </section>
 
-      {data && data.total > 0 && (
-        <Pagination page={page} totalPages={data.totalPages} total={data.total} pageSize={12} onPage={setPage} onPageSize={() => {}} />
-      )}
+      {/* ── Database Insights ── */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-semibold text-white">Database Insights</h2>
+          {data && (
+            <span className="text-xs text-slate-500">{data.total} articles</span>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10 text-slate-500 text-sm">Loading insights…</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {(data?.data ?? []).map((insight: any) => (
+              <InsightCard key={insight.id} insight={insight} />
+            ))}
+          </div>
+        )}
+
+        {(data?.data ?? []).length === 0 && !isLoading && (
+          <div className="text-center py-10 text-slate-500 text-sm">No insights match your filters.</div>
+        )}
+
+        {data && data.total > 0 && (
+          <Pagination
+            page={page}
+            totalPages={data.totalPages}
+            total={data.total}
+            pageSize={12}
+            onPage={setPage}
+            onPageSize={() => {}}
+          />
+        )}
+      </section>
     </div>
   )
 }
