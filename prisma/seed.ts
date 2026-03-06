@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, ContentType } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -904,7 +904,7 @@ async function main() {
     { first_name: 'Rebecca', last_name: 'Mason', email: 'r.mason@novamedica.com', job_title: 'VP Global Marketing, Oncology', seniority_level: 'VP', department: 'COMMERCIAL', jf: 'Marketing', company: 'NovaMedica Therapeutics', country: 'United States', city: 'Cambridge', region: 'us', engagement_score: 61, is_verified: true, tags: ['oncology', 'marketing'] },
     { first_name: 'Wei', last_name: 'Zhang', email: 'w.zhang@novamedica.com', job_title: 'Associate Director, Clinical Operations', seniority_level: 'MANAGER', department: 'CLINICAL', jf: 'Clinical / Medical Affairs', company: 'NovaMedica Therapeutics', country: 'United States', city: 'Cambridge', region: 'us', engagement_score: 45, is_verified: false, tags: [] },
     // Helix Pharma Group (adding 2 more)
-    { first_name: 'Siobhan', last_name: 'O'Neill', email: 's.oneill@helixpharma.co.uk', job_title: 'Head of Medical Affairs, CNS', seniority_level: 'DIRECTOR', department: 'CLINICAL', jf: 'Clinical / Medical Affairs', company: 'Helix Pharma Group', country: 'United Kingdom', city: 'London', region: 'uk', engagement_score: 57, is_verified: true, tags: ['cns', 'medical-affairs'] },
+    { first_name: 'Siobhan', last_name: "O'Neill", email: 's.oneill@helixpharma.co.uk', job_title: 'Head of Medical Affairs, CNS', seniority_level: 'DIRECTOR', department: 'CLINICAL', jf: 'Clinical / Medical Affairs', company: 'Helix Pharma Group', country: 'United Kingdom', city: 'London', region: 'uk', engagement_score: 57, is_verified: true, tags: ['cns', 'medical-affairs'] },
     { first_name: 'Bruno', last_name: 'Laroche', email: 'b.laroche@helixpharma.co.uk', job_title: 'Director, Supply Chain Operations', seniority_level: 'DIRECTOR', department: 'OPERATIONS', jf: 'Supply Chain / Manufacturing', company: 'Helix Pharma Group', country: 'France', city: 'Lyon', region: 'france', engagement_score: 38, is_verified: false, tags: [] },
     // Praxis Clinical Research (adding 2 more for global CRO)
     { first_name: 'Aaliya', last_name: 'Bose', email: 'a.bose@praxiscro.com', job_title: 'Director, Patient Recruitment', seniority_level: 'DIRECTOR', department: 'CLINICAL', jf: 'Clinical / Medical Affairs', company: 'Praxis Clinical Research', country: 'India', city: 'Mumbai', region: 'india', engagement_score: 49, is_verified: false, tags: ['patient-recruitment'] },
@@ -1669,7 +1669,7 @@ async function main() {
     const saved = await prisma.insight.upsert({
       where: { slug: insightFields.slug },
       update: {},
-      create: { ...insightFields, tags: insightFields.tags ?? [] },
+      create: { ...insightFields, content_type: insightFields.content_type as ContentType, tags: insightFields.tags ?? [] },
     })
     for (const v of iverts) {
       const vid = verticalMap[v]
