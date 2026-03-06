@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { buildDealWhere } from '@/lib/search'
+import type { DealFilters } from '@/types'
 
 export const dynamic = 'force-dynamic'
-import type { DealFilters } from '@/types'
 
 export async function GET(req: NextRequest) {
   try {
