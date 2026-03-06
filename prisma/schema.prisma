@@ -1,0 +1,427 @@
+// WHAI Intelligence Hub — Prisma Schema
+// PostgreSQL with full-text search and trigram support
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAXONOMY / REFERENCE TABLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Region {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  parent_id String?
+  parent    Region?  @relation("RegionHierarchy", fields: [parent_id], references: [id])
+  children  Region[] @relation("RegionHierarchy")
+
+  contacts  Contact[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("regions")
+}
+
+model HealthcareVertical {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  parent_id   String?
+  parent      HealthcareVertical?  @relation("VerticalHierarchy", fields: [parent_id], references: [id])
+  children    HealthcareVertical[] @relation("VerticalHierarchy")
+  sort_order  Int     @default(0)
+
+  companyVerticals CompanyVertical[]
+  dealVerticals    DealVertical[]
+  insightVerticals InsightVertical[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("healthcare_verticals")
+}
+
+model TherapeuticArea {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  sort_order  Int     @default(0)
+
+  companyTherapeuticAreas CompanyTherapeuticArea[]
+  insightTherapeuticAreas InsightTherapeuticArea[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("therapeutic_areas")
+}
+
+model JobFunction {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  sort_order  Int       @default(0)
+
+  contacts Contact[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("job_functions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SeniorityLevel {
+  C_SUITE           @map("C-Suite")
+  VP                @map("VP")
+  DIRECTOR          @map("Director")
+  MANAGER           @map("Manager")
+  INDIVIDUAL_CONTRIBUTOR @map("Individual Contributor")
+  BOARD             @map("Board")
+}
+
+enum Department {
+  CLINICAL          @map("Clinical")
+  RD                @map("R&D")
+  IT_DIGITAL        @map("IT/Digital")
+  COMMERCIAL        @map("Commercial")
+  REGULATORY        @map("Regulatory")
+  OPERATIONS        @map("Operations")
+  FINANCE           @map("Finance")
+  STRATEGY          @map("Strategy")
+  EXECUTIVE_LEADERSHIP @map("Executive Leadership")
+}
+
+enum CompanyType {
+  PHARMA                    @map("Pharma")
+  BIOTECH                   @map("Biotech")
+  MEDTECH                   @map("MedTech / Medical Device")
+  HEALTH_IT                 @map("Health IT / Digital Health")
+  CRO                       @map("CRO")
+  CDMO                      @map("CDMO")
+  PAYER                     @map("Payer / Insurer")
+  PROVIDER                  @map("Provider / Health System")
+  GOVERNMENT                @map("Government / Public Health Body")
+  CONSULTING                @map("Consulting / Advisory")
+  INVESTOR                  @map("Investor (PE/VC/Family Office)")
+  ACADEMIC                  @map("Academic / Research Institution")
+  INDUSTRY_ASSOCIATION      @map("Industry Association")
+  SOLUTION_PROVIDER         @map("Solution Provider / Vendor")
+}
+
+enum OwnershipStatus {
+  PUBLIC        @map("Public")
+  PRIVATE       @map("Private")
+  PE_BACKED     @map("PE-Backed")
+  VC_BACKED     @map("VC-Backed")
+  GOVERNMENT    @map("Government/NHS")
+  NON_PROFIT    @map("Non-Profit")
+  ACADEMIC      @map("Academic")
+}
+
+enum EmployeeCountRange {
+  RANGE_1_10        @map("1-10")
+  RANGE_11_50       @map("11-50")
+  RANGE_51_200      @map("51-200")
+  RANGE_201_500     @map("201-500")
+  RANGE_501_1000    @map("501-1000")
+  RANGE_1001_5000   @map("1001-5000")
+  RANGE_5001_10000  @map("5001-10000")
+  RANGE_10000_PLUS  @map("10000+")
+}
+
+enum AnnualRevenueRange {
+  LESS_THAN_1M    @map("<1M")
+  RANGE_1_10M     @map("1-10M")
+  RANGE_10_50M    @map("10-50M")
+  RANGE_50_100M   @map("50-100M")
+  RANGE_100_500M  @map("100-500M")
+  RANGE_500M_1B   @map("500M-1B")
+  ABOVE_1B        @map("1B+")
+}
+
+enum DealType {
+  MA_ACQUISITION          @map("M&A (Acquisition)")
+  MA_MERGER               @map("M&A (Merger)")
+  VC_SEED                 @map("Venture Capital (Seed)")
+  VC_SERIES_A             @map("Venture Capital (Series A)")
+  VC_SERIES_B             @map("Venture Capital (Series B)")
+  VC_SERIES_C_PLUS        @map("Venture Capital (Series C+)")
+  PE_BUYOUT               @map("Private Equity (Buyout)")
+  PE_GROWTH_EQUITY        @map("Private Equity (Growth Equity)")
+  PE_RECAPITALISATION     @map("Private Equity (Recapitalisation)")
+  IPO                     @map("IPO")
+  SPAC                    @map("SPAC")
+  LICENSING_PARTNERSHIP   @map("Licensing / Partnership")
+  JOINT_VENTURE           @map("Joint Venture")
+  ASSET_SALE              @map("Asset Sale / Divestiture")
+  DEBT_FINANCING          @map("Debt Financing")
+  GRANT                   @map("Grant / Government Funding")
+  SECONDARY_SALE          @map("Secondary Sale")
+}
+
+enum DealStage {
+  ANNOUNCED   @map("Announced")
+  COMPLETED   @map("Completed")
+  TERMINATED  @map("Terminated")
+  RUMOURED    @map("Rumoured")
+}
+
+enum InvestorRole {
+  LEAD          @map("Lead")
+  CO_LEAD       @map("Co-Lead")
+  PARTICIPANT   @map("Participant")
+  UNDISCLOSED   @map("Undisclosed")
+}
+
+enum ContentType {
+  MARKET_REPORT     @map("Market Report")
+  ANALYSIS          @map("Analysis")
+  NEWS_BRIEF        @map("News Brief")
+  DATA_SNAPSHOT     @map("Data Snapshot")
+  QUARTERLY_REPORT  @map("Quarterly Report")
+  PODCAST_SUMMARY   @map("Podcast Summary")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE ENTITIES
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Company {
+  id                      String              @id @default(uuid())
+  name                    String
+  legal_name              String?
+  logo_url                String?
+  website                 String?
+  description             String?
+  company_type            CompanyType
+  ownership_status        OwnershipStatus?
+  founded_year            Int?
+  employee_count_range    EmployeeCountRange?
+  annual_revenue_range    AnnualRevenueRange?
+  headquarters_country    String?
+  headquarters_city       String?
+  headquarters_state_province String?
+  stock_ticker            String?
+  stock_exchange          String?
+  parent_company_id       String?
+  parent_company          Company?            @relation("CompanyHierarchy", fields: [parent_company_id], references: [id])
+  subsidiaries            Company[]           @relation("CompanyHierarchy")
+  tags                    String[]
+  source                  String?
+
+  // Relations
+  contacts                Contact[]
+  verticals               CompanyVertical[]
+  therapeutic_areas       CompanyTherapeuticArea[]
+  deals_as_acquirer       Deal[]              @relation("DealAcquirer")
+  deals_as_target         Deal[]              @relation("DealTarget")
+  deal_investments        DealInvestor[]
+
+  created_at              DateTime            @default(now())
+  updated_at              DateTime            @updatedAt
+
+  @@index([name])
+  @@index([company_type])
+  @@index([ownership_status])
+  @@index([headquarters_country])
+  @@map("companies")
+}
+
+model CompanyVertical {
+  company_id  String
+  vertical_id String
+  is_primary  Boolean            @default(false)
+
+  company     Company            @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  vertical    HealthcareVertical @relation(fields: [vertical_id], references: [id], onDelete: Cascade)
+
+  @@id([company_id, vertical_id])
+  @@map("company_verticals")
+}
+
+model CompanyTherapeuticArea {
+  company_id          String
+  therapeutic_area_id String
+
+  company             Company         @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  therapeutic_area    TherapeuticArea @relation(fields: [therapeutic_area_id], references: [id], onDelete: Cascade)
+
+  @@id([company_id, therapeutic_area_id])
+  @@map("company_therapeutic_areas")
+}
+
+model Contact {
+  id                  String          @id @default(uuid())
+  first_name          String
+  last_name           String
+  email               String?         @unique
+  phone               String?
+  linkedin_url        String?
+  job_title           String
+  job_function_id     String?
+  job_function        JobFunction?    @relation(fields: [job_function_id], references: [id])
+  seniority_level     SeniorityLevel?
+  company_id          String?
+  company             Company?        @relation(fields: [company_id], references: [id])
+  department          Department?
+  region_id           String?
+  region              Region?         @relation(fields: [region_id], references: [id])
+  country             String?
+  city                String?
+  state_province      String?
+  bio                 String?
+  is_verified         Boolean         @default(false)
+  last_verified_at    DateTime?
+  tags                String[]
+  source              String?
+  engagement_score    Int             @default(0)
+
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+
+  @@index([email])
+  @@index([company_id])
+  @@index([seniority_level])
+  @@index([department])
+  @@index([country])
+  @@index([job_function_id])
+  @@map("contacts")
+}
+
+model Deal {
+  id                      String      @id @default(uuid())
+  title                   String
+  deal_type               DealType
+  deal_stage              DealStage
+  deal_value_usd          BigInt?
+  deal_value_disclosed    Boolean     @default(true)
+  announced_date          DateTime?
+  closed_date             DateTime?
+  acquirer_company_id     String?
+  acquirer_company        Company?    @relation("DealAcquirer", fields: [acquirer_company_id], references: [id])
+  target_company_id       String?
+  target_company          Company?    @relation("DealTarget", fields: [target_company_id], references: [id])
+  description             String?
+  region                  String?
+  country                 String?
+  source_url              String?
+  source                  String?
+  tags                    String[]
+
+  investors               DealInvestor[]
+  verticals               DealVertical[]
+
+  created_at              DateTime    @default(now())
+  updated_at              DateTime    @updatedAt
+
+  @@index([deal_type])
+  @@index([deal_stage])
+  @@index([announced_date])
+  @@index([acquirer_company_id])
+  @@index([target_company_id])
+  @@map("deals")
+}
+
+model DealInvestor {
+  deal_id               String
+  company_id            String
+  investor_role         InvestorRole    @default(PARTICIPANT)
+  investment_amount_usd BigInt?
+
+  deal                  Deal            @relation(fields: [deal_id], references: [id], onDelete: Cascade)
+  company               Company         @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@id([deal_id, company_id])
+  @@map("deal_investors")
+}
+
+model DealVertical {
+  deal_id     String
+  vertical_id String
+
+  deal        Deal               @relation(fields: [deal_id], references: [id], onDelete: Cascade)
+  vertical    HealthcareVertical @relation(fields: [vertical_id], references: [id], onDelete: Cascade)
+
+  @@id([deal_id, vertical_id])
+  @@map("deal_verticals")
+}
+
+model Insight {
+  id            String      @id @default(uuid())
+  title         String
+  slug          String      @unique
+  content_type  ContentType
+  body          String
+  summary       String
+  author        String?
+  published_at  DateTime    @default(now())
+  is_premium    Boolean     @default(false)
+  thumbnail_url String?
+  source_url    String?
+  view_count    Int         @default(0)
+  tags          String[]
+
+  verticals         InsightVertical[]
+  therapeutic_areas InsightTherapeuticArea[]
+
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+
+  @@index([slug])
+  @@index([content_type])
+  @@index([published_at])
+  @@map("insights")
+}
+
+model InsightVertical {
+  insight_id  String
+  vertical_id String
+
+  insight     Insight            @relation(fields: [insight_id], references: [id], onDelete: Cascade)
+  vertical    HealthcareVertical @relation(fields: [vertical_id], references: [id], onDelete: Cascade)
+
+  @@id([insight_id, vertical_id])
+  @@map("insight_verticals")
+}
+
+model InsightTherapeuticArea {
+  insight_id          String
+  therapeutic_area_id String
+
+  insight             Insight         @relation(fields: [insight_id], references: [id], onDelete: Cascade)
+  therapeutic_area    TherapeuticArea @relation(fields: [therapeutic_area_id], references: [id], onDelete: Cascade)
+
+  @@id([insight_id, therapeutic_area_id])
+  @@map("insight_therapeutic_areas")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SAVED SEARCHES (per user, DB-persisted)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SavedSearch {
+  id          String   @id @default(uuid())
+  user_id     String
+  name        String
+  module      String   // "contacts" | "companies" | "deals" | "insights"
+  filters     Json
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@index([user_id])
+  @@map("saved_searches")
+}
