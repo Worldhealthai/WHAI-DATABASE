@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
         if (fnKey) {
           const slug = fnKey.toLowerCase().replace(/_/g, '-')
           // Try to find matching function
-          for (const [jfSlug, jfId] of jfMap.entries()) {
+          for (const [jfSlug, jfId] of Array.from(jfMap.entries())) {
             if (jfSlug.includes(slug.split('-')[0])) {
               jobFunctionId = jfId
               break
