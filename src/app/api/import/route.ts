@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CSV Import endpoint
 // POST /api/import — accepts { rows: object[], columnMap: Record<string, string> }

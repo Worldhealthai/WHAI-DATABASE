@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { buildInsightWhere } from '@/lib/search'
+
+export const dynamic = 'force-dynamic'
 import type { InsightFilters } from '@/types'
 
 export async function GET(req: NextRequest) {

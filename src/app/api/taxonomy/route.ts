@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 // Returns all taxonomy reference data needed by filter sidebars
 // Cached at edge for performance
 
