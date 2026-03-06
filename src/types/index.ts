@@ -10,7 +10,7 @@ export type EmployeeCountRange = 'RANGE_1_10' | 'RANGE_11_50' | 'RANGE_51_200' |
 export type AnnualRevenueRange = 'LESS_THAN_1M' | 'RANGE_1_10M' | 'RANGE_10_50M' | 'RANGE_50_100M' | 'RANGE_100_500M' | 'RANGE_500M_1B' | 'ABOVE_1B'
 export type DealType = 'MA_ACQUISITION' | 'MA_MERGER' | 'VC_SEED' | 'VC_SERIES_A' | 'VC_SERIES_B' | 'VC_SERIES_C_PLUS' | 'PE_BUYOUT' | 'PE_GROWTH_EQUITY' | 'PE_RECAPITALISATION' | 'IPO' | 'SPAC' | 'LICENSING_PARTNERSHIP' | 'JOINT_VENTURE' | 'ASSET_SALE' | 'DEBT_FINANCING' | 'GRANT' | 'SECONDARY_SALE'
 export type DealStage = 'ANNOUNCED' | 'COMPLETED' | 'TERMINATED' | 'RUMOURED'
-export type ContentType = 'MARKET_REPORT' | 'ANALYSIS' | 'NEWS_BRIEF' | 'DATA_SNAPSHOT' | 'QUARTERLY_REPORT' | 'PODCAST_SUMMARY'
+export type ContentType = 'MARKET_REPORT' | 'ANALYSIS' | 'NEWS_BRIEF' | 'DATA_SNAPSHOT' | 'QUARTERLY_REPORT'
 
 // ── Display label maps ────────────────────────────────────────────────────────
 
@@ -116,7 +116,6 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   NEWS_BRIEF: 'News Brief',
   DATA_SNAPSHOT: 'Data Snapshot',
   QUARTERLY_REPORT: 'Quarterly Report',
-  PODCAST_SUMMARY: 'Podcast Summary',
 }
 
 // ── Filter / API types ────────────────────────────────────────────────────────

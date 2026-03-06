@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import marketPulse from '@/data/intelligence-hub/2025-market-pulse-collection.json'
-import deepDives from '@/data/intelligence-hub/2025-deep-dives-collection.json'
-import dataSnapshots from '@/data/intelligence-hub/2025-data-snapshots-collection.json'
-import q1Report from '@/data/intelligence-hub/q1-2025-healthcare-ai-market-pulse.json'
+import { ALL_HUB_ARTICLES } from '@/data/intelligence-hub'
 
 export const dynamic = 'force-dynamic'
 
-// All local intelligence content bundled at build time
-const LOCAL_CONTENT: any[] = [
-  ...(Array.isArray(marketPulse) ? marketPulse : [marketPulse]),
-  ...(Array.isArray(deepDives) ? deepDives : [deepDives]),
-  ...(Array.isArray(dataSnapshots) ? dataSnapshots : [dataSnapshots]),
-  ...(Array.isArray(q1Report) ? q1Report : [q1Report]),
-].filter((i: any) => !i.status || i.status === 'published')
+const LOCAL_CONTENT = ALL_HUB_ARTICLES
 
 // Map world-health-ai content types to WHAI-DATABASE ContentType enum
 const CONTENT_TYPE_MAP: Record<string, string> = {
@@ -78,7 +69,7 @@ export async function GET(req: NextRequest) {
       published_at: parsePublishedAt(item.date, item.created_at),
       thumbnail_url: item.image ?? item.thumbnail_url ?? null,
       is_premium: false,
-      source_url: `${baseUrl}/insights/${item.slug}`,
+      source_url: `/insights/hub/${item.slug}`,
       tags: Array.isArray(item.tags)
         ? item.tags
         : (item.keywords ? item.keywords.split(',').map((k: string) => k.trim()).filter(Boolean) : []),

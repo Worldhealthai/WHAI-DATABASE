@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Search, Lock, BookOpen, BarChart2, Newspaper, TrendingUp, Mic, ExternalLink, Globe } from 'lucide-react'
+import { Search, Lock, BookOpen, BarChart2, Newspaper, TrendingUp, ExternalLink, Globe } from 'lucide-react'
 import { Pagination } from '@/components/search/Pagination'
 import type { InsightFilters, ContentType } from '@/types'
 import { CONTENT_TYPE_LABELS } from '@/types'
@@ -41,7 +41,6 @@ const CONTENT_ICONS: Record<string, React.ElementType> = {
   NEWS_BRIEF: Newspaper,
   DATA_SNAPSHOT: BarChart2,
   QUARTERLY_REPORT: BookOpen,
-  PODCAST_SUMMARY: Mic,
 }
 
 const CONTENT_COLORS: Record<string, string> = {
@@ -50,7 +49,6 @@ const CONTENT_COLORS: Record<string, string> = {
   NEWS_BRIEF: 'text-green-400 bg-green-400/10 border-green-400/20',
   DATA_SNAPSHOT: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
   QUARTERLY_REPORT: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  PODCAST_SUMMARY: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
 }
 
 function InsightCard({ insight, isExternal = false }: { insight: any; isExternal?: boolean }) {
@@ -95,7 +93,7 @@ function InsightCard({ insight, isExternal = false }: { insight: any; isExternal
         {isExternal ? (
           <div className="flex items-center gap-1 mt-3 text-[10px] text-[#00B4D8]">
             <ExternalLink className="w-3 h-3" />
-            Read on worldhealthai.com
+            Read article
           </div>
         ) : (
           <div className="flex flex-wrap gap-1 mt-3">
@@ -111,11 +109,7 @@ function InsightCard({ insight, isExternal = false }: { insight: any; isExternal
   )
 
   if (isExternal) {
-    return (
-      <a href={insight.source_url} target="_blank" rel="noopener noreferrer">
-        {card}
-      </a>
-    )
+    return <Link href={insight.source_url}>{card}</Link>
   }
 
   return (
