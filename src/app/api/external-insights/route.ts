@@ -27,10 +27,7 @@ function parsePublishedAt(dateStr: string | null | undefined, createdAt: string 
 }
 
 export async function GET(req: NextRequest) {
-  const baseUrl = process.env.WORLD_HEALTH_AI_URL
-  if (!baseUrl) {
-    return NextResponse.json({ error: 'WORLD_HEALTH_AI_URL is not configured' }, { status: 503 })
-  }
+  const baseUrl = process.env.WORLD_HEALTH_AI_URL ?? 'https://worldhealthai.com'
 
   try {
     const { searchParams } = req.nextUrl
@@ -65,7 +62,7 @@ export async function GET(req: NextRequest) {
       published_at: parsePublishedAt(item.date, item.created_at),
       thumbnail_url: item.image ?? null,
       is_premium: false,
-      source_url: `${baseUrl}/intelligence-hub/${item.slug}`,
+      source_url: `${baseUrl}/insights/${item.slug}`,
       tags: Array.isArray(item.tags) ? item.tags : (item.keywords ? item.keywords.split(',').map((k: string) => k.trim()).filter(Boolean) : []),
       verticals: [],
       therapeutic_areas: [],
