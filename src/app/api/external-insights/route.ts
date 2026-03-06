@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +28,49 @@ function parsePublishedAt(dateStr: string | null | undefined, createdAt: string 
   return new Date().toISOString()
 }
 
+// Load content from local world-health-ai JSON files (primary source)
+function loadLocalContent(): any[] {
+  const contentDir = process.env.WORLD_HEALTH_AI_CONTENT_DIR
+    ?? join(process.cwd(), '..', '-world-health-ai', 'database', 'content')
+
+  const files = [
+    '2025-market-pulse-collection.json',
+    '2025-deep-dives-collection.json',
+    '2025-data-snapshots-collection.json',
+    'q1-2025-healthcare-ai-market-pulse.json',
+  ]
+
+  const results: any[] = []
+  for (const file of files) {
+    try {
+      const raw = readFileSync(join(contentDir, file), 'utf-8')
+      const parsed = JSON.parse(raw)
+      const items = Array.isArray(parsed) ? parsed : [parsed]
+      results.push(...items.filter((i: any) => i.status === 'published' || !i.status))
+    } catch {
+      // skip missing files silently
+    }
+  }
+  return results
+}
+
+// Try HTTP fetch from deployed site, fall back to local files
+async function fetchRawInsights(baseUrl: string): Promise<any[]> {
+  try {
+    const res = await fetch(`${baseUrl}/api/insights?status=published`, {
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data) && data.length > 0) return data
+    }
+  } catch {
+    // network failure — fall through to local files
+  }
+  return loadLocalContent()
+}
+
 export async function GET(req: NextRequest) {
   const baseUrl = process.env.WORLD_HEALTH_AI_URL ?? 'https://worldhealthai.com'
 
@@ -36,23 +81,11 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '12'), 100)
 
-    // Fetch published insights from world-health-ai website
-    const params = new URLSearchParams({ status: 'published' })
-    const res = await fetch(`${baseUrl}/api/insights?${params}`, {
-      next: { revalidate: 300 }, // cache for 5 minutes
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-    if (!res.ok) {
-      console.error(`world-health-ai API error: ${res.status} ${res.statusText}`)
-      return NextResponse.json({ error: 'Failed to fetch intelligence insights' }, { status: 502 })
-    }
-
-    const raw: any[] = await res.json()
+    const raw = await fetchRawInsights(baseUrl)
 
     // Map to WHAI-DATABASE insight shape
-    let mapped = raw.map((item) => ({
-      id: item.id,
+    let mapped = raw.map((item, idx) => ({
+      id: item.id ?? `ext-${idx}`,
       title: item.title ?? '',
       slug: item.slug ?? '',
       content_type: mapContentType(item.content_type ?? item.category),
@@ -60,13 +93,12 @@ export async function GET(req: NextRequest) {
       body: item.content ?? '',
       author: item.author ?? 'World Health AI Forum',
       published_at: parsePublishedAt(item.date, item.created_at),
-      thumbnail_url: item.image ?? null,
+      thumbnail_url: item.image ?? item.thumbnail_url ?? null,
       is_premium: false,
       source_url: `${baseUrl}/insights/${item.slug}`,
       tags: Array.isArray(item.tags) ? item.tags : (item.keywords ? item.keywords.split(',').map((k: string) => k.trim()).filter(Boolean) : []),
       verticals: [],
       therapeutic_areas: [],
-      // Extra metadata from the source
       _source: 'intelligence-hub',
       _category: item.category ?? null,
       _report_quarter: item.report_quarter ?? null,
