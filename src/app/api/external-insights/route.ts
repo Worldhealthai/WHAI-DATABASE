@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import marketPulse from '@/data/intelligence-hub/2025-market-pulse-collection.json'
+import deepDives from '@/data/intelligence-hub/2025-deep-dives-collection.json'
+import dataSnapshots from '@/data/intelligence-hub/2025-data-snapshots-collection.json'
+import q1Report from '@/data/intelligence-hub/q1-2025-healthcare-ai-market-pulse.json'
 
 export const dynamic = 'force-dynamic'
+
+// All local intelligence content bundled at build time
+const LOCAL_CONTENT: any[] = [
+  ...(Array.isArray(marketPulse) ? marketPulse : [marketPulse]),
+  ...(Array.isArray(deepDives) ? deepDives : [deepDives]),
+  ...(Array.isArray(dataSnapshots) ? dataSnapshots : [dataSnapshots]),
+  ...(Array.isArray(q1Report) ? q1Report : [q1Report]),
+].filter((i: any) => !i.status || i.status === 'published')
 
 // Map world-health-ai content types to WHAI-DATABASE ContentType enum
 const CONTENT_TYPE_MAP: Record<string, string> = {
@@ -28,33 +38,7 @@ function parsePublishedAt(dateStr: string | null | undefined, createdAt: string 
   return new Date().toISOString()
 }
 
-// Load content from local world-health-ai JSON files (primary source)
-function loadLocalContent(): any[] {
-  const contentDir = process.env.WORLD_HEALTH_AI_CONTENT_DIR
-    ?? join(process.cwd(), '..', '-world-health-ai', 'database', 'content')
-
-  const files = [
-    '2025-market-pulse-collection.json',
-    '2025-deep-dives-collection.json',
-    '2025-data-snapshots-collection.json',
-    'q1-2025-healthcare-ai-market-pulse.json',
-  ]
-
-  const results: any[] = []
-  for (const file of files) {
-    try {
-      const raw = readFileSync(join(contentDir, file), 'utf-8')
-      const parsed = JSON.parse(raw)
-      const items = Array.isArray(parsed) ? parsed : [parsed]
-      results.push(...items.filter((i: any) => i.status === 'published' || !i.status))
-    } catch {
-      // skip missing files silently
-    }
-  }
-  return results
-}
-
-// Try HTTP fetch from deployed site, fall back to local files
+// Try HTTP fetch from deployed site; fall back to bundled JSON
 async function fetchRawInsights(baseUrl: string): Promise<any[]> {
   try {
     const res = await fetch(`${baseUrl}/api/insights?status=published`, {
@@ -66,9 +50,9 @@ async function fetchRawInsights(baseUrl: string): Promise<any[]> {
       if (Array.isArray(data) && data.length > 0) return data
     }
   } catch {
-    // network failure — fall through to local files
+    // network failure — fall through to bundled data
   }
-  return loadLocalContent()
+  return LOCAL_CONTENT
 }
 
 export async function GET(req: NextRequest) {
@@ -83,8 +67,7 @@ export async function GET(req: NextRequest) {
 
     const raw = await fetchRawInsights(baseUrl)
 
-    // Map to WHAI-DATABASE insight shape
-    let mapped = raw.map((item, idx) => ({
+    let mapped = raw.map((item: any, idx: number) => ({
       id: item.id ?? `ext-${idx}`,
       title: item.title ?? '',
       slug: item.slug ?? '',
@@ -96,7 +79,9 @@ export async function GET(req: NextRequest) {
       thumbnail_url: item.image ?? item.thumbnail_url ?? null,
       is_premium: false,
       source_url: `${baseUrl}/insights/${item.slug}`,
-      tags: Array.isArray(item.tags) ? item.tags : (item.keywords ? item.keywords.split(',').map((k: string) => k.trim()).filter(Boolean) : []),
+      tags: Array.isArray(item.tags)
+        ? item.tags
+        : (item.keywords ? item.keywords.split(',').map((k: string) => k.trim()).filter(Boolean) : []),
       verticals: [],
       therapeutic_areas: [],
       _source: 'intelligence-hub',
@@ -105,7 +90,6 @@ export async function GET(req: NextRequest) {
       _newsletter_featured: item.newsletter_featured ?? false,
     }))
 
-    // Filter by query
     if (query) {
       const q = query.toLowerCase()
       mapped = mapped.filter(
@@ -116,7 +100,6 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Filter by content types
     if (contentTypes.length > 0) {
       mapped = mapped.filter((i) => contentTypes.includes(i.content_type))
     }
