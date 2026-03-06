@@ -162,7 +162,7 @@ export default function InsightsPage() {
                 <div className="p-4 flex flex-col flex-1">
                   <div className="flex items-center justify-between mb-2">
                     <span className={cn('whai-badge border text-[10px]', CONTENT_COLORS[insight.content_type])}>
-                      {CONTENT_TYPE_LABELS[insight.content_type]}
+                      {CONTENT_TYPE_LABELS[insight.content_type as ContentType]}
                     </span>
                     <span className="text-[10px] text-slate-500">{formatDate(insight.published_at)}</span>
                   </div>
