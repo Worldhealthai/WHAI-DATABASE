@@ -47,7 +47,7 @@ export default async function HubArticlePage({ params }: { params: Promise<{ slu
             {typeLabel}
           </span>
           <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#00B4D8]/10 border border-[#00B4D8]/20 text-[#00B4D8]">
-            <Globe className="w-2.5 h-2.5" /> worldhealthai.com
+            <Globe className="w-2.5 h-2.5" /> worldhealth.ai
           </span>
         </div>
 

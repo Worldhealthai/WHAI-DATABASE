@@ -47,7 +47,7 @@ async function fetchRawInsights(baseUrl: string): Promise<any[]> {
 }
 
 export async function GET(req: NextRequest) {
-  const baseUrl = process.env.WORLD_HEALTH_AI_URL ?? 'https://worldhealthai.com'
+  const baseUrl = process.env.WORLD_HEALTH_AI_URL ?? 'https://worldhealth.ai'
 
   try {
     const { searchParams } = req.nextUrl

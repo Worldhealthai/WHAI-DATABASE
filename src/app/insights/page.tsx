@@ -75,7 +75,7 @@ function InsightCard({ insight, isExternal = false }: { insight: any; isExternal
         )}
         {isExternal && (
           <div className="absolute top-2 left-2 flex items-center gap-1 bg-[#00B4D8]/20 border border-[#00B4D8]/30 text-[#00B4D8] text-[10px] px-1.5 py-0.5 rounded-full">
-            <Globe className="w-2.5 h-2.5" /> worldhealthai.com
+            <Globe className="w-2.5 h-2.5" /> worldhealth.ai
           </div>
         )}
       </div>
@@ -213,14 +213,14 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      {/* ── Intelligence Hub (from worldhealthai.com) ── */}
+      {/* ── Intelligence Hub (from worldhealth.ai) ── */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-[#00B4D8]" />
             <h2 className="text-base font-semibold text-white">Intelligence Hub</h2>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00B4D8]/10 border border-[#00B4D8]/20 text-[#00B4D8]">
-              worldhealthai.com
+              worldhealth.ai
             </span>
           </div>
           {extData && extData.total > 0 && (
