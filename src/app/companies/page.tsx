@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Search, Download, SlidersHorizontal, Building2, Users, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
 import { Pagination } from '@/components/search/Pagination'
 import { FilterChips } from '@/components/search/FilterChips'
-import type { CompanyFilters, CompanyType, OwnershipStatus } from '@/types'
+import type { CompanyFilters, CompanyType, OwnershipStatus, EmployeeCountRange, AnnualRevenueRange } from '@/types'
 import {
   COMPANY_TYPE_LABELS, OWNERSHIP_LABELS, EMPLOYEE_RANGE_LABELS, REVENUE_RANGE_LABELS,
 } from '@/types'
@@ -268,10 +268,10 @@ export default function CompaniesPage() {
                           {[company.headquarters_city, company.headquarters_country].filter(Boolean).join(', ') || '—'}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
-                          {company.employee_count_range ? EMPLOYEE_RANGE_LABELS[company.employee_count_range as any] : '—'}
+                          {company.employee_count_range ? EMPLOYEE_RANGE_LABELS[company.employee_count_range as EmployeeCountRange] : '—'}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
-                          {company.annual_revenue_range ? REVENUE_RANGE_LABELS[company.annual_revenue_range as any] : '—'}
+                          {company.annual_revenue_range ? REVENUE_RANGE_LABELS[company.annual_revenue_range as AnnualRevenueRange] : '—'}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
                           {company.ownership_status ? OWNERSHIP_LABELS[company.ownership_status as OwnershipStatus] : '—'}
