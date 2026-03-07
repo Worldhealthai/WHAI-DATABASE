@@ -27,9 +27,13 @@ export function buildContactWhere(filters: ContactFilters): Prisma.ContactWhereI
     })
   }
 
-  // seniority_level REMOVED from schema
-  // department REMOVED from schema
-  // job_function_id REMOVED from schema
+  if (filters.seniorities?.length) {
+    AND.push({ seniority: { in: filters.seniorities } })
+  }
+
+  if (filters.departments?.length) {
+    AND.push({ department: { in: filters.departments } })
+  }
 
   if (filters.companyTypes?.length) {
     AND.push({ company: { companyType: { in: filters.companyTypes as any[] } } })

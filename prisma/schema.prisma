@@ -52,6 +52,8 @@ model Contact {
   phone           String?
   linkedinUrl     String?
   jobTitle        String?
+  seniority       String?
+  department      String?
   companyName     String?
   company         Company? @relation(fields: [companyId], references: [id])
   companyId       String?

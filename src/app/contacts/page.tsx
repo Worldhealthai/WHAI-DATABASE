@@ -19,6 +19,8 @@ async function fetchContacts(filters: ContactFilters, page: number, pageSize: nu
   params.set('sortDir', sortDir)
 
   if (filters.query) params.set('query', filters.query)
+  filters.seniorities?.forEach((s) => params.append('seniorities', s))
+  filters.departments?.forEach((d) => params.append('departments', d))
   filters.companyTypes?.forEach((t) => params.append('companyTypes', t))
   filters.verticalSlugs?.forEach((v) => params.append('verticalSlugs', v))
   filters.therapeuticAreas?.forEach((t) => params.append('therapeuticAreas', t))
@@ -193,6 +195,14 @@ function buildChips(filters: ContactFilters) {
   if (filters.query) {
     chips.push({ key: 'query', label: 'Search', value: filters.query, displayValue: filters.query })
   }
+
+  filters.seniorities?.forEach((s) =>
+    chips.push({ key: 'seniorities', label: 'Seniority', value: s, displayValue: s })
+  )
+
+  filters.departments?.forEach((d) =>
+    chips.push({ key: 'departments', label: 'Department', value: d, displayValue: d })
+  )
 
   filters.companyTypes?.forEach((t) =>
     chips.push({ key: 'companyTypes', label: 'Company Type', value: t, displayValue: t })
