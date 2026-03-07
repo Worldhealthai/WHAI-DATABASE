@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { ensureSeeded } from '@/lib/auto-seed'
 import { buildContactWhere } from '@/lib/search'
 import type { ContactFilters } from '@/types'
 
@@ -7,6 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    await ensureSeeded()
     const { searchParams } = req.nextUrl
     const page = parseInt(searchParams.get('page') ?? '1')
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '25'), 100)
