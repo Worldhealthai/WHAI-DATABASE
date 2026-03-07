@@ -1,0 +1,23 @@
+company_name,vertical_slug,is_primary
+Pfizer,pharmaceuticals,true
+Pfizer,vaccines,false
+Johnson & Johnson,pharmaceuticals,true
+Johnson & Johnson,medical-devices,false
+Roche,pharmaceuticals,true
+Roche,diagnostics,false
+Novartis,pharmaceuticals,true
+AstraZeneca,pharmaceuticals,true
+Moderna,biotechnology,true
+Moderna,vaccines,false
+Medtronic,medical-devices,true
+Teladoc Health,digital-health,true
+IQVIA,clinical-research,true
+IQVIA,analytics,false
+Tempus AI,digital-health,true
+Tempus AI,diagnostics,false
+Illumina,genomics,true
+Veeva Systems,health-it,true
+BioNTech,biotechnology,true
+BioNTech,immunotherapy,false
+Catalent,cdmo,true
+Oscar Health,health-insurance,true

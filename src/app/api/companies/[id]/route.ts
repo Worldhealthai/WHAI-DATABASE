@@ -8,12 +8,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const company = await prisma.company.findUnique({
       where: { id: params.id },
       include: {
-        verticals: { include: { vertical: true } },
-        therapeutic_areas: { include: { therapeutic_area: true } },
-        parent_company: { select: { id: true, name: true, logo_url: true } },
-        subsidiaries: { select: { id: true, name: true, logo_url: true, company_type: true } },
+        verticals: true,
+        therapeuticAreas: true,
         _count: {
-          select: { contacts: true, deals_as_acquirer: true, deals_as_target: true },
+          select: { contacts: true, dealsAsAcquirer: true, dealsAsTarget: true },
         },
       },
     })
@@ -22,25 +20,23 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
     const [contacts, deals] = await Promise.all([
       prisma.contact.findMany({
-        where: { company_id: params.id },
+        where: { companyId: params.id },
         take: 20,
-        orderBy: [{ seniority_level: 'asc' }, { engagement_score: 'desc' }],
-        include: { job_function: { select: { name: true } } },
+        orderBy: { engagementScore: 'desc' },
       }),
       prisma.deal.findMany({
         where: {
           OR: [
-            { acquirer_company_id: params.id },
-            { target_company_id: params.id },
-            { investors: { some: { company_id: params.id } } },
+            { acquirerCompanyId: params.id },
+            { targetCompanyId: params.id },
+            { investors: { some: { investorCompanyId: params.id } } },
           ],
         },
         take: 10,
-        orderBy: { announced_date: 'desc' },
+        orderBy: { announcedDate: 'desc' },
         include: {
-          acquirer_company: { select: { id: true, name: true } },
-          target_company: { select: { id: true, name: true } },
-          verticals: { include: { vertical: { select: { name: true } } } },
+          acquirerCompany: { select: { id: true, name: true } },
+          targetCompany: { select: { id: true, name: true } },
         },
       }),
     ])

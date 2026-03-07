@@ -6,19 +6,18 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Search, Lock, BookOpen, BarChart2, Newspaper, TrendingUp, Mic, ExternalLink, Globe } from 'lucide-react'
 import { Pagination } from '@/components/search/Pagination'
-import type { InsightFilters, ContentType } from '@/types'
-import { CONTENT_TYPE_LABELS } from '@/types'
+import type { InsightFilters } from '@/types'
+import { CONTENT_TYPE_OPTIONS } from '@/types'
 import { cn, formatDate } from '@/lib/utils'
 
 async function fetchInsights(filters: InsightFilters, page: number, pageSize: number) {
   const params = new URLSearchParams()
   params.set('page', String(page))
   params.set('pageSize', String(pageSize))
-  params.set('sortBy', 'published_at')
+  params.set('sortBy', 'publishedAt')
   params.set('sortDir', 'desc')
   if (filters.query) params.set('query', filters.query)
   filters.contentTypes?.forEach((t) => params.append('contentTypes', t))
-  filters.verticalIds?.forEach((id) => params.append('verticalIds', id))
   if (filters.isPremium !== undefined) params.set('isPremium', String(filters.isPremium))
   const res = await fetch(`/api/insights?${params}`)
   return res.json()
@@ -36,41 +35,31 @@ async function fetchExternalInsights(filters: InsightFilters, page: number, page
 }
 
 const CONTENT_ICONS: Record<string, React.ElementType> = {
-  MARKET_REPORT: BarChart2,
-  ANALYSIS: TrendingUp,
-  NEWS_BRIEF: Newspaper,
-  DATA_SNAPSHOT: BarChart2,
-  QUARTERLY_REPORT: BookOpen,
-  PODCAST_SUMMARY: Mic,
+  'Market Report': BarChart2,
+  'Analysis': TrendingUp,
+  'News Brief': Newspaper,
+  'Data Snapshot': BarChart2,
+  'Quarterly Report': BookOpen,
+  'Podcast Summary': Mic,
 }
 
 const CONTENT_COLORS: Record<string, string> = {
-  MARKET_REPORT: 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
-  ANALYSIS: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  NEWS_BRIEF: 'text-green-400 bg-green-400/10 border-green-400/20',
-  DATA_SNAPSHOT: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
-  QUARTERLY_REPORT: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  PODCAST_SUMMARY: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
+  'Market Report': 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
+  'Analysis': 'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  'News Brief': 'text-green-400 bg-green-400/10 border-green-400/20',
+  'Data Snapshot': 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  'Quarterly Report': 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+  'Podcast Summary': 'text-pink-400 bg-pink-400/10 border-pink-400/20',
 }
 
 function InsightCard({ insight, isExternal = false }: { insight: any; isExternal?: boolean }) {
-  const Icon = CONTENT_ICONS[insight.content_type] ?? BookOpen
+  const Icon = CONTENT_ICONS[insight.contentType] ?? BookOpen
   const card = (
     <div className="whai-card hover:border-[#00B4D8]/40 transition-all group overflow-hidden flex flex-col">
       {/* Thumbnail */}
       <div className="h-36 bg-gradient-to-br from-[#0D1F3C] to-[#1a3a5c] flex items-center justify-center relative overflow-hidden">
-        {insight.thumbnail_url ? (
-          <Image
-            src={insight.thumbnail_url}
-            alt={insight.title}
-            fill
-            className="object-cover opacity-60"
-            unoptimized
-          />
-        ) : (
-          <Icon className="w-10 h-10 text-[#00B4D8]/20" />
-        )}
-        {insight.is_premium && (
+        <Icon className="w-10 h-10 text-[#00B4D8]/20" />
+        {insight.isPremium && (
           <div className="absolute top-2 right-2 flex items-center gap-1 bg-amber-400/20 border border-amber-400/30 text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full">
             <Lock className="w-2.5 h-2.5" /> Premium
           </div>
@@ -83,10 +72,10 @@ function InsightCard({ insight, isExternal = false }: { insight: any; isExternal
       </div>
       <div className="p-4 flex flex-col flex-1">
         <div className="flex items-center justify-between mb-2">
-          <span className={cn('whai-badge border text-[10px]', CONTENT_COLORS[insight.content_type])}>
-            {CONTENT_TYPE_LABELS[insight.content_type as ContentType]}
+          <span className={cn('whai-badge border text-[10px]', CONTENT_COLORS[insight.contentType] ?? 'text-slate-300 bg-slate-700/50 border-slate-600')}>
+            {insight.contentType}
           </span>
-          <span className="text-[10px] text-slate-500">{formatDate(insight.published_at)}</span>
+          <span className="text-[10px] text-slate-500">{formatDate(insight.publishedAt)}</span>
         </div>
         <h3 className="font-semibold text-white group-hover:text-[#00B4D8] transition-colors text-sm leading-snug mb-2 line-clamp-2">
           {insight.title}
@@ -98,13 +87,13 @@ function InsightCard({ insight, isExternal = false }: { insight: any; isExternal
             Read on worldhealthai.com
           </div>
         ) : (
-          <div className="flex flex-wrap gap-1 mt-3">
-            {insight.verticals?.slice(0, 2).map((iv: any) => (
-              <span key={iv.vertical.id} className="text-[10px] px-1.5 py-0.5 rounded bg-[#112850] text-slate-400 border border-[#1a3a5c]">
-                {iv.vertical.name}
+          insight.tags && (
+            <div className="flex flex-wrap gap-1 mt-3">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#112850] text-slate-400 border border-[#1a3a5c]">
+                {insight.tags}
               </span>
-            ))}
-          </div>
+            </div>
+          )
         )}
       </div>
     </div>
@@ -112,14 +101,14 @@ function InsightCard({ insight, isExternal = false }: { insight: any; isExternal
 
   if (isExternal) {
     return (
-      <a href={insight.source_url} target="_blank" rel="noopener noreferrer">
+      <a href={insight.sourceUrl} target="_blank" rel="noopener noreferrer">
         {card}
       </a>
     )
   }
 
   return (
-    <Link href={`/insights/${insight.slug}`}>
+    <Link href={`/insights/${insight.id}`}>
       {card}
     </Link>
   )
@@ -145,8 +134,6 @@ export default function InsightsPage() {
   useEffect(() => { setPage(1); setExtPage(1) }, [filters])
 
   const update = (partial: Partial<InsightFilters>) => setFilters((prev) => ({ ...prev, ...partial }))
-
-  const ALL_TYPES = Object.keys(CONTENT_TYPE_LABELS) as ContentType[]
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6 space-y-8">
@@ -182,7 +169,7 @@ export default function InsightsPage() {
           >
             All
           </button>
-          {ALL_TYPES.map((t) => {
+          {CONTENT_TYPE_OPTIONS.map((t) => {
             const Icon = CONTENT_ICONS[t] ?? BookOpen
             const active = (filters.contentTypes ?? []).includes(t)
             return (
@@ -200,7 +187,7 @@ export default function InsightsPage() {
                 )}
               >
                 <Icon className="w-3 h-3" />
-                {CONTENT_TYPE_LABELS[t]}
+                {t}
               </button>
             )
           })}
@@ -219,7 +206,7 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      {/* ── Intelligence Hub (from worldhealthai.com) ── */}
+      {/* Intelligence Hub (from worldhealthai.com) */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -265,7 +252,7 @@ export default function InsightsPage() {
         )}
       </section>
 
-      {/* ── Database Insights ── */}
+      {/* Database Insights */}
       <section className="space-y-4">
         <div className="flex items-center gap-3">
           <h2 className="text-base font-semibold text-white">Database Insights</h2>

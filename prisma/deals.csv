@@ -1,0 +1,11 @@
+title,deal_type,deal_stage,deal_value_usd,announced_date,closed_date,target_company,acquirer_company,description,source_url,tags
+Pfizer Acquires Seagen,M&A (Acquisition),Completed,43000000000,2023-03-13,2023-12-14,,,Pfizer's acquisition of Seagen to bolster oncology pipeline,,oncology;M&A;mega-deal
+Johnson & Johnson MedTech Spinoff,Asset Sale / Divestiture,Completed,40000000000,2021-11-12,2023-05-04,Johnson & Johnson,,J&J separation of consumer health business into Kenvue,,spinoff;consumer-health
+AstraZeneca Acquires Alexion,M&A (Acquisition),Completed,39000000000,2020-12-12,2021-07-21,,AstraZeneca,AstraZeneca acquisition of Alexion Pharmaceuticals for rare disease portfolio,,rare-disease;M&A
+Moderna Series B Funding,Venture Capital (Series B),Completed,500000000,2018-01-01,,Moderna,,Early-stage funding round for Moderna's mRNA platform,,mRNA;venture-capital
+IQVIA Formation,M&A (Merger),Completed,13000000000,2016-05-03,2016-10-03,IQVIA,,Merger of Quintiles and IMS Health forming IQVIA,,CRO;analytics;merger
+Tempus AI IPO,IPO,Completed,6000000000,2024-06-14,,Tempus AI,,Tempus AI initial public offering on NASDAQ,,AI;IPO;precision-medicine
+Illumina Grail Divestiture,Asset Sale / Divestiture,Completed,7100000000,2023-06-29,2024-06-24,Illumina,,Illumina required to divest Grail after antitrust ruling,,diagnostics;antitrust;divestiture
+Catalent PE Acquisition,Private Equity (Buyout),Completed,17500000000,2023-02-05,2024-02-14,Catalent,,Novo Holdings acquisition of Catalent CDMO business,,CDMO;private-equity
+Oscar Health Growth Round,Venture Capital (Series C+),Completed,1400000000,2021-03-01,,Oscar Health,,Oscar Health funding round ahead of IPO,,insurtech;health-insurance
+BioNTech Oncology Partnership,Licensing / Partnership,Announced,1000000000,2024-10-01,,,BioNTech,Strategic oncology licensing partnership for next-gen immunotherapies,,oncology;licensing;immunotherapy

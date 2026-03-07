@@ -9,7 +9,6 @@ import { ContactsTable } from '@/components/contacts/ContactsTable'
 import { FilterChips } from '@/components/search/FilterChips'
 import { Pagination } from '@/components/search/Pagination'
 import type { ContactFilters } from '@/types'
-import { SENIORITY_LABELS, DEPARTMENT_LABELS } from '@/types'
 import { cn } from '@/lib/utils'
 
 async function fetchContacts(filters: ContactFilters, page: number, pageSize: number, sortBy: string, sortDir: string) {
@@ -20,28 +19,14 @@ async function fetchContacts(filters: ContactFilters, page: number, pageSize: nu
   params.set('sortDir', sortDir)
 
   if (filters.query) params.set('query', filters.query)
-  filters.seniority?.forEach((s) => params.append('seniority', s))
-  filters.department?.forEach((d) => params.append('department', d))
-  filters.jobFunctionIds?.forEach((id) => params.append('jobFunctionIds', id))
-  filters.companyTypes?.forEach((ct) => params.append('companyTypes', ct))
-  filters.verticalIds?.forEach((id) => params.append('verticalIds', id))
-  filters.therapeuticAreaIds?.forEach((id) => params.append('therapeuticAreaIds', id))
-  filters.regionIds?.forEach((id) => params.append('regionIds', id))
   filters.countries?.forEach((c) => params.append('countries', c))
   filters.cities?.forEach((c) => params.append('cities', c))
   filters.tags?.forEach((t) => params.append('tags', t))
   if (filters.engagementMin !== undefined) params.set('engagementMin', String(filters.engagementMin))
   if (filters.engagementMax !== undefined) params.set('engagementMax', String(filters.engagementMax))
-  if (filters.isVerified !== undefined) params.set('isVerified', String(filters.isVerified))
 
   const res = await fetch(`/api/contacts?${params}`)
   if (!res.ok) throw new Error('Failed to fetch contacts')
-  return res.json()
-}
-
-async function fetchTaxonomy() {
-  const res = await fetch('/api/taxonomy')
-  if (!res.ok) throw new Error('Failed to fetch taxonomy')
   return res.json()
 }
 
@@ -49,14 +34,9 @@ export default function ContactsPage() {
   const [filters, setFilters] = useState<ContactFilters>({})
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [sortBy, setSortBy] = useState('last_name')
+  const [sortBy, setSortBy] = useState('lastName')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-
-  const { data: taxonomy } = useQuery({
-    queryKey: ['taxonomy'],
-    queryFn: fetchTaxonomy,
-  })
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['contacts', filters, page, pageSize, sortBy, sortDir],
@@ -73,7 +53,7 @@ export default function ContactsPage() {
   }
 
   // Build filter chips
-  const chips = buildChips(filters, taxonomy)
+  const chips = buildChips(filters)
 
   const removeChip = (key: string, value: string) => {
     setFilters((prev) => {
@@ -93,9 +73,9 @@ export default function ContactsPage() {
   const exportCSV = () => {
     if (!data?.data) return
     const rows = data.data.map((c: any) => [
-      c.first_name, c.last_name, c.email ?? '', c.job_title,
-      c.company?.name ?? '', c.seniority_level ?? '', c.department ?? '',
-      c.city ?? '', c.country ?? '', c.engagement_score,
+      c.firstName, c.lastName, c.email ?? '', c.jobTitle,
+      c.company?.name ?? '', c.seniority ?? '', c.department ?? '',
+      c.city ?? '', c.country ?? '', c.engagementScore,
     ])
     const header = ['First Name', 'Last Name', 'Email', 'Job Title', 'Company', 'Seniority', 'Department', 'City', 'Country', 'Engagement Score']
     const csv = [header, ...rows].map((r) => r.map((v: any) => `"${v}"`).join(',')).join('\n')
@@ -159,7 +139,7 @@ export default function ContactsPage() {
           <div className="w-64 shrink-0 border-r border-border overflow-y-auto p-4 bg-[#0A1628]">
             <ContactFilterSidebar
               filters={filters}
-              taxonomy={taxonomy}
+              taxonomy={undefined}
               onChange={setFilters}
             />
           </div>
@@ -204,70 +184,28 @@ export default function ContactsPage() {
   )
 }
 
-function buildChips(filters: ContactFilters, taxonomy: any) {
+function buildChips(filters: ContactFilters) {
   const chips: { key: string; label: string; value: string; displayValue: string }[] = []
 
   if (filters.query) {
     chips.push({ key: 'query', label: 'Search', value: filters.query, displayValue: filters.query })
   }
 
-  filters.seniority?.forEach((s) =>
-    chips.push({ key: 'seniority', label: 'Seniority', value: s, displayValue: SENIORITY_LABELS[s] ?? s })
+  filters.countries?.forEach((c) =>
+    chips.push({ key: 'countries', label: 'Country', value: c, displayValue: c })
   )
 
-  filters.department?.forEach((d) =>
-    chips.push({ key: 'department', label: 'Dept', value: d, displayValue: DEPARTMENT_LABELS[d] ?? d })
+  filters.cities?.forEach((c) =>
+    chips.push({ key: 'cities', label: 'City', value: c, displayValue: c })
   )
 
-  filters.jobFunctionIds?.forEach((id) => {
-    const jf = taxonomy?.jobFunctions?.find((j: any) => j.id === id)
-    chips.push({ key: 'jobFunctionIds', label: 'Function', value: id, displayValue: jf?.name ?? id })
-  })
-
-  filters.verticalIds?.forEach((id) => {
-    const v = findVertical(taxonomy?.verticals ?? [], id)
-    chips.push({ key: 'verticalIds', label: 'Vertical', value: id, displayValue: v?.name ?? id })
-  })
-
-  filters.therapeuticAreaIds?.forEach((id) => {
-    const ta = taxonomy?.therapeuticAreas?.find((t: any) => t.id === id)
-    chips.push({ key: 'therapeuticAreaIds', label: 'Therapy', value: id, displayValue: ta?.name ?? id })
-  })
-
-  filters.regionIds?.forEach((id) => {
-    const r = findRegion(taxonomy?.regions ?? [], id)
-    chips.push({ key: 'regionIds', label: 'Region', value: id, displayValue: r?.name ?? id })
-  })
-
-  if (filters.isVerified) {
-    chips.push({ key: 'isVerified', label: 'Verified', value: 'true', displayValue: 'Verified Only' })
-  }
+  filters.tags?.forEach((t) =>
+    chips.push({ key: 'tags', label: 'Tag', value: t, displayValue: t })
+  )
 
   if (filters.engagementMin !== undefined) {
-    chips.push({ key: 'engagementMin', label: 'Engagement', value: String(filters.engagementMin), displayValue: `≥ ${filters.engagementMin}` })
+    chips.push({ key: 'engagementMin', label: 'Engagement', value: String(filters.engagementMin), displayValue: `>= ${filters.engagementMin}` })
   }
 
   return chips
-}
-
-function findVertical(verticals: any[], id: string): any {
-  for (const v of verticals) {
-    if (v.id === id) return v
-    if (v.children) {
-      const found = findVertical(v.children, id)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-function findRegion(regions: any[], id: string): any {
-  for (const r of regions) {
-    if (r.id === id) return r
-    if (r.children) {
-      const found = findRegion(r.children, id)
-      if (found) return found
-    }
-  }
-  return null
 }

@@ -3,34 +3,27 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+// Note: This route now looks up by ID since slug was removed from the Insight model.
+// The route segment is still named [slug] but accepts an ID value.
 export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
   try {
     const insight = await prisma.insight.findUnique({
-      where: { slug: params.slug },
-      include: {
-        verticals: { include: { vertical: true } },
-        therapeutic_areas: { include: { therapeutic_area: true } },
-      },
+      where: { id: params.slug },
     })
 
     if (!insight) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Increment view count
-    await prisma.insight.update({
-      where: { id: insight.id },
-      data: { view_count: { increment: 1 } },
-    })
-
-    // Related articles (same verticals)
-    const verticalIds = insight.verticals.map((v) => v.vertical_id)
-    const related = await prisma.insight.findMany({
-      where: {
-        id: { not: insight.id },
-        verticals: { some: { vertical_id: { in: verticalIds } } },
-      },
-      take: 4,
-      orderBy: { published_at: 'desc' },
-    })
+    // Related articles (same content type)
+    const related = insight.contentType
+      ? await prisma.insight.findMany({
+          where: {
+            id: { not: insight.id },
+            contentType: insight.contentType,
+          },
+          take: 4,
+          orderBy: { publishedAt: 'desc' },
+        })
+      : []
 
     return NextResponse.json({ insight, related })
   } catch (error) {

@@ -6,9 +6,9 @@ import Link from 'next/link'
 import { Search, Download, SlidersHorizontal, Building2, Users, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
 import { Pagination } from '@/components/search/Pagination'
 import { FilterChips } from '@/components/search/FilterChips'
-import type { CompanyFilters, CompanyType, OwnershipStatus, EmployeeCountRange, AnnualRevenueRange } from '@/types'
+import type { CompanyFilters } from '@/types'
 import {
-  COMPANY_TYPE_LABELS, OWNERSHIP_LABELS, EMPLOYEE_RANGE_LABELS, REVENUE_RANGE_LABELS,
+  COMPANY_TYPE_OPTIONS, OWNERSHIP_OPTIONS, EMPLOYEE_RANGE_OPTIONS, REVENUE_RANGE_OPTIONS,
 } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -22,8 +22,6 @@ async function fetchCompanies(filters: CompanyFilters, page: number, pageSize: n
   if (filters.query) params.set('query', filters.query)
   filters.companyTypes?.forEach((ct) => params.append('companyTypes', ct))
   filters.ownershipStatus?.forEach((os) => params.append('ownershipStatus', os))
-  filters.verticalIds?.forEach((id) => params.append('verticalIds', id))
-  filters.therapeuticAreaIds?.forEach((id) => params.append('therapeuticAreaIds', id))
   filters.countries?.forEach((c) => params.append('countries', c))
   filters.employeeRanges?.forEach((r) => params.append('employeeRanges', r))
   filters.revenueRanges?.forEach((r) => params.append('revenueRanges', r))
@@ -33,12 +31,6 @@ async function fetchCompanies(filters: CompanyFilters, page: number, pageSize: n
 
   const res = await fetch(`/api/companies?${params}`)
   if (!res.ok) throw new Error('Failed to fetch')
-  return res.json()
-}
-
-async function fetchTaxonomy() {
-  const res = await fetch('/api/taxonomy')
-  if (!res.ok) throw new Error('Failed')
   return res.json()
 }
 
@@ -55,19 +47,19 @@ function FilterSection({ title, defaultOpen = true, children }: { title: string;
   )
 }
 
-function MultiCheck<T extends string>({ options, selected, onChange }: { options: { value: T; label: string }[]; selected: T[]; onChange: (v: T[]) => void }) {
+function MultiCheck({ options, selected, onChange }: { options: string[]; selected: string[]; onChange: (v: string[]) => void }) {
   return (
     <>
-      {options.map(({ value, label }) => (
-        <label key={value} className="flex items-center gap-2 cursor-pointer py-0.5 group">
+      {options.map((option) => (
+        <label key={option} className="flex items-center gap-2 cursor-pointer py-0.5 group">
           <input
             type="checkbox"
-            checked={selected.includes(value)}
-            onChange={() => onChange(selected.includes(value) ? selected.filter((s) => s !== value) : [...selected, value])}
+            checked={selected.includes(option)}
+            onChange={() => onChange(selected.includes(option) ? selected.filter((s) => s !== option) : [...selected, option])}
             className="w-3.5 h-3.5 rounded border-slate-600 accent-[#00B4D8] cursor-pointer"
           />
-          <span className={cn('text-sm transition-colors', selected.includes(value) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>
-            {label}
+          <span className={cn('text-sm transition-colors', selected.includes(option) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>
+            {option}
           </span>
         </label>
       ))}
@@ -83,7 +75,6 @@ export default function CompaniesPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  const { data: taxonomy } = useQuery({ queryKey: ['taxonomy'], queryFn: fetchTaxonomy })
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['companies', filters, page, pageSize, sortBy, sortDir],
     queryFn: () => fetchCompanies(filters, page, pageSize, sortBy, sortDir),
@@ -95,14 +86,14 @@ export default function CompaniesPage() {
   const update = (partial: Partial<CompanyFilters>) => setFilters((prev) => ({ ...prev, ...partial }))
 
   const TYPE_COLOR: Record<string, string> = {
-    PHARMA: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-    BIOTECH: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-    MEDTECH: 'text-green-400 bg-green-400/10 border-green-400/20',
-    HEALTH_IT: 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
-    INVESTOR: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
-    PROVIDER: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-    CONSULTING: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-    CRO: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
+    'Pharma': 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+    'Biotech': 'text-purple-400 bg-purple-400/10 border-purple-400/20',
+    'MedTech': 'text-green-400 bg-green-400/10 border-green-400/20',
+    'Health IT': 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
+    'Investor': 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+    'Provider': 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+    'Consulting': 'text-orange-400 bg-orange-400/10 border-orange-400/20',
+    'CRO': 'text-pink-400 bg-pink-400/10 border-pink-400/20',
     default: 'text-slate-300 bg-slate-700/50 border-slate-600',
   }
 
@@ -129,7 +120,7 @@ export default function CompaniesPage() {
         <button
           onClick={() => {
             if (!data?.data) return
-            const rows = data.data.map((c: any) => [c.name, c.company_type, c.headquarters_country, c.headquarters_city, c.ownership_status ?? '', c.employee_count_range ?? '', c._count?.contacts ?? 0])
+            const rows = data.data.map((c: any) => [c.name, c.companyType, c.headquartersCountry, c.headquartersCity, c.ownershipStatus ?? '', c.employeeCountRange ?? '', c._count?.contacts ?? 0])
             const csv = [['Name', 'Type', 'Country', 'City', 'Ownership', 'Employees', 'Contacts'], ...rows].map((r: any[]) => r.map((v) => `"${v}"`).join(',')).join('\n')
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'whai-companies.csv'; a.click()
           }}
@@ -157,7 +148,7 @@ export default function CompaniesPage() {
 
             <FilterSection title="Company Type">
               <MultiCheck
-                options={(Object.keys(COMPANY_TYPE_LABELS) as CompanyType[]).map((k) => ({ value: k, label: COMPANY_TYPE_LABELS[k] }))}
+                options={COMPANY_TYPE_OPTIONS}
                 selected={filters.companyTypes ?? []}
                 onChange={(v) => update({ companyTypes: v.length ? v : undefined })}
               />
@@ -165,7 +156,7 @@ export default function CompaniesPage() {
 
             <FilterSection title="Ownership" defaultOpen={false}>
               <MultiCheck
-                options={(Object.keys(OWNERSHIP_LABELS) as OwnershipStatus[]).map((k) => ({ value: k, label: OWNERSHIP_LABELS[k] }))}
+                options={OWNERSHIP_OPTIONS}
                 selected={filters.ownershipStatus ?? []}
                 onChange={(v) => update({ ownershipStatus: v.length ? v : undefined })}
               />
@@ -173,7 +164,7 @@ export default function CompaniesPage() {
 
             <FilterSection title="Employee Size" defaultOpen={false}>
               <MultiCheck
-                options={Object.entries(EMPLOYEE_RANGE_LABELS).map(([k, v]) => ({ value: k as any, label: v }))}
+                options={EMPLOYEE_RANGE_OPTIONS}
                 selected={filters.employeeRanges ?? []}
                 onChange={(v) => update({ employeeRanges: v.length ? v : undefined })}
               />
@@ -181,37 +172,11 @@ export default function CompaniesPage() {
 
             <FilterSection title="Revenue Range" defaultOpen={false}>
               <MultiCheck
-                options={Object.entries(REVENUE_RANGE_LABELS).map(([k, v]) => ({ value: k as any, label: v }))}
+                options={REVENUE_RANGE_OPTIONS}
                 selected={filters.revenueRanges ?? []}
                 onChange={(v) => update({ revenueRanges: v.length ? v : undefined })}
               />
             </FilterSection>
-
-            {taxonomy?.verticals && (
-              <FilterSection title="Healthcare Vertical" defaultOpen={false}>
-                {taxonomy.verticals.map((parent: any) => (
-                  <div key={parent.id}>
-                    <div className="text-xs font-medium text-slate-500 mt-2 mb-1 uppercase tracking-wide">{parent.name}</div>
-                    {parent.children?.map((child: any) => (
-                      <label key={child.id} className="flex items-center gap-2 cursor-pointer py-0.5 pl-2 group">
-                        <input
-                          type="checkbox"
-                          checked={(filters.verticalIds ?? []).includes(child.id)}
-                          onChange={() => {
-                            const current = filters.verticalIds ?? []
-                            update({ verticalIds: current.includes(child.id) ? current.filter((id) => id !== child.id) : [...current, child.id] })
-                          }}
-                          className="w-3.5 h-3.5 rounded border-slate-600 accent-[#00B4D8]"
-                        />
-                        <span className={cn('text-sm', (filters.verticalIds ?? []).includes(child.id) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>
-                          {child.name}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                ))}
-              </FilterSection>
-            )}
 
             <div className="filter-section">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -236,7 +201,7 @@ export default function CompaniesPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
-                      {['Company', 'Type', 'Verticals', 'HQ', 'Employees', 'Revenue', 'Ownership', 'Contacts', 'Deals'].map((h) => (
+                      {['Company', 'Type', 'Tags', 'HQ', 'Employees', 'Revenue', 'Ownership', 'Contacts', 'Deals'].map((h) => (
                         <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -248,33 +213,33 @@ export default function CompaniesPage() {
                           <Link href={`/companies/${company.id}`} className="font-medium text-white hover:text-[#00B4D8] transition-colors">
                             {company.name}
                           </Link>
-                          {company.headquarters_city && <div className="text-xs text-slate-500">{company.website}</div>}
+                          {company.headquartersCity && <div className="text-xs text-slate-500">{company.website}</div>}
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className={cn('whai-badge border text-xs', TYPE_COLOR[company.company_type] ?? TYPE_COLOR.default)}>
-                            {COMPANY_TYPE_LABELS[company.company_type as CompanyType] ?? company.company_type}
+                          <span className={cn('whai-badge border text-xs', TYPE_COLOR[company.companyType] ?? TYPE_COLOR.default)}>
+                            {company.companyType}
                           </span>
                         </td>
                         <td className="px-3 py-2.5 max-w-[200px]">
                           <div className="flex flex-wrap gap-1">
-                            {company.verticals?.slice(0, 2).map((cv: any) => (
-                              <span key={cv.vertical.id} className="text-xs px-1.5 py-0.5 rounded bg-[#112850] text-slate-300 border border-[#1a3a5c] truncate max-w-[100px]">
-                                {cv.vertical.name}
+                            {company.tags ? (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-[#112850] text-slate-300 border border-[#1a3a5c] truncate max-w-[100px]">
+                                {company.tags}
                               </span>
-                            ))}
+                            ) : null}
                           </div>
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
-                          {[company.headquarters_city, company.headquarters_country].filter(Boolean).join(', ') || '—'}
+                          {[company.headquartersCity, company.headquartersCountry].filter(Boolean).join(', ') || '—'}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
-                          {company.employee_count_range ? EMPLOYEE_RANGE_LABELS[company.employee_count_range as EmployeeCountRange] : '—'}
+                          {company.employeeCountRange ?? '—'}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
-                          {company.annual_revenue_range ? REVENUE_RANGE_LABELS[company.annual_revenue_range as AnnualRevenueRange] : '—'}
+                          {company.annualRevenueRange ?? '—'}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
-                          {company.ownership_status ? OWNERSHIP_LABELS[company.ownership_status as OwnershipStatus] : '—'}
+                          {company.ownershipStatus ?? '—'}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           <span className="flex items-center gap-1 text-xs text-slate-300">
@@ -284,7 +249,7 @@ export default function CompaniesPage() {
                         <td className="px-3 py-2.5 whitespace-nowrap">
                           <span className="flex items-center gap-1 text-xs text-slate-300">
                             <TrendingUp className="w-3 h-3 text-slate-500" />
-                            {(company._count?.deals_as_acquirer ?? 0) + (company._count?.deals_as_target ?? 0)}
+                            {(company._count?.dealsAsAcquirer ?? 0) + (company._count?.dealsAsTarget ?? 0)}
                           </span>
                         </td>
                       </tr>

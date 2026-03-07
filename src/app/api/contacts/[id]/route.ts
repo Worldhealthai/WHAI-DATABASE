@@ -10,46 +10,41 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       include: {
         company: {
           include: {
-            verticals: { include: { vertical: true } },
-            therapeutic_areas: { include: { therapeutic_area: true } },
+            verticals: true,
+            therapeuticAreas: true,
           },
         },
-        job_function: true,
-        region: true,
       },
     })
 
     if (!contact) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Fetch related contacts at same company
-    const relatedContacts = contact.company_id
+    const relatedContacts = contact.companyId
       ? await prisma.contact.findMany({
           where: {
-            company_id: contact.company_id,
+            companyId: contact.companyId,
             id: { not: contact.id },
           },
           take: 6,
-          include: {
-            job_function: { select: { name: true } },
-          },
-          orderBy: { engagement_score: 'desc' },
+          orderBy: { engagementScore: 'desc' },
         })
       : []
 
     // Fetch deals involving their company
-    const relatedDeals = contact.company_id
+    const relatedDeals = contact.companyId
       ? await prisma.deal.findMany({
           where: {
             OR: [
-              { acquirer_company_id: contact.company_id },
-              { target_company_id: contact.company_id },
+              { acquirerCompanyId: contact.companyId },
+              { targetCompanyId: contact.companyId },
             ],
           },
           take: 5,
-          orderBy: { announced_date: 'desc' },
+          orderBy: { announcedDate: 'desc' },
           include: {
-            acquirer_company: { select: { name: true } },
-            target_company: { select: { name: true } },
+            acquirerCompany: { select: { name: true } },
+            targetCompany: { select: { name: true } },
           },
         })
       : []
