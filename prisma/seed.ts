@@ -1451,7 +1451,11 @@ async function main() {
   // ─── INSIGHTS ────────────────────────────────────────────────────────────
   console.log('→ Seeding insights...')
 
-  const insightData = [
+  const insightData: Array<{
+    title: string; slug: string; content_type: ContentType; summary: string;
+    body: string; author: string; published_at: Date; is_premium: boolean;
+    view_count: number; tags: string[]; verticals: string[]; tas: string[];
+  }> = [
     {
       title: 'The State of Healthcare AI Investment: Q1 2025 Report',
       slug: 'healthcare-ai-investment-q1-2025',
@@ -1669,7 +1673,7 @@ async function main() {
     const saved = await prisma.insight.upsert({
       where: { slug: insightFields.slug },
       update: {},
-      create: { ...insightFields, content_type: insightFields.content_type as ContentType, tags: insightFields.tags ?? [] },
+      create: { ...insightFields, tags: insightFields.tags ?? [] },
     })
     for (const v of iverts) {
       const vid = verticalMap[v]
