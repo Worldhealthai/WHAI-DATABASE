@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { parse } from 'csv-parse/sync'
 import * as fs from 'fs'
 import * as path from 'path'
+import { execSync } from 'child_process'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -42,6 +43,20 @@ export async function POST(req: NextRequest) {
     }
 
     log('🌱 Seeding database...')
+
+    // Push schema to database first
+    log('  Pushing schema to database...')
+    try {
+      const output = execSync('npx prisma db push --skip-generate --accept-data-loss', {
+        cwd: process.cwd(),
+        timeout: 30000,
+        encoding: 'utf-8',
+      })
+      log('  ✅ Schema pushed successfully')
+    } catch (e: any) {
+      log(`  ⚠️ Schema push warning: ${e.message?.slice(0, 200)}`)
+      // Continue anyway — schema might already be up to date
+    }
 
     // Check if already seeded
     const existingCompanies = await prisma.company.count()
