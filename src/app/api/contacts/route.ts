@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
 
     const filters: ContactFilters = {
       query: searchParams.get('query') ?? undefined,
+      seniorities: searchParams.getAll('seniorities'),
+      departments: searchParams.getAll('departments'),
       companyTypes: searchParams.getAll('companyTypes'),
       verticalSlugs: searchParams.getAll('verticalSlugs'),
       therapeuticAreas: searchParams.getAll('therapeuticAreas'),

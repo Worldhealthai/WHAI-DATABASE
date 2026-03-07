@@ -80,6 +80,8 @@ async function main() {
           phone: row.phone || null,
           linkedinUrl: row.linkedin_url || null,
           jobTitle: row.job_title || null,
+          seniority: row.seniority || null,
+          department: row.department || null,
           companyName: row.company || null,
           companyId: companyId || null,
           country: row.country || null,

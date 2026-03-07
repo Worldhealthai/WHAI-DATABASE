@@ -21,3 +21,27 @@ BioNTech,biotechnology,true
 BioNTech,immunotherapy,false
 Catalent,cdmo,true
 Oscar Health,health-insurance,true
+Amgen,biotechnology,true
+Amgen,biosimilars,false
+Gilead Sciences,biotechnology,true
+Gilead Sciences,antiviral,false
+Regeneron,biotechnology,true
+Regeneron,antibodies,false
+Eli Lilly,pharmaceuticals,true
+Eli Lilly,diabetes,false
+Merck,pharmaceuticals,true
+Merck,vaccines,false
+Sanofi,pharmaceuticals,true
+Sanofi,vaccines,false
+GSK,pharmaceuticals,true
+GSK,vaccines,false
+Bayer,pharmaceuticals,true
+Bayer,crop-science,false
+Danaher,diagnostics,true
+Danaher,life-sciences,false
+Abbott,medical-devices,true
+Abbott,diagnostics,false
+Stryker,medical-devices,true
+Boston Scientific,medical-devices,true
+Exact Sciences,diagnostics,true
+Parexel,clinical-research,true

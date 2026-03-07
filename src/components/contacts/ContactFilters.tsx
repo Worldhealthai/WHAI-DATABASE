@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ContactFilters } from '@/types'
-import { COMPANY_TYPE_OPTIONS } from '@/types'
+import { COMPANY_TYPE_OPTIONS, SENIORITY_OPTIONS, DEPARTMENT_OPTIONS } from '@/types'
 
 interface ContactFiltersProps {
   filters: ContactFilters
@@ -99,8 +99,26 @@ export function ContactFilterSidebar({ filters, onChange }: ContactFiltersProps)
         </div>
       </div>
 
+      {/* Seniority Level */}
+      <FilterSection title="Seniority Level">
+        <MultiCheckbox
+          options={SENIORITY_OPTIONS}
+          selected={filters.seniorities ?? []}
+          onChange={(seniorities) => update({ seniorities: seniorities.length ? seniorities : undefined })}
+        />
+      </FilterSection>
+
+      {/* Department */}
+      <FilterSection title="Department">
+        <MultiCheckbox
+          options={DEPARTMENT_OPTIONS}
+          selected={filters.departments ?? []}
+          onChange={(departments) => update({ departments: departments.length ? departments : undefined })}
+        />
+      </FilterSection>
+
       {/* Country */}
-      <FilterSection title="Country">
+      <FilterSection title="Country" defaultOpen={false}>
         <MultiCheckbox
           options={COUNTRY_OPTIONS}
           selected={filters.countries ?? []}

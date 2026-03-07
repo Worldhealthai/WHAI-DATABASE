@@ -65,6 +65,8 @@ export interface PaginatedResult<T> {
 
 export interface ContactFilters {
   query?: string
+  seniorities?: string[]
+  departments?: string[]
   companyTypes?: string[]
   verticalSlugs?: string[]
   therapeuticAreas?: string[]
