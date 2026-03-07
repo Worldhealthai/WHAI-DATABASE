@@ -68,8 +68,8 @@ export function GlobalSearch() {
               icon={<Users className="w-3 h-3" />}
               items={data.contacts.map((c: any) => ({
                 id: c.id,
-                label: `${c.first_name} ${c.last_name}`,
-                sub: `${c.job_title}${c.company ? ` · ${c.company.name}` : ''}`,
+                label: `${c.firstName} ${c.lastName}`,
+                sub: `${c.jobTitle}${c.company ? ` · ${c.company.name}` : ''}`,
                 href: `/contacts/${c.id}`,
               }))}
               onSelect={(href) => { router.push(href); setOpen(false); setQuery('') }}
@@ -82,7 +82,7 @@ export function GlobalSearch() {
               items={data.companies.map((c: any) => ({
                 id: c.id,
                 label: c.name,
-                sub: `${c.headquarters_city ?? ''} ${c.headquarters_country ?? ''}`.trim(),
+                sub: `${c.headquartersCity ?? ''} ${c.headquartersCountry ?? ''}`.trim(),
                 href: `/companies/${c.id}`,
               }))}
               onSelect={(href) => { router.push(href); setOpen(false); setQuery('') }}
@@ -95,7 +95,7 @@ export function GlobalSearch() {
               items={data.deals.map((d: any) => ({
                 id: d.id,
                 label: d.title,
-                sub: d.deal_type,
+                sub: d.dealType,
                 href: `/deals/${d.id}`,
               }))}
               onSelect={(href) => { router.push(href); setOpen(false); setQuery('') }}
@@ -108,8 +108,8 @@ export function GlobalSearch() {
               items={data.insights.map((i: any) => ({
                 id: i.id,
                 label: i.title,
-                sub: i.content_type,
-                href: `/insights/${i.slug}`,
+                sub: i.contentType,
+                href: `/insights/${i.id}`,
               }))}
               onSelect={(href) => { router.push(href); setOpen(false); setQuery('') }}
             />

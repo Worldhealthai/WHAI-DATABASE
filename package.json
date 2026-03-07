@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && ([ -z \"$DATABASE_URL\" ] || prisma db push --force-reset) && ([ -z \"$DATABASE_URL\" ] || npm run db:seed) && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
@@ -34,6 +34,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cmdk": "^0.2.0",
+    "csv-parse": "^6.1.0",
     "lucide-react": "^0.303.0",
     "next": "14.2.35",
     "next-auth": "^4.24.5",
@@ -43,6 +44,9 @@
     "recharts": "^2.10.3",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "devDependencies": {
     "@types/node": "^20",

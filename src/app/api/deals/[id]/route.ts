@@ -8,51 +8,46 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const deal = await prisma.deal.findUnique({
       where: { id: params.id },
       include: {
-        acquirer_company: {
+        acquirerCompany: {
           include: {
-            verticals: { include: { vertical: true }, where: { is_primary: true }, take: 3 },
+            verticals: { where: { isPrimary: true }, take: 3 },
           },
         },
-        target_company: {
+        targetCompany: {
           include: {
-            verticals: { include: { vertical: true }, where: { is_primary: true }, take: 3 },
+            verticals: { where: { isPrimary: true }, take: 3 },
           },
         },
         investors: {
           include: {
-            company: {
-              select: { id: true, name: true, logo_url: true, company_type: true },
+            investorCompany: {
+              select: { id: true, name: true, companyType: true },
             },
           },
         },
-        verticals: { include: { vertical: true } },
       },
     })
 
     if (!deal) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Related deals (same companies or verticals)
-    const verticalIds = deal.verticals.map((v) => v.vertical_id)
+    // Related deals (same companies)
     const relatedDeals = await prisma.deal.findMany({
       where: {
         id: { not: deal.id },
         OR: [
-          ...(deal.acquirer_company_id
-            ? [{ acquirer_company_id: deal.acquirer_company_id }]
+          ...(deal.acquirerCompanyId
+            ? [{ acquirerCompanyId: deal.acquirerCompanyId }]
             : []),
-          ...(deal.target_company_id
-            ? [{ target_company_id: deal.target_company_id }]
-            : []),
-          ...(verticalIds.length
-            ? [{ verticals: { some: { vertical_id: { in: verticalIds } } } }]
+          ...(deal.targetCompanyId
+            ? [{ targetCompanyId: deal.targetCompanyId }]
             : []),
         ],
       },
       take: 5,
-      orderBy: { announced_date: 'desc' },
+      orderBy: { announcedDate: 'desc' },
       include: {
-        acquirer_company: { select: { name: true } },
-        target_company: { select: { name: true } },
+        acquirerCompany: { select: { name: true } },
+        targetCompany: { select: { name: true } },
       },
     })
 

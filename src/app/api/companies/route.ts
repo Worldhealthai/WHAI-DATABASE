@@ -52,19 +52,19 @@ export async function GET(req: NextRequest) {
         take: pageSize,
         include: {
           verticals: {
-            include: { vertical: { select: { id: true, name: true, slug: true } } },
-            where: { is_primary: true },
+            select: { id: true, verticalSlug: true, isPrimary: true },
+            where: { isPrimary: true },
             take: 3,
           },
-          therapeutic_areas: {
-            include: { therapeutic_area: { select: { id: true, name: true } } },
+          therapeuticAreas: {
+            select: { id: true, therapeuticArea: true },
             take: 3,
           },
           _count: {
             select: {
               contacts: true,
-              deals_as_acquirer: true,
-              deals_as_target: true,
+              dealsAsAcquirer: true,
+              dealsAsTarget: true,
             },
           },
         },

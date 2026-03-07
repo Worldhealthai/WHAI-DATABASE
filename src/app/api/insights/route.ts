@@ -10,14 +10,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl
     const page = parseInt(searchParams.get('page') ?? '1')
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '12'), 100)
-    const sortBy = searchParams.get('sortBy') ?? 'published_at'
+    const sortBy = searchParams.get('sortBy') ?? 'publishedAt'
     const sortDir = (searchParams.get('sortDir') ?? 'desc') as 'asc' | 'desc'
 
     const filters: InsightFilters = {
       query: searchParams.get('query') ?? undefined,
       contentTypes: searchParams.getAll('contentTypes') as any,
-      verticalIds: searchParams.getAll('verticalIds'),
-      therapeuticAreaIds: searchParams.getAll('therapeuticAreaIds'),
       dateFrom: searchParams.get('dateFrom') ?? undefined,
       dateTo: searchParams.get('dateTo') ?? undefined,
       isPremium: searchParams.has('isPremium')
@@ -41,16 +39,6 @@ export async function GET(req: NextRequest) {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: {
-          verticals: {
-            include: { vertical: { select: { id: true, name: true } } },
-            take: 3,
-          },
-          therapeutic_areas: {
-            include: { therapeutic_area: { select: { id: true, name: true } } },
-            take: 3,
-          },
-        },
       }),
     ])
 

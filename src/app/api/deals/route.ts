@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl
     const page = parseInt(searchParams.get('page') ?? '1')
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '25'), 100)
-    const sortBy = searchParams.get('sortBy') ?? 'announced_date'
+    const sortBy = searchParams.get('sortBy') ?? 'announcedDate'
     const sortDir = (searchParams.get('sortDir') ?? 'desc') as 'asc' | 'desc'
 
     const filters: DealFilters = {
@@ -24,11 +24,6 @@ export async function GET(req: NextRequest) {
       acquirerQuery: searchParams.get('acquirerQuery') ?? undefined,
       targetQuery: searchParams.get('targetQuery') ?? undefined,
       investorQuery: searchParams.get('investorQuery') ?? undefined,
-      verticalIds: searchParams.getAll('verticalIds'),
-      countries: searchParams.getAll('countries'),
-      valueDisclosed: searchParams.has('valueDisclosed')
-        ? searchParams.get('valueDisclosed') === 'true'
-        : undefined,
     }
 
     for (const key of Object.keys(filters) as (keyof DealFilters)[]) {
@@ -48,14 +43,16 @@ export async function GET(req: NextRequest) {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          acquirer_company: { select: { id: true, name: true, logo_url: true } },
-          target_company: { select: { id: true, name: true, logo_url: true } },
-          verticals: {
-            include: { vertical: { select: { id: true, name: true } } },
-            take: 3,
-          },
+          acquirerCompany: { select: { id: true, name: true } },
+          targetCompany: { select: { id: true, name: true } },
           investors: {
-            include: { company: { select: { id: true, name: true } } },
+            select: {
+              id: true,
+              investorCompanyName: true,
+              investorCompanyId: true,
+              investorRole: true,
+              investorCompany: { select: { id: true, name: true } },
+            },
             take: 3,
           },
         },
@@ -63,7 +60,7 @@ export async function GET(req: NextRequest) {
       // Summary stats
       prisma.deal.aggregate({
         where,
-        _sum: { deal_value_usd: true },
+        _sum: { dealValueUsd: true },
         _count: { id: true },
       }),
     ])
@@ -76,7 +73,7 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / pageSize),
       stats: {
         totalDeals: stats._count.id,
-        totalValueCents: stats._sum.deal_value_usd?.toString() ?? '0',
+        totalValueCents: stats._sum.dealValueUsd?.toString() ?? '0',
       },
     })
   } catch (error) {

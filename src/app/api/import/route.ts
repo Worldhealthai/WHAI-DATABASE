@@ -5,75 +5,19 @@ export const dynamic = 'force-dynamic'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CSV Import endpoint
-// POST /api/import — accepts { rows: object[], columnMap: Record<string, string> }
+// POST /api/import — accepts { rows: object[] }
 // ─────────────────────────────────────────────────────────────────────────────
-
-const SENIORITY_KEYWORDS: Record<string, string> = {
-  'chief': 'C_SUITE',
-  'ceo': 'C_SUITE',
-  'cto': 'C_SUITE',
-  'cmo': 'C_SUITE',
-  'coo': 'C_SUITE',
-  'cfo': 'C_SUITE',
-  'president': 'C_SUITE',
-  'founder': 'C_SUITE',
-  'co-founder': 'C_SUITE',
-  'board': 'BOARD',
-  'trustee': 'BOARD',
-  'vice president': 'VP',
-  'vp': 'VP',
-  'director': 'DIRECTOR',
-  'head of': 'DIRECTOR',
-  'manager': 'MANAGER',
-  'lead': 'MANAGER',
-  'senior': 'MANAGER',
-}
-
-const FUNCTION_KEYWORDS: Record<string, string[]> = {
-  'CLINICAL': ['clinical', 'medical', 'physician', 'doctor', 'nursing', 'pharmacist', 'cmo', 'chief medical'],
-  'RD': ['research', 'development', 'r&d', 'scientist', 'biology', 'chemistry', 'preclinical'],
-  'DATA_SCIENCE': ['data science', 'machine learning', 'ai', 'analytics', 'data engineer', 'ml', 'artificial intelligence'],
-  'IT': ['information technology', 'software', 'engineer', 'developer', 'architecture', 'infrastructure', 'cto', 'it '],
-  'DIGITAL_HEALTH': ['digital health', 'innovation', 'digital transformation', 'cdio'],
-  'REGULATORY': ['regulatory', 'compliance', 'quality', 'ra '],
-  'COMMERCIAL': ['commercial', 'sales', 'account', 'business development', 'partnerships', 'bd '],
-  'MARKETING': ['marketing', 'brand', 'communications', 'pr '],
-  'STRATEGY': ['strategy', 'corporate development', 'planning', 'cso'],
-  'OPERATIONS': ['operations', 'coo', 'supply chain', 'manufacturing', 'logistics'],
-  'FINANCE': ['finance', 'cfo', 'accounting', 'treasury', 'investor relations', 'financial'],
-}
-
-function classifySeniority(title: string): string | null {
-  const lower = title.toLowerCase()
-  for (const [keyword, level] of Object.entries(SENIORITY_KEYWORDS)) {
-    if (lower.includes(keyword)) return level
-  }
-  return null
-}
-
-function classifyFunction(title: string): string | null {
-  const lower = title.toLowerCase()
-  for (const [fn, keywords] of Object.entries(FUNCTION_KEYWORDS)) {
-    if (keywords.some((kw) => lower.includes(kw))) return fn
-  }
-  return null
-}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { rows, source = 'CSV Import' } = body as {
+    const { rows } = body as {
       rows: Record<string, string>[]
-      source?: string
     }
 
     if (!rows || !Array.isArray(rows)) {
       return NextResponse.json({ error: 'rows array is required' }, { status: 400 })
     }
-
-    // Fetch job functions for matching
-    const jobFunctions = await prisma.jobFunction.findMany()
-    const jfMap = new Map(jobFunctions.map((jf) => [jf.slug, jf.id]))
 
     const stats = {
       total: rows.length,
@@ -103,8 +47,8 @@ export async function POST(req: NextRequest) {
         } else {
           const existing = await prisma.contact.findFirst({
             where: {
-              first_name: { equals: firstName, mode: 'insensitive' },
-              last_name: { equals: lastName, mode: 'insensitive' },
+              firstName: { equals: firstName, mode: 'insensitive' },
+              lastName: { equals: lastName, mode: 'insensitive' },
               company: { name: { equals: companyName, mode: 'insensitive' } },
             },
           })
@@ -126,9 +70,7 @@ export async function POST(req: NextRequest) {
               const newCompany = await prisma.company.create({
                 data: {
                   name: companyName,
-                  company_type: 'SOLUTION_PROVIDER', // default, can be enriched later
-                  source: source,
-                  tags: [],
+                  companyType: 'SOLUTION_PROVIDER',
                 },
               })
               companyId = newCompany.id
@@ -138,39 +80,19 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Auto-classify seniority + function
-        const seniorityRaw = classifySeniority(jobTitle)
-        const fnKey = classifyFunction(jobTitle)
-
-        let jobFunctionId: string | undefined
-        if (fnKey) {
-          const slug = fnKey.toLowerCase().replace(/_/g, '-')
-          // Try to find matching function
-          for (const [jfSlug, jfId] of Array.from(jfMap.entries())) {
-            if (jfSlug.includes(slug.split('-')[0])) {
-              jobFunctionId = jfId
-              break
-            }
-          }
-        }
-
         await prisma.contact.create({
           data: {
-            first_name: firstName,
-            last_name: lastName,
+            firstName: firstName,
+            lastName: lastName,
             email: email || undefined,
             phone: row.phone?.trim() || undefined,
-            linkedin_url: row.linkedin_url?.trim() || row.linkedin?.trim() || undefined,
-            job_title: jobTitle,
-            job_function_id: jobFunctionId,
-            seniority_level: seniorityRaw as any || undefined,
-            company_id: companyId,
+            linkedinUrl: row.linkedin_url?.trim() || row.linkedin?.trim() || undefined,
+            jobTitle: jobTitle,
+            companyName: companyName || undefined,
+            companyId: companyId,
             country: row.country?.trim() || undefined,
             city: row.city?.trim() || undefined,
-            source: source,
-            tags: [],
-            is_verified: false,
-            engagement_score: 0,
+            engagementScore: 0,
           },
         })
         stats.imported++

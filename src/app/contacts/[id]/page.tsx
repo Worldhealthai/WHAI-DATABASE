@@ -3,12 +3,10 @@
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
-  ArrowLeft, CheckCircle2, Mail, Phone, Linkedin,
+  ArrowLeft, Mail, Phone, Linkedin,
   Building2, MapPin, Tag, TrendingUp, Users
 } from 'lucide-react'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
-import { SENIORITY_LABELS, DEPARTMENT_LABELS, DEAL_TYPE_LABELS, DEAL_STAGE_LABELS } from '@/types'
-import type { SeniorityLevel, Department, DealType, DealStage } from '@/types'
 
 async function fetchContact(id: string) {
   const res = await fetch(`/api/contacts/${id}`)
@@ -17,12 +15,12 @@ async function fetchContact(id: string) {
 }
 
 const SENIORITY_COLORS: Record<string, string> = {
-  C_SUITE: 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
-  VP: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  DIRECTOR: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
-  MANAGER: 'text-green-400 bg-green-400/10 border-green-400/20',
-  INDIVIDUAL_CONTRIBUTOR: 'text-slate-300 bg-slate-700/50 border-slate-600',
-  BOARD: 'text-red-400 bg-red-400/10 border-red-400/20',
+  'C-Suite': 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
+  'VP': 'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  'Director': 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  'Manager': 'text-green-400 bg-green-400/10 border-green-400/20',
+  'Individual Contributor': 'text-slate-300 bg-slate-700/50 border-slate-600',
+  'Board': 'text-red-400 bg-red-400/10 border-red-400/20',
 }
 
 export default function ContactProfilePage({ params }: { params: { id: string } }) {
@@ -58,25 +56,20 @@ export default function ContactProfilePage({ params }: { params: { id: string } 
           <div className="flex items-start gap-4">
             {/* Avatar */}
             <div className="w-16 h-16 rounded-xl bg-[#1a3a5c] flex items-center justify-center text-xl font-bold text-[#00B4D8] shrink-0">
-              {contact.first_name[0]}{contact.last_name[0]}
+              {contact.firstName[0]}{contact.lastName[0]}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-bold text-white">
-                  {contact.first_name} {contact.last_name}
+                  {contact.firstName} {contact.lastName}
                 </h1>
-                {contact.is_verified && (
-                  <span className="flex items-center gap-1 text-xs text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/20 px-2 py-0.5 rounded-full">
-                    <CheckCircle2 className="w-3 h-3" /> Verified
-                  </span>
-                )}
-                {contact.seniority_level && (
-                  <span className={cn('whai-badge border', SENIORITY_COLORS[contact.seniority_level])}>
-                    {SENIORITY_LABELS[contact.seniority_level as SeniorityLevel]}
+                {contact.seniority && (
+                  <span className={cn('whai-badge border', SENIORITY_COLORS[contact.seniority] ?? 'text-slate-300 bg-slate-700/50 border-slate-600')}>
+                    {contact.seniority}
                   </span>
                 )}
               </div>
-              <p className="text-slate-300 mt-0.5">{contact.job_title}</p>
+              <p className="text-slate-300 mt-0.5">{contact.jobTitle}</p>
               {contact.company && (
                 <Link href={`/companies/${contact.company.id}`} className="text-[#00B4D8] text-sm hover:underline mt-0.5 block">
                   {contact.company.name}
@@ -90,10 +83,7 @@ export default function ContactProfilePage({ params }: { params: { id: string } 
                   </span>
                 )}
                 {contact.department && (
-                  <span>{DEPARTMENT_LABELS[contact.department as Department]}</span>
-                )}
-                {contact.job_function && (
-                  <span className="text-slate-500">{contact.job_function.name}</span>
+                  <span>{contact.department}</span>
                 )}
               </div>
             </div>
@@ -102,9 +92,9 @@ export default function ContactProfilePage({ params }: { params: { id: string } 
           {/* Engagement score */}
           <div className="text-right shrink-0">
             <div className="text-xs text-slate-500 mb-1">Engagement Score</div>
-            <div className="text-3xl font-bold text-[#00B4D8]">{contact.engagement_score}</div>
+            <div className="text-3xl font-bold text-[#00B4D8]">{contact.engagementScore}</div>
             <div className="w-24 h-1.5 rounded-full bg-[#1a3a5c] mt-2 ml-auto">
-              <div className="h-full rounded-full bg-[#00B4D8]" style={{ width: `${contact.engagement_score}%` }} />
+              <div className="h-full rounded-full bg-[#00B4D8]" style={{ width: `${contact.engagementScore}%` }} />
             </div>
           </div>
         </div>
@@ -121,21 +111,19 @@ export default function ContactProfilePage({ params }: { params: { id: string } 
               <Phone className="w-3.5 h-3.5" /> {contact.phone}
             </a>
           )}
-          {contact.linkedin_url && (
-            <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white">
+          {contact.linkedinUrl && (
+            <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-slate-300 hover:text-white">
               <Linkedin className="w-3.5 h-3.5" /> LinkedIn
             </a>
           )}
         </div>
 
         {/* Tags */}
-        {contact.tags?.length > 0 && (
+        {contact.tags && (
           <div className="flex flex-wrap gap-1.5 mt-4">
-            {contact.tags.map((tag: string) => (
-              <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-[#112850] text-slate-300 border border-[#1a3a5c]">
-                <Tag className="w-2.5 h-2.5" /> {tag}
-              </span>
-            ))}
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-[#112850] text-slate-300 border border-[#1a3a5c]">
+              <Tag className="w-2.5 h-2.5" /> {contact.tags}
+            </span>
           </div>
         )}
 
@@ -158,25 +146,16 @@ export default function ContactProfilePage({ params }: { params: { id: string } 
               <div className="font-semibold text-white group-hover:text-[#00B4D8] transition-colors">
                 {contact.company.name}
               </div>
-              {contact.company.company_type && (
-                <div className="text-xs text-slate-400 mt-0.5">{contact.company.company_type}</div>
+              {contact.company.companyType && (
+                <div className="text-xs text-slate-400 mt-0.5">{contact.company.companyType}</div>
               )}
-              {(contact.company.headquarters_city || contact.company.headquarters_country) && (
+              {(contact.company.headquartersCity || contact.company.headquartersCountry) && (
                 <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                   <MapPin className="w-3 h-3" />
-                  {[contact.company.headquarters_city, contact.company.headquarters_country].filter(Boolean).join(', ')}
+                  {[contact.company.headquartersCity, contact.company.headquartersCountry].filter(Boolean).join(', ')}
                 </div>
               )}
             </Link>
-            {contact.company.verticals?.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-3">
-                {contact.company.verticals.slice(0, 3).map((cv: any) => (
-                  <span key={cv.vertical.id} className="text-xs px-2 py-0.5 rounded bg-[#112850] text-slate-300 border border-[#1a3a5c]">
-                    {cv.vertical.name}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -190,13 +169,13 @@ export default function ContactProfilePage({ params }: { params: { id: string } 
               {relatedContacts.slice(0, 5).map((c: any) => (
                 <Link key={c.id} href={`/contacts/${c.id}`} className="flex items-center gap-2 group">
                   <div className="w-6 h-6 rounded-full bg-[#1a3a5c] flex items-center justify-center text-[10px] font-semibold text-[#00B4D8] shrink-0">
-                    {c.first_name[0]}{c.last_name[0]}
+                    {c.firstName[0]}{c.lastName[0]}
                   </div>
                   <div>
                     <div className="text-sm text-white group-hover:text-[#00B4D8] transition-colors font-medium">
-                      {c.first_name} {c.last_name}
+                      {c.firstName} {c.lastName}
                     </div>
-                    <div className="text-xs text-slate-500 truncate max-w-[160px]">{c.job_title}</div>
+                    <div className="text-xs text-slate-500 truncate max-w-[160px]">{c.jobTitle}</div>
                   </div>
                 </Link>
               ))}
@@ -218,10 +197,10 @@ export default function ContactProfilePage({ params }: { params: { id: string } 
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-slate-500">
-                      {DEAL_TYPE_LABELS[deal.deal_type as DealType]}
+                      {deal.dealType}
                     </span>
-                    {deal.announced_date && (
-                      <span className="text-xs text-slate-600">{formatDate(deal.announced_date)}</span>
+                    {deal.announcedDate && (
+                      <span className="text-xs text-slate-600">{formatDate(deal.announcedDate)}</span>
                     )}
                   </div>
                 </Link>

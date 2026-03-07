@@ -10,18 +10,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl
     const page = parseInt(searchParams.get('page') ?? '1')
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '25'), 100)
-    const sortBy = searchParams.get('sortBy') ?? 'created_at'
+    const sortBy = searchParams.get('sortBy') ?? 'createdAt'
     const sortDir = (searchParams.get('sortDir') ?? 'desc') as 'asc' | 'desc'
 
     const filters: ContactFilters = {
       query: searchParams.get('query') ?? undefined,
-      seniority: searchParams.getAll('seniority') as any,
-      department: searchParams.getAll('department') as any,
-      jobFunctionIds: searchParams.getAll('jobFunctionIds'),
-      companyTypes: searchParams.getAll('companyTypes') as any,
-      verticalIds: searchParams.getAll('verticalIds'),
-      therapeuticAreaIds: searchParams.getAll('therapeuticAreaIds'),
-      regionIds: searchParams.getAll('regionIds'),
+      companyTypes: searchParams.getAll('companyTypes'),
+      verticalSlugs: searchParams.getAll('verticalSlugs'),
+      therapeuticAreas: searchParams.getAll('therapeuticAreas'),
       countries: searchParams.getAll('countries'),
       cities: searchParams.getAll('cities'),
       tags: searchParams.getAll('tags'),
@@ -30,9 +26,6 @@ export async function GET(req: NextRequest) {
         : undefined,
       engagementMax: searchParams.has('engagementMax')
         ? parseInt(searchParams.get('engagementMax')!)
-        : undefined,
-      isVerified: searchParams.has('isVerified')
-        ? searchParams.get('isVerified') === 'true'
         : undefined,
     }
 
@@ -59,14 +52,11 @@ export async function GET(req: NextRequest) {
             select: {
               id: true,
               name: true,
-              company_type: true,
-              logo_url: true,
-              headquarters_city: true,
-              headquarters_country: true,
+              companyType: true,
+              headquartersCity: true,
+              headquartersCountry: true,
             },
           },
-          job_function: { select: { id: true, name: true } },
-          region: { select: { id: true, name: true } },
         },
       }),
     ])

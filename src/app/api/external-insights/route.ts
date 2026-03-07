@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-// Map world-health-ai content types to WHAI-DATABASE ContentType enum
+// Map world-health-ai content types to WHAI-DATABASE content type strings
 const CONTENT_TYPE_MAP: Record<string, string> = {
   'quarterly-report': 'QUARTERLY_REPORT',
   'market-pulse': 'NEWS_BRIEF',
@@ -53,27 +53,23 @@ export async function GET(req: NextRequest) {
 
     const raw: any[] = await res.json()
 
-    // Map to WHAI-DATABASE insight shape
+    // Map to WHAI-DATABASE insight shape (camelCase, no slug/sourceUrl/thumbnailUrl)
     let mapped = raw.map((item) => ({
       id: item.id,
       title: item.title ?? '',
-      slug: item.slug ?? '',
-      content_type: mapContentType(item.content_type ?? item.category),
+      contentType: mapContentType(item.content_type ?? item.category),
       summary: item.excerpt ?? '',
       body: item.content ?? '',
       author: item.author ?? 'World Health AI Forum',
-      published_at: parsePublishedAt(item.date, item.created_at),
-      thumbnail_url: item.image ?? null,
-      is_premium: false,
-      source_url: `${baseUrl}/intelligence-hub/${item.slug}`,
-      tags: Array.isArray(item.tags) ? item.tags : (item.keywords ? item.keywords.split(',').map((k: string) => k.trim()).filter(Boolean) : []),
-      verticals: [],
-      therapeutic_areas: [],
+      publishedAt: parsePublishedAt(item.date, item.created_at),
+      isPremium: false,
+      tags: Array.isArray(item.tags) ? item.tags.join(', ') : (item.keywords ?? null),
       // Extra metadata from the source
       _source: 'intelligence-hub',
+      _sourceUrl: `${baseUrl}/intelligence-hub/${item.slug}`,
       _category: item.category ?? null,
-      _report_quarter: item.report_quarter ?? null,
-      _newsletter_featured: item.newsletter_featured ?? false,
+      _reportQuarter: item.report_quarter ?? null,
+      _newsletterFeatured: item.newsletter_featured ?? false,
     }))
 
     // Filter by query
@@ -83,13 +79,13 @@ export async function GET(req: NextRequest) {
         (i) =>
           i.title.toLowerCase().includes(q) ||
           i.summary.toLowerCase().includes(q) ||
-          i.tags.some((t: string) => t.toLowerCase().includes(q))
+          (i.tags && i.tags.toLowerCase().includes(q))
       )
     }
 
     // Filter by content types
     if (contentTypes.length > 0) {
-      mapped = mapped.filter((i) => contentTypes.includes(i.content_type))
+      mapped = mapped.filter((i) => contentTypes.includes(i.contentType))
     }
 
     const total = mapped.length

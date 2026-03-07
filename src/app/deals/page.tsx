@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Search, Download, SlidersHorizontal, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
 import { Pagination } from '@/components/search/Pagination'
-import type { DealFilters, DealType, DealStage } from '@/types'
-import { DEAL_TYPE_LABELS, DEAL_STAGE_LABELS } from '@/types'
+import type { DealFilters } from '@/types'
+import { DEAL_TYPE_OPTIONS, DEAL_STAGE_OPTIONS } from '@/types'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 
 async function fetchDeals(filters: DealFilters, page: number, pageSize: number, sortBy: string, sortDir: string) {
@@ -22,22 +22,16 @@ async function fetchDeals(filters: DealFilters, page: number, pageSize: number, 
   if (filters.valueMax !== undefined) params.set('valueMax', String(filters.valueMax))
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
   if (filters.dateTo) params.set('dateTo', filters.dateTo)
-  filters.verticalIds?.forEach((id) => params.append('verticalIds', id))
   const res = await fetch(`/api/deals?${params}`)
   if (!res.ok) throw new Error('Failed')
   return res.json()
 }
 
-async function fetchTaxonomy() {
-  const res = await fetch('/api/taxonomy')
-  return res.json()
-}
-
 const STAGE_COLORS: Record<string, string> = {
-  COMPLETED: 'text-green-400 bg-green-400/10 border-green-400/20',
-  ANNOUNCED: 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
-  TERMINATED: 'text-red-400 bg-red-400/10 border-red-400/20',
-  RUMOURED: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
+  'Completed': 'text-green-400 bg-green-400/10 border-green-400/20',
+  'Announced': 'text-[#00B4D8] bg-[#00B4D8]/10 border-[#00B4D8]/20',
+  'Terminated': 'text-red-400 bg-red-400/10 border-red-400/20',
+  'Rumoured': 'text-amber-400 bg-amber-400/10 border-amber-400/20',
 }
 
 function FilterSection({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
@@ -56,11 +50,10 @@ export default function DealsPage() {
   const [filters, setFilters] = useState<DealFilters>({})
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [sortBy, setSortBy] = useState('announced_date')
+  const [sortBy, setSortBy] = useState('announcedDate')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  const { data: taxonomy } = useQuery({ queryKey: ['taxonomy'], queryFn: fetchTaxonomy })
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['deals', filters, page, pageSize, sortBy, sortDir],
     queryFn: () => fetchDeals(filters, page, pageSize, sortBy, sortDir),
@@ -71,12 +64,12 @@ export default function DealsPage() {
 
   const update = (partial: Partial<DealFilters>) => setFilters((prev) => ({ ...prev, ...partial }))
 
-  const toggleDealType = (t: DealType) => {
+  const toggleDealType = (t: string) => {
     const curr = filters.dealTypes ?? []
     update({ dealTypes: curr.includes(t) ? curr.filter((x) => x !== t) : [...curr, t] })
   }
 
-  const toggleDealStage = (s: DealStage) => {
+  const toggleDealStage = (s: string) => {
     const curr = filters.dealStages ?? []
     update({ dealStages: curr.includes(s) ? curr.filter((x) => x !== s) : [...curr, s] })
   }
@@ -125,19 +118,19 @@ export default function DealsPage() {
             </div>
 
             <FilterSection title="Deal Type">
-              {(Object.keys(DEAL_TYPE_LABELS) as DealType[]).map((t) => (
+              {DEAL_TYPE_OPTIONS.map((t) => (
                 <label key={t} className="flex items-center gap-2 cursor-pointer py-0.5 group">
                   <input type="checkbox" checked={(filters.dealTypes ?? []).includes(t)} onChange={() => toggleDealType(t)} className="w-3.5 h-3.5 rounded border-slate-600 accent-[#00B4D8]" />
-                  <span className={cn('text-sm', (filters.dealTypes ?? []).includes(t) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>{DEAL_TYPE_LABELS[t]}</span>
+                  <span className={cn('text-sm', (filters.dealTypes ?? []).includes(t) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>{t}</span>
                 </label>
               ))}
             </FilterSection>
 
             <FilterSection title="Deal Stage">
-              {(Object.keys(DEAL_STAGE_LABELS) as DealStage[]).map((s) => (
+              {DEAL_STAGE_OPTIONS.map((s) => (
                 <label key={s} className="flex items-center gap-2 cursor-pointer py-0.5 group">
                   <input type="checkbox" checked={(filters.dealStages ?? []).includes(s)} onChange={() => toggleDealStage(s)} className="w-3.5 h-3.5 rounded border-slate-600 accent-[#00B4D8]" />
-                  <span className={cn('text-sm', (filters.dealStages ?? []).includes(s) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>{DEAL_STAGE_LABELS[s]}</span>
+                  <span className={cn('text-sm', (filters.dealStages ?? []).includes(s) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>{s}</span>
                 </label>
               ))}
             </FilterSection>
@@ -154,28 +147,6 @@ export default function DealsPage() {
                 </div>
               </div>
             </FilterSection>
-
-            {taxonomy?.verticals && (
-              <FilterSection title="Healthcare Vertical" defaultOpen={false}>
-                {taxonomy.verticals.map((parent: any) => (
-                  <div key={parent.id}>
-                    <div className="text-xs font-medium text-slate-500 mt-2 mb-1 uppercase tracking-wide">{parent.name}</div>
-                    {parent.children?.map((child: any) => (
-                      <label key={child.id} className="flex items-center gap-2 cursor-pointer py-0.5 pl-2 group">
-                        <input type="checkbox" checked={(filters.verticalIds ?? []).includes(child.id)}
-                          onChange={() => {
-                            const curr = filters.verticalIds ?? []
-                            update({ verticalIds: curr.includes(child.id) ? curr.filter((id) => id !== child.id) : [...curr, child.id] })
-                          }}
-                          className="w-3.5 h-3.5 rounded border-slate-600 accent-[#00B4D8]"
-                        />
-                        <span className={cn('text-sm', (filters.verticalIds ?? []).includes(child.id) ? 'text-[#00B4D8]' : 'text-slate-300 group-hover:text-white')}>{child.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                ))}
-              </FilterSection>
-            )}
           </div>
         )}
 
@@ -188,7 +159,7 @@ export default function DealsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
-                      {['Deal', 'Type', 'Stage', 'Value', 'Acquirer', 'Target', 'Date', 'Verticals'].map((h) => (
+                      {['Deal', 'Type', 'Stage', 'Value', 'Acquirer', 'Target', 'Date'].map((h) => (
                         <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -202,47 +173,38 @@ export default function DealsPage() {
                           </Link>
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className="text-xs text-slate-400">{DEAL_TYPE_LABELS[deal.deal_type as DealType]}</span>
+                          <span className="text-xs text-slate-400">{deal.dealType}</span>
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className={cn('whai-badge border text-xs', STAGE_COLORS[deal.deal_stage])}>
-                            {DEAL_STAGE_LABELS[deal.deal_stage as DealStage]}
+                          <span className={cn('whai-badge border text-xs', STAGE_COLORS[deal.dealStage] ?? 'text-slate-300 bg-slate-700/50 border-slate-600')}>
+                            {deal.dealStage}
                           </span>
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
-                          {deal.deal_value_disclosed && deal.deal_value_usd ? (
+                          {deal.dealValueUsd ? (
                             <span className="text-sm font-semibold text-[#00B4D8]">
-                              {formatCurrency(BigInt(deal.deal_value_usd))}
+                              {formatCurrency(BigInt(deal.dealValueUsd))}
                             </span>
                           ) : (
                             <span className="text-xs text-slate-500">Undisclosed</span>
                           )}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
-                          {deal.acquirer_company ? (
-                            <Link href={`/companies/${deal.acquirer_company.id}`} className="text-slate-300 hover:text-[#00B4D8] text-xs transition-colors">
-                              {deal.acquirer_company.name}
+                          {deal.acquirerCompany ? (
+                            <Link href={`/companies/${deal.acquirerCompany.id}`} className="text-slate-300 hover:text-[#00B4D8] text-xs transition-colors">
+                              {deal.acquirerCompany.name}
                             </Link>
                           ) : <span className="text-slate-500 text-xs">—</span>}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap">
-                          {deal.target_company ? (
-                            <Link href={`/companies/${deal.target_company.id}`} className="text-slate-300 hover:text-[#00B4D8] text-xs transition-colors">
-                              {deal.target_company.name}
+                          {deal.targetCompany ? (
+                            <Link href={`/companies/${deal.targetCompany.id}`} className="text-slate-300 hover:text-[#00B4D8] text-xs transition-colors">
+                              {deal.targetCompany.name}
                             </Link>
                           ) : <span className="text-slate-500 text-xs">—</span>}
                         </td>
                         <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-400">
-                          {deal.announced_date ? formatDate(deal.announced_date) : '—'}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex flex-wrap gap-1">
-                            {deal.verticals?.slice(0, 2).map((dv: any) => (
-                              <span key={dv.vertical.id} className="text-xs px-1.5 py-0.5 rounded bg-[#112850] text-slate-300 border border-[#1a3a5c] truncate max-w-[100px]">
-                                {dv.vertical.name}
-                              </span>
-                            ))}
-                          </div>
+                          {deal.announcedDate ? formatDate(deal.announcedDate) : '—'}
                         </td>
                       </tr>
                     ))}

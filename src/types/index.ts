@@ -2,122 +2,51 @@
 // WHAI Intelligence Hub — Shared Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type SeniorityLevel = 'C_SUITE' | 'VP' | 'DIRECTOR' | 'MANAGER' | 'INDIVIDUAL_CONTRIBUTOR' | 'BOARD'
-export type Department = 'CLINICAL' | 'RD' | 'IT_DIGITAL' | 'COMMERCIAL' | 'REGULATORY' | 'OPERATIONS' | 'FINANCE' | 'STRATEGY' | 'EXECUTIVE_LEADERSHIP'
-export type CompanyType = 'PHARMA' | 'BIOTECH' | 'MEDTECH' | 'HEALTH_IT' | 'CRO' | 'CDMO' | 'PAYER' | 'PROVIDER' | 'GOVERNMENT' | 'CONSULTING' | 'INVESTOR' | 'ACADEMIC' | 'INDUSTRY_ASSOCIATION' | 'SOLUTION_PROVIDER'
-export type OwnershipStatus = 'PUBLIC' | 'PRIVATE' | 'PE_BACKED' | 'VC_BACKED' | 'GOVERNMENT' | 'NON_PROFIT' | 'ACADEMIC'
-export type EmployeeCountRange = 'RANGE_1_10' | 'RANGE_11_50' | 'RANGE_51_200' | 'RANGE_201_500' | 'RANGE_501_1000' | 'RANGE_1001_5000' | 'RANGE_5001_10000' | 'RANGE_10000_PLUS'
-export type AnnualRevenueRange = 'LESS_THAN_1M' | 'RANGE_1_10M' | 'RANGE_10_50M' | 'RANGE_50_100M' | 'RANGE_100_500M' | 'RANGE_500M_1B' | 'ABOVE_1B'
-export type DealType = 'MA_ACQUISITION' | 'MA_MERGER' | 'VC_SEED' | 'VC_SERIES_A' | 'VC_SERIES_B' | 'VC_SERIES_C_PLUS' | 'PE_BUYOUT' | 'PE_GROWTH_EQUITY' | 'PE_RECAPITALISATION' | 'IPO' | 'SPAC' | 'LICENSING_PARTNERSHIP' | 'JOINT_VENTURE' | 'ASSET_SALE' | 'DEBT_FINANCING' | 'GRANT' | 'SECONDARY_SALE'
-export type DealStage = 'ANNOUNCED' | 'COMPLETED' | 'TERMINATED' | 'RUMOURED'
-export type ContentType = 'MARKET_REPORT' | 'ANALYSIS' | 'NEWS_BRIEF' | 'DATA_SNAPSHOT' | 'QUARTERLY_REPORT' | 'PODCAST_SUMMARY'
+// All enum-like fields are now stored as plain strings in the database.
+// These label maps provide display values for filter dropdowns and UI.
 
-// ── Display label maps ────────────────────────────────────────────────────────
+export const COMPANY_TYPE_OPTIONS = [
+  'Pharma', 'Biotech', 'MedTech', 'Health IT', 'CRO', 'CDMO',
+  'Payer', 'Provider', 'Government', 'Consulting', 'Investor',
+  'Academic', 'Industry Association', 'Solution Provider',
+]
 
-export const SENIORITY_LABELS: Record<SeniorityLevel, string> = {
-  C_SUITE: 'C-Suite',
-  VP: 'VP',
-  DIRECTOR: 'Director',
-  MANAGER: 'Manager',
-  INDIVIDUAL_CONTRIBUTOR: 'Individual Contributor',
-  BOARD: 'Board',
-}
+export const OWNERSHIP_OPTIONS = [
+  'Public', 'Private', 'PE-Backed', 'VC-Backed', 'Government', 'Non-Profit', 'Academic',
+]
 
-export const DEPARTMENT_LABELS: Record<Department, string> = {
-  CLINICAL: 'Clinical',
-  RD: 'R&D',
-  IT_DIGITAL: 'IT/Digital',
-  COMMERCIAL: 'Commercial',
-  REGULATORY: 'Regulatory',
-  OPERATIONS: 'Operations',
-  FINANCE: 'Finance',
-  STRATEGY: 'Strategy',
-  EXECUTIVE_LEADERSHIP: 'Executive Leadership',
-}
+export const EMPLOYEE_RANGE_OPTIONS = [
+  '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+',
+]
 
-export const COMPANY_TYPE_LABELS: Record<CompanyType, string> = {
-  PHARMA: 'Pharma',
-  BIOTECH: 'Biotech',
-  MEDTECH: 'MedTech / Medical Device',
-  HEALTH_IT: 'Health IT / Digital Health',
-  CRO: 'CRO',
-  CDMO: 'CDMO',
-  PAYER: 'Payer / Insurer',
-  PROVIDER: 'Provider / Health System',
-  GOVERNMENT: 'Government / Public Health Body',
-  CONSULTING: 'Consulting / Advisory',
-  INVESTOR: 'Investor (PE/VC/Family Office)',
-  ACADEMIC: 'Academic / Research Institution',
-  INDUSTRY_ASSOCIATION: 'Industry Association',
-  SOLUTION_PROVIDER: 'Solution Provider / Vendor',
-}
+export const REVENUE_RANGE_OPTIONS = [
+  '<1M', '1-10M', '10-50M', '50-100M', '100-500M', '500M-1B', '1B+',
+]
 
-export const OWNERSHIP_LABELS: Record<OwnershipStatus, string> = {
-  PUBLIC: 'Public',
-  PRIVATE: 'Private',
-  PE_BACKED: 'PE-Backed',
-  VC_BACKED: 'VC-Backed',
-  GOVERNMENT: 'Government/NHS',
-  NON_PROFIT: 'Non-Profit',
-  ACADEMIC: 'Academic',
-}
+export const DEAL_TYPE_OPTIONS = [
+  'M&A (Acquisition)', 'M&A (Merger)', 'Venture Capital (Seed)',
+  'Venture Capital (Series A)', 'Venture Capital (Series B)', 'Venture Capital (Series C+)',
+  'Private Equity (Buyout)', 'Private Equity (Growth Equity)', 'Private Equity (Recapitalisation)',
+  'IPO', 'SPAC', 'Licensing / Partnership', 'Joint Venture',
+  'Asset Sale / Divestiture', 'Debt Financing', 'Grant / Government Funding', 'Secondary Sale',
+]
 
-export const EMPLOYEE_RANGE_LABELS: Record<EmployeeCountRange, string> = {
-  RANGE_1_10: '1–10',
-  RANGE_11_50: '11–50',
-  RANGE_51_200: '51–200',
-  RANGE_201_500: '201–500',
-  RANGE_501_1000: '501–1,000',
-  RANGE_1001_5000: '1,001–5,000',
-  RANGE_5001_10000: '5,001–10,000',
-  RANGE_10000_PLUS: '10,000+',
-}
+export const DEAL_STAGE_OPTIONS = ['Announced', 'Completed', 'Terminated', 'Rumoured']
 
-export const REVENUE_RANGE_LABELS: Record<AnnualRevenueRange, string> = {
-  LESS_THAN_1M: '<$1M',
-  RANGE_1_10M: '$1–10M',
-  RANGE_10_50M: '$10–50M',
-  RANGE_50_100M: '$50–100M',
-  RANGE_100_500M: '$100–500M',
-  RANGE_500M_1B: '$500M–1B',
-  ABOVE_1B: '$1B+',
-}
+export const CONTENT_TYPE_OPTIONS = [
+  'Market Report', 'Analysis', 'News Brief', 'Data Snapshot', 'Quarterly Report', 'Podcast Summary',
+]
 
-export const DEAL_TYPE_LABELS: Record<DealType, string> = {
-  MA_ACQUISITION: 'M&A (Acquisition)',
-  MA_MERGER: 'M&A (Merger)',
-  VC_SEED: 'VC Seed',
-  VC_SERIES_A: 'VC Series A',
-  VC_SERIES_B: 'VC Series B',
-  VC_SERIES_C_PLUS: 'VC Series C+',
-  PE_BUYOUT: 'PE Buyout',
-  PE_GROWTH_EQUITY: 'PE Growth Equity',
-  PE_RECAPITALISATION: 'PE Recapitalisation',
-  IPO: 'IPO',
-  SPAC: 'SPAC',
-  LICENSING_PARTNERSHIP: 'Licensing / Partnership',
-  JOINT_VENTURE: 'Joint Venture',
-  ASSET_SALE: 'Asset Sale / Divestiture',
-  DEBT_FINANCING: 'Debt Financing',
-  GRANT: 'Grant / Government Funding',
-  SECONDARY_SALE: 'Secondary Sale',
-}
+export const SENIORITY_OPTIONS = [
+  'C-Suite', 'VP', 'Director', 'Manager', 'Individual Contributor', 'Board',
+]
 
-export const DEAL_STAGE_LABELS: Record<DealStage, string> = {
-  ANNOUNCED: 'Announced',
-  COMPLETED: 'Completed',
-  TERMINATED: 'Terminated',
-  RUMOURED: 'Rumoured',
-}
+export const DEPARTMENT_OPTIONS = [
+  'Clinical', 'R&D', 'IT/Digital', 'Commercial', 'Regulatory',
+  'Operations', 'Finance', 'Strategy', 'Executive Leadership',
+]
 
-export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
-  MARKET_REPORT: 'Market Report',
-  ANALYSIS: 'Analysis',
-  NEWS_BRIEF: 'News Brief',
-  DATA_SNAPSHOT: 'Data Snapshot',
-  QUARTERLY_REPORT: 'Quarterly Report',
-  PODCAST_SUMMARY: 'Podcast Summary',
-}
+export const INVESTOR_ROLE_OPTIONS = ['Lead', 'Co-Lead', 'Participant', 'Undisclosed']
 
 // ── Filter / API types ────────────────────────────────────────────────────────
 
@@ -136,31 +65,26 @@ export interface PaginatedResult<T> {
 
 export interface ContactFilters {
   query?: string
-  seniority?: SeniorityLevel[]
-  department?: Department[]
-  jobFunctionIds?: string[]
-  companyTypes?: CompanyType[]
-  verticalIds?: string[]
-  therapeuticAreaIds?: string[]
-  regionIds?: string[]
+  companyTypes?: string[]
+  verticalSlugs?: string[]
+  therapeuticAreas?: string[]
   countries?: string[]
   cities?: string[]
   tags?: string[]
   engagementMin?: number
   engagementMax?: number
-  isVerified?: boolean
 }
 
 export interface CompanyFilters {
   query?: string
-  companyTypes?: CompanyType[]
-  ownershipStatus?: OwnershipStatus[]
+  companyTypes?: string[]
+  ownershipStatus?: string[]
   verticalIds?: string[]
   therapeuticAreaIds?: string[]
   countries?: string[]
   cities?: string[]
-  employeeRanges?: EmployeeCountRange[]
-  revenueRanges?: AnnualRevenueRange[]
+  employeeRanges?: string[]
+  revenueRanges?: string[]
   foundedYearMin?: number
   foundedYearMax?: number
   hasContacts?: boolean
@@ -170,8 +94,8 @@ export interface CompanyFilters {
 
 export interface DealFilters {
   query?: string
-  dealTypes?: DealType[]
-  dealStages?: DealStage[]
+  dealTypes?: string[]
+  dealStages?: string[]
   valueMin?: number
   valueMax?: number
   dateFrom?: string
@@ -179,33 +103,12 @@ export interface DealFilters {
   acquirerQuery?: string
   targetQuery?: string
   investorQuery?: string
-  verticalIds?: string[]
-  therapeuticAreaIds?: string[]
-  countries?: string[]
-  valueDisclosed?: boolean
 }
 
 export interface InsightFilters {
   query?: string
-  contentTypes?: ContentType[]
-  verticalIds?: string[]
-  therapeuticAreaIds?: string[]
+  contentTypes?: string[]
   dateFrom?: string
   dateTo?: string
   isPremium?: boolean
-}
-
-// ── Taxonomy types ────────────────────────────────────────────────────────────
-
-export interface TaxonomyItem {
-  id: string
-  name: string
-  slug: string
-  sort_order?: number
-  description?: string
-}
-
-export interface HierarchicalVertical extends TaxonomyItem {
-  parent_id: string | null
-  children: HierarchicalVertical[]
 }
