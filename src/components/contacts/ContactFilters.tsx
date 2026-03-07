@@ -4,12 +4,23 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ContactFilters } from '@/types'
+import { COMPANY_TYPE_OPTIONS } from '@/types'
 
 interface ContactFiltersProps {
   filters: ContactFilters
   taxonomy: undefined
   onChange: (filters: ContactFilters) => void
 }
+
+const COUNTRY_OPTIONS = [
+  'United States', 'United Kingdom', 'Germany', 'Switzerland', 'Ireland',
+]
+
+const TAG_OPTIONS = [
+  'executive', 'pharma', 'biotech', 'medtech', 'oncology', 'clinical',
+  'AI', 'data', 'analytics', 'data-science', 'cloud', 'telehealth',
+  'mRNA', 'product', 'R&D',
+]
 
 function FilterSection({
   title, defaultOpen = true, children,
@@ -87,6 +98,33 @@ export function ContactFilterSidebar({ filters, onChange }: ContactFiltersProps)
           />
         </div>
       </div>
+
+      {/* Country */}
+      <FilterSection title="Country">
+        <MultiCheckbox
+          options={COUNTRY_OPTIONS}
+          selected={filters.countries ?? []}
+          onChange={(countries) => update({ countries: countries.length ? countries : undefined })}
+        />
+      </FilterSection>
+
+      {/* Company Type */}
+      <FilterSection title="Company Type" defaultOpen={false}>
+        <MultiCheckbox
+          options={COMPANY_TYPE_OPTIONS}
+          selected={filters.companyTypes ?? []}
+          onChange={(companyTypes) => update({ companyTypes: companyTypes.length ? companyTypes : undefined })}
+        />
+      </FilterSection>
+
+      {/* Tags */}
+      <FilterSection title="Tags" defaultOpen={false}>
+        <MultiCheckbox
+          options={TAG_OPTIONS}
+          selected={filters.tags ?? []}
+          onChange={(tags) => update({ tags: tags.length ? tags : undefined })}
+        />
+      </FilterSection>
 
       {/* Engagement Score */}
       <FilterSection title="Engagement Score" defaultOpen={false}>
