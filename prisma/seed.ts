@@ -5,7 +5,7 @@ import * as path from 'path'
 
 const prisma = new PrismaClient()
 
-function readCsv(filename: string) {
+function readCsv(filename: string): Record<string, string>[] {
   const filePath = path.join(process.cwd(), 'prisma', filename)
   const content = fs.readFileSync(filePath, 'utf-8')
   return parse(content, { columns: true, skip_empty_lines: true, trim: true })
