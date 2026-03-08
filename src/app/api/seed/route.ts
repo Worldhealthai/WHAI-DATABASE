@@ -1,33 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { parse } from 'csv-parse/sync'
-import * as fs from 'fs'
-import * as path from 'path'
 import { execSync } from 'child_process'
+import {
+  companiesData,
+  contactsData,
+  dealsData,
+  dealInvestorsData,
+  companyVerticalsData,
+  companyTherapeuticAreasData,
+  insightsData,
+} from '@/lib/seed-data'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-function readCsv(filename: string): Record<string, string>[] {
-  const filePath = path.join(process.cwd(), 'prisma', filename)
-  const content = fs.readFileSync(filePath, 'utf-8')
-  return parse(content, { columns: true, skip_empty_lines: true, trim: true })
+function safeBigInt(val: string): bigint | null {
+  if (!val || val.trim() === '') return null
+  try { return BigInt(val.replace(/[^0-9]/g, '')) } catch { return null }
 }
 
-function safeInt(val: string): number | undefined {
-  const n = parseInt(val)
-  return isNaN(n) ? undefined : n
-}
-
-function safeBigInt(val: string): bigint | undefined {
-  if (!val || val.trim() === '') return undefined
-  try { return BigInt(val.replace(/[^0-9]/g, '')) } catch { return undefined }
-}
-
-function safeDate(val: string): Date | undefined {
-  if (!val || val.trim() === '') return undefined
+function safeDate(val: string): Date | null {
+  if (!val || val.trim() === '') return null
   const d = new Date(val)
-  return isNaN(d.getTime()) ? undefined : d
+  return isNaN(d.getTime()) ? null : d
 }
 
 export async function POST(req: NextRequest) {
@@ -47,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Push schema to database first
     log('  Pushing schema to database...')
     try {
-      const output = execSync('npx prisma db push --skip-generate --accept-data-loss', {
+      execSync('npx prisma db push --skip-generate --accept-data-loss', {
         cwd: process.cwd(),
         timeout: 30000,
         encoding: 'utf-8',
@@ -55,7 +50,6 @@ export async function POST(req: NextRequest) {
       log('  ✅ Schema pushed successfully')
     } catch (e: any) {
       log(`  ⚠️ Schema push warning: ${e.message?.slice(0, 200)}`)
-      // Continue anyway — schema might already be up to date
     }
 
     // Check if already seeded
@@ -75,10 +69,9 @@ export async function POST(req: NextRequest) {
 
     // ── 1. Companies ──────────────────────────────
     log('  Loading companies...')
-    const companies = readCsv('companies.csv')
     const companyMap: Record<string, string> = {}
 
-    for (const row of companies) {
+    for (const row of companiesData) {
       if (!row.name?.trim()) continue
       const company = await prisma.company.create({
         data: {
@@ -88,7 +81,7 @@ export async function POST(req: NextRequest) {
           description: row.description || null,
           companyType: row.company_type || null,
           ownershipStatus: row.ownership_status || null,
-          foundedYear: safeInt(row.founded_year),
+          foundedYear: row.founded_year || null,
           employeeCountRange: row.employee_count_range || null,
           annualRevenueRange: row.annual_revenue_range || null,
           headquartersCountry: row.headquarters_country || null,
@@ -105,10 +98,9 @@ export async function POST(req: NextRequest) {
 
     // ── 2. Contacts ───────────────────────────────
     log('  Loading contacts...')
-    const contacts = readCsv('contacts.csv')
     let contactCount = 0
 
-    for (const row of contacts) {
+    for (const row of contactsData) {
       const email = row.email?.trim()
       if (!row.first_name?.trim() && !email) continue
       const companyId = row.company ? companyMap[row.company.trim().toLowerCase()] : undefined
@@ -120,8 +112,8 @@ export async function POST(req: NextRequest) {
             firstName: row.first_name || null,
             lastName: row.last_name || null,
             email: email || null,
-            phone: row.phone || null,
-            linkedinUrl: row.linkedin_url || null,
+            phone: null,
+            linkedinUrl: null,
             jobTitle: row.job_title || null,
             seniority: row.seniority || null,
             department: row.department || null,
@@ -144,10 +136,9 @@ export async function POST(req: NextRequest) {
 
     // ── 3. Deals ──────────────────────────────────
     log('  Loading deals...')
-    const deals = readCsv('deals.csv')
     const dealMap: Record<string, string> = {}
 
-    for (const row of deals) {
+    for (const row of dealsData) {
       if (!row.title?.trim()) continue
       const targetId = row.target_company ? companyMap[row.target_company.trim().toLowerCase()] : undefined
       const acquirerId = row.acquirer_company ? companyMap[row.acquirer_company.trim().toLowerCase()] : undefined
@@ -157,13 +148,13 @@ export async function POST(req: NextRequest) {
           title: row.title.trim(),
           dealType: row.deal_type || null,
           dealStage: row.deal_stage || null,
-          dealValueUsd: safeBigInt(row.deal_value_usd) ?? null,
-          announcedDate: safeDate(row.announced_date) ?? null,
-          closedDate: safeDate(row.closed_date) ?? null,
+          dealValueUsd: safeBigInt(row.deal_value_usd),
+          announcedDate: safeDate(row.announced_date),
+          closedDate: safeDate(row.closed_date),
           targetCompanyId: targetId || null,
           acquirerCompanyId: acquirerId || null,
           description: row.description || null,
-          sourceUrl: row.source_url || null,
+          sourceUrl: null,
           tags: row.tags || null,
         },
       })
@@ -173,10 +164,9 @@ export async function POST(req: NextRequest) {
 
     // ── 4. Deal Investors ─────────────────────────
     log('  Loading deal investors...')
-    const dealInvestors = readCsv('deal_investors.csv')
     let diCount = 0
 
-    for (const row of dealInvestors) {
+    for (const row of dealInvestorsData) {
       const dealId = dealMap[row.deal_title?.trim()]
       if (!dealId) continue
       const investorId = row.investor_company ? companyMap[row.investor_company.trim().toLowerCase()] : undefined
@@ -187,7 +177,7 @@ export async function POST(req: NextRequest) {
           investorCompanyName: row.investor_company || null,
           investorCompanyId: investorId || null,
           investorRole: row.investor_role || null,
-          investmentAmountUsd: safeBigInt(row.investment_amount_usd) ?? null,
+          investmentAmountUsd: safeBigInt(row.investment_amount_usd),
         },
       })
       diCount++
@@ -196,16 +186,15 @@ export async function POST(req: NextRequest) {
 
     // ── 5. Company Verticals ──────────────────────
     log('  Loading company verticals...')
-    const verticals = readCsv('company_verticals.csv')
     let vCount = 0
 
-    for (const row of verticals) {
+    for (const row of companyVerticalsData) {
       const companyId = companyMap[row.company_name?.trim().toLowerCase()]
       if (!companyId || !row.vertical_slug) continue
       try {
         await prisma.companyVertical.upsert({
           where: { companyId_verticalSlug: { companyId, verticalSlug: row.vertical_slug } },
-          create: { companyId, verticalSlug: row.vertical_slug, isPrimary: row.is_primary === 'true' },
+          create: { companyId, verticalSlug: row.vertical_slug, isPrimary: row.is_primary },
           update: {},
         })
         vCount++
@@ -215,10 +204,9 @@ export async function POST(req: NextRequest) {
 
     // ── 6. Therapeutic Areas ──────────────────────
     log('  Loading therapeutic areas...')
-    const tas = readCsv('company_therapeutic_areas.csv')
     let taCount = 0
 
-    for (const row of tas) {
+    for (const row of companyTherapeuticAreasData) {
       const companyId = companyMap[row.company_name?.trim().toLowerCase()]
       if (!companyId || !row.therapeutic_area) continue
       try {
@@ -234,9 +222,9 @@ export async function POST(req: NextRequest) {
 
     // ── 7. Insights ───────────────────────────────
     log('  Loading insights...')
-    const insights = readCsv('insights.csv')
+    let insightCount = 0
 
-    for (const row of insights) {
+    for (const row of insightsData) {
       if (!row.title?.trim()) continue
       await prisma.insight.create({
         data: {
@@ -245,13 +233,14 @@ export async function POST(req: NextRequest) {
           summary: row.summary || null,
           body: row.body || null,
           author: row.author || null,
-          publishedAt: safeDate(row.published_at) ?? null,
-          isPremium: row.is_premium === 'true',
+          publishedAt: safeDate(row.published_at),
+          isPremium: row.is_premium,
           tags: row.tags || null,
         },
       })
+      insightCount++
     }
-    log(`  ✅ ${insights.length} insights`)
+    log(`  ✅ ${insightCount} insights`)
 
     log('\n🎉 Seed complete!')
 
@@ -264,7 +253,7 @@ export async function POST(req: NextRequest) {
         dealInvestors: diCount,
         verticals: vCount,
         therapeuticAreas: taCount,
-        insights: insights.length,
+        insights: insightCount,
       },
       logs,
     })
