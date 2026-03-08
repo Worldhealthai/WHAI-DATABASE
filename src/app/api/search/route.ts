@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-// Global search across all entities
 export async function GET(req: NextRequest) {
   try {
     const query = req.nextUrl.searchParams.get('q')
@@ -11,57 +10,41 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ contacts: [], companies: [], deals: [], insights: [] })
     }
 
-    const q = { contains: query, mode: 'insensitive' as const }
+    const q = `%${query}%`
     const limit = 5
 
-    const [contacts, companies, deals, insights] = await Promise.all([
-      prisma.contact.findMany({
-        where: {
-          OR: [
-            { firstName: q },
-            { lastName: q },
-            { jobTitle: q },
-            { company: { name: q } },
-          ],
-        },
-        take: limit,
-        include: {
-          company: { select: { name: true } },
-        },
-        orderBy: { engagementScore: 'desc' },
-      }),
-      prisma.company.findMany({
-        where: { OR: [{ name: q }, { description: q }] },
-        take: limit,
-        select: {
-          id: true, name: true, companyType: true,
-          headquartersCity: true, headquartersCountry: true,
-        },
-      }),
-      prisma.deal.findMany({
-        where: {
-          OR: [
-            { title: q },
-            { acquirerCompany: { name: q } },
-            { targetCompany: { name: q } },
-          ],
-        },
-        take: limit,
-        include: {
-          acquirerCompany: { select: { name: true } },
-          targetCompany: { select: { name: true } },
-        },
-        orderBy: { announcedDate: 'desc' },
-      }),
-      prisma.insight.findMany({
-        where: { OR: [{ title: q }, { summary: q }] },
-        take: limit,
-        select: { id: true, title: true, contentType: true, publishedAt: true },
-        orderBy: { publishedAt: 'desc' },
-      }),
+    const [contactsRes, companiesRes, dealsRes, insightsRes] = await Promise.all([
+      supabase
+        .from('contacts')
+        .select('*, company:companies(name)')
+        .or(`firstName.ilike.${q},lastName.ilike.${q},jobTitle.ilike.${q}`)
+        .order('engagementScore', { ascending: false })
+        .limit(limit),
+      supabase
+        .from('companies')
+        .select('id, name, companyType, headquartersCity, headquartersCountry')
+        .or(`name.ilike.${q},description.ilike.${q}`)
+        .limit(limit),
+      supabase
+        .from('deals')
+        .select('*, acquirerCompany:companies!deals_acquirerCompanyId_fkey(name), targetCompany:companies!deals_targetCompanyId_fkey(name)')
+        .or(`title.ilike.${q}`)
+        .order('announcedDate', { ascending: false })
+        .limit(limit),
+      supabase
+        .from('insights')
+        .select('id, title, contentType, publishedAt')
+        .or(`title.ilike.${q},summary.ilike.${q}`)
+        .order('publishedAt', { ascending: false })
+        .limit(limit),
     ])
 
-    return NextResponse.json({ contacts, companies, deals, insights })
+    return NextResponse.json({
+      contacts: contactsRes.data ?? [],
+      companies: companiesRes.data ?? [],
+      deals: dealsRes.data ?? [],
+      insights: insightsRes.data ?? [],
+    })
   } catch (error) {
     console.error('Global search error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

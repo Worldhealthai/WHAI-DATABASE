@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CSV Import endpoint
-// POST /api/import — accepts { rows: object[] }
-// ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { rows } = body as {
-      rows: Record<string, string>[]
-    }
+    const { rows } = body as { rows: Record<string, string>[] }
 
     if (!rows || !Array.isArray(rows)) {
       return NextResponse.json({ error: 'rows array is required' }, { status: 400 })
@@ -27,7 +20,6 @@ export async function POST(req: NextRequest) {
       errors: 0,
     }
 
-    // Company cache to avoid duplicates within batch
     const companyCache = new Map<string, string>()
 
     for (const row of rows) {
@@ -40,18 +32,9 @@ export async function POST(req: NextRequest) {
 
         if (!firstName && !lastName) { stats.errors++; continue }
 
-        // Deduplicate: try email first, then name + company
+        // Deduplicate by email
         if (email) {
-          const existing = await prisma.contact.findUnique({ where: { email } })
-          if (existing) { stats.duplicates++; continue }
-        } else {
-          const existing = await prisma.contact.findFirst({
-            where: {
-              firstName: { equals: firstName, mode: 'insensitive' },
-              lastName: { equals: lastName, mode: 'insensitive' },
-              company: { name: { equals: companyName, mode: 'insensitive' } },
-            },
-          })
+          const { data: existing } = await supabase.from('contacts').select('id').eq('email', email).limit(1).single()
           if (existing) { stats.duplicates++; continue }
         }
 
@@ -61,41 +44,46 @@ export async function POST(req: NextRequest) {
           if (companyCache.has(companyName.toLowerCase())) {
             companyId = companyCache.get(companyName.toLowerCase())
           } else {
-            const existingCompany = await prisma.company.findFirst({
-              where: { name: { equals: companyName, mode: 'insensitive' } },
-            })
-            if (existingCompany) {
-              companyId = existingCompany.id
+            const { data: existing } = await supabase
+              .from('companies')
+              .select('id')
+              .ilike('name', companyName)
+              .limit(1)
+              .single()
+
+            if (existing) {
+              companyId = existing.id
             } else {
-              const newCompany = await prisma.company.create({
-                data: {
-                  name: companyName,
-                  companyType: 'SOLUTION_PROVIDER',
-                },
-              })
-              companyId = newCompany.id
-              stats.companiesCreated++
+              const { data: newCompany } = await supabase
+                .from('companies')
+                .insert({ name: companyName, companyType: 'Solution Provider' })
+                .select('id')
+                .single()
+              if (newCompany) {
+                companyId = newCompany.id
+                stats.companiesCreated++
+              }
             }
-            companyCache.set(companyName.toLowerCase(), companyId!)
+            if (companyId) companyCache.set(companyName.toLowerCase(), companyId)
           }
         }
 
-        await prisma.contact.create({
-          data: {
-            firstName: firstName,
-            lastName: lastName,
-            email: email || undefined,
-            phone: row.phone?.trim() || undefined,
-            linkedinUrl: row.linkedin_url?.trim() || row.linkedin?.trim() || undefined,
-            jobTitle: jobTitle,
-            companyName: companyName || undefined,
-            companyId: companyId,
-            country: row.country?.trim() || undefined,
-            city: row.city?.trim() || undefined,
-            engagementScore: 0,
-          },
+        const { error } = await supabase.from('contacts').insert({
+          firstName,
+          lastName,
+          email: email || undefined,
+          phone: row.phone?.trim() || undefined,
+          linkedinUrl: row.linkedin_url?.trim() || row.linkedin?.trim() || undefined,
+          jobTitle,
+          companyName: companyName || undefined,
+          companyId: companyId || undefined,
+          country: row.country?.trim() || undefined,
+          city: row.city?.trim() || undefined,
+          engagementScore: 0,
         })
-        stats.imported++
+
+        if (!error) stats.imported++
+        else stats.errors++
       } catch (err) {
         console.error('Row import error:', err)
         stats.errors++

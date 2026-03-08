@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { buildInsightWhere } from '@/lib/search'
+import { supabase } from '@/lib/supabase'
 import type { InsightFilters } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +14,7 @@ export async function GET(req: NextRequest) {
 
     const filters: InsightFilters = {
       query: searchParams.get('query') ?? undefined,
-      contentTypes: searchParams.getAll('contentTypes') as any,
+      contentTypes: searchParams.getAll('contentTypes').filter(Boolean),
       dateFrom: searchParams.get('dateFrom') ?? undefined,
       dateTo: searchParams.get('dateTo') ?? undefined,
       isPremium: searchParams.has('isPremium')
@@ -23,26 +22,28 @@ export async function GET(req: NextRequest) {
         : undefined,
     }
 
-    for (const key of Object.keys(filters) as (keyof InsightFilters)[]) {
-      if (Array.isArray(filters[key]) && (filters[key] as unknown[]).length === 0) {
-        delete filters[key]
-      }
+    let query = supabase.from('insights').select('*', { count: 'exact' })
+
+    if (filters.query) {
+      query = query.or(`title.ilike.%${filters.query}%,summary.ilike.%${filters.query}%,body.ilike.%${filters.query}%`)
     }
 
-    const where = buildInsightWhere(filters)
-    const orderBy: Record<string, 'asc' | 'desc'> = { [sortBy]: sortDir }
+    if (filters.contentTypes?.length) query = query.in('contentType', filters.contentTypes)
+    if (filters.dateFrom) query = query.gte('publishedAt', filters.dateFrom)
+    if (filters.dateTo) query = query.lte('publishedAt', filters.dateTo)
+    if (filters.isPremium !== undefined) query = query.eq('isPremium', filters.isPremium)
 
-    const [total, data] = await Promise.all([
-      prisma.insight.count({ where }),
-      prisma.insight.findMany({
-        where,
-        orderBy,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-    ])
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
 
-    return NextResponse.json({ data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
+    const { data, count, error } = await query
+      .order(sortBy, { ascending: sortDir === 'asc' })
+      .range(from, to)
+
+    if (error) throw error
+
+    const total = count ?? 0
+    return NextResponse.json({ data: data ?? [], total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
   } catch (error) {
     console.error('Insights API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

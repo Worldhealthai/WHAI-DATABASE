@@ -1,55 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const deal = await prisma.deal.findUnique({
-      where: { id: params.id },
-      include: {
-        acquirerCompany: {
-          include: {
-            verticals: { where: { isPrimary: true }, take: 3 },
-          },
-        },
-        targetCompany: {
-          include: {
-            verticals: { where: { isPrimary: true }, take: 3 },
-          },
-        },
-        investors: {
-          include: {
-            investorCompany: {
-              select: { id: true, name: true, companyType: true },
-            },
-          },
-        },
-      },
-    })
+    const { data: deal, error } = await supabase
+      .from('deals')
+      .select(`
+        *,
+        acquirerCompany:companies!deals_acquirerCompanyId_fkey(*, verticals:company_verticals(id, verticalSlug, isPrimary)),
+        targetCompany:companies!deals_targetCompanyId_fkey(*, verticals:company_verticals(id, verticalSlug, isPrimary)),
+        investors:deal_investors(*, investorCompany:companies(id, name, companyType))
+      `)
+      .eq('id', params.id)
+      .single()
 
-    if (!deal) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (error || !deal) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Related deals (same companies)
-    const relatedDeals = await prisma.deal.findMany({
-      where: {
-        id: { not: deal.id },
-        OR: [
-          ...(deal.acquirerCompanyId
-            ? [{ acquirerCompanyId: deal.acquirerCompanyId }]
-            : []),
-          ...(deal.targetCompanyId
-            ? [{ targetCompanyId: deal.targetCompanyId }]
-            : []),
-        ],
-      },
-      take: 5,
-      orderBy: { announcedDate: 'desc' },
-      include: {
-        acquirerCompany: { select: { name: true } },
-        targetCompany: { select: { name: true } },
-      },
-    })
+    const orConditions: string[] = []
+    if (deal.acquirerCompanyId) orConditions.push(`acquirerCompanyId.eq.${deal.acquirerCompanyId}`)
+    if (deal.targetCompanyId) orConditions.push(`targetCompanyId.eq.${deal.targetCompanyId}`)
+
+    let relatedDeals: any[] = []
+    if (orConditions.length > 0) {
+      const { data } = await supabase
+        .from('deals')
+        .select('*, acquirerCompany:companies!deals_acquirerCompanyId_fkey(name), targetCompany:companies!deals_targetCompanyId_fkey(name)')
+        .neq('id', deal.id)
+        .or(orConditions.join(','))
+        .order('announcedDate', { ascending: false })
+        .limit(5)
+      relatedDeals = data ?? []
+    }
 
     return NextResponse.json({ deal, relatedDeals })
   } catch (error) {

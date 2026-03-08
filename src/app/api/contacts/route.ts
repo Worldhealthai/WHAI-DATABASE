@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { ensureSeeded } from '@/lib/auto-seed'
-import { buildContactWhere } from '@/lib/search'
+import { supabase } from '@/lib/supabase'
 import type { ContactFilters } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    await ensureSeeded()
     const { searchParams } = req.nextUrl
     const page = parseInt(searchParams.get('page') ?? '1')
     const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '25'), 100)
@@ -17,14 +14,14 @@ export async function GET(req: NextRequest) {
 
     const filters: ContactFilters = {
       query: searchParams.get('query') ?? undefined,
-      seniorities: searchParams.getAll('seniorities'),
-      departments: searchParams.getAll('departments'),
-      companyTypes: searchParams.getAll('companyTypes'),
-      verticalSlugs: searchParams.getAll('verticalSlugs'),
-      therapeuticAreas: searchParams.getAll('therapeuticAreas'),
-      countries: searchParams.getAll('countries'),
-      cities: searchParams.getAll('cities'),
-      tags: searchParams.getAll('tags'),
+      seniorities: searchParams.getAll('seniorities').filter(Boolean),
+      departments: searchParams.getAll('departments').filter(Boolean),
+      companyTypes: searchParams.getAll('companyTypes').filter(Boolean),
+      verticalSlugs: searchParams.getAll('verticalSlugs').filter(Boolean),
+      therapeuticAreas: searchParams.getAll('therapeuticAreas').filter(Boolean),
+      countries: searchParams.getAll('countries').filter(Boolean),
+      cities: searchParams.getAll('cities').filter(Boolean),
+      tags: searchParams.getAll('tags').filter(Boolean),
       engagementMin: searchParams.has('engagementMin')
         ? parseInt(searchParams.get('engagementMin')!)
         : undefined,
@@ -33,40 +30,73 @@ export async function GET(req: NextRequest) {
         : undefined,
     }
 
-    // Remove empty arrays
-    for (const key of Object.keys(filters) as (keyof ContactFilters)[]) {
-      if (Array.isArray(filters[key]) && (filters[key] as unknown[]).length === 0) {
-        delete filters[key]
+    // If filtering by company-level attributes, get matching company IDs first
+    let companyIdFilter: string[] | undefined
+    if (filters.companyTypes?.length || filters.verticalSlugs?.length || filters.therapeuticAreas?.length) {
+      let companyIds: string[] = []
+      let initialized = false
+
+      if (filters.companyTypes?.length) {
+        const { data } = await supabase.from('companies').select('id').in('companyType', filters.companyTypes)
+        companyIds = data?.map((c: any) => c.id) ?? []
+        initialized = true
       }
+
+      if (filters.verticalSlugs?.length) {
+        const { data } = await supabase.from('company_verticals').select('companyId').in('verticalSlug', filters.verticalSlugs)
+        const ids = new Set(data?.map((v: any) => v.companyId) ?? [])
+        companyIds = initialized ? companyIds.filter(id => ids.has(id)) : [...ids]
+        initialized = true
+      }
+
+      if (filters.therapeuticAreas?.length) {
+        const { data } = await supabase.from('company_therapeutic_areas').select('companyId').in('therapeuticArea', filters.therapeuticAreas)
+        const ids = new Set(data?.map((t: any) => t.companyId) ?? [])
+        companyIds = initialized ? companyIds.filter(id => ids.has(id)) : [...ids]
+      }
+
+      companyIdFilter = companyIds
     }
 
-    const where = buildContactWhere(filters)
+    // Build main query
+    let query = supabase
+      .from('contacts')
+      .select('*, company:companies(id, name, companyType, headquartersCity, headquartersCountry)', { count: 'exact' })
 
-    const orderBy: Record<string, 'asc' | 'desc'> = { [sortBy]: sortDir }
+    if (filters.query) {
+      query = query.or(`firstName.ilike.%${filters.query}%,lastName.ilike.%${filters.query}%,jobTitle.ilike.%${filters.query}%,bio.ilike.%${filters.query}%`)
+    }
 
-    const [total, data] = await Promise.all([
-      prisma.contact.count({ where }),
-      prisma.contact.findMany({
-        where,
-        orderBy,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              companyType: true,
-              headquartersCity: true,
-              headquartersCountry: true,
-            },
-          },
-        },
-      }),
-    ])
+    if (filters.seniorities?.length) query = query.in('seniority', filters.seniorities)
+    if (filters.departments?.length) query = query.in('department', filters.departments)
+    if (filters.countries?.length) query = query.in('country', filters.countries)
+    if (filters.cities?.length) query = query.in('city', filters.cities)
+    if (filters.engagementMin !== undefined) query = query.gte('engagementScore', filters.engagementMin)
+    if (filters.engagementMax !== undefined) query = query.lte('engagementScore', filters.engagementMax)
 
+    if (companyIdFilter !== undefined) {
+      if (companyIdFilter.length === 0) {
+        return NextResponse.json({ data: [], total: 0, page, pageSize, totalPages: 0 })
+      }
+      query = query.in('companyId', companyIdFilter)
+    }
+
+    if (filters.tags?.length) {
+      query = query.or(filters.tags.map(t => `tags.ilike.%${t}%`).join(','))
+    }
+
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    const { data, count, error } = await query
+      .order(sortBy, { ascending: sortDir === 'asc' })
+      .range(from, to)
+
+    if (error) throw error
+
+    const total = count ?? 0
     return NextResponse.json({
-      data,
+      data: data ?? [],
       total,
       page,
       pageSize,
