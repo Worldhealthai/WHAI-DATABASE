@@ -1,32 +1,27 @@
 import { prisma } from './prisma'
-import { parse } from 'csv-parse/sync'
-import * as fs from 'fs'
-import * as path from 'path'
 import { execSync } from 'child_process'
+import {
+  companiesData,
+  contactsData,
+  dealsData,
+  dealInvestorsData,
+  companyVerticalsData,
+  companyTherapeuticAreasData,
+  insightsData,
+} from './seed-data'
 
 let seedPromise: Promise<void> | null = null
 let seeded = false
 
-function readCsv(filename: string): Record<string, string>[] {
-  const filePath = path.join(process.cwd(), 'prisma', filename)
-  const content = fs.readFileSync(filePath, 'utf-8')
-  return parse(content, { columns: true, skip_empty_lines: true, trim: true })
+function safeBigInt(val: string): bigint | null {
+  if (!val || val.trim() === '') return null
+  try { return BigInt(val.replace(/[^0-9]/g, '')) } catch { return null }
 }
 
-function safeInt(val: string): number | undefined {
-  const n = parseInt(val)
-  return isNaN(n) ? undefined : n
-}
-
-function safeBigInt(val: string): bigint | undefined {
-  if (!val || val.trim() === '') return undefined
-  try { return BigInt(val.replace(/[^0-9]/g, '')) } catch { return undefined }
-}
-
-function safeDate(val: string): Date | undefined {
-  if (!val || val.trim() === '') return undefined
+function safeDate(val: string): Date | null {
+  if (!val || val.trim() === '') return null
   const d = new Date(val)
-  return isNaN(d.getTime()) ? undefined : d
+  return isNaN(d.getTime()) ? null : d
 }
 
 async function runSeed() {
@@ -56,9 +51,8 @@ async function runSeed() {
   }
 
   // ── Companies ──
-  const companies = readCsv('companies.csv')
   const companyMap: Record<string, string> = {}
-  for (const row of companies) {
+  for (const row of companiesData) {
     if (!row.name?.trim()) continue
     const c = await prisma.company.create({
       data: {
@@ -68,7 +62,7 @@ async function runSeed() {
         description: row.description || null,
         companyType: row.company_type || null,
         ownershipStatus: row.ownership_status || null,
-        foundedYear: safeInt(row.founded_year),
+        foundedYear: row.founded_year || null,
         employeeCountRange: row.employee_count_range || null,
         annualRevenueRange: row.annual_revenue_range || null,
         headquartersCountry: row.headquarters_country || null,
@@ -84,9 +78,8 @@ async function runSeed() {
   console.log(`  ✅ ${Object.keys(companyMap).length} companies`)
 
   // ── Contacts ──
-  const contacts = readCsv('contacts.csv')
   let contactCount = 0
-  for (const row of contacts) {
+  for (const row of contactsData) {
     const email = row.email?.trim()
     if (!row.first_name?.trim() && !email) continue
     const companyId = row.company ? companyMap[row.company.trim().toLowerCase()] : undefined
@@ -97,8 +90,8 @@ async function runSeed() {
           firstName: row.first_name || null,
           lastName: row.last_name || null,
           email: email || null,
-          phone: row.phone || null,
-          linkedinUrl: row.linkedin_url || null,
+          phone: null,
+          linkedinUrl: null,
           jobTitle: row.job_title || null,
           seniority: row.seniority || null,
           department: row.department || null,
@@ -118,22 +111,21 @@ async function runSeed() {
   console.log(`  ✅ ${contactCount} contacts`)
 
   // ── Deals ──
-  const deals = readCsv('deals.csv')
   const dealMap: Record<string, string> = {}
-  for (const row of deals) {
+  for (const row of dealsData) {
     if (!row.title?.trim()) continue
     const d = await prisma.deal.create({
       data: {
         title: row.title.trim(),
         dealType: row.deal_type || null,
         dealStage: row.deal_stage || null,
-        dealValueUsd: safeBigInt(row.deal_value_usd) ?? null,
-        announcedDate: safeDate(row.announced_date) ?? null,
-        closedDate: safeDate(row.closed_date) ?? null,
+        dealValueUsd: safeBigInt(row.deal_value_usd),
+        announcedDate: safeDate(row.announced_date),
+        closedDate: safeDate(row.closed_date),
         targetCompanyId: row.target_company ? companyMap[row.target_company.trim().toLowerCase()] : null,
         acquirerCompanyId: row.acquirer_company ? companyMap[row.acquirer_company.trim().toLowerCase()] : null,
         description: row.description || null,
-        sourceUrl: row.source_url || null,
+        sourceUrl: null,
         tags: row.tags || null,
       },
     })
@@ -142,8 +134,7 @@ async function runSeed() {
   console.log(`  ✅ ${Object.keys(dealMap).length} deals`)
 
   // ── Deal Investors ──
-  const dealInvestors = readCsv('deal_investors.csv')
-  for (const row of dealInvestors) {
+  for (const row of dealInvestorsData) {
     const dealId = dealMap[row.deal_title?.trim()]
     if (!dealId) continue
     await prisma.dealInvestor.create({
@@ -152,28 +143,26 @@ async function runSeed() {
         investorCompanyName: row.investor_company || null,
         investorCompanyId: row.investor_company ? companyMap[row.investor_company.trim().toLowerCase()] : null,
         investorRole: row.investor_role || null,
-        investmentAmountUsd: safeBigInt(row.investment_amount_usd) ?? null,
+        investmentAmountUsd: safeBigInt(row.investment_amount_usd),
       },
     })
   }
 
   // ── Company Verticals ──
-  const verticals = readCsv('company_verticals.csv')
-  for (const row of verticals) {
+  for (const row of companyVerticalsData) {
     const companyId = companyMap[row.company_name?.trim().toLowerCase()]
     if (!companyId || !row.vertical_slug) continue
     try {
       await prisma.companyVertical.upsert({
         where: { companyId_verticalSlug: { companyId, verticalSlug: row.vertical_slug } },
-        create: { companyId, verticalSlug: row.vertical_slug, isPrimary: row.is_primary === 'true' },
+        create: { companyId, verticalSlug: row.vertical_slug, isPrimary: row.is_primary },
         update: {},
       })
     } catch {}
   }
 
   // ── Therapeutic Areas ──
-  const tas = readCsv('company_therapeutic_areas.csv')
-  for (const row of tas) {
+  for (const row of companyTherapeuticAreasData) {
     const companyId = companyMap[row.company_name?.trim().toLowerCase()]
     if (!companyId || !row.therapeutic_area) continue
     try {
@@ -186,8 +175,7 @@ async function runSeed() {
   }
 
   // ── Insights ──
-  const insights = readCsv('insights.csv')
-  for (const row of insights) {
+  for (const row of insightsData) {
     if (!row.title?.trim()) continue
     await prisma.insight.create({
       data: {
@@ -196,8 +184,8 @@ async function runSeed() {
         summary: row.summary || null,
         body: row.body || null,
         author: row.author || null,
-        publishedAt: safeDate(row.published_at) ?? null,
-        isPremium: row.is_premium === 'true',
+        publishedAt: safeDate(row.published_at),
+        isPremium: row.is_premium,
         tags: row.tags || null,
       },
     })
