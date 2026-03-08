@@ -154,35 +154,35 @@ export default function ContactsPage() {
     <div className="flex flex-col h-[calc(100vh-56px)]">
       {/* ── Header area ─────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] relative z-30 overflow-visible">
-        <div className="max-w-[1400px] mx-auto px-5 overflow-visible">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-5 overflow-visible">
           {/* Title row */}
-          <div className="pt-5 pb-4">
-            <h1 className="text-xl font-bold text-white">Contacts Advanced Search</h1>
+          <div className="pt-4 sm:pt-5 pb-3 sm:pb-4">
+            <h1 className="text-lg sm:text-xl font-bold text-white">Contacts Advanced Search</h1>
           </div>
 
           {/* AI-style search bar */}
-          <div className="pb-4">
+          <div className="pb-3 sm:pb-4">
             <div className="relative">
-              <Sparkles className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Sparkles className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Find healthcare contacts who..."
-                className="w-full pl-11 pr-24 py-3 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 transition-colors"
+                className="w-full pl-10 sm:pl-11 pr-20 sm:pr-24 py-2.5 sm:py-3 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 transition-colors"
               />
               <button
                 onClick={handleSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-[#00B4D8] text-[#0A1628] text-sm font-semibold hover:bg-[#00B4D8]/90 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-md bg-[#00B4D8] text-[#0A1628] text-sm font-semibold hover:bg-[#00B4D8]/90 transition-colors"
               >
                 <Search className="w-3.5 h-3.5" />
-                Search
+                <span className="hidden sm:inline">Search</span>
               </button>
             </div>
           </div>
 
-          {/* Filter dropdowns row */}
-          <div className="flex items-center gap-2 pb-4 overflow-visible">
+          {/* Filter dropdowns row - horizontally scrollable on mobile */}
+          <div className="flex items-center gap-2 pb-3 sm:pb-4 overflow-x-auto overflow-y-visible scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0">
             <FilterDropdown
               label="Seniority"
               options={SENIORITY_OPTIONS}
@@ -217,7 +217,7 @@ export default function ContactsPage() {
             />
 
             {/* Engagement range */}
-            <div className="flex items-center gap-1.5 ml-1 pl-3 border-l border-[#1a3a5c]">
+            <div className="flex items-center gap-1.5 ml-1 pl-3 border-l border-[#1a3a5c] shrink-0">
               <span className="text-xs text-slate-500 whitespace-nowrap">Score</span>
               <input
                 type="number"
@@ -230,7 +230,7 @@ export default function ContactsPage() {
                   }))
                 }
                 placeholder="Min"
-                className="w-16 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
+                className="w-14 sm:w-16 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
               />
               <span className="text-slate-600">–</span>
               <input
@@ -244,12 +244,12 @@ export default function ContactsPage() {
                   }))
                 }
                 placeholder="Max"
-                className="w-16 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
+                className="w-14 sm:w-16 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
               />
             </div>
 
-            {/* Keyword search inline */}
-            <div className="relative ml-1 pl-3 border-l border-[#1a3a5c]">
+            {/* Keyword search inline - hidden on mobile (search bar above) */}
+            <div className="relative ml-1 pl-3 border-l border-[#1a3a5c] hidden lg:block shrink-0">
               <Search className="absolute left-5.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
                 value={keyword}
@@ -274,7 +274,7 @@ export default function ContactsPage() {
 
       {/* ── Results area ────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto relative z-10">
-        <div className="max-w-[1400px] mx-auto px-5 py-4 space-y-3">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-3">
           {/* Results toolbar */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

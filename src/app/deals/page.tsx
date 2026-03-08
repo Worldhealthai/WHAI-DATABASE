@@ -176,34 +176,34 @@ export default function DealsPage() {
     <div className="flex flex-col h-[calc(100vh-56px)]">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] relative z-30 overflow-visible">
-        <div className="max-w-[1400px] mx-auto px-5 overflow-visible">
-          <div className="pt-5 pb-4">
-            <h1 className="text-xl font-bold text-white">Deals Advanced Search</h1>
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-5 overflow-visible">
+          <div className="pt-4 sm:pt-5 pb-3 sm:pb-4">
+            <h1 className="text-lg sm:text-xl font-bold text-white">Deals Advanced Search</h1>
           </div>
 
           {/* Search bar */}
-          <div className="pb-4">
+          <div className="pb-3 sm:pb-4">
             <div className="relative">
-              <Sparkles className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Sparkles className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Find deals involving..."
-                className="w-full pl-11 pr-24 py-3 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 transition-colors"
+                className="w-full pl-10 sm:pl-11 pr-20 sm:pr-24 py-2.5 sm:py-3 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 transition-colors"
               />
               <button
                 onClick={handleSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-[#00B4D8] text-[#0A1628] text-sm font-semibold hover:bg-[#00B4D8]/90 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-md bg-[#00B4D8] text-[#0A1628] text-sm font-semibold hover:bg-[#00B4D8]/90 transition-colors"
               >
                 <Search className="w-3.5 h-3.5" />
-                Search
+                <span className="hidden sm:inline">Search</span>
               </button>
             </div>
           </div>
 
           {/* Filter row */}
-          <div className="flex items-center gap-2 pb-4 overflow-visible flex-wrap">
+          <div className="flex items-center gap-2 pb-3 sm:pb-4 overflow-x-auto overflow-y-visible scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0 flex-nowrap sm:flex-wrap">
             <FilterDropdown
               label="Deal Type"
               options={DEAL_TYPE_OPTIONS}
@@ -219,32 +219,32 @@ export default function DealsPage() {
             />
 
             {/* Date range */}
-            <div className="flex items-center gap-1.5 pl-3 border-l border-[#1a3a5c]">
+            <div className="flex items-center gap-1.5 pl-3 border-l border-[#1a3a5c] shrink-0">
               <span className="text-xs text-slate-500 whitespace-nowrap">Date</span>
               <input
                 type="date"
                 value={filters.dateFrom ?? ''}
                 onChange={(e) => setFilters((p) => ({ ...p, dateFrom: e.target.value || undefined }))}
-                className="w-32 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white outline-none focus:border-[#00B4D8]/50 [color-scheme:dark]"
+                className="w-28 sm:w-32 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white outline-none focus:border-[#00B4D8]/50 [color-scheme:dark]"
               />
               <span className="text-slate-600">–</span>
               <input
                 type="date"
                 value={filters.dateTo ?? ''}
                 onChange={(e) => setFilters((p) => ({ ...p, dateTo: e.target.value || undefined }))}
-                className="w-32 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white outline-none focus:border-[#00B4D8]/50 [color-scheme:dark]"
+                className="w-28 sm:w-32 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white outline-none focus:border-[#00B4D8]/50 [color-scheme:dark]"
               />
             </div>
 
             {/* Value range */}
-            <div className="flex items-center gap-1.5 pl-3 border-l border-[#1a3a5c]">
+            <div className="flex items-center gap-1.5 pl-3 border-l border-[#1a3a5c] shrink-0">
               <span className="text-xs text-slate-500 whitespace-nowrap">Value $</span>
               <input
                 type="number"
                 value={filters.valueMin ?? ''}
                 onChange={(e) => setFilters((p) => ({ ...p, valueMin: e.target.value ? parseInt(e.target.value) : undefined }))}
                 placeholder="Min"
-                className="w-20 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
+                className="w-16 sm:w-20 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
               />
               <span className="text-slate-600">–</span>
               <input
@@ -252,7 +252,7 @@ export default function DealsPage() {
                 value={filters.valueMax ?? ''}
                 onChange={(e) => setFilters((p) => ({ ...p, valueMax: e.target.value ? parseInt(e.target.value) : undefined }))}
                 placeholder="Max"
-                className="w-20 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
+                className="w-16 sm:w-20 px-2 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
               />
             </div>
           </div>
@@ -265,9 +265,9 @@ export default function DealsPage() {
 
       {/* ── Results ─────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto relative z-10">
-        <div className="max-w-[1400px] mx-auto px-5 py-4 space-y-4">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-5 py-3 sm:py-4 space-y-4">
           {!hasSearched ? (
-            <div className="text-center py-20">
+            <div className="text-center py-12 sm:py-20">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#112850] border border-[#1a3a5c] mb-5">
                 <TrendingUp className="w-7 h-7 text-slate-500" />
               </div>
@@ -282,8 +282,8 @@ export default function DealsPage() {
           ) : (
             <>
               {/* Stats ribbon */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3 sm:gap-5">
                   {data && (
                     <>
                       <span className="text-sm text-slate-300">
@@ -335,7 +335,38 @@ export default function DealsPage() {
                 ) : (data?.data ?? []).length === 0 ? (
                   <div className="text-center py-16 text-slate-500 text-sm">No deals match your criteria.</div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                  {/* Mobile card view */}
+                  <div className="md:hidden">
+                    {(data?.data ?? []).map((deal: any) => (
+                      <Link key={deal.id} href={`/deals/${deal.id}`} className="block px-4 py-3 border-b border-[#1a3a5c]/60 hover:bg-[#112850]/40 transition-colors">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-white text-sm line-clamp-2">{deal.title}</div>
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              <span className={cn('text-[10px] font-medium', getTypeColor(deal.dealType))}>{deal.dealType ?? '—'}</span>
+                              <span className={cn('text-[10px] px-1.5 py-0.5 rounded border', STAGE_COLORS[deal.dealStage] ?? 'text-slate-300 bg-slate-700/50 border-slate-600')}>
+                                {deal.dealStage}
+                              </span>
+                              {deal.announcedDate && <span className="text-[10px] text-slate-500">{formatDate(deal.announcedDate)}</span>}
+                            </div>
+                            {(deal.acquirerCompany || deal.targetCompany) && (
+                              <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-slate-400">
+                                {deal.acquirerCompany && <span className="truncate max-w-[120px]">{deal.acquirerCompany.name}</span>}
+                                {deal.acquirerCompany && deal.targetCompany && <ArrowRight className="w-3 h-3 text-slate-600 shrink-0" />}
+                                {deal.targetCompany && <span className="truncate max-w-[120px]">{deal.targetCompany.name}</span>}
+                              </div>
+                            )}
+                          </div>
+                          {deal.dealValueUsd && (
+                            <span className="text-sm font-bold text-[#00B4D8] shrink-0">{formatCurrency(BigInt(deal.dealValueUsd))}</span>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  {/* Desktop table view */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-[#1a3a5c]">
@@ -452,6 +483,7 @@ export default function DealsPage() {
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
               </div>
 

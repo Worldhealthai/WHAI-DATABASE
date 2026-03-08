@@ -136,32 +136,32 @@ export default function InsightsPage() {
   const update = (partial: Partial<InsightFilters>) => setFilters((prev) => ({ ...prev, ...partial }))
 
   return (
-    <div className="max-w-screen-xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-screen-xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-6 sm:space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">Insights & Trends</h1>
-        <p className="text-sm text-slate-400 mt-1">Healthcare intelligence, market reports and analysis from WHAI researchers</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Insights & Trends</h1>
+        <p className="text-xs sm:text-sm text-slate-400 mt-1">Healthcare intelligence, market reports and analysis from WHAI researchers</p>
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {/* Search */}
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
           <input
             value={filters.query ?? ''}
             onChange={(e) => update({ query: e.target.value || undefined })}
             placeholder="Search insights..."
-            className="pl-8 pr-3 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8] w-56"
+            className="pl-8 pr-3 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8] w-full sm:w-56"
           />
         </div>
 
         {/* Content type pills */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide flex-nowrap sm:flex-wrap pb-1 sm:pb-0">
           <button
             onClick={() => update({ contentTypes: undefined })}
             className={cn(
-              'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+              'px-3 py-1 rounded-full text-xs font-medium border transition-colors shrink-0',
               !filters.contentTypes?.length
                 ? 'bg-[#00B4D8] text-[#0A1628] border-[#00B4D8]'
                 : 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-400',
@@ -180,7 +180,7 @@ export default function InsightsPage() {
                   update({ contentTypes: active ? curr.filter((x) => x !== t) : [...curr, t] })
                 }}
                 className={cn(
-                  'flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+                  'flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors shrink-0',
                   active
                     ? cn(CONTENT_COLORS[t], 'border-current')
                     : 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-400',
@@ -193,7 +193,7 @@ export default function InsightsPage() {
           })}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           <label className="flex items-center gap-2 cursor-pointer">
             <div
               onClick={() => update({ isPremium: filters.isPremium ? undefined : true })}
