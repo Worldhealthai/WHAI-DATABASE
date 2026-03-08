@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Search, Sparkles, SlidersHorizontal, LayoutGrid, Table2 } from 'lucide-react'
 import { ContactsTable } from '@/components/contacts/ContactsTable'
@@ -59,7 +59,6 @@ async function fetchContacts(
 
 export default function ContactsPage() {
   const [filters, setFilters] = useState<ContactFilters>({})
-  const [hasSearched, setHasSearched] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [sortBy, setSortBy] = useState('lastName')
@@ -69,7 +68,6 @@ export default function ContactsPage() {
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['contacts', filters, page, pageSize, sortBy, sortDir],
     queryFn: () => fetchContacts(filters, page, pageSize, sortBy, sortDir),
-    enabled: hasSearched,
     placeholderData: (prev) => prev,
     retry: 2,
   })
@@ -83,7 +81,6 @@ export default function ContactsPage() {
       ...prev,
       [key]: value.length > 0 ? value : undefined,
     }))
-    if (!hasSearched) setHasSearched(true)
   }
 
   const handleSearch = () => {
@@ -91,7 +88,6 @@ export default function ContactsPage() {
       ...prev,
       query: keyword || undefined,
     }))
-    setHasSearched(true)
     setPage(1)
   }
 
@@ -107,7 +103,6 @@ export default function ContactsPage() {
   const clearAll = () => {
     setFilters({})
     setKeyword('')
-    setHasSearched(false)
     setPage(1)
   }
 
@@ -280,99 +275,75 @@ export default function ContactsPage() {
       {/* ── Results area ────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto relative z-10">
         <div className="max-w-[1400px] mx-auto px-5 py-4 space-y-3">
-          {!hasSearched ? (
-            /* Empty state — prompt to search */
-            <div className="text-center py-20">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#112850] border border-[#1a3a5c] mb-5">
-                <Search className="w-7 h-7 text-slate-500" />
-              </div>
-              <h2 className="text-lg font-semibold text-white mb-2">
-                Select your search criteria
-              </h2>
-              <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
-                Use the filters above to define who you&apos;re looking for, then click Search to find matching healthcare contacts.
-              </p>
+          {/* Results toolbar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {data && (
+                <span className="text-sm text-slate-300">
+                  <span className={cn('font-bold text-white', isFetching && 'opacity-50')}>
+                    {data.total.toLocaleString()}
+                  </span>{' '}
+                  results
+                </span>
+              )}
+              {isLoading && (
+                <span className="text-sm text-slate-500">Searching...</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleSearch}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#00B4D8] text-white font-semibold text-sm hover:bg-[#00B4D8]/90 transition-colors"
+                onClick={exportCSV}
+                disabled={!data?.data?.length}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Search className="w-4 h-4" />
-                Search All Contacts
+                <Download className="w-3.5 h-3.5" />
+                Export
               </button>
             </div>
-          ) : (
-            <>
-              {/* Results toolbar */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  {data && (
-                    <span className="text-sm text-slate-300">
-                      <span className={cn('font-bold text-white', isFetching && 'opacity-50')}>
-                        {data.total.toLocaleString()}
-                      </span>{' '}
-                      results
-                    </span>
-                  )}
-                  {isLoading && (
-                    <span className="text-sm text-slate-500">Searching...</span>
-                  )}
-                </div>
+          </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={exportCSV}
-                    disabled={!data?.data?.length}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Export
-                  </button>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="whai-card overflow-hidden">
-                {isLoading ? (
-                  <div className="space-y-0">
-                    {/* Skeleton rows */}
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[#1a3a5c]/50">
-                        <div className="w-7 h-7 rounded-full bg-slate-700/50 animate-pulse" />
-                        <div className="flex-1 space-y-1.5">
-                          <div className="h-3 w-40 rounded bg-slate-700/50 animate-pulse" />
-                          <div className="h-2.5 w-28 rounded bg-slate-700/30 animate-pulse" />
-                        </div>
-                        <div className="h-3 w-24 rounded bg-slate-700/30 animate-pulse" />
-                        <div className="h-5 w-16 rounded-full bg-slate-700/30 animate-pulse" />
-                        <div className="h-3 w-20 rounded bg-slate-700/30 animate-pulse" />
-                      </div>
-                    ))}
+          {/* Table */}
+          <div className="whai-card overflow-hidden">
+            {isLoading ? (
+              <div className="space-y-0">
+                {/* Skeleton rows */}
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[#1a3a5c]/50">
+                    <div className="w-7 h-7 rounded-full bg-slate-700/50 animate-pulse" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-40 rounded bg-slate-700/50 animate-pulse" />
+                      <div className="h-2.5 w-28 rounded bg-slate-700/30 animate-pulse" />
+                    </div>
+                    <div className="h-3 w-24 rounded bg-slate-700/30 animate-pulse" />
+                    <div className="h-5 w-16 rounded-full bg-slate-700/30 animate-pulse" />
+                    <div className="h-3 w-20 rounded bg-slate-700/30 animate-pulse" />
                   </div>
-                ) : error ? (
-                  <div className="flex items-center justify-center py-16 text-red-400 text-sm">
-                    Failed to load contacts. Please try refreshing.
-                  </div>
-                ) : (
-                  <ContactsTable
-                    contacts={data?.data ?? []}
-                    sort={{ sortBy, sortDir }}
-                    onSort={handleSort}
-                  />
-                )}
+                ))}
               </div>
+            ) : error ? (
+              <div className="flex items-center justify-center py-16 text-red-400 text-sm">
+                Failed to load contacts. Please try refreshing.
+              </div>
+            ) : (
+              <ContactsTable
+                contacts={data?.data ?? []}
+                sort={{ sortBy, sortDir }}
+                onSort={handleSort}
+              />
+            )}
+          </div>
 
-              {/* Pagination */}
-              {data && data.total > 0 && (
-                <Pagination
-                  page={page}
-                  totalPages={data.totalPages}
-                  total={data.total}
-                  pageSize={pageSize}
-                  onPage={setPage}
-                  onPageSize={(size) => { setPageSize(size); setPage(1) }}
-                />
-              )}
-            </>
+          {/* Pagination */}
+          {data && data.total > 0 && (
+            <Pagination
+              page={page}
+              totalPages={data.totalPages}
+              total={data.total}
+              pageSize={pageSize}
+              onPage={setPage}
+              onPageSize={(size) => { setPageSize(size); setPage(1) }}
+            />
           )}
         </div>
       </div>

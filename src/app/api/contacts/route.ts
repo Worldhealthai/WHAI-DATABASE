@@ -92,7 +92,15 @@ export async function GET(req: NextRequest) {
       .order(sortBy, { ascending: sortDir === 'asc' })
       .range(from, to)
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase query error:', JSON.stringify(error))
+      throw error
+    }
+
+    console.log(`Contacts query: count=${count}, dataLength=${data?.length}, sortBy=${sortBy}, filters=${JSON.stringify({
+      query: filters.query, seniorities: filters.seniorities?.length, departments: filters.departments?.length,
+      companyTypes: filters.companyTypes?.length, countries: filters.countries?.length, tags: filters.tags?.length,
+    })}`)
 
     const total = count ?? 0
     return NextResponse.json({
