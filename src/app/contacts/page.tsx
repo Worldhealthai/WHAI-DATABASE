@@ -157,8 +157,8 @@ export default function ContactsPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
       {/* ── Header area ─────────────────────────────────────────────────── */}
-      <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c]">
-        <div className="max-w-[1400px] mx-auto px-5">
+      <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] relative z-30 overflow-visible">
+        <div className="max-w-[1400px] mx-auto px-5 overflow-visible">
           {/* Title row */}
           <div className="pt-5 pb-4">
             <h1 className="text-xl font-bold text-white">Contacts Advanced Search</h1>
@@ -186,7 +186,7 @@ export default function ContactsPage() {
           </div>
 
           {/* Filter dropdowns row */}
-          <div className="flex items-center gap-2 pb-4 overflow-x-auto">
+          <div className="flex items-center gap-2 pb-4 overflow-visible">
             <FilterDropdown
               label="Seniority"
               options={SENIORITY_OPTIONS}
@@ -277,7 +277,7 @@ export default function ContactsPage() {
       </div>
 
       {/* ── Results area ────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto relative z-10">
         <div className="max-w-[1400px] mx-auto px-5 py-4 space-y-3">
           {!hasSearched ? (
             /* Empty state — prompt to search */
