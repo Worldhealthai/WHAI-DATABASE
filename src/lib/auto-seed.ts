@@ -41,10 +41,24 @@ async function runSeed() {
 
   // Check if already has data
   try {
-    const count = await prisma.company.count()
-    if (count > 0) {
-      console.log(`  ✅ DB already has ${count} companies — skipping seed`)
+    const [companyCount, contactCount] = await Promise.all([
+      prisma.company.count(),
+      prisma.contact.count(),
+    ])
+    if (companyCount > 0 && contactCount > 0) {
+      console.log(`  ✅ DB already has ${companyCount} companies & ${contactCount} contacts — skipping seed`)
       return
+    }
+    if (companyCount > 0 || contactCount > 0) {
+      // Partial data — clear and re-seed
+      console.log('  ⚠️ Partial data detected — clearing and re-seeding...')
+      await prisma.dealInvestor.deleteMany()
+      await prisma.companyVertical.deleteMany()
+      await prisma.companyTherapeuticArea.deleteMany()
+      await prisma.deal.deleteMany()
+      await prisma.contact.deleteMany()
+      await prisma.insight.deleteMany()
+      await prisma.company.deleteMany()
     }
   } catch {
     // Table might not exist yet, continue with seed
