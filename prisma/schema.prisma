@@ -1,5 +1,5 @@
 // WHAI Intelligence Hub — Prisma Schema
-// PostgreSQL on Supabase — simplified string-based schema for CSV seeding
+// PostgreSQL on Supabase (production) / SQLite for local dev
 
 generator client {
   provider = "prisma-client-js"
