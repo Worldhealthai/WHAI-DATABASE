@@ -58,10 +58,11 @@ export async function GET(req: NextRequest) {
       companyIdFilter = companyIds
     }
 
-    // Build main query
+    // Build main query — fetch contacts WITHOUT embedded company join
+    // (the join can silently fail if the FK relationship isn't detected)
     let query = supabase
       .from('contacts')
-      .select('*, company:companies(id, name, companyType, headquartersCity, headquartersCountry)', { count: 'exact' })
+      .select('*', { count: 'exact' })
 
     if (filters.query) {
       query = query.or(`firstName.ilike.%${filters.query}%,lastName.ilike.%${filters.query}%,jobTitle.ilike.%${filters.query}%,bio.ilike.%${filters.query}%`)
@@ -88,15 +89,38 @@ export async function GET(req: NextRequest) {
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
 
-    const { data, count, error } = await query
+    const { data: contacts, count, error } = await query
       .order(sortBy, { ascending: sortDir === 'asc' })
       .range(from, to)
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase contacts query error:', JSON.stringify(error))
+      throw error
+    }
+
+    // Fetch companies separately for the returned contacts
+    let contactsWithCompany = contacts ?? []
+    if (contactsWithCompany.length > 0) {
+      const companyIds = [...new Set(contactsWithCompany.map((c: any) => c.companyId).filter(Boolean))]
+      if (companyIds.length > 0) {
+        const { data: companies } = await supabase
+          .from('companies')
+          .select('id, name, companyType, headquartersCity, headquartersCountry')
+          .in('id', companyIds)
+
+        if (companies) {
+          const companyMap = new Map(companies.map((co: any) => [co.id, co]))
+          contactsWithCompany = contactsWithCompany.map((c: any) => ({
+            ...c,
+            company: c.companyId ? companyMap.get(c.companyId) ?? null : null,
+          }))
+        }
+      }
+    }
 
     const total = count ?? 0
     return NextResponse.json({
-      data: data ?? [],
+      data: contactsWithCompany,
       total,
       page,
       pageSize,
