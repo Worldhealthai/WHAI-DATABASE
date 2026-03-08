@@ -5,19 +5,29 @@ import { useQuery } from '@tanstack/react-query'
 import { Users, Building2, TrendingUp, BookOpen, ArrowRight, Database } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+async function safeFetch(url: string) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 async function fetchStats() {
   const [contacts, companies, deals, insights] = await Promise.all([
-    fetch('/api/contacts?pageSize=1').then((r) => r.json()),
-    fetch('/api/companies?pageSize=1').then((r) => r.json()),
-    fetch('/api/deals?pageSize=1').then((r) => r.json()),
-    fetch('/api/insights?pageSize=1').then((r) => r.json()),
+    safeFetch('/api/contacts?pageSize=1'),
+    safeFetch('/api/companies?pageSize=1'),
+    safeFetch('/api/deals?pageSize=1'),
+    safeFetch('/api/insights?pageSize=1'),
   ])
   return {
-    contacts: contacts.total ?? 0,
-    companies: companies.total ?? 0,
-    deals: deals.total ?? 0,
-    insights: insights.total ?? 0,
-    dealValue: deals.stats?.totalValueCents ?? '0',
+    contacts: contacts?.total ?? 0,
+    companies: companies?.total ?? 0,
+    deals: deals?.total ?? 0,
+    insights: insights?.total ?? 0,
+    dealValue: deals?.stats?.totalValueCents ?? '0',
   }
 }
 
@@ -69,7 +79,12 @@ const MODULES = [
 ]
 
 export default function HomePage() {
-  const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: fetchStats })
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['stats'],
+    queryFn: fetchStats,
+    retry: 2,
+    refetchOnMount: 'always',
+  })
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12 space-y-12">
@@ -92,7 +107,7 @@ export default function HomePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {MODULES.map((mod) => {
           const Icon = mod.icon
-          const count = stats?.[mod.stat as keyof typeof stats] ?? '—'
+          const count = stats?.[mod.stat as keyof typeof stats]
           return (
             <Link key={mod.href} href={mod.href}
               className={cn(
@@ -107,7 +122,13 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
               </div>
               <div className={cn('text-2xl font-bold mb-0.5', mod.color)}>
-                {typeof count === 'number' ? count.toLocaleString() : count}
+                {statsLoading ? (
+                  <span className="inline-block w-12 h-7 rounded bg-slate-700/50 animate-pulse" />
+                ) : typeof count === 'number' ? (
+                  count.toLocaleString()
+                ) : (
+                  count ?? 0
+                )}
               </div>
               <div className="text-xs text-slate-500 mb-3">{mod.statLabel} in database</div>
               <h2 className="text-lg font-semibold text-white mb-2">{mod.label}</h2>

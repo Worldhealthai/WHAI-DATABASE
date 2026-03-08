@@ -1,9 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download, Save, SlidersHorizontal, X } from 'lucide-react'
+import { Download, SlidersHorizontal } from 'lucide-react'
 import { ContactFilterSidebar } from '@/components/contacts/ContactFilters'
 import { ContactsTable } from '@/components/contacts/ContactsTable'
 import { FilterChips } from '@/components/search/FilterChips'
@@ -43,10 +42,12 @@ export default function ContactsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['contacts', filters, page, pageSize, sortBy, sortDir],
     queryFn: () => fetchContacts(filters, page, pageSize, sortBy, sortDir),
     placeholderData: (prev) => prev,
+    retry: 2,
+    refetchOnMount: 'always',
   })
 
   // Reset to page 1 when filters change
@@ -162,6 +163,10 @@ export default function ContactsPage() {
             {isLoading ? (
               <div className="flex items-center justify-center py-16 text-slate-500 text-sm">
                 Loading contacts…
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center py-16 text-red-400 text-sm">
+                <p>Failed to load contacts. Please try refreshing.</p>
               </div>
             ) : (
               <ContactsTable
