@@ -77,11 +77,37 @@ CREATE TABLE IF NOT EXISTS deals (
   description TEXT,
   "sourceUrl" TEXT,
   tags TEXT,
+  -- Strategic & classification
+  rationale TEXT,
+  sector TEXT,
+  geography TEXT,
+  -- Valuation multiples
+  "premiumPct" NUMERIC(5,1),
+  "evRevenueMultiple" NUMERIC(6,2),
+  "evEbitdaMultiple" NUMERIC(6,2),
+  -- Financing
+  "financingType" TEXT,
+  "cashComponent" BIGINT,
+  "stockComponent" BIGINT,
+  -- Regulatory
+  "regulatoryStatus" TEXT,
+  "regulatoryBodies" TEXT,
+  "expectedCloseDate" TIMESTAMPTZ,
+  -- Terms
+  "earnoutTerms" TEXT,
+  "breakupFeePct" NUMERIC(4,1),
+  -- Advisors
+  "advisorAcquirer" TEXT,
+  "advisorTarget" TEXT,
+  "legalAdvisorAcquirer" TEXT,
+  "legalAdvisorTarget" TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_deals_acquirer ON deals ("acquirerCompanyId");
 CREATE INDEX IF NOT EXISTS idx_deals_target ON deals ("targetCompanyId");
+CREATE INDEX IF NOT EXISTS idx_deals_sector ON deals (sector);
+CREATE INDEX IF NOT EXISTS idx_deals_geography ON deals (geography);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- DEAL INVESTORS

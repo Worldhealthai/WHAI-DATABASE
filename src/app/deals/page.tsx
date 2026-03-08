@@ -157,12 +157,13 @@ export default function DealsPage() {
   const exportCSV = () => {
     if (!data?.data) return
     const rows = data.data.map((d: any) => [
-      d.title, d.dealType ?? '', d.dealStage ?? '',
+      d.title, d.dealType ?? '', d.dealStage ?? '', d.sector ?? '',
       d.dealValueUsd ? formatCurrency(BigInt(d.dealValueUsd)) : 'Undisclosed',
       d.acquirerCompany?.name ?? '', d.targetCompany?.name ?? '',
       d.announcedDate ? formatDate(d.announcedDate) : '', d.closedDate ? formatDate(d.closedDate) : '',
+      d.financingType ?? '', d.regulatoryStatus ?? '',
     ])
-    const header = ['Deal', 'Type', 'Stage', 'Value', 'Acquirer', 'Target', 'Announced', 'Closed']
+    const header = ['Deal', 'Type', 'Stage', 'Sector', 'Value', 'Acquirer', 'Target', 'Announced', 'Closed', 'Financing', 'Regulatory']
     const csv = [header, ...rows].map((r) => r.map((v: any) => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -342,6 +343,7 @@ export default function DealsPage() {
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Parties</th>
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Type</th>
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Stage</th>
+                          <SortableHeader label="Sector" col="sector" sort={{ sortBy, sortDir }} onSort={handleSort} />
                           <SortableHeader label="Value" col="dealValueUsd" sort={{ sortBy, sortDir }} onSort={handleSort} />
                           <SortableHeader label="Announced" col="announcedDate" sort={{ sortBy, sortDir }} onSort={handleSort} />
                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Closed</th>
@@ -403,6 +405,15 @@ export default function DealsPage() {
                                 <span className={cn('w-1.5 h-1.5 rounded-full mr-1.5 inline-block', STAGE_DOT[deal.dealStage] ?? 'bg-slate-500')} />
                                 {deal.dealStage}
                               </span>
+                            </td>
+
+                            {/* Sector */}
+                            <td className="px-4 py-3.5 whitespace-nowrap">
+                              {deal.sector ? (
+                                <span className="text-xs text-slate-300">{deal.sector}</span>
+                              ) : (
+                                <span className="text-xs text-slate-600">—</span>
+                              )}
                             </td>
 
                             {/* Value */}

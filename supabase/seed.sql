@@ -244,3 +244,52 @@ INSERT INTO insights (id, title, "contentType", summary, body, author, "publishe
 INSERT INTO insights (id, title, "contentType", summary, body, author, "publishedAt", "isPremium", tags) VALUES ('in_00wybi2y', 'Precision Medicine Data Infrastructure', 'Analysis', 'Building the data backbone for precision medicine at scale', 'Healthcare systems are investing in genomic data infrastructure interoperability standards and clinical decision support systems powered by real-world evidence.', 'Elena Rodriguez', '2024-07-01T00:00:00.000Z', false, 'precision-medicine;data;infrastructure');
 INSERT INTO insights (id, title, "contentType", summary, body, author, "publishedAt", "isPremium", tags) VALUES ('in_00454pgd', 'GLP-1 Market Disruption Report', 'Market Report', 'How GLP-1 receptor agonists are reshaping cardiometabolic care', 'The GLP-1 market is projected to exceed $100B by 2030 with expanding indications beyond diabetes into obesity NASH and cardiovascular risk reduction.', 'WHAI Research', '2024-08-15T00:00:00.000Z', true, 'GLP-1;obesity;cardiovascular');
 INSERT INTO insights (id, title, "contentType", summary, body, author, "publishedAt", "isPremium", tags) VALUES ('in_0009rkub', 'Biotech IPO Window Analysis', 'Data Snapshot', 'Analysis of biotech IPO market conditions and pipeline companies', 'The biotech IPO window has reopened with improved market conditions. Companies with differentiated platforms and Phase 2+ data are finding investor appetite.', 'WHAI Data Team', '2024-09-01T00:00:00.000Z', false, 'biotech;IPO;capital-markets');
+
+-- DEAL ENRICHMENT DATA
+-- Pfizer / Seagen
+UPDATE deals SET rationale='Bolster oncology pipeline with Seagen''s ADC technology (antibody-drug conjugates). Transforms Pfizer into a top-5 oncology company with $10B+ revenue potential from Seagen portfolio.', sector='Oncology', geography='Global', "premiumPct"=33.0, "evRevenueMultiple"=22.80, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='FTC; EC; ACCC', "advisorAcquirer"='Goldman Sachs; Centerview Partners', "advisorTarget"='Morgan Stanley; Evercore', "legalAdvisorAcquirer"='Wachtell, Lipton, Rosen & Katz', "legalAdvisorTarget"='Skadden, Arps, Slate, Meagher & Flom', "breakupFeePct"=2.8 WHERE id='dl_00543g5y';
+
+-- J&J MedTech Spinoff
+UPDATE deals SET rationale='Separate consumer health division (Kenvue) to unlock value and allow J&J to focus on higher-growth pharma and medtech segments.', sector='Consumer Health', geography='Global', "financingType"='IPO + Distribution', "regulatoryStatus"='Approved', "regulatoryBodies"='SEC; NYSE', "advisorAcquirer"='J.P. Morgan; Goldman Sachs', "legalAdvisorAcquirer"='Cravath, Swaine & Moore' WHERE id='dl_00krmtin';
+
+-- AstraZeneca / Alexion
+UPDATE deals SET rationale='Expand rare disease franchise and add Alexion''s complement biology platform. Creates a top-10 biopharma company with leadership in oncology, respiratory, and rare disease.', sector='Rare Disease', geography='Global', "premiumPct"=45.0, "evRevenueMultiple"=6.20, "evEbitdaMultiple"=30.50, "financingType"='Cash + Stock', "cashComponent"=17600000000, "stockComponent"=21400000000, "regulatoryStatus"='Approved', "regulatoryBodies"='FTC; EC; CMA (UK)', "advisorAcquirer"='Morgan Stanley; Evercore', "advisorTarget"='Goldman Sachs; Lazard', "legalAdvisorAcquirer"='Davis Polk & Wardwell', "legalAdvisorTarget"='Wachtell, Lipton, Rosen & Katz', "breakupFeePct"=3.5 WHERE id='dl_00x2vaw8';
+
+-- Moderna Series B
+UPDATE deals SET rationale='Fund preclinical and early clinical development of mRNA therapeutic platform across infectious disease, oncology, and rare disease applications.', sector='mRNA Therapeutics', geography='United States', "financingType"='Equity' WHERE id='dl_00wupl1i';
+
+-- IQVIA Formation
+UPDATE deals SET rationale='Combine Quintiles'' global CRO capabilities with IMS Health''s data and analytics to create an integrated healthcare intelligence company.', sector='Clinical Research / Data Analytics', geography='Global', "evRevenueMultiple"=3.80, "evEbitdaMultiple"=16.20, "financingType"='Stock Merger', "regulatoryStatus"='Approved', "regulatoryBodies"='FTC; EC', "advisorAcquirer"='Barclays; Lazard', "advisorTarget"='Morgan Stanley; Goldman Sachs', "legalAdvisorAcquirer"='Simpson Thacher & Bartlett', "legalAdvisorTarget"='Cleary Gottlieb' WHERE id='dl_003z8fln';
+
+-- Tempus AI IPO
+UPDATE deals SET rationale='Capital raise to accelerate AI-driven precision medicine platform expansion, data partnerships, and international growth.', sector='AI / Precision Medicine', geography='United States', "financingType"='IPO', "regulatoryStatus"='Approved', "regulatoryBodies"='SEC; NASDAQ' WHERE id='dl_00kchxd8';
+
+-- Illumina / Grail
+UPDATE deals SET rationale='Divestiture required by EC antitrust ruling. Illumina forced to unwind Grail acquisition after completing deal without regulatory clearance.', sector='Diagnostics / Genomics', geography='Global', "regulatoryStatus"='Regulatory-Forced', "regulatoryBodies"='European Commission; FTC', "advisorAcquirer"='Centerview Partners', "legalAdvisorAcquirer"='Gibson Dunn' WHERE id='dl_00pfyob2';
+
+-- Catalent PE
+UPDATE deals SET rationale='Novo Holdings (parent of Novo Nordisk) acquires Catalent CDMO to secure manufacturing capacity for GLP-1 and other biologics. Strategic vertical integration play.', sector='CDMO / Manufacturing', geography='Global', "premiumPct"=16.5, "evRevenueMultiple"=4.10, "evEbitdaMultiple"=21.30, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='FTC; EC; CMA (UK)', "advisorAcquirer"='J.P. Morgan', "advisorTarget"='Goldman Sachs; Centerview Partners', "legalAdvisorAcquirer"='Sullivan & Cromwell', "legalAdvisorTarget"='Skadden, Arps', "breakupFeePct"=3.0 WHERE id='dl_00mpapl2';
+
+-- Amgen / Horizon Therapeutics
+UPDATE deals SET rationale='Add Horizon''s rare disease portfolio including Tepezza (thyroid eye disease) and Krystexxa (gout) to Amgen''s portfolio. Diversifies revenue and adds high-growth rare disease assets.', sector='Rare Disease', geography='Global', "premiumPct"=48.0, "evRevenueMultiple"=7.80, "evEbitdaMultiple"=35.00, "financingType"='All Cash', "regulatoryStatus"='Approved (with conditions)', "regulatoryBodies"='FTC', "advisorAcquirer"='J.P. Morgan', "advisorTarget"='Morgan Stanley; Goldman Sachs', "legalAdvisorAcquirer"='Wachtell, Lipton, Rosen & Katz', "legalAdvisorTarget"='Cleary Gottlieb', "breakupFeePct"=4.0, "earnoutTerms"='FTC imposed conditions restricting bundling of Horizon products' WHERE id='dl_00y9zkqp';
+
+-- Merck / Prometheus Bio
+UPDATE deals SET rationale='Acquire Prometheus''s TL1A platform for inflammatory bowel disease. Strengthens Merck''s immunology pipeline and provides optionality beyond Keytruda.', sector='Immunology / Autoimmune', geography='United States', "premiumPct"=75.0, "evRevenueMultiple"=NULL, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='FTC; HSR Act', "advisorAcquirer"='Goldman Sachs', "advisorTarget"='Centerview Partners', "legalAdvisorAcquirer"='Davis Polk & Wardwell', "legalAdvisorTarget"='Latham & Watkins', "breakupFeePct"=3.5 WHERE id='dl_00ee9za3';
+
+-- Gilead / CymaBay
+UPDATE deals SET rationale='Acquire CymaBay''s seladelpar for primary biliary cholangitis (PBC). Expands Gilead''s liver disease franchise beyond HCV/HBV into autoimmune liver conditions.', sector='Liver Disease', geography='United States', "premiumPct"=27.0, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='HSR Act', "advisorAcquirer"='J.P. Morgan', "advisorTarget"='Lazard', "legalAdvisorAcquirer"='Cleary Gottlieb', "legalAdvisorTarget"='Goodwin Procter' WHERE id='dl_00htstz7';
+
+-- Sanofi / Inhibrx
+UPDATE deals SET rationale='Acquire Inhibrx''s bispecific antibody platform (INBRX-101 for alpha-1 antitrypsin deficiency). Strengthens Sanofi''s rare disease and biologics pipeline.', sector='Rare Disease / Biologics', geography='Global', "premiumPct"=68.0, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='HSR Act', "advisorAcquirer"='Lazard', "advisorTarget"='Evercore', "legalAdvisorAcquirer"='Sullivan & Cromwell', "legalAdvisorTarget"='Weil, Gotshal & Manges' WHERE id='dl_00dkynq3';
+
+-- Boston Scientific / Silk Road
+UPDATE deals SET rationale='Acquire Silk Road Medical''s TCAR technology for transcarotid artery revascularization. Strengthens peripheral interventions portfolio.', sector='MedTech / Vascular', geography='United States', "premiumPct"=26.0, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='HSR Act', "advisorAcquirer"='J.P. Morgan', "advisorTarget"='Morgan Stanley', "legalAdvisorAcquirer"='Ropes & Gray', "legalAdvisorTarget"='Goodwin Procter' WHERE id='dl_009o63cf';
+
+-- Stryker / Vocera
+UPDATE deals SET rationale='Acquire Vocera''s clinical communication platform to integrate with Stryker''s smart hospital infrastructure. Advances digital health and connected OR strategy.', sector='MedTech / Digital Health', geography='United States', "premiumPct"=28.0, "evRevenueMultiple"=14.50, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='HSR Act', "advisorAcquirer"='J.P. Morgan', "legalAdvisorAcquirer"='Wachtell, Lipton, Rosen & Katz' WHERE id='dl_00fr3vwr';
+
+-- Danaher / Abcam
+UPDATE deals SET rationale='Acquire Abcam''s life science reagents and antibody catalog to strengthen Danaher''s Life Sciences segment. Provides recurring revenue and cross-sell opportunities.', sector='Life Sciences / Reagents', geography='Global', "premiumPct"=51.0, "evRevenueMultiple"=14.60, "evEbitdaMultiple"=42.00, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='CMA (UK); CFIUS', "advisorAcquirer"='Goldman Sachs', "advisorTarget"='Morgan Stanley; Lazard', "legalAdvisorAcquirer"='Davis Polk & Wardwell', "legalAdvisorTarget"='Freshfields', "breakupFeePct"=3.0 WHERE id='dl_00q6fi1k';
+
+-- Eli Lilly / Morphic
+UPDATE deals SET rationale='Acquire Morphic''s oral integrin therapeutics platform for inflammatory bowel disease. Strengthens Lilly''s immunology pipeline with differentiated oral therapies.', sector='Immunology', geography='United States', "premiumPct"=79.0, "financingType"='All Cash', "regulatoryStatus"='Approved', "regulatoryBodies"='HSR Act', "advisorAcquirer"='Morgan Stanley', "advisorTarget"='Centerview Partners; Jefferies', "legalAdvisorAcquirer"='Wachtell, Lipton, Rosen & Katz', "legalAdvisorTarget"='Goodwin Procter' WHERE id='dl_007vmx2l';

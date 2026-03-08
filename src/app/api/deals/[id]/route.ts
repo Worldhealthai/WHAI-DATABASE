@@ -9,9 +9,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       .from('deals')
       .select(`
         *,
-        acquirerCompany:companies!deals_acquirerCompanyId_fkey(*, verticals:company_verticals(id, verticalSlug, isPrimary)),
-        targetCompany:companies!deals_targetCompanyId_fkey(*, verticals:company_verticals(id, verticalSlug, isPrimary)),
-        investors:deal_investors(*, investorCompany:companies(id, name, companyType))
+        acquirerCompany:companies!deals_acquirerCompanyId_fkey(
+          *, verticals:company_verticals(id, verticalSlug, isPrimary),
+          therapeuticAreas:company_therapeutic_areas(id, therapeuticArea)
+        ),
+        targetCompany:companies!deals_targetCompanyId_fkey(
+          *, verticals:company_verticals(id, verticalSlug, isPrimary),
+          therapeuticAreas:company_therapeutic_areas(id, therapeuticArea)
+        ),
+        investors:deal_investors(*, investorCompany:companies(id, name, companyType, headquartersCountry, headquartersCity))
       `)
       .eq('id', params.id)
       .single()
@@ -35,7 +41,24 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       relatedDeals = data ?? []
     }
 
-    return NextResponse.json({ deal, relatedDeals })
+    // Key contacts at involved companies
+    const companyIds: string[] = []
+    if (deal.acquirerCompanyId) companyIds.push(deal.acquirerCompanyId)
+    if (deal.targetCompanyId) companyIds.push(deal.targetCompanyId)
+
+    let keyContacts: any[] = []
+    if (companyIds.length > 0) {
+      const { data } = await supabase
+        .from('contacts')
+        .select('id, firstName, lastName, jobTitle, seniority, department, companyId, company:companies(id, name)')
+        .in('companyId', companyIds)
+        .in('seniority', ['C-Suite', 'VP', 'Board', 'Director'])
+        .order('engagementScore', { ascending: false })
+        .limit(8)
+      keyContacts = data ?? []
+    }
+
+    return NextResponse.json({ deal, relatedDeals, keyContacts })
   } catch (error) {
     console.error('Deal detail error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
