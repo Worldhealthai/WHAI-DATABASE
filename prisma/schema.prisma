@@ -1,14 +1,13 @@
 // WHAI Intelligence Hub — Prisma Schema
-// PostgreSQL on Supabase — simplified string-based schema for CSV seeding
+// SQLite for local dev, switchable to PostgreSQL for production
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,7 +19,7 @@ model Company {
   name                      String
   legalName                 String?
   website                   String?
-  description               String?  @db.Text
+  description               String?
   companyType               String?
   ownershipStatus           String?
   foundedYear               Int?
@@ -60,7 +59,7 @@ model Contact {
   country         String?
   city            String?
   stateProvince   String?
-  bio             String?  @db.Text
+  bio             String?
   tags            String?
   engagementScore Int?
   createdAt       DateTime @default(now())
@@ -79,7 +78,7 @@ model Deal {
   acquirerCompanyId String?
   targetCompany     Company?  @relation("TargetCompany", fields: [targetCompanyId], references: [id])
   targetCompanyId   String?
-  description       String?   @db.Text
+  description       String?
   sourceUrl         String?
   tags              String?
   createdAt         DateTime  @default(now())
@@ -121,8 +120,8 @@ model Insight {
   id          String    @id @default(cuid())
   title       String
   contentType String?
-  summary     String?   @db.Text
-  body        String?   @db.Text
+  summary     String?
+  body        String?
   author      String?
   publishedAt DateTime?
   isPremium   Boolean   @default(false)

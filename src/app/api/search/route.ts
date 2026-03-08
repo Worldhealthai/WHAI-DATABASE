@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ contacts: [], companies: [], deals: [], insights: [] })
     }
 
-    const q = { contains: query, mode: 'insensitive' as const }
+    const q = { contains: query }
     const limit = 5
 
     const [contacts, companies, deals, insights] = await Promise.all([

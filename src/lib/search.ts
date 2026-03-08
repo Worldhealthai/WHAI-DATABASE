@@ -18,11 +18,11 @@ export function buildContactWhere(filters: ContactFilters): Prisma.ContactWhereI
   if (filters.query) {
     AND.push({
       OR: [
-        { firstName: { contains: filters.query, mode: 'insensitive' } },
-        { lastName: { contains: filters.query, mode: 'insensitive' } },
-        { jobTitle: { contains: filters.query, mode: 'insensitive' } },
-        { bio: { contains: filters.query, mode: 'insensitive' } },
-        { company: { name: { contains: filters.query, mode: 'insensitive' } } },
+        { firstName: { contains: filters.query } },
+        { lastName: { contains: filters.query } },
+        { jobTitle: { contains: filters.query } },
+        { bio: { contains: filters.query } },
+        { company: { name: { contains: filters.query } } },
       ],
     })
   }
@@ -95,9 +95,9 @@ export function buildCompanyWhere(filters: CompanyFilters): Prisma.CompanyWhereI
   if (filters.query) {
     AND.push({
       OR: [
-        { name: { contains: filters.query, mode: 'insensitive' } },
-        { description: { contains: filters.query, mode: 'insensitive' } },
-        { legalName: { contains: filters.query, mode: 'insensitive' } },
+        { name: { contains: filters.query } },
+        { description: { contains: filters.query } },
+        { legalName: { contains: filters.query } },
       ],
     })
   }
@@ -193,10 +193,10 @@ export function buildDealWhere(filters: DealFilters): Prisma.DealWhereInput {
   if (filters.query) {
     AND.push({
       OR: [
-        { title: { contains: filters.query, mode: 'insensitive' } },
-        { description: { contains: filters.query, mode: 'insensitive' } },
-        { acquirerCompany: { name: { contains: filters.query, mode: 'insensitive' } } },
-        { targetCompany: { name: { contains: filters.query, mode: 'insensitive' } } },
+        { title: { contains: filters.query } },
+        { description: { contains: filters.query } },
+        { acquirerCompany: { name: { contains: filters.query } } },
+        { targetCompany: { name: { contains: filters.query } } },
       ],
     })
   }
@@ -229,13 +229,13 @@ export function buildDealWhere(filters: DealFilters): Prisma.DealWhereInput {
 
   if (filters.acquirerQuery) {
     AND.push({
-      acquirerCompany: { name: { contains: filters.acquirerQuery, mode: 'insensitive' } },
+      acquirerCompany: { name: { contains: filters.acquirerQuery } },
     })
   }
 
   if (filters.targetQuery) {
     AND.push({
-      targetCompany: { name: { contains: filters.targetQuery, mode: 'insensitive' } },
+      targetCompany: { name: { contains: filters.targetQuery } },
     })
   }
 
@@ -243,7 +243,7 @@ export function buildDealWhere(filters: DealFilters): Prisma.DealWhereInput {
     AND.push({
       investors: {
         some: {
-          investorCompany: { name: { contains: filters.investorQuery, mode: 'insensitive' } },
+          investorCompany: { name: { contains: filters.investorQuery } },
         },
       },
     })
@@ -263,9 +263,9 @@ export function buildInsightWhere(filters: InsightFilters): Prisma.InsightWhereI
   if (filters.query) {
     AND.push({
       OR: [
-        { title: { contains: filters.query, mode: 'insensitive' } },
-        { summary: { contains: filters.query, mode: 'insensitive' } },
-        { body: { contains: filters.query, mode: 'insensitive' } },
+        { title: { contains: filters.query } },
+        { summary: { contains: filters.query } },
+        { body: { contains: filters.query } },
       ],
     })
   }

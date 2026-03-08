@@ -47,9 +47,9 @@ export async function POST(req: NextRequest) {
         } else {
           const existing = await prisma.contact.findFirst({
             where: {
-              firstName: { equals: firstName, mode: 'insensitive' },
-              lastName: { equals: lastName, mode: 'insensitive' },
-              company: { name: { equals: companyName, mode: 'insensitive' } },
+              firstName: { equals: firstName },
+              lastName: { equals: lastName },
+              company: { name: { equals: companyName } },
             },
           })
           if (existing) { stats.duplicates++; continue }
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
             companyId = companyCache.get(companyName.toLowerCase())
           } else {
             const existingCompany = await prisma.company.findFirst({
-              where: { name: { equals: companyName, mode: 'insensitive' } },
+              where: { name: { equals: companyName } },
             })
             if (existingCompany) {
               companyId = existingCompany.id
