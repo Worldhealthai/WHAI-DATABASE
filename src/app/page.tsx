@@ -107,17 +107,17 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 space-y-12">
+    <div className="max-w-5xl mx-auto px-3 sm:px-4 py-8 sm:py-12 space-y-8 sm:space-y-12">
       {/* Hero */}
-      <div className="text-center space-y-4">
+      <div className="text-center space-y-3 sm:space-y-4">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#00B4D8]/10 border border-[#00B4D8]/20 text-[#00B4D8] text-xs font-medium mb-2">
           <Database className="w-3 h-3" /> World Health AI Intelligence Hub
         </div>
-        <h1 className="text-4xl font-bold text-white leading-tight">
+        <h1 className="text-2xl sm:text-4xl font-bold text-white leading-tight">
           Healthcare Intelligence,<br />
           <span className="text-[#00B4D8]">Purpose-Built for the Industry</span>
         </h1>
-        <p className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed">
+        <p className="text-slate-400 text-sm sm:text-lg max-w-2xl mx-auto leading-relaxed">
           Advanced screening for healthcare contacts, companies, deals and market insights.
           The intelligence layer for healthcare executives, investors and solution providers.
         </p>

@@ -19,12 +19,12 @@ export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSi
   const pages = getPagesArray(page, totalPages)
 
   return (
-    <div className="flex items-center justify-between pt-3 border-t border-border">
-      <div className="flex items-center gap-3 text-xs text-slate-400">
-        <span>
+    <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
+      <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-400">
+        <span className="whitespace-nowrap">
           {total === 0 ? '0' : `${start}–${end}`} of {total.toLocaleString()}
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="hidden sm:flex items-center gap-1.5">
           <span>Show</span>
           <select
             value={pageSize}
@@ -42,34 +42,42 @@ export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSi
         <button
           onClick={() => onPage(page - 1)}
           disabled={page <= 1}
-          className="p-1 rounded hover:bg-[#112850] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="p-1.5 sm:p-1 rounded hover:bg-[#112850] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        {pages.map((p, i) =>
-          p === '...' ? (
-            <span key={i} className="px-1 text-slate-500">…</span>
-          ) : (
-            <button
-              key={p}
-              onClick={() => onPage(p as number)}
-              className={cn(
-                'w-7 h-7 rounded text-xs font-medium transition-colors',
-                page === p
-                  ? 'bg-[#00B4D8] text-[#0A1628]'
-                  : 'text-slate-400 hover:bg-[#112850] hover:text-white',
-              )}
-            >
-              {p}
-            </button>
-          )
-        )}
+        {/* On mobile, show simplified page numbers */}
+        <span className="sm:hidden text-xs text-slate-400 px-2">
+          {page} / {totalPages}
+        </span>
+
+        {/* Desktop page numbers */}
+        <div className="hidden sm:flex items-center gap-1">
+          {pages.map((p, i) =>
+            p === '...' ? (
+              <span key={i} className="px-1 text-slate-500">…</span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => onPage(p as number)}
+                className={cn(
+                  'w-7 h-7 rounded text-xs font-medium transition-colors',
+                  page === p
+                    ? 'bg-[#00B4D8] text-[#0A1628]'
+                    : 'text-slate-400 hover:bg-[#112850] hover:text-white',
+                )}
+              >
+                {p}
+              </button>
+            )
+          )}
+        </div>
 
         <button
           onClick={() => onPage(page + 1)}
           disabled={page >= totalPages}
-          className="p-1 rounded hover:bg-[#112850] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="p-1.5 sm:p-1 rounded hover:bg-[#112850] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>

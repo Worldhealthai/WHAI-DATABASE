@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { GlobalSearch } from '@/components/search/GlobalSearch'
 import { Users, Building2, TrendingUp, BookOpen, Database } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,7 +17,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#1a3a5c] bg-[#0A1628]/95 backdrop-blur-sm">
-      <div className="flex items-center h-14 px-4 gap-6 max-w-screen-2xl mx-auto">
+      <div className="flex items-center h-14 px-3 sm:px-4 gap-2 sm:gap-6 max-w-screen-2xl mx-auto">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <div className="w-7 h-7 rounded bg-[#00B4D8] flex items-center justify-center">
@@ -29,8 +28,8 @@ export function Navbar() {
           </span>
         </Link>
 
-        {/* Nav tabs */}
-        <nav className="flex items-center gap-1">
+        {/* Nav tabs - hidden on mobile, shown in bottom bar instead */}
+        <nav className="hidden md:flex items-center gap-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href)
             return (
@@ -51,11 +50,6 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* Global search */}
-        <div className="flex-1 max-w-lg">
-          <GlobalSearch />
-        </div>
-
         {/* Right side */}
         <div className="ml-auto flex items-center gap-3 shrink-0">
           <span className="text-xs px-2 py-0.5 rounded-full bg-[#00B4D8]/20 text-[#00B4D8] border border-[#00B4D8]/30 font-medium">
@@ -67,5 +61,39 @@ export function Navbar() {
         </div>
       </div>
     </header>
+  )
+}
+
+export function MobileBottomNav() {
+  const pathname = usePathname()
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-[#1a3a5c] bg-[#0A1628]/95 backdrop-blur-sm safe-area-bottom">
+      <div className="flex items-center justify-around h-14">
+        <Link href="/" className={cn(
+          'flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors',
+          pathname === '/' ? 'text-[#00B4D8]' : 'text-slate-500'
+        )}>
+          <Database className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Home</span>
+        </Link>
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          const active = pathname.startsWith(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors',
+                active ? 'text-[#00B4D8]' : 'text-slate-500'
+              )}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium">{label}</span>
+            </Link>
+          )
+        })}
+      </div>
+    </nav>
   )
 }

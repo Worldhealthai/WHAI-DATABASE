@@ -73,7 +73,7 @@ export default function CompaniesPage() {
   const [pageSize, setPageSize] = useState(25)
   const [sortBy, setSortBy] = useState('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['companies', filters, page, pageSize, sortBy, sortDir],
@@ -130,9 +130,16 @@ export default function CompaniesPage() {
         </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Mobile overlay backdrop */}
         {sidebarOpen && (
-          <div className="w-64 shrink-0 border-r border-border overflow-y-auto p-4 bg-[#0A1628]">
+          <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
+        )}
+        {sidebarOpen && (
+          <div className={cn(
+            'w-64 shrink-0 border-r border-border overflow-y-auto p-4 bg-[#0A1628]',
+            'fixed inset-y-0 left-0 z-40 top-14 md:relative md:top-0 md:z-auto'
+          )}>
             {/* Search */}
             <div className="filter-section">
               <div className="relative">
@@ -197,7 +204,38 @@ export default function CompaniesPage() {
             {isLoading ? (
               <div className="flex items-center justify-center py-16 text-slate-500 text-sm">Loading…</div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/* Mobile card view */}
+              <div className="md:hidden">
+                {(data?.data ?? []).map((company: any) => (
+                  <Link key={company.id} href={`/companies/${company.id}`} className="block px-4 py-3 border-b border-border hover:bg-[#112850]/50 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-white text-sm truncate">{company.name}</div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className={cn('text-[10px] px-1.5 py-0.5 rounded border', TYPE_COLOR[company.companyType] ?? TYPE_COLOR.default)}>
+                            {company.companyType}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            {[company.headquartersCity, company.headquartersCountry].filter(Boolean).join(', ') || '—'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-400">
+                          <span className="flex items-center gap-1"><Users className="w-3 h-3 text-slate-500" />{company._count?.contacts ?? 0}</span>
+                          <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3 text-slate-500" />{(company._count?.dealsAsAcquirer ?? 0) + (company._count?.dealsAsTarget ?? 0)}</span>
+                          {company.employeeCountRange && <span>{company.employeeCountRange}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+                {(data?.data ?? []).length === 0 && (
+                  <div className="text-center py-16 text-slate-500 text-sm">No companies match your filters.</div>
+                )}
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
@@ -260,6 +298,7 @@ export default function CompaniesPage() {
                   <div className="text-center py-16 text-slate-500 text-sm">No companies match your filters.</div>
                 )}
               </div>
+              </>
             )}
           </div>
 
