@@ -1,47 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const company = await prisma.company.findUnique({
-      where: { id: params.id },
-      include: {
-        verticals: true,
-        therapeuticAreas: true,
-        _count: {
-          select: { contacts: true, dealsAsAcquirer: true, dealsAsTarget: true },
-        },
-      },
-    })
+    const { data: company, error } = await supabase
+      .from('companies')
+      .select('*, verticals:company_verticals(*), therapeuticAreas:company_therapeutic_areas(*)')
+      .eq('id', params.id)
+      .single()
 
-    if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (error || !company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const [contacts, deals] = await Promise.all([
-      prisma.contact.findMany({
-        where: { companyId: params.id },
-        take: 20,
-        orderBy: { engagementScore: 'desc' },
-      }),
-      prisma.deal.findMany({
-        where: {
-          OR: [
-            { acquirerCompanyId: params.id },
-            { targetCompanyId: params.id },
-            { investors: { some: { investorCompanyId: params.id } } },
-          ],
-        },
-        take: 10,
-        orderBy: { announcedDate: 'desc' },
-        include: {
-          acquirerCompany: { select: { id: true, name: true } },
-          targetCompany: { select: { id: true, name: true } },
-        },
-      }),
+    const [contactsRes, dealsRes, investorDealsRes] = await Promise.all([
+      supabase
+        .from('contacts')
+        .select('*')
+        .eq('companyId', params.id)
+        .order('engagementScore', { ascending: false })
+        .limit(20),
+      supabase
+        .from('deals')
+        .select('*, acquirerCompany:companies!deals_acquirerCompanyId_fkey(id, name), targetCompany:companies!deals_targetCompanyId_fkey(id, name)')
+        .or(`acquirerCompanyId.eq.${params.id},targetCompanyId.eq.${params.id}`)
+        .order('announcedDate', { ascending: false })
+        .limit(10),
+      supabase
+        .from('deal_investors')
+        .select('dealId')
+        .eq('investorCompanyId', params.id),
     ])
 
-    return NextResponse.json({ company, contacts, deals })
+    // Merge investor deals with direct deals
+    let deals = dealsRes.data ?? []
+    const existingDealIds = new Set(deals.map(d => d.id))
+    const investorDealIds = (investorDealsRes.data ?? [])
+      .map((i: any) => i.dealId)
+      .filter((id: string) => !existingDealIds.has(id))
+
+    if (investorDealIds.length > 0) {
+      const { data: extraDeals } = await supabase
+        .from('deals')
+        .select('*, acquirerCompany:companies!deals_acquirerCompanyId_fkey(id, name), targetCompany:companies!deals_targetCompanyId_fkey(id, name)')
+        .in('id', investorDealIds)
+        .order('announcedDate', { ascending: false })
+        .limit(10)
+      deals = [...deals, ...(extraDeals ?? [])]
+    }
+
+    return NextResponse.json({ company, contacts: contactsRes.data ?? [], deals })
   } catch (error) {
     console.error('Company detail error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
