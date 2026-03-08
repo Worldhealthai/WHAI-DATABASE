@@ -59,7 +59,7 @@ async function fetchContacts(
 
 export default function ContactsPage() {
   const [filters, setFilters] = useState<ContactFilters>({})
-  const [hasSearched, setHasSearched] = useState(false)
+  const [hasSearched, setHasSearched] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [sortBy, setSortBy] = useState('lastName')
@@ -83,6 +83,7 @@ export default function ContactsPage() {
       ...prev,
       [key]: value.length > 0 ? value : undefined,
     }))
+    if (!hasSearched) setHasSearched(true)
   }
 
   const handleSearch = () => {
