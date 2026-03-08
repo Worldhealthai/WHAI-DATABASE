@@ -1,34 +1,15 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
 import { Users, Building2, TrendingUp, BookOpen, ArrowRight, Database } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-async function safeFetch(url: string) {
-  try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    return await res.json()
-  } catch {
-    return null
-  }
-}
-
-async function fetchStats() {
-  const [contacts, companies, deals, insights] = await Promise.all([
-    safeFetch('/api/contacts?pageSize=1'),
-    safeFetch('/api/companies?pageSize=1'),
-    safeFetch('/api/deals?pageSize=1'),
-    safeFetch('/api/insights?pageSize=1'),
-  ])
-  return {
-    contacts: contacts?.total ?? 0,
-    companies: companies?.total ?? 0,
-    deals: deals?.total ?? 0,
-    insights: insights?.total ?? 0,
-    dealValue: deals?.stats?.totalValueCents ?? '0',
-  }
+interface Stats {
+  contacts: number
+  companies: number
+  deals: number
+  insights: number
 }
 
 const MODULES = [
@@ -40,7 +21,7 @@ const MODULES = [
     color: 'text-[#00B4D8]',
     bg: 'from-[#00B4D8]/10 to-transparent',
     border: 'border-[#00B4D8]/20 hover:border-[#00B4D8]/50',
-    stat: 'contacts',
+    stat: 'contacts' as const,
     statLabel: 'contacts',
   },
   {
@@ -51,7 +32,7 @@ const MODULES = [
     color: 'text-purple-400',
     bg: 'from-purple-400/10 to-transparent',
     border: 'border-purple-400/20 hover:border-purple-400/50',
-    stat: 'companies',
+    stat: 'companies' as const,
     statLabel: 'companies',
   },
   {
@@ -62,7 +43,7 @@ const MODULES = [
     color: 'text-green-400',
     bg: 'from-green-400/10 to-transparent',
     border: 'border-green-400/20 hover:border-green-400/50',
-    stat: 'deals',
+    stat: 'deals' as const,
     statLabel: 'deals',
   },
   {
@@ -73,18 +54,57 @@ const MODULES = [
     color: 'text-amber-400',
     bg: 'from-amber-400/10 to-transparent',
     border: 'border-amber-400/20 hover:border-amber-400/50',
-    stat: 'insights',
+    stat: 'insights' as const,
     statLabel: 'articles',
   },
 ]
 
 export default function HomePage() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['stats'],
-    queryFn: fetchStats,
-    retry: 2,
-    refetchOnMount: 'always',
-  })
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      try {
+        const endpoints = [
+          '/api/contacts?pageSize=1',
+          '/api/companies?pageSize=1',
+          '/api/deals?pageSize=1',
+          '/api/insights?pageSize=1',
+        ]
+
+        const results = await Promise.all(
+          endpoints.map(async (url) => {
+            try {
+              const res = await fetch(url)
+              if (!res.ok) return 0
+              const json = await res.json()
+              return json.total ?? 0
+            } catch {
+              return 0
+            }
+          })
+        )
+
+        if (!cancelled) {
+          setStats({
+            contacts: results[0],
+            companies: results[1],
+            deals: results[2],
+            insights: results[3],
+          })
+          setLoading(false)
+        }
+      } catch {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12 space-y-12">
@@ -107,7 +127,7 @@ export default function HomePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {MODULES.map((mod) => {
           const Icon = mod.icon
-          const count = stats?.[mod.stat as keyof typeof stats]
+          const count = stats?.[mod.stat] ?? 0
           return (
             <Link key={mod.href} href={mod.href}
               className={cn(
@@ -122,12 +142,10 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-slate-300 transition-colors" />
               </div>
               <div className={cn('text-2xl font-bold mb-0.5', mod.color)}>
-                {statsLoading ? (
+                {loading ? (
                   <span className="inline-block w-12 h-7 rounded bg-slate-700/50 animate-pulse" />
-                ) : typeof count === 'number' ? (
-                  count.toLocaleString()
                 ) : (
-                  count ?? 0
+                  count.toLocaleString()
                 )}
               </div>
               <div className="text-xs text-slate-500 mb-3">{mod.statLabel} in database</div>
