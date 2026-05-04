@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
     const filters: SpeakerFilters = {
       query: searchParams.get('query') ?? undefined,
       statuses: searchParams.getAll('statuses').filter(Boolean),
+      events: searchParams.getAll('events').filter(Boolean),
+      subTypes: searchParams.getAll('subTypes').filter(Boolean),
       sessionTypes: searchParams.getAll('sessionTypes').filter(Boolean),
       contractStatuses: searchParams.getAll('contractStatuses').filter(Boolean),
       countries: searchParams.getAll('countries').filter(Boolean),
@@ -32,6 +34,8 @@ export async function GET(req: NextRequest) {
       )
     }
     if (filters.statuses?.length) query = query.in('status', filters.statuses)
+    if (filters.events?.length) query = query.in('event', filters.events)
+    if (filters.subTypes?.length) query = query.in('subType', filters.subTypes)
     if (filters.sessionTypes?.length) query = query.in('sessionType', filters.sessionTypes)
     if (filters.contractStatuses?.length) query = query.in('contractStatus', filters.contractStatuses)
     if (filters.countries?.length) query = query.in('country', filters.countries)

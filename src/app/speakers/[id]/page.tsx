@@ -129,6 +129,8 @@ export default function SpeakerDetailPage() {
             <div className="grid grid-cols-2 gap-4">
               <DetailField label="Status" value={<StatusBadge value={speaker.status} variant="speaker_status" />} />
               <DetailField label="Session Type" value={speaker.sessionType ?? '—'} />
+              <DetailField label="Event" value={speaker.event ?? '—'} />
+              <DetailField label="Speaker Type" value={speaker.subType ?? '—'} />
               <DetailField label="Contract Status" value={<StatusBadge value={speaker.contractStatus ?? 'Not Started'} variant="contract_status" />} />
               <DetailField label="Fee Status" value={<StatusBadge value={speaker.feeStatus ?? 'Not Set'} variant="fee_status" />} />
               <DetailField label="Speaking Fee" value={speaker.fee ? `${speaker.feeCurrency ?? 'GBP'} ${Number(speaker.fee).toLocaleString()}` : 'Not set'} />

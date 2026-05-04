@@ -14,6 +14,8 @@ import {
   SESSION_TYPE_OPTIONS,
   CONTRACT_STATUS_OPTIONS,
   COUNTRY_OPTIONS,
+  EVENT_OPTIONS,
+  SUBTYPE_OPTIONS,
 } from '@/types'
 
 async function fetchSpeakers(
@@ -24,6 +26,8 @@ async function fetchSpeakers(
   params.set('sortBy', sortBy); params.set('sortDir', sortDir)
   if (filters.query) params.set('query', filters.query)
   filters.statuses?.forEach((s) => params.append('statuses', s))
+  filters.events?.forEach((e) => params.append('events', e))
+  filters.subTypes?.forEach((t) => params.append('subTypes', t))
   filters.sessionTypes?.forEach((t) => params.append('sessionTypes', t))
   filters.contractStatuses?.forEach((c) => params.append('contractStatuses', c))
   filters.countries?.forEach((c) => params.append('countries', c))
@@ -72,6 +76,8 @@ export default function SpeakersPage() {
   const activeFilters: { category: string; key: string; value: string }[] = []
   if (filters.query) activeFilters.push({ category: 'Search', key: 'query', value: filters.query })
   filters.statuses?.forEach((s) => activeFilters.push({ category: 'Status', key: 'statuses', value: s }))
+  filters.events?.forEach((e) => activeFilters.push({ category: 'Event', key: 'events', value: e }))
+  filters.subTypes?.forEach((t) => activeFilters.push({ category: 'Type', key: 'subTypes', value: t }))
   filters.sessionTypes?.forEach((t) => activeFilters.push({ category: 'Session', key: 'sessionTypes', value: t }))
   filters.contractStatuses?.forEach((c) => activeFilters.push({ category: 'Contract', key: 'contractStatuses', value: c }))
   filters.countries?.forEach((c) => activeFilters.push({ category: 'Country', key: 'countries', value: c }))
@@ -143,6 +149,8 @@ export default function SpeakersPage() {
 
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <FilterDropdown label="Status" options={SPEAKER_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
+            <FilterDropdown label="Event" options={EVENT_OPTIONS} selected={filters.events ?? []} onChange={(v) => updateFilter('events', v)} searchable={false} />
+            <FilterDropdown label="Type" options={SUBTYPE_OPTIONS} selected={filters.subTypes ?? []} onChange={(v) => updateFilter('subTypes', v)} searchable={false} />
             <FilterDropdown label="Session Type" options={SESSION_TYPE_OPTIONS} selected={filters.sessionTypes ?? []} onChange={(v) => updateFilter('sessionTypes', v)} searchable={false} />
             <FilterDropdown label="Contract" options={CONTRACT_STATUS_OPTIONS} selected={filters.contractStatuses ?? []} onChange={(v) => updateFilter('contractStatuses', v)} searchable={false} />
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />

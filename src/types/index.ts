@@ -1,5 +1,19 @@
 // WHAI CRM — Shared Types
 
+// ── Shared event + sub-type options ──────────────────────────────────────────
+
+export const EVENT_OPTIONS = [
+  'UK Forum',
+  'US Forum',
+  'Boston, MA — May 20, 2026',
+  'UK, London — Sep 22, 2026',
+]
+
+export const SUBTYPE_OPTIONS = [
+  'End User',
+  'Solution Provider',
+]
+
 // ── Delegate enums ────────────────────────────────────────────────────────────
 
 export const DELEGATE_STATUS_OPTIONS = [
@@ -203,6 +217,8 @@ export interface Delegate {
   country?: string | null
   city?: string | null
   status: string
+  event?: string | null
+  subType?: string | null
   ticketType?: string | null
   dietaryRequirements?: string | null
   accessibilityNeeds?: string | null
@@ -230,6 +246,8 @@ export interface Speaker {
   bio?: string | null
   expertiseAreas?: string | null
   status: string
+  event?: string | null
+  subType?: string | null
   sessionTitle?: string | null
   sessionDescription?: string | null
   sessionType?: string | null
@@ -289,6 +307,8 @@ export interface Activity {
 export interface DelegateFilters {
   query?: string
   statuses?: string[]
+  events?: string[]
+  subTypes?: string[]
   ticketTypes?: string[]
   countries?: string[]
   tags?: string[]
@@ -298,6 +318,8 @@ export interface DelegateFilters {
 export interface SpeakerFilters {
   query?: string
   statuses?: string[]
+  events?: string[]
+  subTypes?: string[]
   sessionTypes?: string[]
   contractStatuses?: string[]
   countries?: string[]

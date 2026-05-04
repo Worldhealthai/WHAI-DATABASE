@@ -11,6 +11,8 @@ import {
   EXPERTISE_OPTIONS,
   COUNTRY_OPTIONS,
   CURRENCY_OPTIONS,
+  EVENT_OPTIONS,
+  SUBTYPE_OPTIONS,
 } from '@/types'
 
 interface Props {
@@ -44,6 +46,8 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
     contractStatus: speaker?.contractStatus ?? 'Not Started',
     travelRequired: speaker?.travelRequired ?? false,
     hotelRequired: speaker?.hotelRequired ?? false,
+    event: speaker?.event ?? '',
+    subType: speaker?.subType ?? '',
     tags: speaker?.tags ?? '',
     notes: speaker?.notes ?? '',
   })
@@ -133,6 +137,22 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
             </Field>
             <Field label="City">
               <input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="London" className={inputCls} />
+            </Field>
+          </div>
+
+          {/* Event + Sub-type */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Event">
+              <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
+                <option value="">Select event</option>
+                {EVENT_OPTIONS.map((e) => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </Field>
+            <Field label="Speaker Type">
+              <select value={form.subType} onChange={(e) => set('subType', e.target.value)} className={inputCls}>
+                <option value="">Select type</option>
+                {SUBTYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </Field>
           </div>
 
