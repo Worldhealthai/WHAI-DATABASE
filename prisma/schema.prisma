@@ -28,6 +28,8 @@ model Delegate {
   city                 String?
   // CRM fields
   status               String   @default("Registered")
+  event                String?
+  subType              String?
   ticketType           String?
   dietaryRequirements  String?
   accessibilityNeeds   String?
@@ -61,6 +63,8 @@ model Speaker {
   expertiseAreas     String?
   // CRM fields
   status             String   @default("Prospecting")
+  event              String?
+  subType            String?
   sessionTitle       String?
   sessionDescription String?  @db.Text
   sessionType        String?

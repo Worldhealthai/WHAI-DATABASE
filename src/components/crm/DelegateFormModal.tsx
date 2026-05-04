@@ -7,6 +7,8 @@ import {
   DELEGATE_STATUS_OPTIONS,
   DELEGATE_TICKET_OPTIONS,
   DELEGATE_SOURCE_OPTIONS,
+  EVENT_OPTIONS,
+  SUBTYPE_OPTIONS,
   COUNTRY_OPTIONS,
 } from '@/types'
 
@@ -29,6 +31,8 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
     country: delegate?.country ?? '',
     city: delegate?.city ?? '',
     status: delegate?.status ?? 'Registered',
+    event: delegate?.event ?? '',
+    subType: delegate?.subType ?? '',
     ticketType: delegate?.ticketType ?? '',
     source: delegate?.source ?? '',
     dietaryRequirements: delegate?.dietaryRequirements ?? '',
@@ -128,6 +132,22 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
             </Field>
             <Field label="City">
               <input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="London" className={inputCls} />
+            </Field>
+          </div>
+
+          {/* Event + Sub-type */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Event">
+              <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
+                <option value="">Select event</option>
+                {EVENT_OPTIONS.map((e) => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </Field>
+            <Field label="Delegate Type">
+              <select value={form.subType} onChange={(e) => set('subType', e.target.value)} className={inputCls}>
+                <option value="">Select type</option>
+                {SUBTYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </Field>
           </div>
 

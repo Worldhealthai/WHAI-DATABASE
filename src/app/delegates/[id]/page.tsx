@@ -142,6 +142,8 @@ export default function DelegateDetailPage() {
             <div className="grid grid-cols-2 gap-4">
               <DetailField label="Status" value={<StatusBadge value={delegate.status} variant="delegate_status" />} />
               <DetailField label="Ticket Type" value={delegate.ticketType ? <StatusBadge value={delegate.ticketType} variant="ticket_type" /> : '—'} />
+              <DetailField label="Event" value={delegate.event ?? '—'} />
+              <DetailField label="Delegate Type" value={delegate.subType ?? '—'} />
               <DetailField label="Source" value={delegate.source ?? '—'} />
               <DetailField label="Dietary Requirements" value={delegate.dietaryRequirements ?? '—'} />
               <DetailField label="Accessibility Needs" value={delegate.accessibilityNeeds ?? '—'} />

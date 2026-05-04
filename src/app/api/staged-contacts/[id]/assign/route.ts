@@ -22,6 +22,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Staged contact not found' }, { status: 404 })
     }
 
+    // Parse rawData to extract event and subType
+    let event: string | null = null
+    let subType: string | null = null
+    try {
+      const raw = JSON.parse(contact.rawData ?? '{}')
+      const eventKey = Object.keys(raw).find((k) => ['primary event', 'event'].includes(k.toLowerCase()))
+      const typeKey = Object.keys(raw).find((k) => ['attendee type', 'type'].includes(k.toLowerCase()))
+      if (eventKey) event = raw[eventKey] || null
+      if (typeKey) {
+        const at = (raw[typeKey] ?? '').toLowerCase()
+        if (at.includes('end_user') || at.includes('end-user')) subType = 'End User'
+        else if (at.includes('solution_provider') || at.includes('solution-provider')) subType = 'Solution Provider'
+      }
+    } catch { /* ignore malformed rawData */ }
+
     // Build the record for the target table
     const base = {
       firstName: contact.firstName,
@@ -43,10 +58,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (assignAs === 'delegate') {
       table = 'delegates'
-      record = { ...base, status: 'Registered' }
+      record = { ...base, status: 'Registered', event, subType }
     } else if (assignAs === 'speaker') {
       table = 'speakers'
-      record = { ...base, status: 'Prospecting' }
+      record = { ...base, status: 'Prospecting', event, subType }
     } else {
       table = 'sponsors'
       record = {
