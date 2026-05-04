@@ -111,6 +111,32 @@ model Sponsor {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// STAGED CONTACTS — CSV import inbox, pending triage
+// ─────────────────────────────────────────────────────────────────────────────
+
+model StagedContact {
+  id           String   @id @default(cuid())
+  firstName    String?
+  lastName     String?
+  email        String?
+  phone        String?
+  linkedinUrl  String?
+  organization String?
+  jobTitle     String?
+  country      String?
+  city         String?
+  bio          String?  @db.Text
+  tags         String?
+  notes        String?  @db.Text
+  status       String   @default("pending")
+  assignedAs   String?
+  assignedId   String?
+  importBatch  String?
+  rawData      String?  @db.Text
+  createdAt    DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ACTIVITIES — universal activity log / timeline
 // ─────────────────────────────────────────────────────────────────────────────
 

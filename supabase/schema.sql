@@ -157,15 +157,51 @@ create trigger sponsors_updated_at
   for each row execute function update_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- STAGED CONTACTS — CSV import inbox, pending triage
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists staged_contacts (
+  id              text primary key default gen_random_uuid()::text,
+  "firstName"     text,
+  "lastName"      text,
+  email           text,
+  phone           text,
+  "linkedinUrl"   text,
+  organization    text,
+  "jobTitle"      text,
+  country         text,
+  city            text,
+  bio             text,
+  tags            text,
+  notes           text,
+  -- Triage state
+  status          text not null default 'pending',  -- 'pending' | 'assigned' | 'skipped'
+  "assignedAs"    text,                             -- 'delegate' | 'speaker' | 'sponsor'
+  "assignedId"    text,                             -- id of the created record
+  -- Import metadata
+  "importBatch"   text,                             -- batch label (filename / timestamp)
+  "rawData"       text,                             -- original CSV row as JSON string
+  "createdAt"     timestamptz not null default now()
+);
+
+create index if not exists idx_staged_status  on staged_contacts(status);
+create index if not exists idx_staged_batch   on staged_contacts("importBatch");
+create index if not exists idx_staged_created on staged_contacts("createdAt" desc);
+
+drop trigger if exists staged_contacts_updated_at on staged_contacts;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- ROW LEVEL SECURITY (service role has full access via API)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-alter table delegates  enable row level security;
-alter table speakers   enable row level security;
-alter table sponsors   enable row level security;
-alter table activities enable row level security;
+alter table delegates       enable row level security;
+alter table speakers        enable row level security;
+alter table sponsors        enable row level security;
+alter table activities      enable row level security;
+alter table staged_contacts enable row level security;
 
-create policy "service full access delegates"  on delegates  using (true) with check (true);
-create policy "service full access speakers"   on speakers   using (true) with check (true);
-create policy "service full access sponsors"   on sponsors   using (true) with check (true);
-create policy "service full access activities" on activities using (true) with check (true);
+create policy "service full access delegates"        on delegates        using (true) with check (true);
+create policy "service full access speakers"         on speakers         using (true) with check (true);
+create policy "service full access sponsors"         on sponsors         using (true) with check (true);
+create policy "service full access activities"       on activities       using (true) with check (true);
+create policy "service full access staged_contacts"  on staged_contacts  using (true) with check (true);
