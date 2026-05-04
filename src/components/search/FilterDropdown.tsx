@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -21,17 +22,47 @@ export function FilterDropdown({
 }: FilterDropdownProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Close on outside click
+  // Position the portal menu relative to the trigger button
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    setMenuStyle({
+      position: 'fixed',
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: 256,
+      zIndex: 9999,
+    })
+  }, [])
+
   useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    if (!open) return
+    updatePosition()
+
+    function onScroll() { updatePosition() }
+    function onResize() { updatePosition() }
+    function onMouseDown(e: MouseEvent) {
+      if (
+        triggerRef.current?.contains(e.target as Node) ||
+        menuRef.current?.contains(e.target as Node)
+      ) return
+      setOpen(false)
     }
-    if (open) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
+    document.addEventListener('mousedown', onMouseDown)
+    return () => {
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
+      document.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [open, updatePosition])
 
   // Focus search when opened
   useEffect(() => {
@@ -49,9 +80,82 @@ export function FilterDropdown({
 
   const hasSelected = selected.length > 0
 
+  const menu = open && typeof document !== 'undefined' && createPortal(
+    <div
+      ref={menuRef}
+      style={menuStyle}
+      className="bg-[#0D1F3C] border border-[#1a3a5c] rounded-lg shadow-2xl shadow-black/60 overflow-hidden"
+    >
+      {searchable && options.length > 5 && (
+        <div className="p-2 border-b border-[#1a3a5c]">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}...`}
+              className="w-full pl-8 pr-3 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="max-h-56 overflow-y-auto p-1.5">
+        {filtered.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-slate-500 text-center">No matches</div>
+        ) : (
+          filtered.map((option) => {
+            const isSelected = selected.includes(option)
+            return (
+              <button
+                key={option}
+                onClick={() => toggle(option)}
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left text-sm transition-colors',
+                  isSelected
+                    ? 'bg-[#00B4D8]/10 text-[#00B4D8]'
+                    : 'text-slate-300 hover:bg-[#112850] hover:text-white',
+                )}
+              >
+                <div
+                  className={cn(
+                    'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
+                    isSelected
+                      ? 'bg-[#00B4D8] border-[#00B4D8]'
+                      : 'border-slate-600 bg-transparent',
+                  )}
+                >
+                  {isSelected && <Check className="w-3 h-3 text-[#0A1628]" strokeWidth={3} />}
+                </div>
+                <span className="truncate">{option}</span>
+              </button>
+            )
+          })
+        )}
+      </div>
+
+      {hasSelected && (
+        <div className="p-2 border-t border-[#1a3a5c] flex items-center justify-between">
+          <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+            {selected.length} selected
+          </span>
+          <button
+            onClick={() => { onChange([]); setOpen(false) }}
+            className="text-xs text-slate-400 hover:text-white transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+    </div>,
+    document.body,
+  )
+
   return (
-    <div ref={ref} className="relative">
+    <div className="relative shrink-0">
       <button
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
         className={cn(
           'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all whitespace-nowrap',
@@ -71,80 +175,12 @@ export function FilterDropdown({
         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', open && 'rotate-180')} />
       </button>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 w-64 bg-[#0D1F3C] border border-[#1a3a5c] rounded-lg shadow-2xl shadow-black/40 z-50 overflow-hidden">
-          {/* Search within dropdown */}
-          {searchable && options.length > 5 && (
-            <div className="p-2 border-b border-[#1a3a5c]">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                <input
-                  ref={inputRef}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={`Search ${label.toLowerCase()}...`}
-                  className="w-full pl-8 pr-3 py-1.5 bg-[#112850] border border-[#1a3a5c] rounded text-xs text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Options list */}
-          <div className="max-h-56 overflow-y-auto p-1.5">
-            {filtered.length === 0 ? (
-              <div className="px-3 py-4 text-xs text-slate-500 text-center">No matches</div>
-            ) : (
-              filtered.map((option) => {
-                const isSelected = selected.includes(option)
-                return (
-                  <button
-                    key={option}
-                    onClick={() => toggle(option)}
-                    className={cn(
-                      'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left text-sm transition-colors',
-                      isSelected
-                        ? 'bg-[#00B4D8]/10 text-[#00B4D8]'
-                        : 'text-slate-300 hover:bg-[#112850] hover:text-white',
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
-                        isSelected
-                          ? 'bg-[#00B4D8] border-[#00B4D8]'
-                          : 'border-slate-600 bg-transparent',
-                      )}
-                    >
-                      {isSelected && <Check className="w-3 h-3 text-[#0A1628]" strokeWidth={3} />}
-                    </div>
-                    <span className="truncate">{option}</span>
-                  </button>
-                )
-              })
-            )}
-          </div>
-
-          {/* Footer actions */}
-          {hasSelected && (
-            <div className="p-2 border-t border-[#1a3a5c] flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider">
-                {selected.length} selected
-              </span>
-              <button
-                onClick={() => { onChange([]); setOpen(false) }}
-                className="text-xs text-slate-400 hover:text-white transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {menu}
     </div>
   )
 }
 
-// ── Active filter chips bar (Preqin-style grouped chips) ─────────────────────
+// ── Active filter chips bar ───────────────────────────────────────────────────
 
 interface ActiveFilter {
   category: string
@@ -161,7 +197,6 @@ interface ActiveFiltersBarProps {
 export function ActiveFiltersBar({ filters, onRemove, onClearAll }: ActiveFiltersBarProps) {
   if (filters.length === 0) return null
 
-  // Group by category
   const grouped: Record<string, ActiveFilter[]> = {}
   filters.forEach((f) => {
     if (!grouped[f.category]) grouped[f.category] = []
