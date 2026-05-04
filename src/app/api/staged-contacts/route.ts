@@ -54,7 +54,23 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = req.nextUrl
+    const batch = searchParams.get('batch') ?? undefined
+
+    const { error } = batch
+      ? await supabase.from('staged_contacts').delete().eq('importBatch', batch)
+      : await supabase.from('staged_contacts').delete().in('status', ['pending', 'skipped'])
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Staged contacts DELETE error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
   try {
     const { contacts, importBatch } = await req.json()
 

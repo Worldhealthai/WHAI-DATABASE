@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Users, Mic, Award, SkipForward, Search, Upload, CheckCircle2,
   ChevronLeft, ChevronRight, Mail, Phone, Building2, Briefcase,
-  MapPin, Tag, ExternalLink, Inbox,
+  MapPin, Tag, ExternalLink, Inbox, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -67,6 +67,7 @@ export default function UnassignedPage() {
   const [selectedBatch, setSelectedBatch] = useState('')
   const [assigning, setAssigning] = useState<Record<string, string>>({}) // id → 'delegate'|'speaker'|'sponsor'|'skipping'
   const [justDone, setJustDone] = useState<Record<string, string>>({}) // id → assigned type
+  const [deleting, setDeleting] = useState(false)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['unassigned', page, query, selectedBatch],
@@ -89,6 +90,20 @@ export default function UnassignedPage() {
       }, 800)
     } catch {
       setAssigning((p) => { const n = { ...p }; delete n[id]; return n })
+    }
+  }, [queryClient])
+
+  const handleDeleteBatch = useCallback(async (batch: string) => {
+    const label = batch || 'all unassigned contacts'
+    if (!confirm(`Delete ${batch ? `the "${batch}" batch` : 'all unassigned contacts'}? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      const url = batch ? `/api/staged-contacts?batch=${encodeURIComponent(batch)}` : '/api/staged-contacts'
+      await fetch(url, { method: 'DELETE' })
+      setSelectedBatch('')
+      queryClient.invalidateQueries({ queryKey: ['unassigned'] })
+    } finally {
+      setDeleting(false)
     }
   }, [queryClient])
 
@@ -131,12 +146,23 @@ export default function UnassignedPage() {
                 </p>
               )}
             </div>
-            <Link
-              href="/import"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors"
-            >
-              <Upload className="w-4 h-4" /> Import CSV
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleDeleteBatch(selectedBatch)}
+                disabled={deleting || total === 0}
+                title={selectedBatch ? `Delete "${selectedBatch}" batch` : 'Delete all unassigned'}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-40"
+              >
+                <Trash2 className="w-4 h-4" />
+                {selectedBatch ? 'Delete batch' : 'Delete all'}
+              </button>
+              <Link
+                href="/import"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors"
+              >
+                <Upload className="w-4 h-4" /> Import CSV
+              </Link>
+            </div>
           </div>
 
           {/* Search + batch filter */}
