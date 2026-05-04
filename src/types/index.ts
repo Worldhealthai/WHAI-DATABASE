@@ -1,54 +1,180 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// WHAI Intelligence Hub — Shared Types
-// ─────────────────────────────────────────────────────────────────────────────
+// WHAI CRM — Shared Types
 
-// All enum-like fields are now stored as plain strings in the database.
-// These label maps provide display values for filter dropdowns and UI.
+// ── Delegate enums ────────────────────────────────────────────────────────────
 
-export const COMPANY_TYPE_OPTIONS = [
-  'Pharma', 'Biotech', 'MedTech', 'Health IT', 'CRO', 'CDMO',
-  'Payer', 'Provider', 'Government', 'Consulting', 'Investor',
-  'Academic', 'Industry Association', 'Solution Provider',
+export const DELEGATE_STATUS_OPTIONS = [
+  'Registered',
+  'Confirmed',
+  'Attended',
+  'Cancelled',
+  'No-show',
+  'Waitlisted',
 ]
 
-export const OWNERSHIP_OPTIONS = [
-  'Public', 'Private', 'PE-Backed', 'VC-Backed', 'Government', 'Non-Profit', 'Academic',
+export const DELEGATE_TICKET_OPTIONS = [
+  'Standard',
+  'VIP',
+  'Speaker',
+  'Sponsor',
+  'Press',
+  'Complimentary',
+  'Virtual',
 ]
 
-export const EMPLOYEE_RANGE_OPTIONS = [
-  '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10000+',
+export const DELEGATE_SOURCE_OPTIONS = [
+  'Website',
+  'Email Campaign',
+  'LinkedIn',
+  'Referral',
+  'Partner',
+  'Previous Attendee',
+  'Cold Outreach',
+  'Event Directory',
+  'Other',
 ]
 
-export const REVENUE_RANGE_OPTIONS = [
-  '<1M', '1-10M', '10-50M', '50-100M', '100-500M', '500M-1B', '1B+',
+// ── Speaker enums ─────────────────────────────────────────────────────────────
+
+export const SPEAKER_STATUS_OPTIONS = [
+  'Prospecting',
+  'Invited',
+  'In Discussion',
+  'Confirmed',
+  'Contracted',
+  'Speaking Confirmed',
+  'Cancelled',
+  'Declined',
 ]
 
-export const DEAL_TYPE_OPTIONS = [
-  'M&A (Acquisition)', 'M&A (Merger)', 'Venture Capital (Seed)',
-  'Venture Capital (Series A)', 'Venture Capital (Series B)', 'Venture Capital (Series C+)',
-  'Private Equity (Buyout)', 'Private Equity (Growth Equity)', 'Private Equity (Recapitalisation)',
-  'IPO', 'SPAC', 'Licensing / Partnership', 'Joint Venture',
-  'Asset Sale / Divestiture', 'Debt Financing', 'Grant / Government Funding', 'Secondary Sale',
+export const SESSION_TYPE_OPTIONS = [
+  'Keynote',
+  'Panel',
+  'Workshop',
+  'Fireside Chat',
+  'Lightning Talk',
+  'Roundtable',
+  'Presentation',
+  'Q&A',
 ]
 
-export const DEAL_STAGE_OPTIONS = ['Announced', 'Completed', 'Terminated', 'Rumoured']
-
-export const CONTENT_TYPE_OPTIONS = [
-  'Market Report', 'Analysis', 'News Brief', 'Data Snapshot', 'Quarterly Report', 'Podcast Summary',
+export const SPEAKER_FEE_STATUS_OPTIONS = [
+  'Not Set',
+  'Negotiating',
+  'Agreed',
+  'Invoiced',
+  'Paid',
+  'Waived',
 ]
 
-export const SENIORITY_OPTIONS = [
-  'C-Suite', 'VP', 'Director', 'Manager', 'Individual Contributor', 'Board',
+export const CONTRACT_STATUS_OPTIONS = [
+  'Not Started',
+  'Sent',
+  'Signed',
+  'Executed',
 ]
 
-export const DEPARTMENT_OPTIONS = [
-  'Clinical', 'R&D', 'IT/Digital', 'Commercial', 'Regulatory',
-  'Operations', 'Finance', 'Strategy', 'Executive Leadership',
+export const EXPERTISE_OPTIONS = [
+  'AI & Machine Learning',
+  'Digital Health',
+  'Genomics',
+  'Oncology',
+  'Cardiology',
+  'Neurology',
+  'Mental Health',
+  'Pharma R&D',
+  'MedTech',
+  'Health Policy',
+  'Health Economics',
+  'Data Science',
+  'Clinical Trials',
+  'Patient Engagement',
+  'Regulatory Affairs',
+  'Health IT',
+  'Precision Medicine',
+  'Population Health',
+  'Value-Based Care',
+  'Telehealth',
 ]
 
-export const INVESTOR_ROLE_OPTIONS = ['Lead', 'Co-Lead', 'Participant', 'Undisclosed']
+// ── Sponsor enums ─────────────────────────────────────────────────────────────
 
-// ── Filter / API types ────────────────────────────────────────────────────────
+export const SPONSOR_TIER_OPTIONS = [
+  'Platinum',
+  'Gold',
+  'Silver',
+  'Bronze',
+  'Media Partner',
+  'Community Partner',
+  'In-Kind',
+]
+
+export const SPONSOR_STATUS_OPTIONS = [
+  'Prospecting',
+  'In Discussions',
+  'Proposal Sent',
+  'Negotiating',
+  'Confirmed',
+  'Contracted',
+  'Active',
+  'Completed',
+  'Lost',
+]
+
+export const SPONSOR_CONTRACT_STATUS_OPTIONS = [
+  'Not Started',
+  'Sent',
+  'Signed',
+  'Executed',
+]
+
+// ── Activity enums ────────────────────────────────────────────────────────────
+
+export const ACTIVITY_TYPE_OPTIONS = [
+  'note',
+  'call',
+  'email',
+  'meeting',
+  'status_change',
+  'task',
+]
+
+export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  note: 'Note',
+  call: 'Call',
+  email: 'Email',
+  meeting: 'Meeting',
+  status_change: 'Status Change',
+  task: 'Task',
+}
+
+// ── Shared ────────────────────────────────────────────────────────────────────
+
+export const COUNTRY_OPTIONS = [
+  'United Kingdom',
+  'United States',
+  'Germany',
+  'France',
+  'Switzerland',
+  'Netherlands',
+  'Ireland',
+  'Canada',
+  'Australia',
+  'Singapore',
+  'Japan',
+  'India',
+  'Sweden',
+  'Denmark',
+  'Spain',
+  'Italy',
+  'Belgium',
+  'Norway',
+  'Finland',
+  'UAE',
+]
+
+export const CURRENCY_OPTIONS = ['GBP', 'USD', 'EUR', 'CHF', 'CAD', 'AUD', 'SGD']
+
+// ── Pagination ────────────────────────────────────────────────────────────────
 
 export interface PaginationParams {
   page: number
@@ -63,54 +189,127 @@ export interface PaginatedResult<T> {
   totalPages: number
 }
 
-export interface ContactFilters {
+// ── Entity types ──────────────────────────────────────────────────────────────
+
+export interface Delegate {
+  id: string
+  firstName: string
+  lastName: string
+  email?: string | null
+  phone?: string | null
+  linkedinUrl?: string | null
+  organization?: string | null
+  jobTitle?: string | null
+  country?: string | null
+  city?: string | null
+  status: string
+  ticketType?: string | null
+  dietaryRequirements?: string | null
+  accessibilityNeeds?: string | null
+  source?: string | null
+  bio?: string | null
+  tags?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  activities?: Activity[]
+}
+
+export interface Speaker {
+  id: string
+  firstName: string
+  lastName: string
+  email?: string | null
+  phone?: string | null
+  linkedinUrl?: string | null
+  organization?: string | null
+  jobTitle?: string | null
+  country?: string | null
+  city?: string | null
+  headshotUrl?: string | null
+  bio?: string | null
+  expertiseAreas?: string | null
+  status: string
+  sessionTitle?: string | null
+  sessionDescription?: string | null
+  sessionType?: string | null
+  fee?: number | null
+  feeCurrency?: string | null
+  feeStatus?: string | null
+  contractStatus?: string | null
+  travelRequired: boolean
+  hotelRequired: boolean
+  tags?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  activities?: Activity[]
+}
+
+export interface Sponsor {
+  id: string
+  companyName: string
+  website?: string | null
+  contactFirstName?: string | null
+  contactLastName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  contactLinkedinUrl?: string | null
+  contactJobTitle?: string | null
+  country?: string | null
+  city?: string | null
+  tier?: string | null
+  status: string
+  valueAmount?: number | null
+  valueCurrency?: string | null
+  contractStatus?: string | null
+  packageDetails?: string | null
+  tags?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  activities?: Activity[]
+}
+
+export interface Activity {
+  id: string
+  entityType: 'delegate' | 'speaker' | 'sponsor'
+  delegateId?: string | null
+  speakerId?: string | null
+  sponsorId?: string | null
+  type: string
+  content: string
+  metadata?: string | null
+  createdBy?: string | null
+  createdAt: string
+}
+
+// ── Filter types ──────────────────────────────────────────────────────────────
+
+export interface DelegateFilters {
   query?: string
-  seniorities?: string[]
-  departments?: string[]
-  companyTypes?: string[]
-  verticalSlugs?: string[]
-  therapeuticAreas?: string[]
+  statuses?: string[]
+  ticketTypes?: string[]
   countries?: string[]
-  cities?: string[]
   tags?: string[]
-  engagementMin?: number
-  engagementMax?: number
+  sources?: string[]
 }
 
-export interface CompanyFilters {
+export interface SpeakerFilters {
   query?: string
-  companyTypes?: string[]
-  ownershipStatus?: string[]
-  verticalIds?: string[]
-  therapeuticAreaIds?: string[]
+  statuses?: string[]
+  sessionTypes?: string[]
+  contractStatuses?: string[]
   countries?: string[]
-  cities?: string[]
-  employeeRanges?: string[]
-  revenueRanges?: string[]
-  foundedYearMin?: number
-  foundedYearMax?: number
-  hasContacts?: boolean
-  hasRecentDeals?: boolean
+  expertiseAreas?: string[]
   tags?: string[]
 }
 
-export interface DealFilters {
+export interface SponsorFilters {
   query?: string
-  dealTypes?: string[]
-  dealStages?: string[]
-  valueMin?: number
-  valueMax?: number
-  dateFrom?: string
-  dateTo?: string
-  acquirerQuery?: string
-  targetQuery?: string
-  investorQuery?: string
-}
-
-export interface InsightFilters {
-  query?: string
-  contentTypes?: string[]
-  dateFrom?: string
-  dateTo?: string
-  isPremium?: boolean
+  statuses?: string[]
+  tiers?: string[]
+  contractStatuses?: string[]
+  countries?: string[]
+  tags?: string[]
 }

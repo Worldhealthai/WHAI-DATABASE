@@ -1,220 +1,207 @@
--- WHAI Intelligence Hub — Supabase Schema
--- Run this in Supabase SQL Editor to create all tables
--- Uses camelCase column names (quoted) to match frontend expectations
+-- WHAI CRM — PostgreSQL Schema (Supabase)
+-- Run this in the Supabase SQL editor to create all tables.
 
--- Enable UUID generation
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+create extension if not exists "pgcrypto";
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- COMPANIES
+-- DELEGATES
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS companies (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  name TEXT NOT NULL,
-  "legalName" TEXT,
-  website TEXT,
-  description TEXT,
-  "companyType" TEXT,
-  "ownershipStatus" TEXT,
-  "foundedYear" INTEGER,
-  "employeeCountRange" TEXT,
-  "annualRevenueRange" TEXT,
-  "headquartersCountry" TEXT,
-  "headquartersCity" TEXT,
-  "headquartersStateProvince" TEXT,
-  "stockTicker" TEXT,
-  "stockExchange" TEXT,
-  tags TEXT,
-  "engagementScore" INTEGER,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+create table if not exists delegates (
+  id                    text primary key default gen_random_uuid()::text,
+  "firstName"           text not null,
+  "lastName"            text not null,
+  email                 text unique,
+  phone                 text,
+  "linkedinUrl"         text,
+  organization          text,
+  "jobTitle"            text,
+  country               text,
+  city                  text,
+  status                text not null default 'Registered',
+  "ticketType"          text,
+  "dietaryRequirements" text,
+  "accessibilityNeeds"  text,
+  source                text,
+  bio                   text,
+  tags                  text,
+  notes                 text,
+  "createdAt"           timestamptz not null default now(),
+  "updatedAt"           timestamptz not null default now()
 );
 
+create index if not exists idx_delegates_status  on delegates(status);
+create index if not exists idx_delegates_country on delegates(country);
+create index if not exists idx_delegates_email   on delegates(email);
+create index if not exists idx_delegates_created on delegates("createdAt" desc);
+
 -- ─────────────────────────────────────────────────────────────────────────────
--- CONTACTS
+-- SPEAKERS
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS contacts (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  "firstName" TEXT,
-  "lastName" TEXT,
-  email TEXT UNIQUE,
-  phone TEXT,
-  "linkedinUrl" TEXT,
-  "jobTitle" TEXT,
-  seniority TEXT,
-  department TEXT,
-  "companyName" TEXT,
-  "companyId" TEXT REFERENCES companies(id) ON DELETE SET NULL,
-  country TEXT,
-  city TEXT,
-  "stateProvince" TEXT,
-  bio TEXT,
-  tags TEXT,
-  "engagementScore" INTEGER,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+create table if not exists speakers (
+  id                   text primary key default gen_random_uuid()::text,
+  "firstName"          text not null,
+  "lastName"           text not null,
+  email                text unique,
+  phone                text,
+  "linkedinUrl"        text,
+  organization         text,
+  "jobTitle"           text,
+  country              text,
+  city                 text,
+  "headshotUrl"        text,
+  bio                  text,
+  "expertiseAreas"     text,
+  status               text not null default 'Prospecting',
+  "sessionTitle"       text,
+  "sessionDescription" text,
+  "sessionType"        text,
+  fee                  numeric(10,2),
+  "feeCurrency"        text default 'GBP',
+  "feeStatus"          text default 'Not Set',
+  "contractStatus"     text default 'Not Started',
+  "travelRequired"     boolean not null default false,
+  "hotelRequired"      boolean not null default false,
+  tags                 text,
+  notes                text,
+  "createdAt"          timestamptz not null default now(),
+  "updatedAt"          timestamptz not null default now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_contacts_company ON contacts ("companyId");
-CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts (email);
+create index if not exists idx_speakers_status  on speakers(status);
+create index if not exists idx_speakers_country on speakers(country);
+create index if not exists idx_speakers_email   on speakers(email);
+create index if not exists idx_speakers_created on speakers("createdAt" desc);
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- DEALS
+-- SPONSORS
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS deals (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  title TEXT NOT NULL,
-  "dealType" TEXT,
-  "dealStage" TEXT,
-  "dealValueUsd" BIGINT,
-  "announcedDate" TIMESTAMPTZ,
-  "closedDate" TIMESTAMPTZ,
-  "acquirerCompanyId" TEXT REFERENCES companies(id) ON DELETE SET NULL,
-  "targetCompanyId" TEXT REFERENCES companies(id) ON DELETE SET NULL,
-  description TEXT,
-  "sourceUrl" TEXT,
-  tags TEXT,
-  -- Strategic & classification
-  rationale TEXT,
-  sector TEXT,
-  geography TEXT,
-  -- Valuation multiples
-  "premiumPct" NUMERIC(5,1),
-  "evRevenueMultiple" NUMERIC(6,2),
-  "evEbitdaMultiple" NUMERIC(6,2),
-  -- Financing
-  "financingType" TEXT,
-  "cashComponent" BIGINT,
-  "stockComponent" BIGINT,
-  -- Regulatory
-  "regulatoryStatus" TEXT,
-  "regulatoryBodies" TEXT,
-  "expectedCloseDate" TIMESTAMPTZ,
-  -- Terms
-  "earnoutTerms" TEXT,
-  "breakupFeePct" NUMERIC(4,1),
-  -- Advisors
-  "advisorAcquirer" TEXT,
-  "advisorTarget" TEXT,
-  "legalAdvisorAcquirer" TEXT,
-  "legalAdvisorTarget" TEXT,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+create table if not exists sponsors (
+  id                   text primary key default gen_random_uuid()::text,
+  "companyName"        text not null,
+  website              text,
+  "contactFirstName"   text,
+  "contactLastName"    text,
+  "contactEmail"       text,
+  "contactPhone"       text,
+  "contactLinkedinUrl" text,
+  "contactJobTitle"    text,
+  country              text,
+  city                 text,
+  tier                 text default 'Bronze',
+  status               text not null default 'Prospecting',
+  "valueAmount"        numeric(12,2),
+  "valueCurrency"      text default 'GBP',
+  "contractStatus"     text default 'Not Started',
+  "packageDetails"     text,
+  tags                 text,
+  notes                text,
+  "createdAt"          timestamptz not null default now(),
+  "updatedAt"          timestamptz not null default now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_deals_acquirer ON deals ("acquirerCompanyId");
-CREATE INDEX IF NOT EXISTS idx_deals_target ON deals ("targetCompanyId");
-CREATE INDEX IF NOT EXISTS idx_deals_sector ON deals (sector);
-CREATE INDEX IF NOT EXISTS idx_deals_geography ON deals (geography);
+create index if not exists idx_sponsors_status  on sponsors(status);
+create index if not exists idx_sponsors_tier    on sponsors(tier);
+create index if not exists idx_sponsors_country on sponsors(country);
+create index if not exists idx_sponsors_created on sponsors("createdAt" desc);
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- DEAL INVESTORS
+-- ACTIVITIES — universal activity log
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS deal_investors (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  "dealId" TEXT NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
-  "investorCompanyName" TEXT,
-  "investorCompanyId" TEXT REFERENCES companies(id) ON DELETE SET NULL,
-  "investorRole" TEXT,
-  "investmentAmountUsd" BIGINT
+create table if not exists activities (
+  id           text primary key default gen_random_uuid()::text,
+  "entityType" text not null,
+  "delegateId" text references delegates(id) on delete cascade,
+  "speakerId"  text references speakers(id) on delete cascade,
+  "sponsorId"  text references sponsors(id) on delete cascade,
+  type         text not null,
+  content      text not null,
+  metadata     text,
+  "createdBy"  text,
+  "createdAt"  timestamptz not null default now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_deal_investors_deal ON deal_investors ("dealId");
-CREATE INDEX IF NOT EXISTS idx_deal_investors_company ON deal_investors ("investorCompanyId");
+create index if not exists idx_activities_delegate on activities("delegateId");
+create index if not exists idx_activities_speaker  on activities("speakerId");
+create index if not exists idx_activities_sponsor  on activities("sponsorId");
+create index if not exists idx_activities_created  on activities("createdAt" desc);
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- COMPANY VERTICALS (many-to-many)
+-- AUTO updatedAt triggers
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS company_verticals (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  "companyId" TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  "verticalSlug" TEXT NOT NULL,
-  "isPrimary" BOOLEAN NOT NULL DEFAULT false,
-  UNIQUE ("companyId", "verticalSlug")
+create or replace function update_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new."updatedAt" = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists delegates_updated_at on delegates;
+create trigger delegates_updated_at
+  before update on delegates
+  for each row execute function update_updated_at();
+
+drop trigger if exists speakers_updated_at on speakers;
+create trigger speakers_updated_at
+  before update on speakers
+  for each row execute function update_updated_at();
+
+drop trigger if exists sponsors_updated_at on sponsors;
+create trigger sponsors_updated_at
+  before update on sponsors
+  for each row execute function update_updated_at();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STAGED CONTACTS — CSV import inbox, pending triage
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists staged_contacts (
+  id              text primary key default gen_random_uuid()::text,
+  "firstName"     text,
+  "lastName"      text,
+  email           text,
+  phone           text,
+  "linkedinUrl"   text,
+  organization    text,
+  "jobTitle"      text,
+  country         text,
+  city            text,
+  bio             text,
+  tags            text,
+  notes           text,
+  -- Triage state
+  status          text not null default 'pending',  -- 'pending' | 'assigned' | 'skipped'
+  "assignedAs"    text,                             -- 'delegate' | 'speaker' | 'sponsor'
+  "assignedId"    text,                             -- id of the created record
+  -- Import metadata
+  "importBatch"   text,                             -- batch label (filename / timestamp)
+  "rawData"       text,                             -- original CSV row as JSON string
+  "createdAt"     timestamptz not null default now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_company_verticals_company ON company_verticals ("companyId");
+create index if not exists idx_staged_status  on staged_contacts(status);
+create index if not exists idx_staged_batch   on staged_contacts("importBatch");
+create index if not exists idx_staged_created on staged_contacts("createdAt" desc);
+
+drop trigger if exists staged_contacts_updated_at on staged_contacts;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- COMPANY THERAPEUTIC AREAS (many-to-many)
+-- ROW LEVEL SECURITY (service role has full access via API)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS company_therapeutic_areas (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  "companyId" TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  "therapeuticArea" TEXT NOT NULL,
-  UNIQUE ("companyId", "therapeuticArea")
-);
+alter table delegates       enable row level security;
+alter table speakers        enable row level security;
+alter table sponsors        enable row level security;
+alter table activities      enable row level security;
+alter table staged_contacts enable row level security;
 
-CREATE INDEX IF NOT EXISTS idx_company_therapeutic_areas_company ON company_therapeutic_areas ("companyId");
-
--- ─────────────────────────────────────────────────────────────────────────────
--- INSIGHTS
--- ─────────────────────────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS insights (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  title TEXT NOT NULL,
-  "contentType" TEXT,
-  summary TEXT,
-  body TEXT,
-  author TEXT,
-  "publishedAt" TIMESTAMPTZ,
-  "isPremium" BOOLEAN NOT NULL DEFAULT false,
-  tags TEXT,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- ─────────────────────────────────────────────────────────────────────────────
--- ROW LEVEL SECURITY (allow public read access via anon key)
--- ─────────────────────────────────────────────────────────────────────────────
-
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deal_investors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE company_verticals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE company_therapeutic_areas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE insights ENABLE ROW LEVEL SECURITY;
-
--- Allow public read access (via anon key)
-CREATE POLICY "Allow public read" ON companies FOR SELECT USING (true);
-CREATE POLICY "Allow public read" ON contacts FOR SELECT USING (true);
-CREATE POLICY "Allow public read" ON deals FOR SELECT USING (true);
-CREATE POLICY "Allow public read" ON deal_investors FOR SELECT USING (true);
-CREATE POLICY "Allow public read" ON company_verticals FOR SELECT USING (true);
-CREATE POLICY "Allow public read" ON company_therapeutic_areas FOR SELECT USING (true);
-CREATE POLICY "Allow public read" ON insights FOR SELECT USING (true);
-
--- Allow insert/update/delete via service_role key (used by seed endpoint)
-CREATE POLICY "Allow service write" ON companies FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow service write" ON contacts FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow service write" ON deals FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow service write" ON deal_investors FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow service write" ON company_verticals FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow service write" ON company_therapeutic_areas FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow service write" ON insights FOR ALL USING (true) WITH CHECK (true);
-
--- ─────────────────────────────────────────────────────────────────────────────
--- UPDATED_AT TRIGGER
--- ─────────────────────────────────────────────────────────────────────────────
-
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW."updatedAt" = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER companies_updated_at
-  BEFORE UPDATE ON companies
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
-CREATE TRIGGER contacts_updated_at
-  BEFORE UPDATE ON contacts
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+create policy "service full access delegates"        on delegates        using (true) with check (true);
+create policy "service full access speakers"         on speakers         using (true) with check (true);
+create policy "service full access sponsors"         on sponsors         using (true) with check (true);
+create policy "service full access activities"       on activities       using (true) with check (true);
+create policy "service full access staged_contacts"  on staged_contacts  using (true) with check (true);

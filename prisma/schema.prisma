@@ -1,5 +1,5 @@
-// WHAI Intelligence Hub — Prisma Schema
-// PostgreSQL on Supabase (production) / SQLite for local dev
+// WHAI CRM — Prisma Schema
+// PostgreSQL on Supabase
 
 generator client {
   provider = "prisma-client-js"
@@ -12,120 +12,148 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CORE ENTITIES
+// DELEGATES — event attendees
 // ─────────────────────────────────────────────────────────────────────────────
 
-model Company {
-  id                        String   @id @default(cuid())
-  name                      String
-  legalName                 String?
-  website                   String?
-  description               String?  @db.Text
-  companyType               String?
-  ownershipStatus           String?
-  foundedYear               Int?
-  employeeCountRange        String?
-  annualRevenueRange        String?
-  headquartersCountry       String?
-  headquartersCity          String?
-  headquartersStateProvince String?
-  stockTicker               String?
-  stockExchange             String?
-  tags                      String?
-  engagementScore           Int?
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+model Delegate {
+  id                   String   @id @default(cuid())
+  firstName            String
+  lastName             String
+  email                String?  @unique
+  phone                String?
+  linkedinUrl          String?
+  organization         String?
+  jobTitle             String?
+  country              String?
+  city                 String?
+  // CRM fields
+  status               String   @default("Registered")
+  ticketType           String?
+  dietaryRequirements  String?
+  accessibilityNeeds   String?
+  source               String?
+  bio                  String?  @db.Text
+  tags                 String?
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  contacts             Contact[]
-  verticals            CompanyVertical[]
-  therapeuticAreas     CompanyTherapeuticArea[]
-  dealsAsTarget        Deal[]         @relation("TargetCompany")
-  dealsAsAcquirer      Deal[]         @relation("AcquirerCompany")
-  dealInvestments      DealInvestor[]
+  activities Activity[]
 }
 
-model Contact {
-  id              String   @id @default(cuid())
-  firstName       String?
-  lastName        String?
-  email           String?  @unique
-  phone           String?
-  linkedinUrl     String?
-  jobTitle        String?
-  seniority       String?
-  department      String?
-  companyName     String?
-  company         Company? @relation(fields: [companyId], references: [id])
-  companyId       String?
-  country         String?
-  city            String?
-  stateProvince   String?
-  bio             String?  @db.Text
-  tags            String?
-  engagementScore Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+// ─────────────────────────────────────────────────────────────────────────────
+// SPEAKERS — event speakers
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Speaker {
+  id                 String   @id @default(cuid())
+  firstName          String
+  lastName           String
+  email              String?  @unique
+  phone              String?
+  linkedinUrl        String?
+  organization       String?
+  jobTitle           String?
+  country            String?
+  city               String?
+  headshotUrl        String?
+  bio                String?  @db.Text
+  expertiseAreas     String?
+  // CRM fields
+  status             String   @default("Prospecting")
+  sessionTitle       String?
+  sessionDescription String?  @db.Text
+  sessionType        String?
+  fee                Decimal? @db.Decimal(10, 2)
+  feeCurrency        String?  @default("GBP")
+  feeStatus          String?  @default("Not Set")
+  contractStatus     String?  @default("Not Started")
+  travelRequired     Boolean  @default(false)
+  hotelRequired      Boolean  @default(false)
+  tags               String?
+  notes              String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  activities Activity[]
 }
 
-model Deal {
-  id                String    @id @default(cuid())
-  title             String
-  dealType          String?
-  dealStage         String?
-  dealValueUsd      BigInt?
-  announcedDate     DateTime?
-  closedDate        DateTime?
-  acquirerCompany   Company?  @relation("AcquirerCompany", fields: [acquirerCompanyId], references: [id])
-  acquirerCompanyId String?
-  targetCompany     Company?  @relation("TargetCompany", fields: [targetCompanyId], references: [id])
-  targetCompanyId   String?
-  description       String?   @db.Text
-  sourceUrl         String?
-  tags              String?
-  createdAt         DateTime  @default(now())
+// ─────────────────────────────────────────────────────────────────────────────
+// SPONSORS — sponsoring companies / contacts
+// ─────────────────────────────────────────────────────────────────────────────
 
-  investors DealInvestor[]
-}
-
-model DealInvestor {
+model Sponsor {
   id                  String   @id @default(cuid())
-  dealId              String
-  deal                Deal     @relation(fields: [dealId], references: [id])
-  investorCompanyName String?
-  investorCompany     Company? @relation(fields: [investorCompanyId], references: [id])
-  investorCompanyId   String?
-  investorRole        String?
-  investmentAmountUsd BigInt?
+  companyName         String
+  website             String?
+  // Primary contact
+  contactFirstName    String?
+  contactLastName     String?
+  contactEmail        String?
+  contactPhone        String?
+  contactLinkedinUrl  String?
+  contactJobTitle     String?
+  country             String?
+  city                String?
+  // CRM fields
+  tier                String?  @default("Bronze")
+  status              String   @default("Prospecting")
+  valueAmount         Decimal? @db.Decimal(12, 2)
+  valueCurrency       String?  @default("GBP")
+  contractStatus      String?  @default("Not Started")
+  packageDetails      String?  @db.Text
+  tags                String?
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  activities Activity[]
 }
 
-model CompanyVertical {
-  id           String  @id @default(cuid())
-  companyId    String
-  company      Company @relation(fields: [companyId], references: [id])
-  verticalSlug String
-  isPrimary    Boolean @default(false)
+// ─────────────────────────────────────────────────────────────────────────────
+// STAGED CONTACTS — CSV import inbox, pending triage
+// ─────────────────────────────────────────────────────────────────────────────
 
-  @@unique([companyId, verticalSlug])
+model StagedContact {
+  id           String   @id @default(cuid())
+  firstName    String?
+  lastName     String?
+  email        String?
+  phone        String?
+  linkedinUrl  String?
+  organization String?
+  jobTitle     String?
+  country      String?
+  city         String?
+  bio          String?  @db.Text
+  tags         String?
+  notes        String?  @db.Text
+  status       String   @default("pending")
+  assignedAs   String?
+  assignedId   String?
+  importBatch  String?
+  rawData      String?  @db.Text
+  createdAt    DateTime @default(now())
 }
 
-model CompanyTherapeuticArea {
-  id              String  @id @default(cuid())
-  companyId       String
-  company         Company @relation(fields: [companyId], references: [id])
-  therapeuticArea String
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVITIES — universal activity log / timeline
+// ─────────────────────────────────────────────────────────────────────────────
 
-  @@unique([companyId, therapeuticArea])
-}
-
-model Insight {
-  id          String    @id @default(cuid())
-  title       String
-  contentType String?
-  summary     String?   @db.Text
-  body        String?   @db.Text
-  author      String?
-  publishedAt DateTime?
-  isPremium   Boolean   @default(false)
-  tags        String?
-  createdAt   DateTime  @default(now())
+model Activity {
+  id          String   @id @default(cuid())
+  // Polymorphic entity reference
+  entityType  String   // "delegate" | "speaker" | "sponsor"
+  delegateId  String?
+  delegate    Delegate? @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+  speakerId   String?
+  speaker     Speaker?  @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  sponsorId   String?
+  sponsor     Sponsor?  @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  // Activity data
+  type        String   // "note" | "call" | "email" | "meeting" | "status_change" | "task"
+  content     String   @db.Text
+  metadata    String?  @db.Text  // JSON string for extra data (old/new status, etc.)
+  createdBy   String?
+  createdAt   DateTime @default(now())
 }

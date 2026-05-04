@@ -4,8 +4,8 @@ import { Navbar, MobileBottomNav } from '@/components/layout/Navbar'
 import { QueryProvider } from '@/components/layout/QueryProvider'
 
 export const metadata: Metadata = {
-  title: 'WHAI Intelligence Hub',
-  description: 'World Health AI Healthcare Intelligence Database — Contacts, Companies, Deals & Insights',
+  title: 'WHAI CRM',
+  description: 'World Health AI Events CRM — Delegates, Speakers & Sponsors',
 }
 
 export const viewport: Viewport = {
