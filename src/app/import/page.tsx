@@ -1,0 +1,476 @@
+'use client'
+
+import { useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { Upload, FileText, CheckCircle2, AlertCircle, ArrowRight, X, RefreshCw } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+// ── Column mapping ────────────────────────────────────────────────────────────
+// Maps common CSV header variations to our internal field names
+
+const AUTO_MAP: Record<string, string> = {
+  'first name': 'firstName',
+  'firstname': 'firstName',
+  'first_name': 'firstName',
+  'given name': 'firstName',
+  'last name': 'lastName',
+  'lastname': 'lastName',
+  'last_name': 'lastName',
+  'surname': 'lastName',
+  'family name': 'lastName',
+  'email': 'email',
+  'email address': 'email',
+  'e-mail': 'email',
+  'phone': 'phone',
+  'phone number': 'phone',
+  'mobile': 'phone',
+  'telephone': 'phone',
+  'company': 'organization',
+  'organisation': 'organization',
+  'organization': 'organization',
+  'company name': 'organization',
+  'employer': 'organization',
+  'job title': 'jobTitle',
+  'job position': 'jobTitle',
+  'position': 'jobTitle',
+  'title': 'jobTitle',
+  'role': 'jobTitle',
+  'country': 'country',
+  'city': 'city',
+  'location': 'city',
+  'linkedin': 'linkedinUrl',
+  'linkedin url': 'linkedinUrl',
+  'linkedin profile': 'linkedinUrl',
+  'bio': 'bio',
+  'biography': 'bio',
+  'about': 'bio',
+  'tags': 'tags',
+  'notes': 'notes',
+  'admin notes': 'notes',
+  'message': 'message',
+  'attendee type': 'attendeeType',
+  'type': 'attendeeType',
+  'status': 'importStatus',
+  'primary event': 'primaryEvent',
+  'event': 'primaryEvent',
+  'secondary': 'secondaryEvent',
+  'inquiry type': 'inquiryType',
+}
+
+const CRM_FIELDS = [
+  { value: 'firstName',     label: 'First Name' },
+  { value: 'lastName',      label: 'Last Name' },
+  { value: 'email',         label: 'Email' },
+  { value: 'phone',         label: 'Phone' },
+  { value: 'organization',  label: 'Organisation / Company' },
+  { value: 'jobTitle',      label: 'Job Title' },
+  { value: 'country',       label: 'Country' },
+  { value: 'city',          label: 'City' },
+  { value: 'linkedinUrl',   label: 'LinkedIn URL' },
+  { value: 'bio',           label: 'Bio' },
+  { value: 'tags',          label: 'Tags' },
+  { value: 'notes',         label: 'Notes' },
+  { value: 'attendeeType',  label: 'Attendee Type (auto-suggest)' },
+  { value: 'importStatus',  label: 'Status (approved/rejected)' },
+  { value: 'primaryEvent',  label: 'Primary Event' },
+  { value: 'message',       label: 'Message' },
+  { value: '_skip',         label: '— Skip this column —' },
+]
+
+function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim())
+  if (lines.length < 2) return { headers: [], rows: [] }
+
+  // Simple CSV parser handling quoted fields
+  function parseLine(line: string): string[] {
+    const cells: string[] = []
+    let cur = ''
+    let inQuote = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++ }
+        else inQuote = !inQuote
+      } else if (ch === ',' && !inQuote) {
+        cells.push(cur.trim()); cur = ''
+      } else {
+        cur += ch
+      }
+    }
+    cells.push(cur.trim())
+    return cells
+  }
+
+  const headers = parseLine(lines[0])
+  const rows = lines.slice(1).map((line) => {
+    const cells = parseLine(line)
+    const obj: Record<string, string> = {}
+    headers.forEach((h, i) => { obj[h] = cells[i] ?? '' })
+    return obj
+  }).filter((row) => Object.values(row).some((v) => v.trim()))
+
+  return { headers, rows }
+}
+
+function autoMap(headers: string[]): Record<string, string> {
+  const mapping: Record<string, string> = {}
+  headers.forEach((h) => {
+    const key = h.toLowerCase().trim()
+    mapping[h] = AUTO_MAP[key] ?? '_skip'
+  })
+  return mapping
+}
+
+function transformRow(row: Record<string, string>, mapping: Record<string, string>): any {
+  const out: any = { _raw: row }
+  const notesParts: string[] = []
+
+  Object.entries(mapping).forEach(([csvCol, crmField]) => {
+    if (crmField === '_skip') return
+    const val = row[csvCol]?.trim() ?? ''
+    if (!val) return
+
+    if (crmField === 'message') {
+      if (val) notesParts.push(`Message: ${val}`)
+    } else if (crmField === 'inquiryType') {
+      // skip
+    } else if (crmField === 'secondaryEvent') {
+      // skip
+    } else if (crmField === 'importStatus') {
+      out.importStatus = val
+    } else if (crmField === 'attendeeType') {
+      out.attendeeType = val
+    } else if (crmField === 'primaryEvent') {
+      out.primaryEvent = val
+    } else if (crmField === 'notes') {
+      notesParts.push(val)
+    } else {
+      out[crmField] = val
+    }
+  })
+
+  // Merge notes
+  if (notesParts.length) {
+    out.notes = notesParts.join('\n\n')
+  }
+
+  // Build tags from event + status
+  const tagParts: string[] = []
+  if (out.primaryEvent) tagParts.push(out.primaryEvent.replace(/\s+/g, '-').toLowerCase())
+  if (out.importStatus) tagParts.push(out.importStatus)
+  if (out.attendeeType) tagParts.push(out.attendeeType.replace(/_/g, '-'))
+  if (tagParts.length) {
+    out.tags = [...new Set([...(out.tags ? out.tags.split(',').map((t: string) => t.trim()) : []), ...tagParts])].join(', ')
+  }
+
+  return out
+}
+
+type Step = 'upload' | 'map' | 'preview' | 'importing' | 'done'
+
+export default function ImportPage() {
+  const router = useRouter()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [step, setStep] = useState<Step>('upload')
+  const [isDragging, setIsDragging] = useState(false)
+  const [fileName, setFileName] = useState('')
+  const [headers, setHeaders] = useState<string[]>([])
+  const [rows, setRows] = useState<Record<string, string>[]>([])
+  const [mapping, setMapping] = useState<Record<string, string>>({})
+  const [importResult, setImportResult] = useState<{ inserted: number; batch: string } | null>(null)
+  const [error, setError] = useState('')
+
+  const handleFile = useCallback((file: File) => {
+    setError('')
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const { headers: h, rows: r } = parseCSV(text)
+      if (h.length === 0) { setError('Could not parse file — is it a valid CSV?'); return }
+      setHeaders(h)
+      setRows(r)
+      setMapping(autoMap(h))
+      setStep('map')
+    }
+    reader.readAsText(file)
+  }, [])
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }, [handleFile])
+
+  const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+  }
+
+  const previewRows = rows.slice(0, 5)
+  const totalRows = rows.length
+
+  const handleImport = async () => {
+    setStep('importing')
+    setError('')
+    try {
+      const contacts = rows.map((row) => transformRow(row, mapping))
+      const batch = fileName.replace(/\.[^.]+$/, '') + ' — ' +
+        new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+      const res = await fetch('/api/staged-contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contacts, importBatch: batch }),
+      })
+      if (!res.ok) throw new Error('Import failed')
+      const result = await res.json()
+      setImportResult(result)
+      setStep('done')
+    } catch {
+      setError('Import failed. Please try again.')
+      setStep('preview')
+    }
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold text-white">Import Contacts</h1>
+        <p className="text-sm text-slate-400 mt-1">
+          Upload a CSV export from WorldHealthAI admin. Contacts land in the triage inbox where you can assign them as delegates, speakers, or sponsors.
+        </p>
+      </div>
+
+      {/* Steps indicator */}
+      <div className="flex items-center gap-2 text-xs">
+        {(['upload', 'map', 'preview'] as const).map((s, i) => (
+          <div key={s} className="flex items-center gap-2">
+            <div className={cn(
+              'w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px]',
+              step === s ? 'bg-[#00B4D8] text-[#0A1628]' :
+              ['map','preview','importing','done'].indexOf(step) > ['upload','map','preview'].indexOf(s)
+                ? 'bg-green-500/20 text-green-400'
+                : 'bg-[#112850] text-slate-500'
+            )}>
+              {i + 1}
+            </div>
+            <span className={step === s ? 'text-white' : 'text-slate-500'}>
+              {s === 'upload' ? 'Upload' : s === 'map' ? 'Map columns' : 'Preview & import'}
+            </span>
+            {i < 2 && <div className="w-6 h-px bg-[#1a3a5c]" />}
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
+
+      {/* ── Step 1: Upload ── */}
+      {step === 'upload' && (
+        <div
+          onDrop={onDrop}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+          onDragLeave={() => setIsDragging(false)}
+          onClick={() => fileRef.current?.click()}
+          className={cn(
+            'border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all',
+            isDragging
+              ? 'border-[#00B4D8] bg-[#00B4D8]/5'
+              : 'border-[#1a3a5c] hover:border-[#00B4D8]/50 hover:bg-[#112850]/30'
+          )}
+        >
+          <Upload className="w-10 h-10 text-slate-500 mx-auto mb-4" />
+          <p className="text-white font-medium mb-1">Drop your CSV file here</p>
+          <p className="text-slate-500 text-sm">or click to browse</p>
+          <p className="text-slate-600 text-xs mt-3">Supports CSV files exported from WorldHealthAI admin</p>
+          <input ref={fileRef} type="file" accept=".csv,.txt" onChange={onFileInput} className="hidden" />
+        </div>
+      )}
+
+      {/* ── Step 2: Column mapping ── */}
+      {step === 'map' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-white font-medium flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#00B4D8]" /> {fileName}
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">{totalRows.toLocaleString()} rows detected · {headers.length} columns</p>
+            </div>
+            <button onClick={() => setStep('upload')} className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
+              <X className="w-3.5 h-3.5" /> Change file
+            </button>
+          </div>
+
+          <div className="whai-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#1a3a5c] bg-[#0d2040]">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Map CSV columns to CRM fields</p>
+            </div>
+            <div className="divide-y divide-[#1a3a5c]/50">
+              {headers.map((h) => (
+                <div key={h} className="flex items-center gap-4 px-4 py-3">
+                  <div className="w-48 shrink-0">
+                    <span className="text-sm text-white font-medium">{h}</span>
+                    {rows[0]?.[h] && (
+                      <div className="text-xs text-slate-500 truncate mt-0.5">{rows[0][h]}</div>
+                    )}
+                  </div>
+                  <div className="text-slate-600 text-xs shrink-0">→</div>
+                  <select
+                    value={mapping[h] ?? '_skip'}
+                    onChange={(e) => setMapping((prev) => ({ ...prev, [h]: e.target.value }))}
+                    className="flex-1 px-3 py-1.5 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white outline-none focus:border-[#00B4D8]/50"
+                  >
+                    {CRM_FIELDS.map((f) => (
+                      <option key={f.value} value={f.value}>{f.label}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => setStep('preview')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#00B4D8] text-[#0A1628] font-semibold text-sm hover:bg-[#00B4D8]/90 transition-colors"
+            >
+              Preview <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 3: Preview ── */}
+      {step === 'preview' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-white font-medium">{fileName}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Previewing first 5 of <span className="text-white font-semibold">{totalRows.toLocaleString()}</span> contacts
+              </p>
+            </div>
+            <button onClick={() => setStep('map')} className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
+              <RefreshCw className="w-3.5 h-3.5" /> Edit mapping
+            </button>
+          </div>
+
+          <div className="whai-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#1a3a5c] bg-[#0d2040]">
+                    {['Name', 'Email', 'Organisation', 'Job Title', 'Attendee Type', 'Status', 'Event', 'Notes'].map((h) => (
+                      <th key={h} className="text-left px-3 py-2.5 font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row, i) => {
+                    const t = transformRow(row, mapping)
+                    return (
+                      <tr key={i} className="border-b border-[#1a3a5c]/40">
+                        <td className="px-3 py-2.5 text-white whitespace-nowrap">{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</td>
+                        <td className="px-3 py-2.5 text-slate-400 truncate max-w-[140px]">{t.email || '—'}</td>
+                        <td className="px-3 py-2.5 text-slate-400 truncate max-w-[120px]">{t.organization || '—'}</td>
+                        <td className="px-3 py-2.5 text-slate-400 truncate max-w-[120px]">{t.jobTitle || '—'}</td>
+                        <td className="px-3 py-2.5">
+                          {t.attendeeType && (
+                            <span className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                              t.attendeeType.includes('speaker') ? 'bg-purple-500/20 text-purple-400' : 'bg-[#00B4D8]/15 text-[#00B4D8]'
+                            )}>
+                              {t.attendeeType}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {t.importStatus && (
+                            <span className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                              t.importStatus === 'approved' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                            )}>
+                              {t.importStatus}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-500">{t.primaryEvent || '—'}</td>
+                        <td className="px-3 py-2.5 text-slate-500 truncate max-w-[160px]">{t.notes || '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {totalRows > 5 && (
+              <div className="px-4 py-3 border-t border-[#1a3a5c] text-xs text-slate-500 bg-[#0d2040]">
+                + {(totalRows - 5).toLocaleString()} more contacts will be imported
+              </div>
+            )}
+          </div>
+
+          <div className="whai-card p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#00B4D8]/10 flex items-center justify-center shrink-0">
+              <Upload className="w-4 h-4 text-[#00B4D8]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-white font-medium">Ready to import {totalRows.toLocaleString()} contacts</p>
+              <p className="text-xs text-slate-500 mt-0.5">They'll appear in the Unassigned inbox for triage — nothing is created in Delegates, Speakers, or Sponsors yet.</p>
+            </div>
+            <button
+              onClick={handleImport}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#00B4D8] text-[#0A1628] font-semibold text-sm hover:bg-[#00B4D8]/90 transition-colors shrink-0"
+            >
+              Import <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Importing ── */}
+      {step === 'importing' && (
+        <div className="whai-card p-12 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full border-2 border-[#00B4D8] border-t-transparent animate-spin mx-auto" />
+          <p className="text-white font-medium">Importing {totalRows.toLocaleString()} contacts…</p>
+          <p className="text-slate-500 text-sm">This will only take a moment.</p>
+        </div>
+      )}
+
+      {/* ── Done ── */}
+      {step === 'done' && importResult && (
+        <div className="whai-card p-8 text-center space-y-4">
+          <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
+            <CheckCircle2 className="w-7 h-7 text-green-400" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-white">{importResult.inserted.toLocaleString()} contacts imported</p>
+            <p className="text-slate-400 text-sm mt-1">Batch: <span className="text-slate-300">{importResult.batch}</span></p>
+          </div>
+          <p className="text-slate-400 text-sm">
+            They're waiting in the Unassigned inbox. Go through them and assign each one as a Delegate, Speaker, or Sponsor.
+          </p>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => router.push('/unassigned')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#00B4D8] text-[#0A1628] font-semibold text-sm hover:bg-[#00B4D8]/90 transition-colors"
+            >
+              Go to Triage Inbox <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => { setStep('upload'); setFileName(''); setHeaders([]); setRows([]); setImportResult(null) }}
+              className="px-4 py-2.5 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white text-sm transition-colors"
+            >
+              Import another file
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
