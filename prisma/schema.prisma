@@ -62,8 +62,9 @@ model Speaker {
   bio                String?  @db.Text
   expertiseAreas     String?
   // CRM fields
-  status             String   @default("Prospecting")
+  status             String   @default("Not Contacted")
   event              String?
+  year               Int?
   subType            String?
   sessionTitle       String?
   sessionDescription String?  @db.Text

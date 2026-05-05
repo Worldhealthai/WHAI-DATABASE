@@ -102,10 +102,20 @@ export default function SponsorsPage() {
   }
   const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()) }
 
-  // Event tab helpers
-  const activeEventTab = filters.events?.length === 1 ? filters.events[0] : ''
+  // Event / rejected tab helpers
+  const isRejectedTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Rejected'
+  const activeEventTab = isRejectedTab ? '' : (filters.events?.length === 1 ? filters.events[0] : '')
   const setEventTab = (event: string) => {
-    setFilters((prev) => ({ ...prev, events: event ? [event] : undefined }))
+    setFilters((prev) => {
+      const next = { ...prev, events: event ? [event] : undefined }
+      if (next.statuses?.length === 1 && next.statuses[0] === 'Rejected') delete next.statuses
+      return next
+    })
+    setPage(1)
+    setSelected(new Set())
+  }
+  const setRejectedTab = () => {
+    setFilters((prev) => ({ ...prev, statuses: ['Rejected'], events: undefined }))
     setPage(1)
     setSelected(new Set())
   }
@@ -201,7 +211,7 @@ export default function SponsorsPage() {
               {data && (
                 <p className="text-xs text-slate-500 mt-0.5">
                   {data.total.toLocaleString()} {data.total === 1 ? 'record' : 'records'}
-                  {activeEventTab && <span className="text-amber-400"> · {activeEventTab}</span>}
+                  {isRejectedTab ? <span className="text-rose-400"> · Rejected</span> : activeEventTab && <span className="text-amber-400"> · {activeEventTab}</span>}
                 </p>
               )}
             </div>
@@ -213,13 +223,13 @@ export default function SponsorsPage() {
             </button>
           </div>
 
-          {/* Event tabs */}
+          {/* Event + Rejected tabs */}
           <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <button
               onClick={() => setEventTab('')}
               className={cn(
                 'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                activeEventTab === ''
+                !isRejectedTab && activeEventTab === ''
                   ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
                   : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
               )}
@@ -232,7 +242,7 @@ export default function SponsorsPage() {
                 onClick={() => setEventTab(ev)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                  activeEventTab === ev
+                  !isRejectedTab && activeEventTab === ev
                     ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
                     : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
                 )}
@@ -241,6 +251,18 @@ export default function SponsorsPage() {
                 {ev}
               </button>
             ))}
+            <div className="w-px h-5 bg-[#1a3a5c] shrink-0 mx-1" />
+            <button
+              onClick={setRejectedTab}
+              className={cn(
+                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                isRejectedTab
+                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/40'
+                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+              )}
+            >
+              Rejected
+            </button>
           </div>
 
           {/* Search */}
@@ -268,7 +290,13 @@ export default function SponsorsPage() {
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />
           </div>
 
-          {activeFilters.length > 0 && <ActiveFiltersBar filters={activeFilters} onRemove={removeChip} onClearAll={clearAll} />}
+          {activeFilters.filter((f) => !(isRejectedTab && f.key === 'statuses' && f.value === 'Rejected')).length > 0 && (
+            <ActiveFiltersBar
+              filters={activeFilters.filter((f) => !(isRejectedTab && f.key === 'statuses' && f.value === 'Rejected'))}
+              onRemove={removeChip}
+              onClearAll={clearAll}
+            />
+          )}
         </div>
       </div>
 
@@ -343,7 +371,7 @@ export default function SponsorsPage() {
               <div className="py-16 text-center text-red-400 text-sm">Failed to load. Please refresh.</div>
             ) : !rows.length ? (
               <div className="py-16 text-center text-slate-500 text-sm">
-                {activeEventTab ? `No sponsors for "${activeEventTab}" yet.` : 'No sponsors found. Add your first one.'}
+                {isRejectedTab ? 'No rejected sponsors yet.' : activeEventTab ? `No sponsors for "${activeEventTab}" yet.` : 'No sponsors found. Add your first one.'}
               </div>
             ) : (
               <>

@@ -9,17 +9,16 @@ const DELEGATE_STATUS_COLORS: Record<string, string> = {
   'Cancelled':   'bg-red-500/15 text-red-400 border-red-500/30',
   'No-show':     'bg-slate-500/15 text-slate-400 border-slate-500/30',
   'Waitlisted':  'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  'Rejected':    'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 
 const SPEAKER_STATUS_COLORS: Record<string, string> = {
-  'Prospecting':         'bg-slate-500/15 text-slate-400 border-slate-500/30',
-  'Invited':             'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  'In Discussion':       'bg-purple-500/15 text-purple-400 border-purple-500/30',
-  'Confirmed':           'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
-  'Contracted':          'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
-  'Speaking Confirmed':  'bg-green-500/15 text-green-400 border-green-500/30',
-  'Cancelled':           'bg-red-500/15 text-red-400 border-red-500/30',
-  'Declined':            'bg-rose-500/15 text-rose-400 border-rose-500/30',
+  'Not Contacted':      'bg-slate-500/15 text-slate-400 border-slate-500/30',
+  'Invited':            'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  'Discussing':         'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  'Speaking Confirmed': 'bg-green-500/15 text-green-400 border-green-500/30',
+  'Speaking Rejected':  'bg-red-500/15 text-red-400 border-red-500/30',
+  'Rejected':           'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 
 const SPONSOR_STATUS_COLORS: Record<string, string> = {
@@ -32,6 +31,7 @@ const SPONSOR_STATUS_COLORS: Record<string, string> = {
   'Active':         'bg-green-500/15 text-green-400 border-green-500/30',
   'Completed':      'bg-teal-500/15 text-teal-400 border-teal-500/30',
   'Lost':           'bg-red-500/15 text-red-400 border-red-500/30',
+  'Rejected':       'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 
 const SPONSOR_TIER_COLORS: Record<string, string> = {

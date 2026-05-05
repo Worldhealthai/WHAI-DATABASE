@@ -11,8 +11,6 @@ import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import type { Speaker, SpeakerFilters } from '@/types'
 import {
   SPEAKER_STATUS_OPTIONS,
-  SESSION_TYPE_OPTIONS,
-  CONTRACT_STATUS_OPTIONS,
   COUNTRY_OPTIONS,
   EVENT_OPTIONS,
   SUBTYPE_OPTIONS,
@@ -29,10 +27,8 @@ async function fetchSpeakers(
   filters.statuses?.forEach((s) => params.append('statuses', s))
   filters.events?.forEach((e) => params.append('events', e))
   filters.subTypes?.forEach((t) => params.append('subTypes', t))
-  filters.sessionTypes?.forEach((t) => params.append('sessionTypes', t))
-  filters.contractStatuses?.forEach((c) => params.append('contractStatuses', c))
   filters.countries?.forEach((c) => params.append('countries', c))
-  filters.expertiseAreas?.forEach((e) => params.append('expertiseAreas', e))
+  filters.years?.forEach((y) => params.append('years', String(y)))
   const res = await fetch(`/api/speakers?${params}`)
   if (!res.ok) throw new Error('Failed to fetch')
   return res.json()
@@ -73,6 +69,18 @@ function Checkbox({ checked, indeterminate, onChange }: {
   )
 }
 
+const YEAR_TABS = [2025, 2026, 2027]
+
+const COLS = [
+  { key: 'firstName', label: 'Name' },
+  { key: 'organization', label: 'Organisation' },
+  { key: 'jobTitle', label: 'Job Title' },
+  { key: 'country', label: 'Country' },
+  { key: 'status', label: 'Status' },
+  { key: 'year', label: 'Year' },
+  { key: 'createdAt', label: 'Added' },
+]
+
 export default function SpeakersPage() {
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<SpeakerFilters>({})
@@ -107,9 +115,26 @@ export default function SpeakersPage() {
 
   const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()) }
 
-  const activeEventTab = filters.events?.length === 1 ? filters.events[0] : ''
+  const isRejectedTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Rejected'
+  const activeEventTab = isRejectedTab ? '' : (filters.events?.length === 1 ? filters.events[0] : '')
   const setEventTab = (event: string) => {
-    setFilters((prev) => ({ ...prev, events: event ? [event] : undefined }))
+    setFilters((prev) => {
+      const next = { ...prev, events: event ? [event] : undefined }
+      if (next.statuses?.length === 1 && next.statuses[0] === 'Rejected') delete next.statuses
+      return next
+    })
+    setPage(1)
+    setSelected(new Set())
+  }
+  const setRejectedTab = () => {
+    setFilters((prev) => ({ ...prev, statuses: ['Rejected'], events: undefined }))
+    setPage(1)
+    setSelected(new Set())
+  }
+
+  const activeYearTab = filters.years?.length === 1 ? filters.years[0] : 0
+  const setYearTab = (year: number) => {
+    setFilters((prev) => ({ ...prev, years: year ? [year] : undefined }))
     setPage(1)
     setSelected(new Set())
   }
@@ -155,11 +180,10 @@ export default function SpeakersPage() {
     const source = (data?.data as Speaker[]) ?? []
     const out = (ids ? source.filter((s) => ids.has(s.id)) : source).map((s) => [
       s.firstName, s.lastName, s.email ?? '', s.phone ?? '', s.organization ?? '',
-      s.jobTitle ?? '', s.country ?? '', s.status, s.event ?? '', s.subType ?? '',
-      s.sessionType ?? '', s.sessionTitle ?? '',
-      s.fee ? `${s.feeCurrency ?? 'GBP'} ${s.fee}` : '', s.feeStatus ?? '', s.contractStatus ?? '',
+      s.jobTitle ?? '', s.country ?? '', s.event ?? '', s.subType ?? '',
+      s.status, s.year ? String(s.year) : '', s.notes ?? '',
     ])
-    const header = ['First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title', 'Country', 'Status', 'Event', 'Type', 'Session Type', 'Session Title', 'Fee', 'Fee Status', 'Contract Status']
+    const header = ['First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title', 'Country', 'Event', 'Type', 'Status', 'Year', 'Notes']
     const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'speakers.csv'; a.click()
@@ -170,8 +194,6 @@ export default function SpeakersPage() {
   filters.statuses?.forEach((s) => activeFilters.push({ category: 'Status', key: 'statuses', value: s }))
   filters.events?.forEach((e) => activeFilters.push({ category: 'Event', key: 'events', value: e }))
   filters.subTypes?.forEach((t) => activeFilters.push({ category: 'Type', key: 'subTypes', value: t }))
-  filters.sessionTypes?.forEach((t) => activeFilters.push({ category: 'Session', key: 'sessionTypes', value: t }))
-  filters.contractStatuses?.forEach((c) => activeFilters.push({ category: 'Contract', key: 'contractStatuses', value: c }))
   filters.countries?.forEach((c) => activeFilters.push({ category: 'Country', key: 'countries', value: c }))
 
   const removeChip = (key: string, value: string) => {
@@ -183,15 +205,7 @@ export default function SpeakersPage() {
     })
   }
 
-  const COLS = [
-    { key: 'firstName', label: 'Name' },
-    { key: 'organization', label: 'Organisation' },
-    { key: 'sessionType', label: 'Session Type' },
-    { key: 'status', label: 'Status' },
-    { key: 'contractStatus', label: 'Contract' },
-    { key: 'fee', label: 'Fee' },
-    { key: 'createdAt', label: 'Added' },
-  ]
+  const isYearTab = activeYearTab !== 0
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
@@ -204,7 +218,8 @@ export default function SpeakersPage() {
               {data && (
                 <p className="text-xs text-slate-500 mt-0.5">
                   {data.total.toLocaleString()} records
-                  {activeEventTab && <span className="text-purple-400"> · {activeEventTab}</span>}
+                  {isRejectedTab ? <span className="text-rose-400"> · Rejected</span> : activeEventTab && <span className="text-purple-400"> · {activeEventTab}</span>}
+                  {isYearTab && !isRejectedTab && <span className="text-purple-400"> · {activeYearTab}</span>}
                 </p>
               )}
             </div>
@@ -216,13 +231,13 @@ export default function SpeakersPage() {
             </button>
           </div>
 
-          {/* Event tabs */}
-          <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+          {/* Event + Rejected tabs */}
+          <div className="flex items-center gap-1.5 pb-2 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <button
               onClick={() => setEventTab('')}
               className={cn(
                 'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                activeEventTab === ''
+                !isRejectedTab && activeEventTab === ''
                   ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
                   : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
               )}
@@ -235,13 +250,54 @@ export default function SpeakersPage() {
                 onClick={() => setEventTab(ev)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                  activeEventTab === ev
+                  !isRejectedTab && activeEventTab === ev
                     ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
                     : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
                 )}
               >
                 <Calendar className="w-3.5 h-3.5 shrink-0" />
                 {ev}
+              </button>
+            ))}
+            <div className="w-px h-5 bg-[#1a3a5c] shrink-0 mx-1" />
+            <button
+              onClick={setRejectedTab}
+              className={cn(
+                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                isRejectedTab
+                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/40'
+                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+              )}
+            >
+              Rejected
+            </button>
+          </div>
+
+          {/* Year tabs */}
+          <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+            <button
+              onClick={() => setYearTab(0)}
+              className={cn(
+                'flex items-center px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 border',
+                activeYearTab === 0
+                  ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
+                  : 'text-slate-500 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+              )}
+            >
+              All Years
+            </button>
+            {YEAR_TABS.map((year) => (
+              <button
+                key={year}
+                onClick={() => setYearTab(year)}
+                className={cn(
+                  'flex items-center px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 border',
+                  activeYearTab === year
+                    ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
+                    : 'text-slate-500 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+                )}
+              >
+                {year}
               </button>
             ))}
           </div>
@@ -254,7 +310,7 @@ export default function SpeakersPage() {
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search by name, email, session title, organisation..."
+                placeholder="Search by name, email, organisation..."
                 className="w-full pl-10 pr-24 py-2.5 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-purple-500/50 transition-colors"
               />
               <button onClick={handleSearch} className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-md bg-purple-500 text-white text-xs font-semibold hover:bg-purple-500/90 transition-colors">
@@ -267,14 +323,12 @@ export default function SpeakersPage() {
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <FilterDropdown label="Status" options={SPEAKER_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
             <FilterDropdown label="Type" options={SUBTYPE_OPTIONS} selected={filters.subTypes ?? []} onChange={(v) => updateFilter('subTypes', v)} searchable={false} />
-            <FilterDropdown label="Session Type" options={SESSION_TYPE_OPTIONS} selected={filters.sessionTypes ?? []} onChange={(v) => updateFilter('sessionTypes', v)} searchable={false} />
-            <FilterDropdown label="Contract" options={CONTRACT_STATUS_OPTIONS} selected={filters.contractStatuses ?? []} onChange={(v) => updateFilter('contractStatuses', v)} searchable={false} />
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />
           </div>
 
-          {activeFilters.filter((f) => f.key !== 'events').length > 0 && (
+          {activeFilters.filter((f) => f.key !== 'events' && !(isRejectedTab && f.key === 'statuses' && f.value === 'Rejected')).length > 0 && (
             <ActiveFiltersBar
-              filters={activeFilters.filter((f) => f.key !== 'events')}
+              filters={activeFilters.filter((f) => f.key !== 'events' && !(isRejectedTab && f.key === 'statuses' && f.value === 'Rejected'))}
               onRemove={removeChip}
               onClearAll={clearAll}
             />
@@ -345,7 +399,7 @@ export default function SpeakersPage() {
               <div className="py-16 text-center text-red-400 text-sm">Failed to load. Please refresh.</div>
             ) : !rows.length ? (
               <div className="py-16 text-center text-slate-500 text-sm">
-                {activeEventTab ? `No speakers for "${activeEventTab}" yet.` : 'No speakers found. Add your first one.'}
+                {isRejectedTab ? 'No rejected speakers yet.' : activeEventTab ? `No speakers for "${activeEventTab}" yet.` : 'No speaker leads found. Add your first one.'}
               </div>
             ) : (
               <>
@@ -386,23 +440,19 @@ export default function SpeakersPage() {
                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400/80 border border-purple-500/20 whitespace-nowrap">
                                       {s.event}
                                     </span>
-                                    {s.subType && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700">
-                                        {s.subType}
-                                      </span>
-                                    )}
                                   </div>
                                 )}
                               </div>
                             </Link>
                           </td>
                           <td className="px-4 py-3 text-slate-300">{s.organization ?? '—'}</td>
-                          <td className="px-4 py-3 text-slate-400 text-xs">{s.sessionType ?? '—'}</td>
-                          <td className="px-4 py-3"><StatusBadge value={s.status} variant="speaker_status" /></td>
-                          <td className="px-4 py-3"><StatusBadge value={s.contractStatus ?? 'Not Started'} variant="contract_status" /></td>
-                          <td className="px-4 py-3 text-slate-400 text-xs">
-                            {s.fee ? `${s.feeCurrency ?? 'GBP'} ${Number(s.fee).toLocaleString()}` : '—'}
+                          <td className="px-4 py-3 text-slate-400 text-xs">{s.jobTitle ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">{s.country ?? '—'}</td>
+                          <td className="px-4 py-3">
+                            <StatusBadge value={s.status} variant="speaker_status" />
+                            {s.year && <span className="text-[10px] text-slate-500 ml-1">· {s.year}</span>}
                           </td>
+                          <td className="px-4 py-3 text-slate-400 text-xs">{s.year ?? <span className="text-slate-600">—</span>}</td>
                           <td className="px-4 py-3 text-slate-500 text-xs">
                             {new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </td>
@@ -426,7 +476,7 @@ export default function SpeakersPage() {
                           {s.event && <div className="text-[10px] text-purple-400/70 mt-0.5">{s.event}</div>}
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                             <StatusBadge value={s.status} variant="speaker_status" />
-                            <StatusBadge value={s.contractStatus ?? 'Not Started'} variant="contract_status" />
+                            {s.year && <span className="text-xs text-slate-500">{s.year}</span>}
                           </div>
                         </div>
                       </Link>
