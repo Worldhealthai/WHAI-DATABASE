@@ -9,6 +9,7 @@ const DELEGATE_STATUS_COLORS: Record<string, string> = {
   'Cancelled':   'bg-red-500/15 text-red-400 border-red-500/30',
   'No-show':     'bg-slate-500/15 text-slate-400 border-slate-500/30',
   'Waitlisted':  'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  'Rejected':    'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 
 const SPEAKER_STATUS_COLORS: Record<string, string> = {
@@ -20,6 +21,7 @@ const SPEAKER_STATUS_COLORS: Record<string, string> = {
   'Speaking Confirmed':  'bg-green-500/15 text-green-400 border-green-500/30',
   'Cancelled':           'bg-red-500/15 text-red-400 border-red-500/30',
   'Declined':            'bg-rose-500/15 text-rose-400 border-rose-500/30',
+  'Rejected':            'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 
 const SPONSOR_STATUS_COLORS: Record<string, string> = {
@@ -32,6 +34,7 @@ const SPONSOR_STATUS_COLORS: Record<string, string> = {
   'Active':         'bg-green-500/15 text-green-400 border-green-500/30',
   'Completed':      'bg-teal-500/15 text-teal-400 border-teal-500/30',
   'Lost':           'bg-red-500/15 text-red-400 border-red-500/30',
+  'Rejected':       'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 
 const SPONSOR_TIER_COLORS: Record<string, string> = {

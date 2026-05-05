@@ -23,6 +23,7 @@ export const DELEGATE_STATUS_OPTIONS = [
   'Cancelled',
   'No-show',
   'Waitlisted',
+  'Rejected',
 ]
 
 export const DELEGATE_TICKET_OPTIONS = [
@@ -58,6 +59,7 @@ export const SPEAKER_STATUS_OPTIONS = [
   'Speaking Confirmed',
   'Cancelled',
   'Declined',
+  'Rejected',
 ]
 
 export const SESSION_TYPE_OPTIONS = [
@@ -132,6 +134,7 @@ export const SPONSOR_STATUS_OPTIONS = [
   'Active',
   'Completed',
   'Lost',
+  'Rejected',
 ]
 
 export const SPONSOR_CONTRACT_STATUS_OPTIONS = [
