@@ -92,7 +92,7 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
           {/* Contact */}
           <div className="grid grid-cols-2 gap-4">
             <Field label="Email">
-              <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="jane@example.com" className={inputCls} />
+              <input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="jane@example.com" className={inputCls} />
             </Field>
             <Field label="Contact Number">
               <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+44 7700 000000" className={inputCls} />
@@ -119,7 +119,7 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
             </Field>
             <Field label="Event">
               <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
-                <option value="">Select event</option>
+                <option value="">Unassigned</option>
                 {EVENT_OPTIONS.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </Field>
