@@ -5,8 +5,6 @@
 export const EVENT_OPTIONS = [
   'UK Forum',
   'US Forum',
-  'Boston, MA — May 20, 2026',
-  'UK, London — Sep 22, 2026',
 ]
 
 export const SUBTYPE_OPTIONS = [
@@ -51,14 +49,11 @@ export const DELEGATE_SOURCE_OPTIONS = [
 // ── Speaker enums ─────────────────────────────────────────────────────────────
 
 export const SPEAKER_STATUS_OPTIONS = [
-  'Prospecting',
+  'Not Contacted',
   'Invited',
-  'In Discussion',
-  'Confirmed',
-  'Contracted',
+  'Discussing',
   'Speaking Confirmed',
-  'Cancelled',
-  'Declined',
+  'Speaking Rejected',
   'Rejected',
 ]
 
@@ -250,6 +245,7 @@ export interface Speaker {
   expertiseAreas?: string | null
   status: string
   event?: string | null
+  year?: number | null
   subType?: string | null
   sessionTitle?: string | null
   sessionDescription?: string | null
@@ -323,6 +319,7 @@ export interface SpeakerFilters {
   query?: string
   statuses?: string[]
   events?: string[]
+  years?: number[]
   subTypes?: string[]
   sessionTypes?: string[]
   contractStatuses?: string[]
