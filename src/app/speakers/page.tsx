@@ -428,7 +428,6 @@ export default function SpeakersPage() {
                           <td className="px-4 py-3 text-slate-400 text-xs">{s.country ?? '—'}</td>
                           <td className="px-4 py-3">
                             <StatusBadge value={s.status} variant="speaker_status" />
-                            {s.year && <span className="text-[10px] text-slate-500 ml-1">· {s.year}</span>}
                           </td>
                           <td className="px-4 py-3 text-slate-400 text-xs">{s.year ?? <span className="text-slate-600">—</span>}</td>
                           <td className="px-4 py-3 text-slate-500 text-xs">
