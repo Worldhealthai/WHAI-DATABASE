@@ -177,7 +177,11 @@ export default function ImportPage() {
   const [headers, setHeaders] = useState<string[]>([])
   const [rows, setRows] = useState<Record<string, string>[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
-  const [importResult, setImportResult] = useState<{ inserted: number; batch: string } | null>(null)
+  const [importResult, setImportResult] = useState<{
+    inserted: number
+    batches: { name: string; count: number }[]
+  } | null>(null)
+  const [splitByEvent, setSplitByEvent] = useState(true)
   const [error, setError] = useState('')
 
   const handleFile = useCallback((file: File) => {
@@ -210,22 +214,57 @@ export default function ImportPage() {
   const previewRows = rows.slice(0, 5)
   const totalRows = rows.length
 
+  const primaryEventMapped = Object.values(mapping).includes('primaryEvent')
+
+  // Group transformed contacts by event (for split-by-event preview + import)
+  const eventGroups = (() => {
+    if (!primaryEventMapped || !splitByEvent) return null
+    const contacts = rows.map((row) => transformRow(row, mapping))
+    const map = new Map<string, any[]>()
+    contacts.forEach((c) => {
+      const key = c.primaryEvent?.trim() || 'No Event'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(c)
+    })
+    return map
+  })()
+
   const handleImport = async () => {
     setStep('importing')
     setError('')
     try {
-      const contacts = rows.map((row) => transformRow(row, mapping))
-      const batch = fileName.replace(/\.[^.]+$/, '') + ' — ' +
-        new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-
-      const res = await fetch('/api/staged-contacts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contacts, importBatch: batch }),
-      })
-      if (!res.ok) throw new Error('Import failed')
-      const result = await res.json()
-      setImportResult(result)
+      if (eventGroups && eventGroups.size > 1) {
+        // Import one batch per event
+        let totalInserted = 0
+        const batches: { name: string; count: number }[] = []
+        for (const [eventName, contacts] of eventGroups) {
+          const res = await fetch('/api/staged-contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contacts, importBatch: eventName }),
+          })
+          if (!res.ok) throw new Error('Import failed')
+          const result = await res.json()
+          totalInserted += result.inserted
+          batches.push({ name: eventName, count: result.inserted })
+        }
+        setImportResult({ inserted: totalInserted, batches })
+      } else {
+        // Single batch — name by filename
+        const contacts = rows.map((row) => transformRow(row, mapping))
+        const batchName = (eventGroups?.size === 1
+          ? [...eventGroups.keys()][0]
+          : fileName.replace(/\.[^.]+$/, '')) + ' — ' +
+          new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        const res = await fetch('/api/staged-contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contacts, importBatch: batchName }),
+        })
+        if (!res.ok) throw new Error('Import failed')
+        const result = await res.json()
+        setImportResult({ inserted: result.inserted, batches: [{ name: result.batch, count: result.inserted }] })
+      }
       setStep('done')
     } catch {
       setError('Import failed. Please try again.')
@@ -415,13 +454,54 @@ export default function ImportPage() {
             )}
           </div>
 
+          {/* Event split summary */}
+          {primaryEventMapped && eventGroups && (
+            <div className="whai-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#1a3a5c] bg-[#0d2040] flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Events detected — {eventGroups.size} {eventGroups.size === 1 ? 'batch' : 'batches'}
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-xs text-slate-400">Split by event</span>
+                  <div
+                    onClick={() => setSplitByEvent((v) => !v)}
+                    className={cn(
+                      'w-9 h-5 rounded-full transition-colors relative cursor-pointer',
+                      splitByEvent ? 'bg-[#00B4D8]' : 'bg-slate-700'
+                    )}
+                  >
+                    <div className={cn(
+                      'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                      splitByEvent ? 'translate-x-4' : 'translate-x-0.5'
+                    )} />
+                  </div>
+                </label>
+              </div>
+              <div className="divide-y divide-[#1a3a5c]/50">
+                {[...eventGroups.entries()].map(([name, contacts]) => (
+                  <div key={name} className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-sm text-white">{name}</span>
+                    <span className="text-xs text-slate-400 bg-[#112850] px-2 py-0.5 rounded-full">
+                      {contacts.length.toLocaleString()} contacts
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="whai-card p-4 flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-[#00B4D8]/10 flex items-center justify-center shrink-0">
               <Upload className="w-4 h-4 text-[#00B4D8]" />
             </div>
             <div className="flex-1">
               <p className="text-sm text-white font-medium">Ready to import {totalRows.toLocaleString()} contacts</p>
-              <p className="text-xs text-slate-500 mt-0.5">They'll appear in the Unassigned inbox for triage — nothing is created in Delegates, Speakers, or Sponsors yet.</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {primaryEventMapped && splitByEvent && eventGroups && eventGroups.size > 1
+                  ? `Will create ${eventGroups.size} batches — one per event — so you can filter them separately in the inbox.`
+                  : "They'll appear in the Unassigned inbox for triage — nothing is created in Delegates, Speakers, or Sponsors yet."
+                }
+              </p>
             </div>
             <button
               onClick={handleImport}
@@ -450,7 +530,18 @@ export default function ImportPage() {
           </div>
           <div>
             <p className="text-xl font-bold text-white">{importResult.inserted.toLocaleString()} contacts imported</p>
-            <p className="text-slate-400 text-sm mt-1">Batch: <span className="text-slate-300">{importResult.batch}</span></p>
+            {importResult.batches.length > 1 ? (
+              <div className="mt-3 text-left max-w-sm mx-auto space-y-1.5">
+                {importResult.batches.map((b) => (
+                  <div key={b.name} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-300 truncate">{b.name}</span>
+                    <span className="text-slate-500 ml-3 shrink-0">{b.count} contacts</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-400 text-sm mt-1">Batch: <span className="text-slate-300">{importResult.batches[0]?.name}</span></p>
+            )}
           </div>
           <p className="text-slate-400 text-sm">
             They're waiting in the Unassigned inbox. Go through them and assign each one as a Delegate, Speaker, or Sponsor.
