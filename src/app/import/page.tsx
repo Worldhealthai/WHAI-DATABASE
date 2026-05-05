@@ -182,6 +182,7 @@ export default function ImportPage() {
     batches: { name: string; count: number }[]
   } | null>(null)
   const [splitByEvent, setSplitByEvent] = useState(true)
+  const [importEvent, setImportEvent] = useState<string>('')
   const [error, setError] = useState('')
 
   const handleFile = useCallback((file: File) => {
@@ -238,10 +239,13 @@ export default function ImportPage() {
         let totalInserted = 0
         const batches: { name: string; count: number }[] = []
         for (const [eventName, contacts] of eventGroups) {
+          const tagged = importEvent
+            ? contacts.map((c: any) => ({ ...c, _raw: { ...c._raw, event: importEvent } }))
+            : contacts
           const res = await fetch('/api/staged-contacts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contacts, importBatch: eventName }),
+            body: JSON.stringify({ contacts: tagged, importBatch: eventName }),
           })
           if (!res.ok) throw new Error('Import failed')
           const result = await res.json()
@@ -251,7 +255,11 @@ export default function ImportPage() {
         setImportResult({ inserted: totalInserted, batches })
       } else {
         // Single batch — name by filename
-        const contacts = rows.map((row) => transformRow(row, mapping))
+        const contacts = rows.map((row) => {
+          const t = transformRow(row, mapping)
+          if (importEvent) t._raw = { ...t._raw, event: importEvent }
+          return t
+        })
         const batchName = (eventGroups?.size === 1
           ? [...eventGroups.keys()][0]
           : fileName.replace(/\.[^.]+$/, '')) + ' — ' +
@@ -398,6 +406,31 @@ export default function ImportPage() {
             <button onClick={() => setStep('map')} className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
               <RefreshCw className="w-3.5 h-3.5" /> Edit mapping
             </button>
+          </div>
+
+          {/* Event assignment */}
+          <div className="whai-card p-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-white">Which event is this import for?</p>
+              <p className="text-xs text-slate-500 mt-0.5">All contacts in this batch will be tagged with the selected event.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {['UK Forum', 'US Forum', ''].map((ev) => (
+                <button
+                  key={ev || 'none'}
+                  type="button"
+                  onClick={() => setImportEvent(ev)}
+                  className={cn(
+                    'px-4 py-2 rounded-lg text-sm font-medium border transition-all',
+                    importEvent === ev
+                      ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
+                      : 'text-slate-400 border-[#1a3a5c] hover:text-white hover:border-slate-500'
+                  )}
+                >
+                  {ev || 'No assignment'}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="whai-card overflow-hidden">

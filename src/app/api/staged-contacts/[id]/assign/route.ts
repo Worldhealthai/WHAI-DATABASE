@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       record = { ...base, status: 'Registered', event, subType }
     } else if (assignAs === 'speaker') {
       table = 'speakers'
-      record = { ...base, status: 'Prospecting', event, subType }
+      record = { ...base, status: 'Not Contacted', event, subType, year: new Date().getFullYear() }
     } else {
       table = 'sponsors'
       record = {
