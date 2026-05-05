@@ -278,6 +278,7 @@ export interface Sponsor {
   city?: string | null
   tier?: string | null
   status: string
+  event?: string | null
   valueAmount?: number | null
   valueCurrency?: string | null
   contractStatus?: string | null
@@ -330,6 +331,7 @@ export interface SpeakerFilters {
 export interface SponsorFilters {
   query?: string
   statuses?: string[]
+  events?: string[]
   tiers?: string[]
   contractStatuses?: string[]
   countries?: string[]
