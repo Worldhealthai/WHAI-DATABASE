@@ -69,7 +69,7 @@ function Checkbox({ checked, indeterminate, onChange }: {
   )
 }
 
-const YEAR_TABS = [2025, 2026, 2027]
+const YEAR_TABS = [2026, 2027]
 
 const COLS = [
   { key: 'firstName', label: 'Name' },

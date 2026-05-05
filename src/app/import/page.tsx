@@ -183,6 +183,8 @@ export default function ImportPage() {
   } | null>(null)
   const [splitByEvent, setSplitByEvent] = useState(true)
   const [importEvent, setImportEvent] = useState<string>('')
+  const [duplicateKeys, setDuplicateKeys] = useState<Set<string>>(new Set())
+  const [checkingDupes, setCheckingDupes] = useState(false)
   const [error, setError] = useState('')
 
   const handleFile = useCallback((file: File) => {
@@ -384,10 +386,30 @@ export default function ImportPage() {
 
           <div className="flex justify-end">
             <button
-              onClick={() => setStep('preview')}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#00B4D8] text-[#0A1628] font-semibold text-sm hover:bg-[#00B4D8]/90 transition-colors"
+              onClick={async () => {
+                setCheckingDupes(true)
+                try {
+                  const transformed = rows.map((r) => transformRow(r, mapping))
+                  const emails = transformed.map((t) => t.email).filter(Boolean)
+                  const names = transformed.map((t) => ({ first: t.firstName ?? '', last: t.lastName ?? '' }))
+                  const res = await fetch('/api/check-duplicates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emails, names }),
+                  })
+                  if (res.ok) {
+                    const { duplicates } = await res.json()
+                    setDuplicateKeys(new Set(duplicates.map((d: any) => d.key)))
+                  }
+                } catch { /* non-blocking */ } finally {
+                  setCheckingDupes(false)
+                }
+                setStep('preview')
+              }}
+              disabled={checkingDupes}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#00B4D8] text-[#0A1628] font-semibold text-sm hover:bg-[#00B4D8]/90 disabled:opacity-60 transition-colors"
             >
-              Preview <ArrowRight className="w-4 h-4" />
+              {checkingDupes ? 'Checking…' : <> Preview <ArrowRight className="w-4 h-4" /></>}
             </button>
           </div>
         </div>
@@ -433,12 +455,19 @@ export default function ImportPage() {
             </div>
           </div>
 
+          {duplicateKeys.size > 0 && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
+              <span className="font-bold shrink-0">⚠ {duplicateKeys.size} potential {duplicateKeys.size === 1 ? 'duplicate' : 'duplicates'} found</span>
+              <span className="text-amber-500/70 text-xs">— these contacts may already exist in the CRM. You can still import them.</span>
+            </div>
+          )}
+
           <div className="whai-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-[#1a3a5c] bg-[#0d2040]">
-                    {['Name', 'Email', 'Organisation', 'Job Title', 'Attendee Type', 'Status', 'Event', 'Notes'].map((h) => (
+                    {['', 'Name', 'Email', 'Organisation', 'Job Title', 'Attendee Type', 'Status', 'Event', 'Notes'].map((h) => (
                       <th key={h} className="text-left px-3 py-2.5 font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -446,9 +475,20 @@ export default function ImportPage() {
                 <tbody>
                   {previewRows.map((row, i) => {
                     const t = transformRow(row, mapping)
+                    const emailKey = t.email?.toLowerCase().trim()
+                    const nameKey = `${t.firstName ?? ''} ${t.lastName ?? ''}`.toLowerCase().trim()
+                    const isDupe = (emailKey && duplicateKeys.has(emailKey)) || (nameKey && duplicateKeys.has(nameKey))
                     return (
-                      <tr key={i} className="border-b border-[#1a3a5c]/40">
-                        <td className="px-3 py-2.5 text-white whitespace-nowrap">{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</td>
+                      <tr key={i} className={cn('border-b border-[#1a3a5c]/40', isDupe && 'bg-amber-500/5')}>
+                        <td className="px-3 py-2.5 w-6">
+                          {isDupe && (
+                            <span title="Possible duplicate — already exists in CRM" className="text-amber-400 text-[10px] font-bold cursor-default">⚠</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span className={isDupe ? 'text-amber-300' : 'text-white'}>{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</span>
+                          {isDupe && <div className="text-[10px] text-amber-500/80 mt-0.5">Possible duplicate</div>}
+                        </td>
                         <td className="px-3 py-2.5 text-slate-400 truncate max-w-[140px]">{t.email || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-400 truncate max-w-[120px]">{t.organization || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-400 truncate max-w-[120px]">{t.jobTitle || '—'}</td>
