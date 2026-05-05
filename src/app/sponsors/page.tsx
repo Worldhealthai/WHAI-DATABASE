@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown, Trash2, X, Calendar } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -14,7 +14,9 @@ import {
   SPONSOR_TIER_OPTIONS,
   SPONSOR_CONTRACT_STATUS_OPTIONS,
   COUNTRY_OPTIONS,
+  EVENT_OPTIONS,
 } from '@/types'
+import { cn } from '@/lib/utils'
 
 async function fetchSponsors(
   filters: SponsorFilters, page: number, pageSize: number, sortBy: string, sortDir: string,
@@ -24,6 +26,7 @@ async function fetchSponsors(
   params.set('sortBy', sortBy); params.set('sortDir', sortDir)
   if (filters.query) params.set('query', filters.query)
   filters.statuses?.forEach((s) => params.append('statuses', s))
+  filters.events?.forEach((e) => params.append('events', e))
   filters.tiers?.forEach((t) => params.append('tiers', t))
   filters.contractStatuses?.forEach((c) => params.append('contractStatuses', c))
   filters.countries?.forEach((c) => params.append('countries', c))
@@ -42,7 +45,34 @@ function companyInitials(s: Sponsor) {
   return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase()
 }
 
+function Checkbox({ checked, indeterminate, onChange }: {
+  checked: boolean; indeterminate?: boolean; onChange: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onChange() }}
+      className={cn(
+        'w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0',
+        checked || indeterminate
+          ? 'bg-amber-500 border-amber-500'
+          : 'border-slate-600 hover:border-slate-400 bg-transparent'
+      )}
+    >
+      {(checked || indeterminate) && (
+        <svg className="w-2.5 h-2.5 text-[#0A1628]" viewBox="0 0 10 10" fill="none">
+          {checked
+            ? <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            : <path d="M2 5H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          }
+        </svg>
+      )}
+    </button>
+  )
+}
+
 export default function SponsorsPage() {
+  const queryClient = useQueryClient()
   const [filters, setFilters] = useState<SponsorFilters>({})
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -50,6 +80,8 @@ export default function SponsorsPage() {
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [showModal, setShowModal] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['sponsors', filters, page, pageSize, sortBy, sortDir],
@@ -57,17 +89,80 @@ export default function SponsorsPage() {
     placeholderData: (prev) => prev,
   })
 
-  useEffect(() => { setPage(1) }, [filters])
-
-  const updateFilter = (key: keyof SponsorFilters, value: string[]) =>
+  const updateFilter = (key: keyof SponsorFilters, value: string[]) => {
     setFilters((prev) => ({ ...prev, [key]: value.length ? value : undefined }))
+    setSelected(new Set())
+    setPage(1)
+  }
 
   const handleSearch = () => { setFilters((prev) => ({ ...prev, query: keyword || undefined })); setPage(1) }
   const handleSort = (col: string) => {
     if (sortBy === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     else { setSortBy(col); setSortDir('asc') }
   }
-  const clearAll = () => { setFilters({}); setKeyword(''); setPage(1) }
+  const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()) }
+
+  // Event tab helpers
+  const activeEventTab = filters.events?.length === 1 ? filters.events[0] : ''
+  const setEventTab = (event: string) => {
+    setFilters((prev) => ({ ...prev, events: event ? [event] : undefined }))
+    setPage(1)
+    setSelected(new Set())
+  }
+
+  // Selection helpers
+  const rows: Sponsor[] = data?.data ?? []
+  const allPageSelected = rows.length > 0 && rows.every((s) => selected.has(s.id))
+  const somePageSelected = rows.some((s) => selected.has(s.id))
+
+  const toggleSelectAll = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allPageSelected) rows.forEach((s) => next.delete(s.id))
+      else rows.forEach((s) => next.add(s.id))
+      return next
+    })
+  }
+
+  const toggleOne = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleBulkDelete = async () => {
+    if (!selected.size) return
+    if (!confirm(`Permanently delete ${selected.size} sponsor${selected.size === 1 ? '' : 's'}? This cannot be undone.`)) return
+    setBulkDeleting(true)
+    try {
+      await Promise.allSettled([...selected].map((id) =>
+        fetch(`/api/sponsors/${id}`, { method: 'DELETE' })
+      ))
+      setSelected(new Set())
+      queryClient.invalidateQueries({ queryKey: ['sponsors'] })
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const exportCSV = (ids?: Set<string>) => {
+    const source = (data?.data as Sponsor[]) ?? []
+    const list = ids ? source.filter((s) => ids.has(s.id)) : source
+    if (!list.length) return
+    const out = list.map((s) => [
+      s.companyName, s.website ?? '', s.contactFirstName ?? '', s.contactLastName ?? '',
+      s.contactEmail ?? '', s.contactPhone ?? '', s.contactJobTitle ?? '',
+      s.country ?? '', s.city ?? '', s.event ?? '', s.tier ?? '', s.status,
+      s.contractStatus ?? '', s.valueAmount ? `${s.valueCurrency ?? 'GBP'} ${s.valueAmount}` : '',
+    ])
+    const header = ['Company', 'Website', 'First Name', 'Last Name', 'Email', 'Phone', 'Job Title', 'Country', 'City', 'Event', 'Tier', 'Status', 'Contract Status', 'Value']
+    const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sponsors.csv'; a.click()
+  }
 
   const activeFilters: { category: string; key: string; value: string }[] = []
   if (filters.query) activeFilters.push({ category: 'Search', key: 'query', value: filters.query })
@@ -85,20 +180,6 @@ export default function SponsorsPage() {
     })
   }
 
-  const exportCSV = () => {
-    if (!data?.data) return
-    const rows = (data.data as Sponsor[]).map((s) => [
-      s.companyName, s.website ?? '', s.contactFirstName ?? '', s.contactLastName ?? '',
-      s.contactEmail ?? '', s.contactPhone ?? '', s.contactJobTitle ?? '',
-      s.country ?? '', s.tier ?? '', s.status, s.contractStatus ?? '',
-      s.valueAmount ? `${s.valueCurrency} ${s.valueAmount}` : '',
-    ])
-    const header = ['Company', 'Website', 'First Name', 'Last Name', 'Email', 'Phone', 'Job Title', 'Country', 'Tier', 'Status', 'Contract Status', 'Value']
-    const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sponsors.csv'; a.click()
-  }
-
   const COLS = [
     { key: 'companyName', label: 'Company' },
     { key: 'tier', label: 'Tier' },
@@ -111,12 +192,18 @@ export default function SponsorsPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
+      {/* ── Header ── */}
       <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] z-30">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between pt-4 pb-3">
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-white">Sponsors</h1>
-              {data && <p className="text-xs text-slate-500 mt-0.5">{data.total.toLocaleString()} records</p>}
+              {data && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {data.total.toLocaleString()} {data.total === 1 ? 'record' : 'records'}
+                  {activeEventTab && <span className="text-amber-400"> · {activeEventTab}</span>}
+                </p>
+              )}
             </div>
             <button
               onClick={() => setShowModal(true)}
@@ -126,6 +213,37 @@ export default function SponsorsPage() {
             </button>
           </div>
 
+          {/* Event tabs */}
+          <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+            <button
+              onClick={() => setEventTab('')}
+              className={cn(
+                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                activeEventTab === ''
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+              )}
+            >
+              All Events
+            </button>
+            {EVENT_OPTIONS.map((ev) => (
+              <button
+                key={ev}
+                onClick={() => setEventTab(ev)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                  activeEventTab === ev
+                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+                    : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+                )}
+              >
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                {ev}
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
           <div className="pb-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -142,6 +260,7 @@ export default function SponsorsPage() {
             </div>
           </div>
 
+          {/* Filters */}
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <FilterDropdown label="Status" options={SPONSOR_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
             <FilterDropdown label="Tier" options={SPONSOR_TIER_OPTIONS} selected={filters.tiers ?? []} onChange={(v) => updateFilter('tiers', v)} searchable={false} />
@@ -153,23 +272,65 @@ export default function SponsorsPage() {
         </div>
       </div>
 
+      {/* ── Bulk actions bar ── */}
+      {selected.size > 0 && (
+        <div className="shrink-0 bg-[#0d2040] border-b border-amber-500/20 z-20">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-semibold text-amber-400 shrink-0">
+              {selected.size} selected
+            </span>
+            <button
+              onClick={() => exportCSV(selected)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:text-white hover:border-slate-400 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" /> Export selected
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all disabled:opacity-50',
+                bulkDeleting && 'animate-pulse'
+              )}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Results ── */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-400">
-              {isLoading ? 'Loading…' : (<><span className={`font-bold text-white ${isFetching ? 'opacity-50' : ''}`}>{(data?.total ?? 0).toLocaleString()}</span> results</>)}
+              {isLoading ? 'Loading…' : (
+                <><span className={cn('font-bold text-white', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>
+              )}
             </span>
-            <button onClick={exportCSV} disabled={!data?.data?.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors">
+            <button
+              onClick={() => exportCSV()}
+              disabled={!data?.data?.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors"
+            >
               <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
           </div>
 
           <div className="whai-card overflow-hidden">
             {isLoading ? (
-              <div className="space-y-0">
+              <div>
                 {Array.from({ length: 10 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[#1a3a5c]/50">
-                    <div className="w-8 h-8 rounded-lg bg-slate-700/50 animate-pulse" />
+                    <div className="w-4 h-4 rounded bg-slate-700/50 animate-pulse shrink-0" />
+                    <div className="w-8 h-8 rounded-lg bg-slate-700/50 animate-pulse shrink-0" />
                     <div className="flex-1 space-y-1.5">
                       <div className="h-3 w-40 rounded bg-slate-700/50 animate-pulse" />
                       <div className="h-2.5 w-24 rounded bg-slate-700/30 animate-pulse" />
@@ -180,33 +341,61 @@ export default function SponsorsPage() {
               </div>
             ) : error ? (
               <div className="py-16 text-center text-red-400 text-sm">Failed to load. Please refresh.</div>
-            ) : !data?.data?.length ? (
-              <div className="py-16 text-center text-slate-500 text-sm">No sponsors found. Add your first one.</div>
+            ) : !rows.length ? (
+              <div className="py-16 text-center text-slate-500 text-sm">
+                {activeEventTab ? `No sponsors for "${activeEventTab}" yet.` : 'No sponsors found. Add your first one.'}
+              </div>
             ) : (
               <>
+                {/* Desktop table */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-[#1a3a5c] bg-[#0d2040]">
+                        <th className="pl-4 pr-2 py-2.5 w-8">
+                          <Checkbox
+                            checked={allPageSelected}
+                            indeterminate={somePageSelected && !allPageSelected}
+                            onChange={toggleSelectAll}
+                          />
+                        </th>
                         {COLS.map((col) => (
-                          <th key={col.key} onClick={() => handleSort(col.key)} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white select-none whitespace-nowrap">
+                          <th
+                            key={col.key}
+                            onClick={() => handleSort(col.key)}
+                            className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white select-none whitespace-nowrap"
+                          >
                             <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} sortBy={sortBy} sortDir={sortDir} /></div>
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {(data.data as Sponsor[]).map((s) => (
-                        <tr key={s.id} className="border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors cursor-pointer">
+                      {rows.map((s) => (
+                        <tr
+                          key={s.id}
+                          className={cn(
+                            'border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors',
+                            selected.has(s.id) && 'bg-amber-500/5 border-amber-500/20'
+                          )}
+                        >
+                          <td className="pl-4 pr-2 py-3">
+                            <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
+                          </td>
                           <td className="px-4 py-3">
                             <Link href={`/sponsors/${s.id}`} className="flex items-center gap-3 group">
                               <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
                                 {companyInitials(s)}
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <div className="font-medium text-white group-hover:text-amber-400 transition-colors">{s.companyName}</div>
                                 {(s.contactFirstName || s.contactLastName) && (
                                   <div className="text-xs text-slate-500">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
+                                )}
+                                {s.event && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400/80 border border-amber-500/20 whitespace-nowrap mt-0.5 inline-block">
+                                    {s.event}
+                                  </span>
                                 )}
                               </div>
                             </Link>
@@ -229,20 +418,36 @@ export default function SponsorsPage() {
                   </table>
                 </div>
 
+                {/* Mobile cards */}
                 <div className="md:hidden divide-y divide-[#1a3a5c]/40">
-                  {(data.data as Sponsor[]).map((s) => (
-                    <Link key={s.id} href={`/sponsors/${s.id}`} className="flex items-start gap-3 px-4 py-3 hover:bg-[#112850]/60 transition-colors">
-                      <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{companyInitials(s)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-white">{s.companyName}</div>
-                        {(s.contactFirstName || s.contactLastName) && <div className="text-xs text-slate-400">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>}
-                        {s.contactEmail && <div className="text-xs text-slate-500 truncate">{s.contactEmail}</div>}
-                        <div className="flex items-center gap-2 mt-1.5">
-                          {s.tier && <StatusBadge value={s.tier} variant="sponsor_tier" />}
-                          <StatusBadge value={s.status} variant="sponsor_status" />
-                        </div>
+                  {rows.map((s) => (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        'flex items-start gap-3 px-4 py-3 transition-colors',
+                        selected.has(s.id) ? 'bg-amber-500/5' : 'hover:bg-[#112850]/60'
+                      )}
+                    >
+                      <div className="pt-0.5">
+                        <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
                       </div>
-                    </Link>
+                      <Link href={`/sponsors/${s.id}`} className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                          {companyInitials(s)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-white">{s.companyName}</div>
+                          {(s.contactFirstName || s.contactLastName) && (
+                            <div className="text-xs text-slate-400">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
+                          )}
+                          {s.event && <div className="text-[10px] text-amber-400/70 mt-0.5">{s.event}</div>}
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {s.tier && <StatusBadge value={s.tier} variant="sponsor_tier" />}
+                            <StatusBadge value={s.status} variant="sponsor_status" />
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
                   ))}
                 </div>
               </>
@@ -255,7 +460,12 @@ export default function SponsorsPage() {
         </div>
       </div>
 
-      {showModal && <SponsorFormModal onClose={() => setShowModal(false)} onSaved={() => { setShowModal(false); refetch() }} />}
+      {showModal && (
+        <SponsorFormModal
+          onClose={() => setShowModal(false)}
+          onSaved={() => { setShowModal(false); refetch() }}
+        />
+      )}
     </div>
   )
 }

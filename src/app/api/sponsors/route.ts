@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const filters: SponsorFilters = {
       query: searchParams.get('query') ?? undefined,
       statuses: searchParams.getAll('statuses').filter(Boolean),
+      events: searchParams.getAll('events').filter(Boolean),
       tiers: searchParams.getAll('tiers').filter(Boolean),
       contractStatuses: searchParams.getAll('contractStatuses').filter(Boolean),
       countries: searchParams.getAll('countries').filter(Boolean),
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
       )
     }
     if (filters.statuses?.length) query = query.in('status', filters.statuses)
+    if (filters.events?.length) query = query.in('event', filters.events)
     if (filters.tiers?.length) query = query.in('tier', filters.tiers)
     if (filters.contractStatuses?.length) query = query.in('contractStatus', filters.contractStatuses)
     if (filters.countries?.length) query = query.in('country', filters.countries)

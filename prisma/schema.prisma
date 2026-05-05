@@ -102,6 +102,7 @@ model Sponsor {
   // CRM fields
   tier                String?  @default("Bronze")
   status              String   @default("Prospecting")
+  event               String?
   valueAmount         Decimal? @db.Decimal(12, 2)
   valueCurrency       String?  @default("GBP")
   contractStatus      String?  @default("Not Started")

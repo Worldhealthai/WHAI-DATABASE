@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown, Trash2, X, Calendar } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -17,6 +17,7 @@ import {
   EVENT_OPTIONS,
   SUBTYPE_OPTIONS,
 } from '@/types'
+import { cn } from '@/lib/utils'
 
 async function fetchSpeakers(
   filters: SpeakerFilters, page: number, pageSize: number, sortBy: string, sortDir: string,
@@ -46,7 +47,34 @@ function initials(s: Speaker) {
   return `${s.firstName?.[0] ?? ''}${s.lastName?.[0] ?? ''}`.toUpperCase()
 }
 
+function Checkbox({ checked, indeterminate, onChange }: {
+  checked: boolean; indeterminate?: boolean; onChange: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onChange() }}
+      className={cn(
+        'w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0',
+        checked || indeterminate
+          ? 'bg-purple-500 border-purple-500'
+          : 'border-slate-600 hover:border-slate-400 bg-transparent'
+      )}
+    >
+      {(checked || indeterminate) && (
+        <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+          {checked
+            ? <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            : <path d="M2 5H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          }
+        </svg>
+      )}
+    </button>
+  )
+}
+
 export default function SpeakersPage() {
+  const queryClient = useQueryClient()
   const [filters, setFilters] = useState<SpeakerFilters>({})
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -54,6 +82,8 @@ export default function SpeakersPage() {
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [showModal, setShowModal] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['speakers', filters, page, pageSize, sortBy, sortDir],
@@ -63,15 +93,77 @@ export default function SpeakersPage() {
 
   useEffect(() => { setPage(1) }, [filters])
 
-  const updateFilter = (key: keyof SpeakerFilters, value: string[]) =>
+  const updateFilter = (key: keyof SpeakerFilters, value: string[]) => {
     setFilters((prev) => ({ ...prev, [key]: value.length ? value : undefined }))
+    setSelected(new Set())
+  }
 
   const handleSearch = () => { setFilters((prev) => ({ ...prev, query: keyword || undefined })); setPage(1) }
+
   const handleSort = (col: string) => {
     if (sortBy === col) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     else { setSortBy(col); setSortDir('asc') }
   }
-  const clearAll = () => { setFilters({}); setKeyword(''); setPage(1) }
+
+  const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()) }
+
+  const activeEventTab = filters.events?.length === 1 ? filters.events[0] : ''
+  const setEventTab = (event: string) => {
+    setFilters((prev) => ({ ...prev, events: event ? [event] : undefined }))
+    setPage(1)
+    setSelected(new Set())
+  }
+
+  const rows: Speaker[] = data?.data ?? []
+  const allPageSelected = rows.length > 0 && rows.every((s) => selected.has(s.id))
+  const somePageSelected = rows.some((s) => selected.has(s.id))
+
+  const toggleSelectAll = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allPageSelected) rows.forEach((s) => next.delete(s.id))
+      else rows.forEach((s) => next.add(s.id))
+      return next
+    })
+  }
+
+  const toggleOne = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleBulkDelete = async () => {
+    if (!selected.size) return
+    if (!confirm(`Permanently delete ${selected.size} speaker${selected.size === 1 ? '' : 's'}? This cannot be undone.`)) return
+    setBulkDeleting(true)
+    try {
+      await Promise.allSettled([...selected].map((id) =>
+        fetch(`/api/speakers/${id}`, { method: 'DELETE' })
+      ))
+      setSelected(new Set())
+      queryClient.invalidateQueries({ queryKey: ['speakers'] })
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const exportCSV = (ids?: Set<string>) => {
+    const source = (data?.data as Speaker[]) ?? []
+    const out = (ids ? source.filter((s) => ids.has(s.id)) : source).map((s) => [
+      s.firstName, s.lastName, s.email ?? '', s.phone ?? '', s.organization ?? '',
+      s.jobTitle ?? '', s.country ?? '', s.status, s.event ?? '', s.subType ?? '',
+      s.sessionType ?? '', s.sessionTitle ?? '',
+      s.fee ? `${s.feeCurrency ?? 'GBP'} ${s.fee}` : '', s.feeStatus ?? '', s.contractStatus ?? '',
+    ])
+    const header = ['First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title', 'Country', 'Status', 'Event', 'Type', 'Session Type', 'Session Title', 'Fee', 'Fee Status', 'Contract Status']
+    const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'speakers.csv'; a.click()
+  }
 
   const activeFilters: { category: string; key: string; value: string }[] = []
   if (filters.query) activeFilters.push({ category: 'Search', key: 'query', value: filters.query })
@@ -91,19 +183,6 @@ export default function SpeakersPage() {
     })
   }
 
-  const exportCSV = () => {
-    if (!data?.data) return
-    const rows = (data.data as Speaker[]).map((s) => [
-      s.firstName, s.lastName, s.email ?? '', s.phone ?? '', s.organization ?? '',
-      s.jobTitle ?? '', s.country ?? '', s.status, s.sessionType ?? '', s.sessionTitle ?? '',
-      s.fee ? `${s.feeCurrency} ${s.fee}` : '', s.feeStatus ?? '', s.contractStatus ?? '',
-    ])
-    const header = ['First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title', 'Country', 'Status', 'Session Type', 'Session Title', 'Fee', 'Fee Status', 'Contract Status']
-    const csv = [header, ...rows].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'speakers.csv'; a.click()
-  }
-
   const COLS = [
     { key: 'firstName', label: 'Name' },
     { key: 'organization', label: 'Organisation' },
@@ -116,12 +195,18 @@ export default function SpeakersPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
+      {/* ── Header ── */}
       <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] z-30">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between pt-4 pb-3">
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-white">Speakers</h1>
-              {data && <p className="text-xs text-slate-500 mt-0.5">{data.total.toLocaleString()} records</p>}
+              {data && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {data.total.toLocaleString()} records
+                  {activeEventTab && <span className="text-purple-400"> · {activeEventTab}</span>}
+                </p>
+              )}
             </div>
             <button
               onClick={() => setShowModal(true)}
@@ -131,6 +216,37 @@ export default function SpeakersPage() {
             </button>
           </div>
 
+          {/* Event tabs */}
+          <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+            <button
+              onClick={() => setEventTab('')}
+              className={cn(
+                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                activeEventTab === ''
+                  ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
+                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+              )}
+            >
+              All Events
+            </button>
+            {EVENT_OPTIONS.map((ev) => (
+              <button
+                key={ev}
+                onClick={() => setEventTab(ev)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                  activeEventTab === ev
+                    ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
+                    : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+                )}
+              >
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                {ev}
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
           <div className="pb-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -147,36 +263,76 @@ export default function SpeakersPage() {
             </div>
           </div>
 
+          {/* Filters */}
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <FilterDropdown label="Status" options={SPEAKER_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
-            <FilterDropdown label="Event" options={EVENT_OPTIONS} selected={filters.events ?? []} onChange={(v) => updateFilter('events', v)} searchable={false} />
             <FilterDropdown label="Type" options={SUBTYPE_OPTIONS} selected={filters.subTypes ?? []} onChange={(v) => updateFilter('subTypes', v)} searchable={false} />
             <FilterDropdown label="Session Type" options={SESSION_TYPE_OPTIONS} selected={filters.sessionTypes ?? []} onChange={(v) => updateFilter('sessionTypes', v)} searchable={false} />
             <FilterDropdown label="Contract" options={CONTRACT_STATUS_OPTIONS} selected={filters.contractStatuses ?? []} onChange={(v) => updateFilter('contractStatuses', v)} searchable={false} />
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />
           </div>
 
-          {activeFilters.length > 0 && <ActiveFiltersBar filters={activeFilters} onRemove={removeChip} onClearAll={clearAll} />}
+          {activeFilters.filter((f) => f.key !== 'events').length > 0 && (
+            <ActiveFiltersBar
+              filters={activeFilters.filter((f) => f.key !== 'events')}
+              onRemove={removeChip}
+              onClearAll={clearAll}
+            />
+          )}
         </div>
       </div>
 
+      {/* ── Bulk actions bar ── */}
+      {selected.size > 0 && (
+        <div className="shrink-0 bg-[#0d2040] border-b border-purple-500/20 z-20">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-semibold text-purple-400 shrink-0">{selected.size} selected</span>
+            <button
+              onClick={() => exportCSV(selected)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:text-white hover:border-slate-400 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" /> Export selected
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all disabled:opacity-50',
+                bulkDeleting && 'animate-pulse'
+              )}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {bulkDeleting ? 'Deleting…' : 'Delete selected'}
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Results ── */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-400">
-              {isLoading ? 'Loading…' : (<><span className={`font-bold text-white ${isFetching ? 'opacity-50' : ''}`}>{(data?.total ?? 0).toLocaleString()}</span> results</>)}
+              {isLoading ? 'Loading…' : (<><span className={cn('font-bold text-white', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>)}
             </span>
-            <button onClick={exportCSV} disabled={!data?.data?.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors">
+            <button onClick={() => exportCSV()} disabled={!rows.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors">
               <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
           </div>
 
           <div className="whai-card overflow-hidden">
             {isLoading ? (
-              <div className="space-y-0">
+              <div>
                 {Array.from({ length: 10 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[#1a3a5c]/50">
-                    <div className="w-8 h-8 rounded-full bg-slate-700/50 animate-pulse" />
+                    <div className="w-4 h-4 rounded bg-slate-700/50 animate-pulse shrink-0" />
+                    <div className="w-8 h-8 rounded-full bg-slate-700/50 animate-pulse shrink-0" />
                     <div className="flex-1 space-y-1.5">
                       <div className="h-3 w-36 rounded bg-slate-700/50 animate-pulse" />
                       <div className="h-2.5 w-24 rounded bg-slate-700/30 animate-pulse" />
@@ -187,14 +343,23 @@ export default function SpeakersPage() {
               </div>
             ) : error ? (
               <div className="py-16 text-center text-red-400 text-sm">Failed to load. Please refresh.</div>
-            ) : !data?.data?.length ? (
-              <div className="py-16 text-center text-slate-500 text-sm">No speakers found. Add your first one.</div>
+            ) : !rows.length ? (
+              <div className="py-16 text-center text-slate-500 text-sm">
+                {activeEventTab ? `No speakers for "${activeEventTab}" yet.` : 'No speakers found. Add your first one.'}
+              </div>
             ) : (
               <>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-[#1a3a5c] bg-[#0d2040]">
+                        <th className="pl-4 pr-2 py-2.5 w-8">
+                          <Checkbox
+                            checked={allPageSelected}
+                            indeterminate={somePageSelected && !allPageSelected}
+                            onChange={toggleSelectAll}
+                          />
+                        </th>
                         {COLS.map((col) => (
                           <th key={col.key} onClick={() => handleSort(col.key)} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white select-none whitespace-nowrap">
                             <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} sortBy={sortBy} sortDir={sortDir} /></div>
@@ -203,16 +368,31 @@ export default function SpeakersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(data.data as Speaker[]).map((s) => (
-                        <tr key={s.id} className="border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors cursor-pointer">
+                      {rows.map((s) => (
+                        <tr key={s.id} className={cn('border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors', selected.has(s.id) && 'bg-purple-500/5 border-purple-500/20')}>
+                          <td className="pl-4 pr-2 py-3">
+                            <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
+                          </td>
                           <td className="px-4 py-3">
                             <Link href={`/speakers/${s.id}`} className="flex items-center gap-3 group">
                               <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
                                 {initials(s)}
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <div className="font-medium text-white group-hover:text-purple-400 transition-colors">{s.firstName} {s.lastName}</div>
-                                {s.email && <div className="text-xs text-slate-500">{s.email}</div>}
+                                {s.email && <div className="text-xs text-slate-500 truncate">{s.email}</div>}
+                                {s.event && (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400/80 border border-purple-500/20 whitespace-nowrap">
+                                      {s.event}
+                                    </span>
+                                    {s.subType && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700">
+                                        {s.subType}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </Link>
                           </td>
@@ -233,19 +413,24 @@ export default function SpeakersPage() {
                 </div>
 
                 <div className="md:hidden divide-y divide-[#1a3a5c]/40">
-                  {(data.data as Speaker[]).map((s) => (
-                    <Link key={s.id} href={`/speakers/${s.id}`} className="flex items-start gap-3 px-4 py-3 hover:bg-[#112850]/60 transition-colors">
-                      <div className="w-9 h-9 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{initials(s)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-white">{s.firstName} {s.lastName}</div>
-                        {s.organization && <div className="text-xs text-slate-400">{s.organization}</div>}
-                        {s.sessionTitle && <div className="text-xs text-slate-500 truncate">{s.sessionTitle}</div>}
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <StatusBadge value={s.status} variant="speaker_status" />
-                          <StatusBadge value={s.contractStatus ?? 'Not Started'} variant="contract_status" />
-                        </div>
+                  {rows.map((s) => (
+                    <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-purple-500/5' : 'hover:bg-[#112850]/60')}>
+                      <div className="pt-0.5">
+                        <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
                       </div>
-                    </Link>
+                      <Link href={`/speakers/${s.id}`} className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{initials(s)}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-white">{s.firstName} {s.lastName}</div>
+                          {s.organization && <div className="text-xs text-slate-400">{s.organization}</div>}
+                          {s.event && <div className="text-[10px] text-purple-400/70 mt-0.5">{s.event}</div>}
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <StatusBadge value={s.status} variant="speaker_status" />
+                            <StatusBadge value={s.contractStatus ?? 'Not Started'} variant="contract_status" />
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
                   ))}
                 </div>
               </>
