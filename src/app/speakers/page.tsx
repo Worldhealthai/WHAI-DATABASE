@@ -115,19 +115,9 @@ export default function SpeakersPage() {
 
   const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()) }
 
-  const isRejectedTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Rejected'
-  const activeEventTab = isRejectedTab ? '' : (filters.events?.length === 1 ? filters.events[0] : '')
+  const activeEventTab = filters.events?.length === 1 ? filters.events[0] : ''
   const setEventTab = (event: string) => {
-    setFilters((prev) => {
-      const next = { ...prev, events: event ? [event] : undefined }
-      if (next.statuses?.length === 1 && next.statuses[0] === 'Rejected') delete next.statuses
-      return next
-    })
-    setPage(1)
-    setSelected(new Set())
-  }
-  const setRejectedTab = () => {
-    setFilters((prev) => ({ ...prev, statuses: ['Rejected'], events: undefined }))
+    setFilters((prev) => ({ ...prev, events: event ? [event] : undefined }))
     setPage(1)
     setSelected(new Set())
   }
@@ -218,8 +208,8 @@ export default function SpeakersPage() {
               {data && (
                 <p className="text-xs text-slate-500 mt-0.5">
                   {data.total.toLocaleString()} records
-                  {isRejectedTab ? <span className="text-rose-400"> · Rejected</span> : activeEventTab && <span className="text-purple-400"> · {activeEventTab}</span>}
-                  {isYearTab && !isRejectedTab && <span className="text-purple-400"> · {activeYearTab}</span>}
+                  {activeEventTab && <span className="text-purple-400"> · {activeEventTab}</span>}
+                  {isYearTab && <span className="text-purple-400"> · {activeYearTab}</span>}
                 </p>
               )}
             </div>
@@ -231,13 +221,13 @@ export default function SpeakersPage() {
             </button>
           </div>
 
-          {/* Event + Rejected tabs */}
+          {/* Event tabs */}
           <div className="flex items-center gap-1.5 pb-2 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <button
               onClick={() => setEventTab('')}
               className={cn(
                 'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                !isRejectedTab && activeEventTab === ''
+                activeEventTab === ''
                   ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
                   : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
               )}
@@ -250,7 +240,7 @@ export default function SpeakersPage() {
                 onClick={() => setEventTab(ev)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                  !isRejectedTab && activeEventTab === ev
+                  activeEventTab === ev
                     ? 'bg-purple-500/15 text-purple-400 border-purple-500/40'
                     : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
                 )}
@@ -259,18 +249,6 @@ export default function SpeakersPage() {
                 {ev}
               </button>
             ))}
-            <div className="w-px h-5 bg-[#1a3a5c] shrink-0 mx-1" />
-            <button
-              onClick={setRejectedTab}
-              className={cn(
-                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                isRejectedTab
-                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/40'
-                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
-              )}
-            >
-              Rejected
-            </button>
           </div>
 
           {/* Year tabs */}
@@ -326,9 +304,9 @@ export default function SpeakersPage() {
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />
           </div>
 
-          {activeFilters.filter((f) => f.key !== 'events' && !(isRejectedTab && f.key === 'statuses' && f.value === 'Rejected')).length > 0 && (
+          {activeFilters.filter((f) => f.key !== 'events').length > 0 && (
             <ActiveFiltersBar
-              filters={activeFilters.filter((f) => f.key !== 'events' && !(isRejectedTab && f.key === 'statuses' && f.value === 'Rejected'))}
+              filters={activeFilters.filter((f) => f.key !== 'events')}
               onRemove={removeChip}
               onClearAll={clearAll}
             />
@@ -399,7 +377,7 @@ export default function SpeakersPage() {
               <div className="py-16 text-center text-red-400 text-sm">Failed to load. Please refresh.</div>
             ) : !rows.length ? (
               <div className="py-16 text-center text-slate-500 text-sm">
-                {isRejectedTab ? 'No rejected speakers yet.' : activeEventTab ? `No speakers for "${activeEventTab}" yet.` : 'No speaker leads found. Add your first one.'}
+                {activeEventTab ? `No speakers for "${activeEventTab}" yet.` : 'No speaker leads found. Add your first one.'}
               </div>
             ) : (
               <>
