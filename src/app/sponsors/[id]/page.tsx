@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Globe,
-  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus,
+  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus, Pencil,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -27,6 +27,7 @@ export default function SponsorDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [addContactOpen, setAddContactOpen] = useState(false)
+  const [editingContact, setEditingContact] = useState<SponsorContact | null>(null)
 
   const { data: sponsor, isLoading, error, refetch } = useQuery<Sponsor & { activities: any[]; contacts: SponsorContact[] }>({
     queryKey: ['sponsor', id],
@@ -199,6 +200,7 @@ export default function SponsorDetailPage() {
                   email={c.contactEmail}
                   phone={c.contactPhone}
                   linkedinUrl={c.contactLinkedinUrl}
+                  onEdit={() => setEditingContact(c)}
                   onDelete={async () => {
                     if (!confirm('Remove this contact?')) return
                     await fetch(`/api/sponsors/${c.id}`, { method: 'DELETE' })
@@ -249,14 +251,24 @@ export default function SponsorDetailPage() {
           onSaved={() => { setAddContactOpen(false); refetch() }}
         />
       )}
+      {editingContact && (
+        <SponsorContactModal
+          companyId={id}
+          companyName={sponsor.companyName}
+          contact={editingContact}
+          onClose={() => setEditingContact(null)}
+          onSaved={() => { setEditingContact(null); refetch() }}
+        />
+      )}
       {editOpen && <SponsorFormModal sponsor={sponsor} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); refetch() }} />}
     </div>
   )
 }
 
-function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onDelete }: {
+function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onEdit, onDelete }: {
   name: string; jobTitle?: string | null; email?: string | null
-  phone?: string | null; linkedinUrl?: string | null; isPrimary?: boolean; onDelete?: () => void
+  phone?: string | null; linkedinUrl?: string | null; isPrimary?: boolean
+  onEdit?: () => void; onDelete?: () => void
 }) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c]">
@@ -275,11 +287,18 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onD
           {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-slate-300">LinkedIn ↗</a>}
         </div>
       </div>
-      {onDelete && (
-        <button onClick={onDelete} className="text-slate-600 hover:text-red-400 transition-colors p-1 shrink-0">
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      )}
+      <div className="flex items-center gap-1 shrink-0">
+        {onEdit && (
+          <button onClick={onEdit} className="text-slate-600 hover:text-amber-400 transition-colors p-1">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {onDelete && (
+          <button onClick={onDelete} className="text-slate-600 hover:text-red-400 transition-colors p-1">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   )
 }
