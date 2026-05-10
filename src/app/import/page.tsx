@@ -356,6 +356,43 @@ export default function ImportPage() {
             </button>
           </div>
 
+          {/* Event assignment — shown first, prominently */}
+          <div className="whai-card p-5 space-y-3 border border-[#00B4D8]/20">
+            <div>
+              <p className="text-sm font-semibold text-white">Which event is this import for?</p>
+              <p className="text-xs text-slate-500 mt-0.5">All contacts in this batch will be assigned to the selected event.</p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {['UK Forum', 'US Forum'].map((ev) => (
+                <button
+                  key={ev}
+                  type="button"
+                  onClick={() => setImportEvent(ev)}
+                  className={cn(
+                    'px-5 py-2.5 rounded-lg text-sm font-semibold border transition-all',
+                    importEvent === ev
+                      ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/50'
+                      : 'text-slate-300 border-[#1a3a5c] hover:text-white hover:border-slate-500 hover:bg-[#112850]/50'
+                  )}
+                >
+                  {ev}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setImportEvent('')}
+                className={cn(
+                  'px-5 py-2.5 rounded-lg text-sm font-medium border transition-all',
+                  importEvent === ''
+                    ? 'bg-slate-500/15 text-slate-300 border-slate-500/40'
+                    : 'text-slate-500 border-[#1a3a5c] hover:text-slate-300 hover:border-slate-600'
+                )}
+              >
+                No assignment
+              </button>
+            </div>
+          </div>
+
           <div className="whai-card overflow-hidden">
             <div className="px-4 py-3 border-b border-[#1a3a5c] bg-[#0d2040]">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Map CSV columns to CRM fields</p>
@@ -430,29 +467,16 @@ export default function ImportPage() {
             </button>
           </div>
 
-          {/* Event assignment */}
-          <div className="whai-card p-4 space-y-3">
-            <div>
-              <p className="text-sm font-semibold text-white">Which event is this import for?</p>
-              <p className="text-xs text-slate-500 mt-0.5">All contacts in this batch will be tagged with the selected event.</p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {['UK Forum', 'US Forum', ''].map((ev) => (
-                <button
-                  key={ev || 'none'}
-                  type="button"
-                  onClick={() => setImportEvent(ev)}
-                  className={cn(
-                    'px-4 py-2 rounded-lg text-sm font-medium border transition-all',
-                    importEvent === ev
-                      ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
-                      : 'text-slate-400 border-[#1a3a5c] hover:text-white hover:border-slate-500'
-                  )}
-                >
-                  {ev || 'No assignment'}
-                </button>
-              ))}
-            </div>
+          {/* Event reminder chip */}
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span>Importing to:</span>
+            <span className={cn(
+              'px-2 py-0.5 rounded border font-medium',
+              importEvent ? 'text-[#00B4D8] border-[#00B4D8]/30 bg-[#00B4D8]/10' : 'text-slate-500 border-slate-700'
+            )}>
+              {importEvent || 'No event assigned'}
+            </span>
+            <button onClick={() => setStep('map')} className="text-slate-600 hover:text-slate-400 underline transition-colors">change</button>
           </div>
 
           {duplicateKeys.size > 0 && (
