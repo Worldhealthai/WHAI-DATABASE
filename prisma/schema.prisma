@@ -110,6 +110,7 @@ model Sponsor {
   packageDetails      String?  @db.Text
   tags                String?
   notes               String?  @db.Text
+  companyId           String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

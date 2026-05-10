@@ -6,12 +6,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Globe,
-  Briefcase, Tag, Building2, ChevronRight, DollarSign,
+  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
-import type { Sponsor } from '@/types'
+import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
+import type { Sponsor, SponsorContact } from '@/types'
 
 async function fetchSponsor(id: string) {
   const res = await fetch(`/api/sponsors/${id}`)
@@ -25,8 +26,9 @@ export default function SponsorDetailPage() {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [addContactOpen, setAddContactOpen] = useState(false)
 
-  const { data: sponsor, isLoading, error, refetch } = useQuery<Sponsor & { activities: any[] }>({
+  const { data: sponsor, isLoading, error, refetch } = useQuery<Sponsor & { activities: any[]; contacts: SponsorContact[] }>({
     queryKey: ['sponsor', id],
     queryFn: () => fetchSponsor(id),
   })
@@ -160,6 +162,56 @@ export default function SponsorDetailPage() {
             </div>
           )}
 
+          {/* Contacts */}
+          <div className="whai-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white">
+                Contacts
+                {sponsor.contacts && sponsor.contacts.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-slate-500">({sponsor.contacts.length + (sponsor.contactFirstName || sponsor.contactLastName ? 1 : 0)})</span>
+                )}
+              </h2>
+              <button
+                onClick={() => setAddContactOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Add Contact
+              </button>
+            </div>
+            <div className="space-y-3">
+              {/* Embedded primary contact */}
+              {(sponsor.contactFirstName || sponsor.contactLastName || sponsor.contactEmail) && (
+                <ContactCard
+                  name={[sponsor.contactFirstName, sponsor.contactLastName].filter(Boolean).join(' ')}
+                  jobTitle={sponsor.contactJobTitle}
+                  email={sponsor.contactEmail}
+                  phone={sponsor.contactPhone}
+                  linkedinUrl={sponsor.contactLinkedinUrl}
+                  isPrimary
+                />
+              )}
+              {/* Linked contacts */}
+              {sponsor.contacts?.map((c) => (
+                <ContactCard
+                  key={c.id}
+                  name={[c.contactFirstName, c.contactLastName].filter(Boolean).join(' ')}
+                  jobTitle={c.contactJobTitle}
+                  email={c.contactEmail}
+                  phone={c.contactPhone}
+                  linkedinUrl={c.contactLinkedinUrl}
+                  onDelete={async () => {
+                    if (!confirm('Remove this contact?')) return
+                    await fetch(`/api/sponsors/${c.id}`, { method: 'DELETE' })
+                    refetch()
+                  }}
+                />
+              ))}
+              {!sponsor.contactFirstName && !sponsor.contactLastName && !sponsor.contactEmail && (!sponsor.contacts || sponsor.contacts.length === 0) && (
+                <p className="text-sm text-slate-500">No contacts yet. Add the first one.</p>
+              )}
+            </div>
+          </div>
+
           {/* Tags */}
           {tagList.length > 0 && (
             <div className="whai-card p-5">
@@ -189,7 +241,45 @@ export default function SponsorDetailPage() {
         </div>
       </div>
 
+      {addContactOpen && (
+        <SponsorContactModal
+          companyId={id}
+          companyName={sponsor.companyName}
+          onClose={() => setAddContactOpen(false)}
+          onSaved={() => { setAddContactOpen(false); refetch() }}
+        />
+      )}
       {editOpen && <SponsorFormModal sponsor={sponsor} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); refetch() }} />}
+    </div>
+  )
+}
+
+function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onDelete }: {
+  name: string; jobTitle?: string | null; email?: string | null
+  phone?: string | null; linkedinUrl?: string | null; isPrimary?: boolean; onDelete?: () => void
+}) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c]">
+      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
+        {name ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-white">{name || '—'}</span>
+          {isPrimary && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400/80 border border-amber-500/20">Primary</span>}
+        </div>
+        {jobTitle && <div className="text-xs text-slate-500 mt-0.5">{jobTitle}</div>}
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+          {email && <a href={`mailto:${email}`} className="text-xs text-amber-400 hover:underline">{email}</a>}
+          {phone && <span className="text-xs text-slate-400">{phone}</span>}
+          {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-slate-300">LinkedIn ↗</a>}
+        </div>
+      </div>
+      {onDelete && (
+        <button onClick={onDelete} className="text-slate-600 hover:text-red-400 transition-colors p-1 shrink-0">
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   )
 }

@@ -15,13 +15,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const { data: activities } = await supabase
-      .from('activities')
-      .select('*')
-      .eq('sponsorId', params.id)
-      .order('createdAt', { ascending: false })
+    const [{ data: activities }, { data: contacts }] = await Promise.all([
+      supabase.from('activities').select('*').eq('sponsorId', params.id).order('createdAt', { ascending: false }),
+      supabase.from('sponsors').select('*').eq('companyId', params.id).order('createdAt', { ascending: true }),
+    ])
 
-    return NextResponse.json({ ...sponsor, activities: activities ?? [] })
+    return NextResponse.json({ ...sponsor, activities: activities ?? [], contacts: contacts ?? [] })
   } catch (error) {
     console.error('Sponsor GET error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
