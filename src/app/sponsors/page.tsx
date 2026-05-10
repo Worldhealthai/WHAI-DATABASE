@@ -397,6 +397,11 @@ export default function SponsorsPage() {
                                     {s.event}
                                   </span>
                                 )}
+                                {s.contactCount > 0 && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700 mt-0.5 inline-block">
+                                    {s.contactCount} contact{s.contactCount === 1 ? '' : 's'}
+                                  </span>
+                                )}
                               </div>
                             </Link>
                           </td>

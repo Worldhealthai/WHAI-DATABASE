@@ -284,9 +284,25 @@ export interface Sponsor {
   packageDetails?: string | null
   tags?: string | null
   notes?: string | null
+  companyId?: string | null
+  contactCount?: number
+  contacts?: SponsorContact[]
   createdAt: string
   updatedAt: string
   activities?: Activity[]
+}
+
+export interface SponsorContact {
+  id: string
+  companyId: string
+  contactFirstName?: string | null
+  contactLastName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  contactJobTitle?: string | null
+  contactLinkedinUrl?: string | null
+  notes?: string | null
+  createdAt: string
 }
 
 export interface Activity {

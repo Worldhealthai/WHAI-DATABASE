@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from('sponsors')
       .select('*', { count: 'exact' })
+      .is('companyId', null)
 
     if (filters.query) {
       query = query.or(
@@ -49,9 +50,26 @@ export async function GET(req: NextRequest) {
 
     if (error) throw error
 
+    // Fetch contact counts for the returned companies
+    const companyIds = (data ?? []).map((s: any) => s.id)
+    let contactCounts: Record<string, number> = {}
+    if (companyIds.length) {
+      const { data: contacts } = await supabase
+        .from('sponsors')
+        .select('companyId')
+        .in('companyId', companyIds)
+      if (contacts) {
+        contacts.forEach((c: any) => {
+          if (c.companyId) contactCounts[c.companyId] = (contactCounts[c.companyId] ?? 0) + 1
+        })
+      }
+    }
+
+    const enriched = (data ?? []).map((s: any) => ({ ...s, contactCount: contactCounts[s.id] ?? 0 }))
+
     const total = count ?? 0
     return NextResponse.json({
-      data: data ?? [],
+      data: enriched,
       total,
       page,
       pageSize,
