@@ -3,14 +3,15 @@ import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-// POST body: { emails: string[], names: { first: string, last: string }[] }
-// Returns: { duplicates: { email?: string, name?: string, table: string }[] }
+// POST body: { emails: string[], names: { first: string, last: string }[], companyNames?: string[] }
+// Returns: { duplicates: { key: string, match: string, table: string }[] }
 export async function POST(req: NextRequest) {
   try {
-    const { emails, names } = await req.json()
+    const { emails, names, companyNames } = await req.json()
 
     const found: { key: string; match: string; table: string }[] = []
 
+    // Email check across all entity tables
     const cleanEmails = (emails as string[]).filter(Boolean).map((e) => e.toLowerCase().trim())
 
     if (cleanEmails.length) {
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Name check (first + last) for rows without email
+    // Name check (first + last) for people without email
     const cleanNames = ((names as { first: string; last: string }[]) ?? [])
       .filter((n) => n.first && n.last)
       .map((n) => ({ first: n.first.trim().toLowerCase(), last: n.last.trim().toLowerCase() }))
@@ -56,6 +57,28 @@ export async function POST(req: NextRequest) {
             }
           })
         }
+      }
+    }
+
+    // Company name check for sponsor imports
+    const cleanCompanyNames = ((companyNames as string[]) ?? [])
+      .filter(Boolean)
+      .map((n) => n.trim().toLowerCase())
+
+    if (cleanCompanyNames.length) {
+      // Fetch all existing company-level sponsor records
+      const { data } = await supabase
+        .from('sponsors')
+        .select('companyName')
+        .is('companyId', null)
+
+      if (data) {
+        data.forEach((row: any) => {
+          const name = row.companyName?.toLowerCase()
+          if (name && cleanCompanyNames.includes(name)) {
+            found.push({ key: name, match: 'company', table: 'sponsors' })
+          }
+        })
       }
     }
 
