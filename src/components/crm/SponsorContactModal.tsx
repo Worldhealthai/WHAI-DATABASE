@@ -2,23 +2,27 @@
 
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import type { SponsorContact } from '@/types'
 
 interface Props {
   companyId: string
   companyName: string
+  contact?: SponsorContact // when provided, modal is in edit mode
   onClose: () => void
   onSaved: () => void
 }
 
-export function SponsorContactModal({ companyId, companyName, onClose, onSaved }: Props) {
+export function SponsorContactModal({ companyId, companyName, contact, onClose, onSaved }: Props) {
+  const isEdit = !!contact
+
   const [form, setForm] = useState({
-    contactFirstName: '',
-    contactLastName: '',
-    contactEmail: '',
-    contactPhone: '',
-    contactJobTitle: '',
-    contactLinkedinUrl: '',
-    notes: '',
+    contactFirstName: contact?.contactFirstName ?? '',
+    contactLastName: contact?.contactLastName ?? '',
+    contactEmail: contact?.contactEmail ?? '',
+    contactPhone: contact?.contactPhone ?? '',
+    contactJobTitle: contact?.contactJobTitle ?? '',
+    contactLinkedinUrl: contact?.contactLinkedinUrl ?? '',
+    notes: contact?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -34,19 +38,24 @@ export function SponsorContactModal({ companyId, companyName, onClose, onSaved }
     setSaving(true)
     setError('')
     try {
-      const body: any = {
-        companyId,
-        companyName,
-        status: 'Active',
-        ...form,
-      }
+      const body: any = { ...form }
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
-      const res = await fetch('/api/sponsors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error('Failed to save')
+
+      if (isEdit) {
+        const res = await fetch(`/api/sponsors/${contact!.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) throw new Error('Failed to save')
+      } else {
+        const res = await fetch('/api/sponsors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyId, companyName, status: 'Active', ...body }),
+        })
+        if (!res.ok) throw new Error('Failed to save')
+      }
       onSaved()
     } catch {
       setError('Something went wrong. Please try again.')
@@ -60,7 +69,7 @@ export function SponsorContactModal({ companyId, companyName, onClose, onSaved }
       <div className="w-full max-w-lg bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-2xl my-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a3a5c]">
           <div>
-            <h2 className="text-base font-semibold text-white">Add Contact</h2>
+            <h2 className="text-base font-semibold text-white">{isEdit ? 'Edit Contact' : 'Add Contact'}</h2>
             <p className="text-xs text-slate-500 mt-0.5">{companyName}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
@@ -102,7 +111,7 @@ export function SponsorContactModal({ companyId, companyName, onClose, onSaved }
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1a3a5c]">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition-colors">Cancel</button>
             <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
-              {saving ? 'Saving…' : 'Add Contact'}
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Contact'}
             </button>
           </div>
         </form>
