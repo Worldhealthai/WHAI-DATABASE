@@ -58,11 +58,14 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error('Failed to save')
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || 'Failed to save')
+      }
       const saved = await res.json()
       onSaved(saved)
-    } catch {
-      setError('Something went wrong. Please try again.')
+    } catch (err: any) {
+      setError(err?.message || 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }

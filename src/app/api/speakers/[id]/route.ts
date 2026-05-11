@@ -38,7 +38,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      // Surface duplicate email as a readable message
+      if (error.code === '23505' || error.message?.includes('unique')) {
+        return NextResponse.json({ error: 'This email address is already used by another speaker. Please use a different email or leave it blank.' }, { status: 409 })
+      }
+      throw error
+    }
     return NextResponse.json(data)
   } catch (error) {
     console.error('Speaker PATCH error:', error)
