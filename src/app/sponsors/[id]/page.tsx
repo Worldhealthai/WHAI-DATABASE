@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
 import type { Sponsor, SponsorContact } from '@/types'
+import { cn } from '@/lib/utils'
 
 async function fetchSponsor(id: string) {
   const res = await fetch(`/api/sponsors/${id}`)
