@@ -189,6 +189,30 @@ export default function SponsorDetailPage() {
                   phone={sponsor.contactPhone}
                   linkedinUrl={sponsor.contactLinkedinUrl}
                   isPrimary
+                  onClick={() => setEditingContact({
+                    id: sponsor.id,
+                    companyId: sponsor.id,
+                    contactFirstName: sponsor.contactFirstName,
+                    contactLastName: sponsor.contactLastName,
+                    contactEmail: sponsor.contactEmail,
+                    contactPhone: sponsor.contactPhone,
+                    contactJobTitle: sponsor.contactJobTitle,
+                    contactLinkedinUrl: sponsor.contactLinkedinUrl,
+                    notes: null,
+                    createdAt: sponsor.createdAt,
+                  })}
+                  onEdit={() => setEditingContact({
+                    id: sponsor.id,
+                    companyId: sponsor.id,
+                    contactFirstName: sponsor.contactFirstName,
+                    contactLastName: sponsor.contactLastName,
+                    contactEmail: sponsor.contactEmail,
+                    contactPhone: sponsor.contactPhone,
+                    contactJobTitle: sponsor.contactJobTitle,
+                    contactLinkedinUrl: sponsor.contactLinkedinUrl,
+                    notes: null,
+                    createdAt: sponsor.createdAt,
+                  })}
                 />
               )}
               {/* Linked contacts */}

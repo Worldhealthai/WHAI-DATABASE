@@ -132,7 +132,7 @@ export function SponsorContactModal({ companyId, companyName, contact, onClose, 
 
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#1a3a5c]">
             <div>
-              {isEdit && (
+              {isEdit && contact?.id !== companyId && (
                 <button
                   type="button"
                   onClick={handleSetPrimary}
