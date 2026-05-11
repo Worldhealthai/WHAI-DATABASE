@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
 import type { Sponsor, SponsorContact } from '@/types'
+import { cn } from '@/lib/utils'
 
 async function fetchSponsor(id: string) {
   const res = await fetch(`/api/sponsors/${id}`)
@@ -188,6 +189,30 @@ export default function SponsorDetailPage() {
                   phone={sponsor.contactPhone}
                   linkedinUrl={sponsor.contactLinkedinUrl}
                   isPrimary
+                  onClick={() => setEditingContact({
+                    id: sponsor.id,
+                    companyId: sponsor.id,
+                    contactFirstName: sponsor.contactFirstName,
+                    contactLastName: sponsor.contactLastName,
+                    contactEmail: sponsor.contactEmail,
+                    contactPhone: sponsor.contactPhone,
+                    contactJobTitle: sponsor.contactJobTitle,
+                    contactLinkedinUrl: sponsor.contactLinkedinUrl,
+                    notes: null,
+                    createdAt: sponsor.createdAt,
+                  })}
+                  onEdit={() => setEditingContact({
+                    id: sponsor.id,
+                    companyId: sponsor.id,
+                    contactFirstName: sponsor.contactFirstName,
+                    contactLastName: sponsor.contactLastName,
+                    contactEmail: sponsor.contactEmail,
+                    contactPhone: sponsor.contactPhone,
+                    contactJobTitle: sponsor.contactJobTitle,
+                    contactLinkedinUrl: sponsor.contactLinkedinUrl,
+                    notes: null,
+                    createdAt: sponsor.createdAt,
+                  })}
                 />
               )}
               {/* Linked contacts */}

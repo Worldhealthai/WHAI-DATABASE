@@ -28,9 +28,24 @@ export async function GET(req: NextRequest) {
       .is('companyId', null)
 
     if (filters.query) {
-      query = query.or(
-        `companyName.ilike.%${filters.query}%,contactFirstName.ilike.%${filters.query}%,contactLastName.ilike.%${filters.query}%,contactEmail.ilike.%${filters.query}%,contactJobTitle.ilike.%${filters.query}%`
-      )
+      const q = filters.query
+
+      // Also search linked contacts — find their parent company IDs
+      const { data: linkedMatches } = await supabase
+        .from('sponsors')
+        .select('companyId')
+        .not('companyId', 'is', null)
+        .or(`contactFirstName.ilike.%${q}%,contactLastName.ilike.%${q}%,contactEmail.ilike.%${q}%,contactJobTitle.ilike.%${q}%`)
+
+      const parentIds = [...new Set((linkedMatches ?? []).map((c: any) => c.companyId).filter(Boolean))]
+
+      // Build OR: match company-level fields OR be a parent of a matching linked contact
+      const companyFieldMatch = `companyName.ilike.%${q}%,contactFirstName.ilike.%${q}%,contactLastName.ilike.%${q}%,contactEmail.ilike.%${q}%,contactJobTitle.ilike.%${q}%`
+      if (parentIds.length > 0) {
+        query = query.or(`${companyFieldMatch},id.in.(${parentIds.join(',')})`)
+      } else {
+        query = query.or(companyFieldMatch)
+      }
     }
     if (filters.statuses?.length) query = query.in('status', filters.statuses)
     if (filters.events?.length) query = query.in('event', filters.events)
