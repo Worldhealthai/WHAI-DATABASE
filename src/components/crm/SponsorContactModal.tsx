@@ -10,10 +10,32 @@ interface Props {
   contact?: SponsorContact // when provided, modal is in edit mode
   onClose: () => void
   onSaved: () => void
+  onSetPrimary?: () => void // called after successfully setting as primary
 }
 
-export function SponsorContactModal({ companyId, companyName, contact, onClose, onSaved }: Props) {
+export function SponsorContactModal({ companyId, companyName, contact, onClose, onSaved, onSetPrimary }: Props) {
   const isEdit = !!contact
+  const [settingPrimary, setSettingPrimary] = useState(false)
+
+  const handleSetPrimary = async () => {
+    if (!contact) return
+    if (!confirm('Set this contact as the primary contact for this company? The current primary will be moved to the contacts list.')) return
+    setSettingPrimary(true)
+    try {
+      const res = await fetch(`/api/sponsors/${companyId}/set-primary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: contact.id }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      onSetPrimary?.()
+      onClose()
+    } catch {
+      setError('Failed to set as primary. Please try again.')
+    } finally {
+      setSettingPrimary(false)
+    }
+  }
 
   const [form, setForm] = useState({
     contactFirstName: contact?.contactFirstName ?? '',
@@ -108,11 +130,25 @@ export function SponsorContactModal({ companyId, companyName, contact, onClose, 
             <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Any notes about this contact..." className={`${inputCls} resize-none`} />
           </Field>
 
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1a3a5c]">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition-colors">Cancel</button>
-            <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Contact'}
-            </button>
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#1a3a5c]">
+            <div>
+              {isEdit && (
+                <button
+                  type="button"
+                  onClick={handleSetPrimary}
+                  disabled={settingPrimary}
+                  className="px-3 py-2 rounded-lg text-xs font-medium border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 transition-colors"
+                >
+                  {settingPrimary ? 'Setting…' : '★ Set as Primary'}
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition-colors">Cancel</button>
+              <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
+                {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Contact'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

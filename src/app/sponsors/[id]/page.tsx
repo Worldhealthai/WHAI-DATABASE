@@ -199,6 +199,7 @@ export default function SponsorDetailPage() {
                   email={c.contactEmail}
                   phone={c.contactPhone}
                   linkedinUrl={c.contactLinkedinUrl}
+                  onClick={() => setEditingContact(c)}
                   onEdit={() => setEditingContact(c)}
                   onDelete={async () => {
                     if (!confirm('Remove this contact?')) return
@@ -257,6 +258,7 @@ export default function SponsorDetailPage() {
           contact={editingContact}
           onClose={() => setEditingContact(null)}
           onSaved={() => { setEditingContact(null); refetch() }}
+          onSetPrimary={() => { setEditingContact(null); refetch() }}
         />
       )}
       {editOpen && <SponsorFormModal sponsor={sponsor} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); refetch() }} />}
@@ -264,13 +266,19 @@ export default function SponsorDetailPage() {
   )
 }
 
-function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onEdit, onDelete }: {
+function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onClick, onEdit, onDelete }: {
   name: string; jobTitle?: string | null; email?: string | null
   phone?: string | null; linkedinUrl?: string | null; isPrimary?: boolean
-  onEdit?: () => void; onDelete?: () => void
+  onClick?: () => void; onEdit?: () => void; onDelete?: () => void
 }) {
   return (
-    <div className="flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c]">
+    <div
+      className={cn(
+        'flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c] transition-colors',
+        onClick && 'cursor-pointer hover:border-amber-500/30 hover:bg-[#0d1f3a]'
+      )}
+      onClick={onClick}
+    >
       <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
         {name ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'}
       </div>
@@ -281,12 +289,12 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onE
         </div>
         {jobTitle && <div className="text-xs text-slate-500 mt-0.5">{jobTitle}</div>}
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-          {email && <a href={`mailto:${email}`} className="text-xs text-amber-400 hover:underline">{email}</a>}
+          {email && <a href={`mailto:${email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-amber-400 hover:underline">{email}</a>}
           {phone && <span className="text-xs text-slate-400">{phone}</span>}
-          {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-slate-300">LinkedIn ↗</a>}
+          {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-slate-500 hover:text-slate-300">LinkedIn ↗</a>}
         </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
         {onEdit && (
           <button onClick={onEdit} className="text-slate-600 hover:text-amber-400 transition-colors p-1">
             <Pencil className="w-3.5 h-3.5" />
