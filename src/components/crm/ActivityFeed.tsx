@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquare, Phone, Mail, Users, ArrowUpDown, CheckSquare, Plus, Clock } from 'lucide-react'
+import { MessageSquare, Phone, Mail, Users, ArrowUpDown, CheckSquare, Clock, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Activity } from '@/types'
 
@@ -28,6 +28,8 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   meeting: 'Meeting', status_change: 'Status Change', task: 'Task',
 }
 
+const ACTIVITY_TYPE_OPTIONS = ['note', 'call', 'email', 'meeting', 'task']
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -46,13 +48,11 @@ interface ActivityFeedProps {
   onActivityAdded?: () => void
 }
 
-const ACTIVITY_TYPE_OPTIONS = ['note', 'call', 'email', 'meeting', 'task']
-
 export function ActivityFeed({ activities, entityType, entityId, onActivityAdded }: ActivityFeedProps) {
-  const [showForm, setShowForm] = useState(false)
   const [type, setType] = useState('note')
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -65,106 +65,110 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
         body: JSON.stringify({ entityType, entityId, type, content }),
       })
       setContent('')
-      setShowForm(false)
       onActivityAdded?.()
     } finally {
       setSaving(false)
     }
   }
 
-  return (
-    <div className="space-y-3">
-      {/* Add activity button */}
-      {!showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#1a3a5c] text-slate-400 hover:text-white hover:border-[#00B4D8]/50 text-sm transition-colors w-full"
-        >
-          <Plus className="w-4 h-4" />
-          Log activity
-        </button>
-      )}
+  const handleDelete = async (activityId: string) => {
+    if (!confirm('Delete this activity?')) return
+    setDeletingId(activityId)
+    try {
+      await fetch(`/api/activities/${activityId}`, { method: 'DELETE' })
+      onActivityAdded?.()
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
-      {/* Activity form */}
-      {showForm && (
-        <form onSubmit={handleSubmit} className="whai-card p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            {ACTIVITY_TYPE_OPTIONS.map((t) => {
-              const Icon = ACTIVITY_ICONS[t]
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors',
-                    type === t
-                      ? 'bg-[#00B4D8]/20 text-[#00B4D8] border-[#00B4D8]/50'
-                      : 'border-[#1a3a5c] text-slate-400 hover:text-white'
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {ACTIVITY_TYPE_LABELS[t]}
-                </button>
-              )
-            })}
-          </div>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder={`Add a ${ACTIVITY_TYPE_LABELS[type]?.toLowerCase()}...`}
-            rows={3}
-            className="w-full px-3 py-2 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 resize-none"
-          />
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => { setShowForm(false); setContent('') }}
-              className="px-3 py-1.5 rounded-md text-sm text-slate-400 hover:text-white transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!content.trim() || saving}
-              className="px-4 py-1.5 rounded-md bg-[#00B4D8] text-[#0A1628] text-sm font-semibold hover:bg-[#00B4D8]/90 disabled:opacity-40 transition-colors"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </form>
-      )}
+  return (
+    <div className="space-y-4">
+      {/* Log form — always visible, integrated */}
+      <form onSubmit={handleSubmit} className="space-y-2.5">
+        {/* Type tabs */}
+        <div className="flex flex-wrap gap-1.5">
+          {ACTIVITY_TYPE_OPTIONS.map((t) => {
+            const Icon = ACTIVITY_ICONS[t]
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setType(t)}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
+                  type === t
+                    ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
+                    : 'border-[#1a3a5c] text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                )}
+              >
+                <Icon className="w-3 h-3" />
+                {ACTIVITY_TYPE_LABELS[t]}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Textarea */}
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder={`Log a ${ACTIVITY_TYPE_LABELS[type]?.toLowerCase()}…`}
+          rows={3}
+          className="w-full px-3 py-2.5 bg-[#071428] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-600 outline-none focus:border-[#00B4D8]/40 resize-none transition-colors"
+        />
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={!content.trim() || saving}
+            className="px-4 py-1.5 rounded-lg bg-[#00B4D8] text-[#0A1628] text-xs font-semibold hover:bg-[#00B4D8]/90 disabled:opacity-40 transition-colors"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </form>
+
+      {/* Divider */}
+      <div className="border-t border-[#1a3a5c]" />
 
       {/* Timeline */}
       {activities.length === 0 ? (
-        <div className="text-center py-8 text-slate-500 text-sm">
-          No activity yet. Log a note, call, or email above.
+        <div className="text-center py-6 text-slate-600 text-sm">
+          No activity yet.
         </div>
       ) : (
         <div className="relative space-y-0">
-          {/* Timeline line */}
-          <div className="absolute left-[19px] top-6 bottom-0 w-px bg-[#1a3a5c]" />
-          {activities.map((activity, idx) => {
+          <div className="absolute left-[15px] top-5 bottom-1 w-px bg-[#1a3a5c]" />
+          {activities.map((activity) => {
             const Icon = ACTIVITY_ICONS[activity.type] ?? MessageSquare
             const colorClass = ACTIVITY_COLORS[activity.type] ?? ACTIVITY_COLORS.note
             return (
-              <div key={activity.id} className="relative flex gap-3 pb-4">
-                <div className={cn('relative z-10 w-10 h-10 rounded-full flex items-center justify-center shrink-0', colorClass)}>
-                  <Icon className="w-4 h-4" />
+              <div key={activity.id} className="group relative flex gap-3 pb-4">
+                <div className={cn('relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5', colorClass)}>
+                  <Icon className="w-3.5 h-3.5" />
                 </div>
-                <div className="flex-1 min-w-0 pt-1.5">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-xs font-semibold text-white">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 mb-0.5">
+                    <span className="text-xs font-semibold text-slate-300">
                       {ACTIVITY_TYPE_LABELS[activity.type] ?? activity.type}
                     </span>
-                    {activity.createdBy && (
-                      <span className="text-xs text-slate-500">by {activity.createdBy}</span>
-                    )}
-                    <span className="ml-auto text-xs text-slate-600 flex items-center gap-1 shrink-0">
-                      <Clock className="w-3 h-3" />
+                    <span className="text-xs text-slate-600 flex items-center gap-0.5">
+                      <Clock className="w-2.5 h-2.5" />
                       {timeAgo(activity.createdAt)}
                     </span>
+                    <button
+                      onClick={() => handleDelete(activity.id)}
+                      disabled={deletingId === activity.id}
+                      className="ml-auto opacity-0 group-hover:opacity-100 text-slate-700 hover:text-red-400 transition-all p-0.5 shrink-0"
+                      title="Delete activity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
+                  {activity.createdBy && (
+                    <div className="text-[11px] text-slate-600 mb-1">by {activity.createdBy}</div>
+                  )}
                   <div className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
                     {activity.content}
                   </div>

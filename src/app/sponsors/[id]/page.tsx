@@ -115,9 +115,8 @@ export default function SponsorDetailPage() {
           <div className="whai-card p-5">
             <h2 className="text-sm font-semibold text-white mb-4">Sponsorship Details</h2>
             <div className="grid grid-cols-2 gap-4">
-              <DetailField label="Tier" value={sponsor.tier ? <StatusBadge value={sponsor.tier} variant="sponsor_tier" /> : '—'} />
               <DetailField label="Status" value={<StatusBadge value={sponsor.status} variant="sponsor_status" />} />
-              <DetailField label="Contract Status" value={<StatusBadge value={sponsor.contractStatus ?? 'Not Started'} variant="contract_status" />} />
+              {sponsor.tier && <DetailField label="Tier" value={<StatusBadge value={sponsor.tier} variant="sponsor_tier" />} />}
               <DetailField
                 label="Sponsorship Value"
                 value={sponsor.valueAmount
