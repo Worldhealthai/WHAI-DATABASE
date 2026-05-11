@@ -12,7 +12,6 @@ import type { Sponsor, SponsorFilters } from '@/types'
 import {
   SPONSOR_STATUS_OPTIONS,
   SPONSOR_TIER_OPTIONS,
-  SPONSOR_CONTRACT_STATUS_OPTIONS,
   COUNTRY_OPTIONS,
   EVENT_OPTIONS,
 } from '@/types'
@@ -28,7 +27,6 @@ async function fetchSponsors(
   filters.statuses?.forEach((s) => params.append('statuses', s))
   filters.events?.forEach((e) => params.append('events', e))
   filters.tiers?.forEach((t) => params.append('tiers', t))
-  filters.contractStatuses?.forEach((c) => params.append('contractStatuses', c))
   filters.countries?.forEach((c) => params.append('countries', c))
   const res = await fetch(`/api/sponsors?${params}`)
   if (!res.ok) throw new Error('Failed to fetch')
@@ -155,10 +153,10 @@ export default function SponsorsPage() {
     const out = list.map((s) => [
       s.companyName, s.website ?? '', s.contactFirstName ?? '', s.contactLastName ?? '',
       s.contactEmail ?? '', s.contactPhone ?? '', s.contactJobTitle ?? '',
-      s.country ?? '', s.city ?? '', s.event ?? '', s.tier ?? '', s.status,
-      s.contractStatus ?? '', s.valueAmount ? `${s.valueCurrency ?? 'GBP'} ${s.valueAmount}` : '',
+      s.country ?? '', s.city ?? '', s.event ?? '', s.status, s.tier ?? '',
+      s.valueAmount ? `${s.valueCurrency ?? 'GBP'} ${s.valueAmount}` : '',
     ])
-    const header = ['Company', 'Website', 'First Name', 'Last Name', 'Email', 'Phone', 'Job Title', 'Country', 'City', 'Event', 'Tier', 'Status', 'Contract Status', 'Value']
+    const header = ['Company', 'Website', 'First Name', 'Last Name', 'Email', 'Phone', 'Job Title', 'Country', 'City', 'Event', 'Status', 'Tier', 'Value']
     const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sponsors.csv'; a.click()
@@ -168,7 +166,6 @@ export default function SponsorsPage() {
   if (filters.query) activeFilters.push({ category: 'Search', key: 'query', value: filters.query })
   filters.statuses?.forEach((s) => activeFilters.push({ category: 'Status', key: 'statuses', value: s }))
   filters.tiers?.forEach((t) => activeFilters.push({ category: 'Tier', key: 'tiers', value: t }))
-  filters.contractStatuses?.forEach((c) => activeFilters.push({ category: 'Contract', key: 'contractStatuses', value: c }))
   filters.countries?.forEach((c) => activeFilters.push({ category: 'Country', key: 'countries', value: c }))
 
   const removeChip = (key: string, value: string) => {
@@ -182,9 +179,8 @@ export default function SponsorsPage() {
 
   const COLS = [
     { key: 'companyName', label: 'Company' },
-    { key: 'tier', label: 'Tier' },
     { key: 'status', label: 'Status' },
-    { key: 'contractStatus', label: 'Contract' },
+    { key: 'tier', label: 'Tier' },
     { key: 'valueAmount', label: 'Value' },
     { key: 'country', label: 'Country' },
     { key: 'createdAt', label: 'Added' },
@@ -264,7 +260,6 @@ export default function SponsorsPage() {
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <FilterDropdown label="Status" options={SPONSOR_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
             <FilterDropdown label="Tier" options={SPONSOR_TIER_OPTIONS} selected={filters.tiers ?? []} onChange={(v) => updateFilter('tiers', v)} searchable={false} />
-            <FilterDropdown label="Contract" options={SPONSOR_CONTRACT_STATUS_OPTIONS} selected={filters.contractStatuses ?? []} onChange={(v) => updateFilter('contractStatuses', v)} searchable={false} />
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />
           </div>
 
@@ -405,11 +400,10 @@ export default function SponsorsPage() {
                               </div>
                             </Link>
                           </td>
+                          <td className="px-4 py-3"><StatusBadge value={s.status} variant="sponsor_status" /></td>
                           <td className="px-4 py-3">
                             {s.tier ? <StatusBadge value={s.tier} variant="sponsor_tier" /> : <span className="text-slate-600">—</span>}
                           </td>
-                          <td className="px-4 py-3"><StatusBadge value={s.status} variant="sponsor_status" /></td>
-                          <td className="px-4 py-3"><StatusBadge value={s.contractStatus ?? 'Not Started'} variant="contract_status" /></td>
                           <td className="px-4 py-3 text-slate-300 text-xs font-medium">
                             {s.valueAmount ? `${s.valueCurrency ?? 'GBP'} ${Number(s.valueAmount).toLocaleString()}` : '—'}
                           </td>
