@@ -110,25 +110,23 @@ export const EXPERTISE_OPTIONS = [
 // ── Sponsor enums ─────────────────────────────────────────────────────────────
 
 export const SPONSOR_TIER_OPTIONS = [
-  'Platinum',
-  'Gold',
-  'Silver',
-  'Bronze',
+  'Exhibitor',
+  'Event Partner',
+  'Drinks Sponsor',
+  'Badge & Lanyard Sponsor',
+  'Wifi Sponsor',
+  'Silver Sponsor',
+  'Gold Sponsor',
+  'Platinum Sponsor',
   'Media Partner',
-  'Community Partner',
-  'In-Kind',
+  'Association Partner',
 ]
 
 export const SPONSOR_STATUS_OPTIONS = [
-  'Prospecting',
-  'In Discussions',
-  'Proposal Sent',
-  'Negotiating',
+  'Not Contacted',
+  'Emailed',
+  'In Discussion',
   'Confirmed',
-  'Contracted',
-  'Active',
-  'Completed',
-  'Lost',
   'Rejected',
 ]
 

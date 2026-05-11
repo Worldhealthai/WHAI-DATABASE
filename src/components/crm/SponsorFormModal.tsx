@@ -6,7 +6,6 @@ import type { Sponsor } from '@/types'
 import {
   SPONSOR_TIER_OPTIONS,
   SPONSOR_STATUS_OPTIONS,
-  SPONSOR_CONTRACT_STATUS_OPTIONS,
   COUNTRY_OPTIONS,
   CURRENCY_OPTIONS,
   EVENT_OPTIONS,
@@ -31,12 +30,11 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
     contactJobTitle: sponsor?.contactJobTitle ?? '',
     country: sponsor?.country ?? '',
     city: sponsor?.city ?? '',
-    tier: sponsor?.tier ?? 'Bronze',
-    status: sponsor?.status ?? 'Prospecting',
+    tier: sponsor?.tier ?? '',
+    status: sponsor?.status ?? 'Not Contacted',
     event: sponsor?.event ?? '',
     valueAmount: sponsor?.valueAmount ? String(sponsor.valueAmount) : '',
     valueCurrency: sponsor?.valueCurrency ?? 'GBP',
-    contractStatus: sponsor?.contractStatus ?? 'Not Started',
     packageDetails: sponsor?.packageDetails ?? '',
     tags: sponsor?.tags ?? '',
     notes: sponsor?.notes ?? '',
@@ -46,6 +44,8 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
 
   const set = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }))
 
+  const isConfirmed = form.status === 'Confirmed'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.companyName.trim()) { setError('Company name is required.'); return }
@@ -54,6 +54,8 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
       const body: any = {
         ...form,
         valueAmount: form.valueAmount ? parseFloat(form.valueAmount) : null,
+        // Clear tier if status is not Confirmed
+        tier: isConfirmed ? form.tier || null : null,
       }
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
@@ -84,120 +86,118 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
           {error && <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>}
 
           {/* Company */}
-          <div className="space-y-1">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Company</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Company Name *">
-              <input value={form.companyName} onChange={(e) => set('companyName', e.target.value)} placeholder="Acme Health" className={inputCls} required />
-            </Field>
-            <Field label="Website">
-              <input value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="https://..." className={inputCls} />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Country">
-              <select value={form.country} onChange={(e) => set('country', e.target.value)} className={inputCls}>
-                <option value="">Select country</option>
-                {COUNTRY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </Field>
-            <Field label="City">
-              <input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="London" className={inputCls} />
-            </Field>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Company</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Company Name *">
+                <input value={form.companyName} onChange={(e) => set('companyName', e.target.value)} placeholder="Acme Health" className={inputCls} required />
+              </Field>
+              <Field label="Website">
+                <input value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="https://..." className={inputCls} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <Field label="Country">
+                <select value={form.country} onChange={(e) => set('country', e.target.value)} className={inputCls}>
+                  <option value="">Select country</option>
+                  {COUNTRY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="City">
+                <input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="London" className={inputCls} />
+              </Field>
+            </div>
           </div>
 
           {/* Sponsorship */}
-          <div className="space-y-1 pt-2 border-t border-[#1a3a5c]">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider pt-1">Sponsorship</p>
-          </div>
+          <div className="pt-2 border-t border-[#1a3a5c]">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Sponsorship</p>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Event">
-              <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
-                <option value="">Select event</option>
-                {EVENT_OPTIONS.map((e) => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </Field>
-            <Field label="Tier">
-              <select value={form.tier} onChange={(e) => set('tier', e.target.value)} className={inputCls}>
-                {SPONSOR_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Status">
-              <select value={form.status} onChange={(e) => set('status', e.target.value)} className={inputCls}>
-                {SPONSOR_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-            <Field label="Contract Status">
-              <select value={form.contractStatus} onChange={(e) => set('contractStatus', e.target.value)} className={inputCls}>
-                {SPONSOR_CONTRACT_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <Field label="Sponsorship Value">
-                <input type="number" step="0.01" min="0" value={form.valueAmount} onChange={(e) => set('valueAmount', e.target.value)} placeholder="0.00" className={inputCls} />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Event">
+                <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
+                  <option value="">Select event</option>
+                  {EVENT_OPTIONS.map((e) => <option key={e} value={e}>{e}</option>)}
+                </select>
+              </Field>
+              <Field label="Status">
+                <select value={form.status} onChange={(e) => set('status', e.target.value)} className={inputCls}>
+                  {SPONSOR_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </Field>
             </div>
-            <Field label="Currency">
-              <select value={form.valueCurrency} onChange={(e) => set('valueCurrency', e.target.value)} className={inputCls}>
-                {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </Field>
+
+            {/* Tier — only shown when Confirmed */}
+            {isConfirmed && (
+              <div className="mt-4">
+                <Field label="Tier">
+                  <select value={form.tier} onChange={(e) => set('tier', e.target.value)} className={inputCls}>
+                    <option value="">Select tier</option>
+                    {SPONSOR_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </Field>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              <div className="col-span-2">
+                <Field label="Sponsorship Value">
+                  <input type="number" step="0.01" min="0" value={form.valueAmount} onChange={(e) => set('valueAmount', e.target.value)} placeholder="0.00" className={inputCls} />
+                </Field>
+              </div>
+              <Field label="Currency">
+                <select value={form.valueCurrency} onChange={(e) => set('valueCurrency', e.target.value)} className={inputCls}>
+                  {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            <div className="mt-4">
+              <Field label="Package Details">
+                <textarea value={form.packageDetails} onChange={(e) => set('packageDetails', e.target.value)} rows={3} placeholder="Describe the sponsorship package, deliverables, inclusions..." className={`${inputCls} resize-none`} />
+              </Field>
+            </div>
           </div>
 
-          <Field label="Package Details">
-            <textarea value={form.packageDetails} onChange={(e) => set('packageDetails', e.target.value)} rows={3} placeholder="Describe the sponsorship package, deliverables, inclusions..." className={`${inputCls} resize-none`} />
-          </Field>
-
-          {/* Contact */}
-          <div className="space-y-1 pt-2 border-t border-[#1a3a5c]">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider pt-1">Primary Contact</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="First Name">
-              <input value={form.contactFirstName} onChange={(e) => set('contactFirstName', e.target.value)} placeholder="John" className={inputCls} />
-            </Field>
-            <Field label="Last Name">
-              <input value={form.contactLastName} onChange={(e) => set('contactLastName', e.target.value)} placeholder="Doe" className={inputCls} />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Email">
-              <input type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} placeholder="john@company.com" className={inputCls} />
-            </Field>
-            <Field label="Phone">
-              <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="+44 7700 000000" className={inputCls} />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Job Title">
-              <input value={form.contactJobTitle} onChange={(e) => set('contactJobTitle', e.target.value)} placeholder="Head of Partnerships" className={inputCls} />
-            </Field>
-            <Field label="LinkedIn URL">
-              <input value={form.contactLinkedinUrl} onChange={(e) => set('contactLinkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." className={inputCls} />
-            </Field>
+          {/* Primary Contact */}
+          <div className="pt-2 border-t border-[#1a3a5c]">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Primary Contact</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="First Name">
+                <input value={form.contactFirstName} onChange={(e) => set('contactFirstName', e.target.value)} placeholder="John" className={inputCls} />
+              </Field>
+              <Field label="Last Name">
+                <input value={form.contactLastName} onChange={(e) => set('contactLastName', e.target.value)} placeholder="Doe" className={inputCls} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <Field label="Email">
+                <input value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} placeholder="john@company.com" className={inputCls} />
+              </Field>
+              <Field label="Phone">
+                <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="+44 7700 000000" className={inputCls} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <Field label="Job Title">
+                <input value={form.contactJobTitle} onChange={(e) => set('contactJobTitle', e.target.value)} placeholder="Head of Partnerships" className={inputCls} />
+              </Field>
+              <Field label="LinkedIn URL">
+                <input value={form.contactLinkedinUrl} onChange={(e) => set('contactLinkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." className={inputCls} />
+              </Field>
+            </div>
           </div>
 
           {/* Meta */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Tags (comma-separated)">
-              <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="platinum, tech, digital-health" className={inputCls} />
-            </Field>
-            <Field label="Notes">
-              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
-            </Field>
+          <div className="pt-2 border-t border-[#1a3a5c]">
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              <Field label="Tags (comma-separated)">
+                <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="tech, digital-health" className={inputCls} />
+              </Field>
+              <Field label="Notes">
+                <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
+              </Field>
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1a3a5c]">

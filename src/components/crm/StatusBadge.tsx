@@ -22,26 +22,24 @@ const SPEAKER_STATUS_COLORS: Record<string, string> = {
 }
 
 const SPONSOR_STATUS_COLORS: Record<string, string> = {
-  'Prospecting':    'bg-slate-500/15 text-slate-400 border-slate-500/30',
-  'In Discussions': 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  'Proposal Sent':  'bg-purple-500/15 text-purple-400 border-purple-500/30',
-  'Negotiating':    'bg-amber-500/15 text-amber-400 border-amber-500/30',
-  'Confirmed':      'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
-  'Contracted':     'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
-  'Active':         'bg-green-500/15 text-green-400 border-green-500/30',
-  'Completed':      'bg-teal-500/15 text-teal-400 border-teal-500/30',
-  'Lost':           'bg-red-500/15 text-red-400 border-red-500/30',
-  'Rejected':       'bg-rose-500/15 text-rose-400 border-rose-500/30',
+  'Not Contacted': 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+  'Emailed':       'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  'In Discussion': 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  'Confirmed':     'bg-green-500/15 text-green-400 border-green-500/30',
+  'Rejected':      'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 
 const SPONSOR_TIER_COLORS: Record<string, string> = {
-  'Platinum':         'bg-slate-300/15 text-slate-200 border-slate-300/30',
-  'Gold':             'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-  'Silver':           'bg-slate-400/15 text-slate-300 border-slate-400/30',
-  'Bronze':           'bg-orange-600/15 text-orange-400 border-orange-600/30',
-  'Media Partner':    'bg-purple-500/15 text-purple-400 border-purple-500/30',
-  'Community Partner':'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  'In-Kind':          'bg-teal-500/15 text-teal-400 border-teal-500/30',
+  'Exhibitor':              'bg-slate-500/15 text-slate-300 border-slate-500/30',
+  'Event Partner':          'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  'Drinks Sponsor':         'bg-teal-500/15 text-teal-400 border-teal-500/30',
+  'Badge & Lanyard Sponsor':'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+  'Wifi Sponsor':           'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+  'Silver Sponsor':         'bg-slate-400/15 text-slate-300 border-slate-400/30',
+  'Gold Sponsor':           'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  'Platinum Sponsor':       'bg-slate-300/15 text-slate-200 border-slate-300/30',
+  'Media Partner':          'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  'Association Partner':    'bg-orange-500/15 text-orange-400 border-orange-500/30',
 }
 
 const CONTRACT_STATUS_COLORS: Record<string, string> = {
