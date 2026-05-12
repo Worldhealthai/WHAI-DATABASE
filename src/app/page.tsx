@@ -150,7 +150,7 @@ function KPICard({
             <div className="relative shrink-0">
               <Ring pct={pct} color={accentHex} animate={animate} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-white" style={{ transform: 'rotate(90deg) translateX(-2px)', display: 'block' }}>
+                <span className="text-sm font-bold text-white">
                   {pct}%
                 </span>
               </div>
@@ -339,8 +339,6 @@ export default function DashboardPage() {
     return () => { cancelled = true }
   }, [])
 
-  const total = (stats?.delegates.total ?? 0) + (stats?.speakers.total ?? 0) + (stats?.sponsors.total ?? 0)
-
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #0c1f3f 0%, #0A1628 60%)' }}>
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-8 space-y-6">
@@ -370,27 +368,6 @@ export default function DashboardPage() {
               <Inbox className="w-3.5 h-3.5" /> Triage Inbox
             </Link>
           </div>
-        </div>
-
-        {/* ── Summary strip ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Total Records', value: total, icon: '◆', color: '#00B4D8' },
-            { label: 'UK Forum', value: (stats?.delegates.byEvent['UK Forum'] ?? 0) + (stats?.speakers.byEvent['UK Forum'] ?? 0) + (stats?.sponsors.byEvent['UK Forum'] ?? 0), icon: '●', color: '#00B4D8' },
-            { label: 'US Forum', value: (stats?.delegates.byEvent['US Forum'] ?? 0) + (stats?.speakers.byEvent['US Forum'] ?? 0) + (stats?.sponsors.byEvent['US Forum'] ?? 0), icon: '●', color: '#a855f7' },
-            { label: 'Unassigned', value: total - ((stats?.delegates.byEvent['UK Forum'] ?? 0) + (stats?.delegates.byEvent['US Forum'] ?? 0) + (stats?.speakers.byEvent['UK Forum'] ?? 0) + (stats?.speakers.byEvent['US Forum'] ?? 0) + (stats?.sponsors.byEvent['UK Forum'] ?? 0) + (stats?.sponsors.byEvent['US Forum'] ?? 0)), icon: '○', color: '#64748b' },
-          ].map(item => (
-            <div key={item.label} className="rounded-xl border border-[#1a3a5c] bg-[#0d2040]/80 px-4 py-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[10px]" style={{ color: item.color }}>{item.icon}</span>
-                <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.label}</span>
-              </div>
-              {loading
-                ? <div className="h-7 w-14 bg-slate-700/40 rounded animate-pulse" />
-                : <Counter value={Math.max(item.value, 0)} className="text-2xl font-bold text-white tabular-nums" />
-              }
-            </div>
-          ))}
         </div>
 
         {/* ── KPI tiles ── */}

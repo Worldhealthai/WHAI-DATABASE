@@ -77,33 +77,53 @@ export default function DelegateDetailPage() {
       </nav>
 
       {/* Hero */}
-      <div className="whai-card p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-[#00B4D8]/20 text-[#00B4D8] flex items-center justify-center text-xl font-bold shrink-0">
-          {delegate.firstName?.[0]}{delegate.lastName?.[0]}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start flex-wrap gap-2 mb-1">
-            <h1 className="text-xl font-bold text-white">{delegate.firstName} {delegate.lastName}</h1>
-            <StatusBadge value={delegate.status} variant="delegate_status" />
-            {delegate.ticketType && <StatusBadge value={delegate.ticketType} variant="ticket_type" />}
+      <div className="whai-card overflow-hidden">
+        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #00B4D880 0%, #00B4D820 60%, transparent 100%)' }} />
+        <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-[#00B4D8]/20 text-[#00B4D8] flex items-center justify-center text-xl font-bold shrink-0">
+            {delegate.firstName?.[0]}{delegate.lastName?.[0]}
           </div>
-          {delegate.jobTitle && <div className="text-sm text-slate-300">{delegate.jobTitle}</div>}
-          {delegate.organization && <div className="text-sm text-slate-500">{delegate.organization}</div>}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setEditOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors"
-          >
-            <Edit2 className="w-3.5 h-3.5" /> Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50"
-          >
-            <Trash2 className="w-3.5 h-3.5" /> Delete
-          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start flex-wrap gap-2 mb-1">
+              <h1 className="text-xl font-bold text-white">{delegate.firstName} {delegate.lastName}</h1>
+              <StatusBadge value={delegate.status} variant="delegate_status" />
+              {delegate.ticketType && <StatusBadge value={delegate.ticketType} variant="ticket_type" />}
+            </div>
+            {delegate.jobTitle && <div className="text-sm text-slate-300">{delegate.jobTitle}</div>}
+            {delegate.organization && <div className="text-sm text-slate-500">{delegate.organization}</div>}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {delegate.email && (
+                <a href={`mailto:${delegate.email}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#00B4D8]/10 border border-[#00B4D8]/20 text-[#00B4D8] text-xs hover:bg-[#00B4D8]/20 transition-colors">
+                  <Mail className="w-3 h-3" /> {delegate.email}
+                </a>
+              )}
+              {delegate.phone && (
+                <a href={`tel:${delegate.phone}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700/40 border border-slate-700 text-slate-300 text-xs hover:bg-slate-700/60 transition-colors">
+                  <Phone className="w-3 h-3" /> {delegate.phone}
+                </a>
+              )}
+              {delegate.event && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#00B4D8]/8 border border-[#00B4D8]/15 text-[#00B4D8]/80 text-xs">
+                  {delegate.event}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors"
+            >
+              <Edit2 className="w-3.5 h-3.5" /> Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+          </div>
         </div>
       </div>
 

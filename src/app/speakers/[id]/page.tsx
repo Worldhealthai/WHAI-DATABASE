@@ -76,35 +76,55 @@ export default function SpeakerDetailPage() {
         <span className="text-slate-300">{speaker.firstName} {speaker.lastName}</span>
       </nav>
 
-      <div className="whai-card p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl font-bold shrink-0 overflow-hidden">
-          {speaker.headshotUrl
-            ? <img src={speaker.headshotUrl} alt="" className="w-full h-full object-cover rounded-full" />
-            : `${speaker.firstName?.[0]}${speaker.lastName?.[0]}`
-          }
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start flex-wrap gap-2 mb-1">
-            <h1 className="text-xl font-bold text-white">{speaker.firstName} {speaker.lastName}</h1>
-            <StatusBadge value={speaker.status} variant="speaker_status" />
-            {speaker.sessionType && <StatusBadge value={speaker.sessionType} variant="contract_status" />}
+      <div className="whai-card overflow-hidden">
+        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #a855f780 0%, #a855f720 60%, transparent 100%)' }} />
+        <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl font-bold shrink-0 overflow-hidden">
+            {speaker.headshotUrl
+              ? <img src={speaker.headshotUrl} alt="" className="w-full h-full object-cover rounded-full" />
+              : `${speaker.firstName?.[0]}${speaker.lastName?.[0]}`
+            }
           </div>
-          {speaker.jobTitle && <div className="text-sm text-slate-300">{speaker.jobTitle}</div>}
-          {speaker.organization && <div className="text-sm text-slate-500">{speaker.organization}</div>}
-          {speaker.sessionTitle && (
-            <div className="flex items-center gap-1.5 mt-1.5 text-sm text-purple-400">
-              <Mic className="w-3.5 h-3.5 shrink-0" />
-              <span className="font-medium">{speaker.sessionTitle}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start flex-wrap gap-2 mb-1">
+              <h1 className="text-xl font-bold text-white">{speaker.firstName} {speaker.lastName}</h1>
+              <StatusBadge value={speaker.status} variant="speaker_status" />
+              {speaker.sessionType && <StatusBadge value={speaker.sessionType} variant="contract_status" />}
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors">
-            <Edit2 className="w-3.5 h-3.5" /> Edit
-          </button>
-          <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
-            <Trash2 className="w-3.5 h-3.5" /> Delete
-          </button>
+            {speaker.jobTitle && <div className="text-sm text-slate-300">{speaker.jobTitle}</div>}
+            {speaker.organization && <div className="text-sm text-slate-500">{speaker.organization}</div>}
+            {speaker.sessionTitle && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-sm text-purple-400">
+                <Mic className="w-3.5 h-3.5 shrink-0" />
+                <span className="font-medium">{speaker.sessionTitle}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {speaker.email && (
+                <a href={`mailto:${speaker.email}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs hover:bg-purple-500/20 transition-colors">
+                  <Mail className="w-3 h-3" /> {speaker.email}
+                </a>
+              )}
+              {speaker.phone && (
+                <a href={`tel:${speaker.phone}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700/40 border border-slate-700 text-slate-300 text-xs hover:bg-slate-700/60 transition-colors">
+                  <Phone className="w-3 h-3" /> {speaker.phone}
+                </a>
+              )}
+              {speaker.event && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/8 border border-purple-500/15 text-purple-400/80 text-xs">
+                  {speaker.event}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors">
+              <Edit2 className="w-3.5 h-3.5" /> Edit
+            </button>
+            <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+          </div>
         </div>
       </div>
 

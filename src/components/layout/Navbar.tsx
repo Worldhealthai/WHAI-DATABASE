@@ -20,8 +20,8 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-[#1a3a5c] bg-[#0A1628]/95 backdrop-blur-sm">
       <div className="flex items-center h-14 px-3 sm:px-5 gap-2 sm:gap-4 max-w-screen-2xl mx-auto">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="w-7 h-7 rounded bg-[#00B4D8] flex items-center justify-center">
+        <Link href="/" className="flex items-center gap-2 shrink-0 group">
+          <div className="w-7 h-7 rounded bg-[#00B4D8] flex items-center justify-center group-hover:bg-[#00B4D8]/90 transition-colors">
             <LayoutDashboard className="w-4 h-4 text-[#0A1628]" />
           </div>
           <span className="font-bold text-sm tracking-wide text-white hidden sm:inline">
