@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
-import { Users, Mic, Award, ArrowRight, Upload, Inbox, TrendingUp, Activity } from 'lucide-react'
+import { Users, Mic, Award, Upload, Inbox, Plus, ArrowUpRight, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -12,469 +12,507 @@ interface SectionStats {
   byStatus: Record<string, number>
   byEvent: Record<string, number>
 }
-
 interface AllStats {
   delegates: SectionStats
-  speakers: SectionStats
-  sponsors: SectionStats
+  speakers:  SectionStats
+  sponsors:  SectionStats
 }
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// ── Pipeline configs ──────────────────────────────────────────────────────────
 
 const DELEGATE_PIPELINE = [
-  { status: 'Registered',  color: 'bg-blue-500' },
-  { status: 'Confirmed',   color: 'bg-cyan-500' },
-  { status: 'Attended',    color: 'bg-green-500' },
-  { status: 'Waitlisted',  color: 'bg-amber-500' },
-  { status: 'Cancelled',   color: 'bg-red-500' },
-  { status: 'No-show',     color: 'bg-slate-500' },
-  { status: 'Rejected',    color: 'bg-rose-500' },
+  { status: 'Registered',  hex: '#3b82f6' },
+  { status: 'Confirmed',   hex: '#06b6d4' },
+  { status: 'Attended',    hex: '#10b981' },
+  { status: 'Waitlisted',  hex: '#f59e0b' },
+  { status: 'Cancelled',   hex: '#ef4444' },
+  { status: 'No-show',     hex: '#64748b' },
+  { status: 'Rejected',    hex: '#f43f5e' },
 ]
-
 const SPEAKER_PIPELINE = [
-  { status: 'Not Contacted',      color: 'bg-slate-500' },
-  { status: 'Invited',            color: 'bg-blue-500' },
-  { status: 'Discussing',         color: 'bg-purple-500' },
-  { status: 'Speaking Confirmed', color: 'bg-green-500' },
-  { status: 'Speaking Rejected',  color: 'bg-red-500' },
-  { status: 'Rejected',           color: 'bg-rose-500' },
+  { status: 'Not Contacted',      hex: '#64748b' },
+  { status: 'Invited',            hex: '#3b82f6' },
+  { status: 'Discussing',         hex: '#a855f7' },
+  { status: 'Speaking Confirmed', hex: '#10b981' },
+  { status: 'Speaking Rejected',  hex: '#ef4444' },
+  { status: 'Rejected',           hex: '#f43f5e' },
 ]
-
 const SPONSOR_PIPELINE = [
-  { status: 'Not Contacted', color: 'bg-slate-500' },
-  { status: 'Emailed',       color: 'bg-blue-500' },
-  { status: 'In Discussion', color: 'bg-purple-500' },
-  { status: 'Confirmed',     color: 'bg-green-500' },
-  { status: 'Rejected',      color: 'bg-rose-500' },
+  { status: 'Not Contacted', hex: '#64748b' },
+  { status: 'Emailed',       hex: '#3b82f6' },
+  { status: 'In Discussion', hex: '#a855f7' },
+  { status: 'Confirmed',     hex: '#10b981' },
+  { status: 'Rejected',      hex: '#f43f5e' },
 ]
 
 const EVENTS = ['UK Forum', 'US Forum']
-const EVENT_COLORS = ['bg-[#00B4D8]', 'bg-purple-500']
+const EVENT_HEX = ['#00B4D8', '#a855f7']
 
-// ── Animated number ───────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function AnimatedNumber({ value, className }: { value: number; className?: string }) {
+function keyMetric(pipeline: typeof DELEGATE_PIPELINE, byStatus: Record<string, number>, total: number) {
+  const positiveStatuses = pipeline.filter(p =>
+    ['Confirmed', 'Attended', 'Speaking Confirmed'].includes(p.status)
+  )
+  const n = positiveStatuses.reduce((s, p) => s + (byStatus[p.status] ?? 0), 0)
+  return total > 0 ? Math.round((n / total) * 100) : 0
+}
+
+// ── Animated counter ──────────────────────────────────────────────────────────
+
+function Counter({ value, className }: { value: number; className?: string }) {
   const [display, setDisplay] = useState(0)
-  const rafRef = useRef<number>()
-  const startRef = useRef<number>()
-
   useEffect(() => {
-    if (value === 0) return
-    const duration = 800
+    if (!value) return
     const start = performance.now()
-    startRef.current = start
-    const animate = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setDisplay(Math.round(eased * value))
-      if (progress < 1) rafRef.current = requestAnimationFrame(animate)
+    const duration = 900
+    const raf = (now: number) => {
+      const t = Math.min((now - start) / duration, 1)
+      const ease = 1 - Math.pow(1 - t, 4)
+      setDisplay(Math.round(ease * value))
+      if (t < 1) requestAnimationFrame(raf)
     }
-    rafRef.current = requestAnimationFrame(animate)
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+    requestAnimationFrame(raf)
   }, [value])
-
   return <span className={className}>{display.toLocaleString()}</span>
 }
 
-// ── Pipeline bar ──────────────────────────────────────────────────────────────
+// ── SVG Ring chart ────────────────────────────────────────────────────────────
 
-function PipelineBar({
-  pipeline, byStatus, total, animate,
-}: {
-  pipeline: { status: string; color: string }[]
-  byStatus: Record<string, number>
-  total: number
-  animate: boolean
+function Ring({ pct, color, size = 88, stroke = 7, animate }: {
+  pct: number; color: string; size?: number; stroke?: number; animate: boolean
 }) {
-  const entries = pipeline
-    .map((p) => ({ ...p, count: byStatus[p.status] ?? 0 }))
-    .filter((p) => p.count > 0)
-
-  if (!total || entries.length === 0) {
-    return <div className="h-2 rounded-full bg-[#1a3a5c] w-full" />
-  }
+  const r = (size - stroke) / 2
+  const circ = 2 * Math.PI * r
+  const offset = circ - (pct / 100) * circ
 
   return (
-    <div className="space-y-2.5">
-      {/* Stacked bar */}
-      <div className="flex h-2 rounded-full overflow-hidden gap-px bg-[#0A1628]">
-        {entries.map((e) => (
-          <div
-            key={e.status}
-            className={cn('h-full transition-all duration-1000 ease-out rounded-sm', e.color)}
-            style={{ width: animate ? `${(e.count / total) * 100}%` : '0%' }}
-          />
-        ))}
-      </div>
-      {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1">
-        {entries.map((e) => (
-          <div key={e.status} className="flex items-center gap-1.5">
-            <div className={cn('w-2 h-2 rounded-full shrink-0', e.color)} />
-            <span className="text-[11px] text-slate-400">{e.status}</span>
-            <span className="text-[11px] text-slate-600">{e.count}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <svg width={size} height={size} className="shrink-0" style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1a3a5c" strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r}
+        fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={animate ? offset : circ}
+        style={{ transition: 'stroke-dashoffset 1.4s cubic-bezier(0.34,1.56,0.64,1)' }}
+      />
+    </svg>
   )
 }
 
-// ── Event split bars ──────────────────────────────────────────────────────────
+// ── KPI card ──────────────────────────────────────────────────────────────────
 
-function EventSplit({ byEvent, total, animate }: { byEvent: Record<string, number>; total: number; animate: boolean }) {
-  return (
-    <div className="space-y-1.5">
-      {EVENTS.map((ev, i) => {
-        const count = byEvent[ev] ?? 0
-        const pct = total > 0 ? (count / total) * 100 : 0
-        return (
-          <div key={ev} className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 w-16 shrink-0">{ev}</span>
-            <div className="flex-1 h-1.5 bg-[#1a3a5c] rounded-full overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all duration-1000 ease-out', EVENT_COLORS[i])}
-                style={{ width: animate ? `${pct}%` : '0%' }}
-              />
-            </div>
-            <span className="text-[11px] text-slate-500 w-6 text-right shrink-0">{count}</span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── Stat tile ─────────────────────────────────────────────────────────────────
-
-function StatTile({
+function KPICard({
   label, icon: Icon, total, byStatus, byEvent, pipeline,
-  accentColor, accentBg, accentBorder, href, animate, loading,
+  color, accentHex, href, animate, loading,
 }: {
-  label: string
-  icon: React.ElementType
-  total: number
-  byStatus: Record<string, number>
-  byEvent: Record<string, number>
-  pipeline: { status: string; color: string }[]
-  accentColor: string
-  accentBg: string
-  accentBorder: string
-  href: string
-  animate: boolean
-  loading: boolean
+  label: string; icon: React.ElementType; total: number
+  byStatus: Record<string, number>; byEvent: Record<string, number>
+  pipeline: { status: string; hex: string }[]
+  color: string; accentHex: string; href: string
+  animate: boolean; loading: boolean
 }) {
-  const confirmed = byStatus['Confirmed'] ?? byStatus['Speaking Confirmed'] ?? byStatus['Attended'] ?? 0
-  const confirmedPct = total > 0 ? Math.round((confirmed / total) * 100) : 0
+  const pct = keyMetric(pipeline, byStatus, total)
+  const top3 = pipeline
+    .map(p => ({ ...p, count: byStatus[p.status] ?? 0 }))
+    .filter(p => p.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4)
 
   return (
-    <Link href={href} className={cn(
-      'group block whai-card p-5 border transition-all hover:scale-[1.01]',
-      accentBorder,
-    )}>
-      <div className="flex items-start justify-between mb-4">
-        <div className={cn('p-2 rounded-lg', accentBg)}>
-          <Icon className={cn('w-4 h-4', accentColor)} />
-        </div>
-        <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" />
-      </div>
+    <Link href={href} className="group block relative overflow-hidden rounded-xl border border-[#1a3a5c] bg-[#0d2040] hover:border-opacity-60 transition-all hover:shadow-lg hover:shadow-black/40 hover:-translate-y-0.5">
+      {/* Accent top bar */}
+      <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${accentHex}80, ${accentHex}20)` }} />
 
-      <div className="mb-1">
-        {loading ? (
-          <div className="h-9 w-20 bg-slate-700/50 rounded animate-pulse" />
-        ) : (
-          <AnimatedNumber value={total} className={cn('text-4xl font-bold tabular-nums', accentColor)} />
+      <div className="p-5">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg" style={{ background: `${accentHex}18` }}>
+              <Icon className="w-4 h-4" style={{ color: accentHex }} />
+            </div>
+            <span className="text-sm font-semibold text-slate-300">{label}</span>
+          </div>
+          <ArrowUpRight className="w-3.5 h-3.5 text-slate-700 group-hover:text-slate-400 transition-colors" />
+        </div>
+
+        {/* Number + Ring */}
+        <div className="flex items-end justify-between mb-5">
+          <div>
+            {loading ? (
+              <div className="h-10 w-20 bg-slate-700/40 rounded-lg animate-pulse" />
+            ) : (
+              <Counter value={total} className="text-4xl font-bold text-white tabular-nums" />
+            )}
+            <div className="text-xs text-slate-500 mt-0.5 font-medium">total records</div>
+          </div>
+          {!loading && total > 0 && (
+            <div className="relative shrink-0">
+              <Ring pct={pct} color={accentHex} animate={animate} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-white" style={{ transform: 'rotate(90deg) translateX(-2px)', display: 'block' }}>
+                  {pct}%
+                </span>
+              </div>
+            </div>
+          )}
+          {loading && <div className="w-[88px] h-[88px] rounded-full bg-slate-700/30 animate-pulse shrink-0" />}
+        </div>
+
+        {/* Status breakdown */}
+        {!loading && (
+          <div className="space-y-1.5 mb-4">
+            {top3.map(p => (
+              <div key={p.status} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.hex }} />
+                  <span className="text-xs text-slate-500">{p.status}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-1 bg-[#1a3a5c] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-1000 ease-out"
+                      style={{
+                        width: animate ? `${(p.count / total) * 100}%` : '0%',
+                        background: p.hex,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-600 tabular-nums w-6 text-right">{p.count}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {loading && (
+          <div className="space-y-2 mb-4">
+            {[1,2,3].map(i => <div key={i} className="h-3 bg-slate-700/30 rounded animate-pulse" />)}
+          </div>
+        )}
+
+        {/* Event split */}
+        {!loading && (
+          <div className="pt-3 border-t border-[#1a3a5c]/60">
+            <div className="flex items-center gap-3">
+              {EVENTS.map((ev, i) => (
+                <div key={ev} className="flex items-center gap-1.5 flex-1">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: EVENT_HEX[i] }} />
+                  <span className="text-[10px] text-slate-600">{ev}</span>
+                  <span className="text-[10px] font-semibold text-slate-400 ml-auto">{byEvent[ev] ?? 0}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
-      <div className="text-sm font-semibold text-white mb-4">{label}</div>
-
-      {!loading && (
-        <div className="space-y-3">
-          <PipelineBar pipeline={pipeline} byStatus={byStatus} total={total} animate={animate} />
-          <div className="pt-1 border-t border-[#1a3a5c]">
-            <EventSplit byEvent={byEvent} total={total} animate={animate} />
-          </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className="space-y-2">
-          <div className="h-2 bg-slate-700/40 rounded animate-pulse" />
-          <div className="h-2 w-3/4 bg-slate-700/30 rounded animate-pulse" />
-        </div>
-      )}
     </Link>
   )
 }
 
-// ── Detailed pipeline rows ────────────────────────────────────────────────────
+// ── Pipeline rows ─────────────────────────────────────────────────────────────
 
-function PipelineRows({
-  pipeline, byStatus, total, animate,
+function PipelineSection({
+  label, pipeline, byStatus, total, accentHex, href, animate,
 }: {
-  pipeline: { status: string; color: string }[]
-  byStatus: Record<string, number>
-  total: number
-  animate: boolean
+  label: string; pipeline: { status: string; hex: string }[]
+  byStatus: Record<string, number>; total: number
+  accentHex: string; href: string; animate: boolean
 }) {
   const entries = pipeline
-    .map((p) => ({ ...p, count: byStatus[p.status] ?? 0 }))
-    .filter((p) => p.count > 0)
+    .map(p => ({ ...p, count: byStatus[p.status] ?? 0 }))
+    .filter(p => p.count > 0)
     .sort((a, b) => b.count - a.count)
 
-  if (!entries.length) return <p className="text-sm text-slate-600 py-2">No data yet.</p>
+  if (!entries.length) return null
 
   return (
-    <div className="space-y-2.5">
-      {entries.map((e) => {
-        const pct = total > 0 ? (e.count / total) * 100 : 0
-        return (
-          <div key={e.status} className="flex items-center gap-3">
-            <div className="flex items-center gap-2 w-40 shrink-0">
-              <div className={cn('w-2 h-2 rounded-full shrink-0', e.color)} />
-              <span className="text-xs text-slate-400 truncate">{e.status}</span>
+    <div>
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-2">
+          <div className="w-0.5 h-4 rounded-full" style={{ background: accentHex }} />
+          <span className="text-xs font-semibold text-white uppercase tracking-wider">{label}</span>
+        </div>
+        <Link href={href} className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-0.5">
+          View all <ChevronRight className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="space-y-2">
+        {entries.map(e => {
+          const pct = total > 0 ? (e.count / total) * 100 : 0
+          return (
+            <div key={e.status} className="flex items-center gap-3 group/row">
+              <div className="w-[130px] shrink-0 flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: e.hex }} />
+                <span className="text-xs text-slate-400 truncate">{e.status}</span>
+              </div>
+              <div className="flex-1 h-1.5 bg-[#0A1628] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: animate ? `${pct}%` : '0%', background: e.hex }}
+                />
+              </div>
+              <span className="text-xs tabular-nums text-slate-500 w-7 text-right shrink-0">{e.count}</span>
+              <span className="text-[10px] tabular-nums text-slate-700 w-8 text-right shrink-0">{Math.round(pct)}%</span>
             </div>
-            <div className="flex-1 h-1.5 bg-[#1a3a5c] rounded-full overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all duration-1000 ease-out', e.color)}
-                style={{ width: animate ? `${pct}%` : '0%' }}
-              />
-            </div>
-            <span className="text-xs text-slate-500 tabular-nums w-8 text-right shrink-0">{e.count}</span>
-            <span className="text-xs text-slate-700 tabular-nums w-10 text-right shrink-0">{Math.round(pct)}%</span>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Event comparison ──────────────────────────────────────────────────────────
+
+function EventComparison({ stats, animate }: { stats: AllStats; animate: boolean }) {
+  const rows = [
+    { label: 'Delegates', data: stats.delegates, color: '#00B4D8' },
+    { label: 'Speakers',  data: stats.speakers,  color: '#a855f7' },
+    { label: 'Sponsors',  data: stats.sponsors,  color: '#f59e0b' },
+  ]
+
+  const maxPerRow = rows.map(r =>
+    Math.max(...EVENTS.map(ev => r.data.byEvent[ev] ?? 0))
+  )
+  const globalMax = Math.max(...maxPerRow, 1)
+
+  return (
+    <div className="space-y-4">
+      {rows.map((row, ri) => (
+        <div key={row.label}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: row.color }} />
+            <span className="text-xs font-medium text-slate-400">{row.label}</span>
+          </div>
+          <div className="space-y-1">
+            {EVENTS.map((ev, i) => {
+              const count = row.data.byEvent[ev] ?? 0
+              const pct = (count / globalMax) * 100
+              return (
+                <div key={ev} className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-600 w-14 shrink-0">{ev}</span>
+                  <div className="flex-1 h-1.5 bg-[#0A1628] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-1000 ease-out"
+                      style={{ width: animate ? `${pct}%` : '0%', background: EVENT_HEX[i] }}
+                    />
+                  </div>
+                  <span className="text-[10px] tabular-nums text-slate-500 w-5 text-right">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+          {ri < rows.length - 1 && <div className="mt-3 border-t border-[#1a3a5c]/40" />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<AllStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [animate, setAnimate] = useState(false)
-  const [now, setNow] = useState('')
+  const [greeting, setGreeting] = useState('')
+  const [dateStr, setDateStr] = useState('')
 
   useEffect(() => {
-    setNow(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
+    const h = new Date().getHours()
+    setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
+    setDateStr(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
   }, [])
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
-      try {
-        const [d, sp, sn] = await Promise.all([
-          fetch('/api/delegates/stats').then((r) => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-          fetch('/api/speakers/stats').then((r) => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-          fetch('/api/sponsors/stats').then((r) => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-        ])
-        if (!cancelled) {
-          setStats({ delegates: d, speakers: sp, sponsors: sn })
-          setLoading(false)
-          setTimeout(() => setAnimate(true), 80)
-        }
-      } catch {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
+    Promise.all([
+      fetch('/api/delegates/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
+      fetch('/api/speakers/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
+      fetch('/api/sponsors/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
+    ]).then(([d, sp, sn]) => {
+      if (cancelled) return
+      setStats({ delegates: d, speakers: sp, sponsors: sn })
+      setLoading(false)
+      setTimeout(() => setAnimate(true), 100)
+    }).catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
 
-  const totalRecords = (stats?.delegates.total ?? 0) + (stats?.speakers.total ?? 0) + (stats?.sponsors.total ?? 0)
+  const total = (stats?.delegates.total ?? 0) + (stats?.speakers.total ?? 0) + (stats?.sponsors.total ?? 0)
 
   return (
-    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 space-y-8">
+    <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #0c1f3f 0%, #0A1628 60%)' }}>
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-8 space-y-6">
 
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-slate-500 font-medium">Live</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            WHAI Events CRM
-          </h1>
-          {now && <p className="text-sm text-slate-500 mt-0.5">{now}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/import" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#112850] border border-[#1a3a5c] text-slate-300 hover:text-white text-sm transition-colors">
-            <Upload className="w-3.5 h-3.5" /> Import
-          </Link>
-          <Link href="/unassigned" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#112850] border border-[#1a3a5c] text-slate-300 hover:text-white text-sm transition-colors">
-            <Inbox className="w-3.5 h-3.5" /> Triage Inbox
-          </Link>
-        </div>
-      </div>
-
-      {/* ── Total banner ── */}
-      <div className="whai-card p-4 flex items-center gap-6 flex-wrap border border-[#1a3a5c]">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-[#00B4D8]/10">
-            <Activity className="w-4 h-4 text-[#00B4D8]" />
-          </div>
+        {/* ── Top bar ── */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <div className="text-xs text-slate-500 font-medium uppercase tracking-wider">Total Records</div>
-            {loading
-              ? <div className="h-6 w-16 bg-slate-700/50 rounded animate-pulse mt-0.5" />
-              : <AnimatedNumber value={totalRecords} className="text-xl font-bold text-white" />
-            }
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+                </span>
+                <span className="text-xs text-slate-500 font-medium tracking-wide">LIVE DATA</span>
+              </div>
+              <span className="text-slate-700">·</span>
+              <span className="text-xs text-slate-600">{dateStr}</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{greeting}</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Here's your WHAI Events overview</p>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <Link href="/import" className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0d2040] border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm font-medium transition-all">
+              <Upload className="w-3.5 h-3.5" /> Import
+            </Link>
+            <Link href="/unassigned" className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0d2040] border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm font-medium transition-all">
+              <Inbox className="w-3.5 h-3.5" /> Triage Inbox
+            </Link>
           </div>
         </div>
-        <div className="h-8 w-px bg-[#1a3a5c] hidden sm:block" />
-        {/* Event split summary */}
-        {!loading && stats && (
-          <div className="flex items-center gap-6">
-            {EVENTS.map((ev, i) => {
-              const total = (stats.delegates.byEvent[ev] ?? 0) + (stats.speakers.byEvent[ev] ?? 0) + (stats.sponsors.byEvent[ev] ?? 0)
-              return (
-                <div key={ev} className="flex items-center gap-2">
-                  <div className={cn('w-2.5 h-2.5 rounded-full', EVENT_COLORS[i])} />
-                  <span className="text-sm text-slate-400">{ev}</span>
-                  <span className="text-sm font-bold text-white">{total.toLocaleString()}</span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-        <div className="ml-auto flex items-center gap-1.5 text-xs text-slate-600">
-          <TrendingUp className="w-3.5 h-3.5" />
-          Across delegates, speakers &amp; sponsors
+
+        {/* ── Summary strip ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Total Records', value: total, icon: '◆', color: '#00B4D8' },
+            { label: 'UK Forum', value: (stats?.delegates.byEvent['UK Forum'] ?? 0) + (stats?.speakers.byEvent['UK Forum'] ?? 0) + (stats?.sponsors.byEvent['UK Forum'] ?? 0), icon: '●', color: '#00B4D8' },
+            { label: 'US Forum', value: (stats?.delegates.byEvent['US Forum'] ?? 0) + (stats?.speakers.byEvent['US Forum'] ?? 0) + (stats?.sponsors.byEvent['US Forum'] ?? 0), icon: '●', color: '#a855f7' },
+            { label: 'Unassigned', value: total - ((stats?.delegates.byEvent['UK Forum'] ?? 0) + (stats?.delegates.byEvent['US Forum'] ?? 0) + (stats?.speakers.byEvent['UK Forum'] ?? 0) + (stats?.speakers.byEvent['US Forum'] ?? 0) + (stats?.sponsors.byEvent['UK Forum'] ?? 0) + (stats?.sponsors.byEvent['US Forum'] ?? 0)), icon: '○', color: '#64748b' },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl border border-[#1a3a5c] bg-[#0d2040]/80 px-4 py-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px]" style={{ color: item.color }}>{item.icon}</span>
+                <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{item.label}</span>
+              </div>
+              {loading
+                ? <div className="h-7 w-14 bg-slate-700/40 rounded animate-pulse" />
+                : <Counter value={Math.max(item.value, 0)} className="text-2xl font-bold text-white tabular-nums" />
+              }
+            </div>
+          ))}
         </div>
-      </div>
 
-      {/* ── 3 stat tiles ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatTile
-          label="Delegates"
-          icon={Users}
-          total={stats?.delegates.total ?? 0}
-          byStatus={stats?.delegates.byStatus ?? {}}
-          byEvent={stats?.delegates.byEvent ?? {}}
-          pipeline={DELEGATE_PIPELINE}
-          accentColor="text-[#00B4D8]"
-          accentBg="bg-[#00B4D8]/10"
-          accentBorder="border-[#00B4D8]/20 hover:border-[#00B4D8]/40"
-          href="/delegates"
-          animate={animate}
-          loading={loading}
-        />
-        <StatTile
-          label="Speaker Leads"
-          icon={Mic}
-          total={stats?.speakers.total ?? 0}
-          byStatus={stats?.speakers.byStatus ?? {}}
-          byEvent={stats?.speakers.byEvent ?? {}}
-          pipeline={SPEAKER_PIPELINE}
-          accentColor="text-purple-400"
-          accentBg="bg-purple-500/10"
-          accentBorder="border-purple-500/20 hover:border-purple-500/40"
-          href="/speakers"
-          animate={animate}
-          loading={loading}
-        />
-        <StatTile
-          label="Sponsors"
-          icon={Award}
-          total={stats?.sponsors.total ?? 0}
-          byStatus={stats?.sponsors.byStatus ?? {}}
-          byEvent={stats?.sponsors.byEvent ?? {}}
-          pipeline={SPONSOR_PIPELINE}
-          accentColor="text-amber-400"
-          accentBg="bg-amber-500/10"
-          accentBorder="border-amber-500/20 hover:border-amber-500/40"
-          href="/sponsors"
-          animate={animate}
-          loading={loading}
-        />
-      </div>
+        {/* ── KPI tiles ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KPICard
+            label="Delegates" icon={Users}
+            total={stats?.delegates.total ?? 0}
+            byStatus={stats?.delegates.byStatus ?? {}}
+            byEvent={stats?.delegates.byEvent ?? {}}
+            pipeline={DELEGATE_PIPELINE}
+            color="text-[#00B4D8]" accentHex="#00B4D8"
+            href="/delegates" animate={animate} loading={loading}
+          />
+          <KPICard
+            label="Speaker Leads" icon={Mic}
+            total={stats?.speakers.total ?? 0}
+            byStatus={stats?.speakers.byStatus ?? {}}
+            byEvent={stats?.speakers.byEvent ?? {}}
+            pipeline={SPEAKER_PIPELINE}
+            color="text-purple-400" accentHex="#a855f7"
+            href="/speakers" animate={animate} loading={loading}
+          />
+          <KPICard
+            label="Sponsors" icon={Award}
+            total={stats?.sponsors.total ?? 0}
+            byStatus={stats?.sponsors.byStatus ?? {}}
+            byEvent={stats?.sponsors.byEvent ?? {}}
+            pipeline={SPONSOR_PIPELINE}
+            color="text-amber-400" accentHex="#f59e0b"
+            href="/sponsors" animate={animate} loading={loading}
+          />
+        </div>
 
-      {/* ── Pipeline breakdown ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          {
-            label: 'Delegate Pipeline',
-            color: 'text-[#00B4D8]',
-            border: 'border-[#00B4D8]/10',
-            pipeline: DELEGATE_PIPELINE,
-            data: stats?.delegates,
-            href: '/delegates',
-          },
-          {
-            label: 'Speaker Pipeline',
-            color: 'text-purple-400',
-            border: 'border-purple-500/10',
-            pipeline: SPEAKER_PIPELINE,
-            data: stats?.speakers,
-            href: '/speakers',
-          },
-          {
-            label: 'Sponsor Pipeline',
-            color: 'text-amber-400',
-            border: 'border-amber-500/10',
-            pipeline: SPONSOR_PIPELINE,
-            data: stats?.sponsors,
-            href: '/sponsors',
-          },
-        ].map((section) => (
-          <div key={section.label} className={cn('whai-card p-5 border', section.border)}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className={cn('text-xs font-semibold uppercase tracking-wider', section.color)}>
-                {section.label}
-              </h2>
-              <Link href={section.href} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
-                View →
-              </Link>
+        {/* ── Pipeline + Event grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Pipeline detail — 2/3 width */}
+          <div className="lg:col-span-2 rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-5 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Pipeline Breakdown</h2>
+              <span className="text-[10px] text-slate-600 uppercase tracking-wider font-medium">Status distribution</span>
             </div>
             {loading ? (
-              <div className="space-y-2">
-                {[100, 75, 55, 40].map((w) => (
-                  <div key={w} className="flex items-center gap-3">
-                    <div className="h-2.5 w-28 bg-slate-700/40 rounded animate-pulse" />
-                    <div className={`h-1.5 bg-slate-700/30 rounded animate-pulse`} style={{ width: `${w}%` }} />
-                    <div className="h-2.5 w-6 bg-slate-700/30 rounded animate-pulse ml-auto" />
+              <div className="space-y-4">
+                {[1,2,3,4,5,6,7,8,9].map(i => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="h-3 w-28 bg-slate-700/40 rounded animate-pulse" />
+                    <div className="h-1.5 flex-1 bg-slate-700/30 rounded animate-pulse" />
+                    <div className="h-3 w-6 bg-slate-700/30 rounded animate-pulse" />
                   </div>
                 ))}
               </div>
             ) : (
-              <PipelineRows
-                pipeline={section.pipeline}
-                byStatus={section.data?.byStatus ?? {}}
-                total={section.data?.total ?? 0}
-                animate={animate}
-              />
+              <div className="space-y-6">
+                <PipelineSection label="Delegates" pipeline={DELEGATE_PIPELINE} byStatus={stats?.delegates.byStatus ?? {}} total={stats?.delegates.total ?? 0} accentHex="#00B4D8" href="/delegates" animate={animate} />
+                <div className="border-t border-[#1a3a5c]/40" />
+                <PipelineSection label="Speaker Leads" pipeline={SPEAKER_PIPELINE} byStatus={stats?.speakers.byStatus ?? {}} total={stats?.speakers.total ?? 0} accentHex="#a855f7" href="/speakers" animate={animate} />
+                <div className="border-t border-[#1a3a5c]/40" />
+                <PipelineSection label="Sponsors" pipeline={SPONSOR_PIPELINE} byStatus={stats?.sponsors.byStatus ?? {}} total={stats?.sponsors.total ?? 0} accentHex="#f59e0b" href="/sponsors" animate={animate} />
+              </div>
             )}
           </div>
-        ))}
-      </div>
 
-      {/* ── Quick navigation ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { href: '/delegates', label: 'Delegates', sub: 'Manage attendees', icon: Users, color: 'text-[#00B4D8]', bg: 'hover:border-[#00B4D8]/30' },
-          { href: '/speakers', label: 'Speakers', sub: 'Manage leads', icon: Mic, color: 'text-purple-400', bg: 'hover:border-purple-500/30' },
-          { href: '/sponsors', label: 'Sponsors', sub: 'Manage companies', icon: Award, color: 'text-amber-400', bg: 'hover:border-amber-500/30' },
-          { href: '/import', label: 'Import CSV', sub: 'Bulk upload data', icon: Upload, color: 'text-green-400', bg: 'hover:border-green-500/30' },
-        ].map((item) => {
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'group whai-card p-4 border border-[#1a3a5c] transition-all hover:scale-[1.02]',
-                item.bg
-              )}
-            >
-              <Icon className={cn('w-5 h-5 mb-2', item.color)} />
-              <div className="text-sm font-semibold text-white">{item.label}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{item.sub}</div>
-            </Link>
-          )
-        })}
+          {/* Right column — 1/3 width */}
+          <div className="space-y-4">
+            {/* Event performance */}
+            <div className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-white">Event Performance</h2>
+                <div className="flex items-center gap-2">
+                  {EVENTS.map((ev, i) => (
+                    <div key={ev} className="flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: EVENT_HEX[i] }} />
+                      <span className="text-[10px] text-slate-600">{ev.split(' ')[0]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {loading ? (
+                <div className="space-y-3">
+                  {[1,2,3].map(i => <div key={i} className="h-10 bg-slate-700/30 rounded animate-pulse" />)}
+                </div>
+              ) : stats ? (
+                <EventComparison stats={stats} animate={animate} />
+              ) : null}
+            </div>
+
+            {/* Quick actions */}
+            <div className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-5">
+              <h2 className="text-sm font-semibold text-white mb-3">Quick Actions</h2>
+              <div className="space-y-1.5">
+                {[
+                  { href: '/delegates', label: 'View Delegates', icon: Users, color: '#00B4D8' },
+                  { href: '/speakers', label: 'View Speakers', icon: Mic, color: '#a855f7' },
+                  { href: '/sponsors', label: 'View Sponsors', icon: Award, color: '#f59e0b' },
+                  { href: '/import', label: 'Import CSV', icon: Upload, color: '#10b981' },
+                  { href: '/unassigned', label: 'Triage Inbox', icon: Inbox, color: '#64748b' },
+                ].map(item => {
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#112850] transition-colors"
+                    >
+                      <div className="p-1 rounded" style={{ background: `${item.color}18` }}>
+                        <Icon className="w-3.5 h-3.5" style={{ color: item.color }} />
+                      </div>
+                      <span className="text-sm text-slate-400 group-hover:text-white transition-colors flex-1">{item.label}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-700 group-hover:text-slate-400 transition-colors" />
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Footer strip ── */}
+        <div className="flex items-center justify-between pt-2 border-t border-[#1a3a5c]/30">
+          <span className="text-xs text-slate-700">WHAI Events CRM</span>
+          <span className="text-xs text-slate-700">All data is live from your Supabase database</span>
+        </div>
       </div>
     </div>
   )
