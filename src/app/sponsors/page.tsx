@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown,
-  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, ArrowRight, CheckCircle2, DollarSign,
+  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, ArrowRight, CheckCircle2, DollarSign, GripVertical,
 } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
@@ -54,11 +54,14 @@ function formatValue(amount: number | null | undefined, currency = 'GBP') {
 
 // ── Kanban board ──────────────────────────────────────────────────────────────
 
-function SponsorCard({ sponsor, onAdvance, onEdit, advancing }: {
+function SponsorCard({ sponsor, onAdvance, onEdit, advancing, onDragStart, onDragEnd, isDragging }: {
   sponsor: Sponsor
   onAdvance: (id: string, next: string) => void
   onEdit: (s: Sponsor) => void
   advancing: boolean
+  onDragStart: (e: React.DragEvent) => void
+  onDragEnd: () => void
+  isDragging: boolean
 }) {
   const next = nextStage(sponsor.status)
   const initials = sponsor.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
@@ -67,11 +70,20 @@ function SponsorCard({ sponsor, onAdvance, onEdit, advancing }: {
   return (
     <Link
       href={`/sponsors/${sponsor.id}`}
-      className="group block rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-3.5 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-900/10 transition-all"
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={cn(
+        'group block rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-3.5 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-900/10 transition-all cursor-grab active:cursor-grabbing select-none',
+        isDragging && 'opacity-30 scale-95'
+      )}
     >
       <div className="flex items-start justify-between gap-2 mb-2.5">
-        <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
-          {initials}
+        <div className="flex items-center gap-1.5">
+          <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+          <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
+            {initials}
+          </div>
         </div>
         <button
           onClick={(e) => { e.preventDefault(); onEdit(sponsor) }}
@@ -123,15 +135,36 @@ function SponsorCard({ sponsor, onAdvance, onEdit, advancing }: {
 
 function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
   sponsors: Sponsor[]
-  onAdvance: (id: string, next: string) => void
+  onAdvance: (id: string, toStatus: string) => void
   onEdit: (s: Sponsor) => void
   advancingId: string | null
 }) {
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, sponsor: Sponsor) => {
+    e.dataTransfer.setData('cardId', sponsor.id)
+    e.dataTransfer.setData('fromStatus', sponsor.status)
+    e.dataTransfer.effectAllowed = 'move'
+    setTimeout(() => setDraggingId(sponsor.id), 0)
+  }
+
+  const handleDragEnd = () => { setDraggingId(null); setDragOverCol(null) }
+
+  const handleDrop = (e: React.DragEvent, toStatus: string) => {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('cardId')
+    const from = e.dataTransfer.getData('fromStatus')
+    setDragOverCol(null); setDraggingId(null)
+    if (id && from !== toStatus) onAdvance(id, toStatus)
+  }
+
   return (
     <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-340px)]">
       {BOARD_COLS.map((col) => {
         const cards = sponsors.filter((s) => s.status === col.status)
         const totalValue = cards.reduce((sum, s) => sum + (Number(s.valueAmount) || 0), 0)
+        const isOver = dragOverCol === col.status
         return (
           <div key={col.status} className="flex-none w-64">
             <div className="flex items-center justify-between mb-1 px-0.5">
@@ -153,8 +186,18 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
             )}
             {totalValue === 0 && <div className="mb-3" />}
             <div
-              className="rounded-xl border border-[#1a3a5c]/60 p-2 space-y-2 min-h-[120px]"
-              style={{ background: `${col.hex}06` }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverCol(col.status) }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
+              onDrop={(e) => handleDrop(e, col.status)}
+              className={cn(
+                'rounded-xl border p-2 space-y-2 min-h-[120px] transition-all duration-150',
+                isOver ? 'border-dashed scale-[1.02] shadow-lg' : 'border-[#1a3a5c]/60'
+              )}
+              style={{
+                background: isOver ? `${col.hex}14` : `${col.hex}06`,
+                borderColor: isOver ? col.hex : undefined,
+                boxShadow: isOver ? `0 0 0 2px ${col.hex}30` : undefined,
+              }}
             >
               {cards.map((s) => (
                 <SponsorCard
@@ -163,11 +206,20 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
                   onAdvance={onAdvance}
                   onEdit={onEdit}
                   advancing={advancingId === s.id}
+                  onDragStart={(e) => handleDragStart(e, s)}
+                  onDragEnd={handleDragEnd}
+                  isDragging={draggingId === s.id}
                 />
               ))}
               {cards.length === 0 && (
-                <div className="py-6 text-center text-xs text-slate-700 border border-dashed border-[#1a3a5c]/40 rounded-lg">
-                  No sponsors
+                <div
+                  className={cn(
+                    'py-6 text-center text-xs border border-dashed rounded-lg transition-colors',
+                    isOver ? 'border-current text-slate-400' : 'border-[#1a3a5c]/40 text-slate-700'
+                  )}
+                  style={isOver ? { borderColor: col.hex, color: col.hex } : {}}
+                >
+                  {isOver ? 'Drop here' : 'No sponsors'}
                 </div>
               )}
             </div>

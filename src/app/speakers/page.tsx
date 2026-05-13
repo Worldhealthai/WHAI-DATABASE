@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown,
-  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, ArrowRight, CheckCircle2,
+  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, ArrowRight, CheckCircle2, GripVertical,
 } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
@@ -50,21 +50,33 @@ function nextStage(current: string): string | null {
 
 // ── Kanban board ──────────────────────────────────────────────────────────────
 
-function SpeakerCard({ speaker, onAdvance, onEdit, advancing }: {
+function SpeakerCard({ speaker, onAdvance, onEdit, advancing, onDragStart, onDragEnd, isDragging }: {
   speaker: Speaker
   onAdvance: (id: string, next: string) => void
   onEdit: (s: Speaker) => void
   advancing: boolean
+  onDragStart: (e: React.DragEvent) => void
+  onDragEnd: () => void
+  isDragging: boolean
 }) {
   const next = nextStage(speaker.status)
   return (
     <Link
       href={`/speakers/${speaker.id}`}
-      className="group block rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-3.5 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-900/10 transition-all"
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={cn(
+        'group block rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-3.5 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-900/10 transition-all cursor-grab active:cursor-grabbing select-none',
+        isDragging && 'opacity-30 scale-95'
+      )}
     >
       <div className="flex items-start justify-between gap-2 mb-2.5">
-        <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
-          {speaker.firstName?.[0]}{speaker.lastName?.[0]}
+        <div className="flex items-center gap-1.5">
+          <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+          <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
+            {speaker.firstName?.[0]}{speaker.lastName?.[0]}
+          </div>
         </div>
         <button
           onClick={(e) => { e.preventDefault(); onEdit(speaker) }}
@@ -107,14 +119,35 @@ function SpeakerCard({ speaker, onAdvance, onEdit, advancing }: {
 
 function KanbanBoard({ speakers, onAdvance, onEdit, advancingId }: {
   speakers: Speaker[]
-  onAdvance: (id: string, next: string) => void
+  onAdvance: (id: string, toStatus: string) => void
   onEdit: (s: Speaker) => void
   advancingId: string | null
 }) {
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, speaker: Speaker) => {
+    e.dataTransfer.setData('cardId', speaker.id)
+    e.dataTransfer.setData('fromStatus', speaker.status)
+    e.dataTransfer.effectAllowed = 'move'
+    setTimeout(() => setDraggingId(speaker.id), 0)
+  }
+
+  const handleDragEnd = () => { setDraggingId(null); setDragOverCol(null) }
+
+  const handleDrop = (e: React.DragEvent, toStatus: string) => {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('cardId')
+    const from = e.dataTransfer.getData('fromStatus')
+    setDragOverCol(null); setDraggingId(null)
+    if (id && from !== toStatus) onAdvance(id, toStatus)
+  }
+
   return (
     <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-340px)]">
       {BOARD_COLS.map((col) => {
         const cards = speakers.filter((s) => s.status === col.status)
+        const isOver = dragOverCol === col.status
         return (
           <div key={col.status} className="flex-none w-64">
             <div className="flex items-center justify-between mb-3 px-0.5">
@@ -127,8 +160,20 @@ function KanbanBoard({ speakers, onAdvance, onEdit, advancingId }: {
               </span>
             </div>
             <div
-              className="rounded-xl border border-[#1a3a5c]/60 p-2 space-y-2 min-h-[120px]"
-              style={{ background: `${col.hex}06` }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverCol(col.status) }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
+              onDrop={(e) => handleDrop(e, col.status)}
+              className={cn(
+                'rounded-xl border p-2 space-y-2 min-h-[120px] transition-all duration-150',
+                isOver
+                  ? 'border-dashed scale-[1.02] shadow-lg'
+                  : 'border-[#1a3a5c]/60'
+              )}
+              style={{
+                background: isOver ? `${col.hex}14` : `${col.hex}06`,
+                borderColor: isOver ? col.hex : undefined,
+                boxShadow: isOver ? `0 0 0 2px ${col.hex}30` : undefined,
+              }}
             >
               {cards.map((s) => (
                 <SpeakerCard
@@ -137,11 +182,19 @@ function KanbanBoard({ speakers, onAdvance, onEdit, advancingId }: {
                   onAdvance={onAdvance}
                   onEdit={onEdit}
                   advancing={advancingId === s.id}
+                  onDragStart={(e) => handleDragStart(e, s)}
+                  onDragEnd={handleDragEnd}
+                  isDragging={draggingId === s.id}
                 />
               ))}
               {cards.length === 0 && (
-                <div className="py-6 text-center text-xs text-slate-700 border border-dashed border-[#1a3a5c]/40 rounded-lg">
-                  No speakers
+                <div className={cn(
+                  'py-6 text-center text-xs border border-dashed rounded-lg transition-colors',
+                  isOver ? 'border-current text-slate-400' : 'border-[#1a3a5c]/40 text-slate-700'
+                )}
+                  style={isOver ? { borderColor: col.hex, color: col.hex } : {}}
+                >
+                  {isOver ? 'Drop here' : 'No speakers'}
                 </div>
               )}
             </div>
