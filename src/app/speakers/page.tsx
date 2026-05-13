@@ -125,6 +125,29 @@ function KanbanBoard({ speakers, onAdvance, onEdit, advancingId }: {
 }) {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const mousePos = useRef({ x: 0, y: 0 })
+  const rafRef = useRef<number>()
+
+  useEffect(() => {
+    if (!draggingId) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return }
+    const EDGE = 100, SPEED = 14
+    const onMove = (e: DragEvent) => { mousePos.current = { x: e.clientX, y: e.clientY } }
+    const tick = () => {
+      const { x, y } = mousePos.current
+      if (y < EDGE) window.scrollBy(0, -SPEED * ((EDGE - y) / EDGE))
+      else if (y > window.innerHeight - EDGE) window.scrollBy(0, SPEED * ((y - (window.innerHeight - EDGE)) / EDGE))
+      if (boardRef.current) {
+        const r = boardRef.current.getBoundingClientRect()
+        if (x < r.left + EDGE) boardRef.current.scrollLeft -= SPEED * ((EDGE - (x - r.left)) / EDGE)
+        else if (x > r.right - EDGE) boardRef.current.scrollLeft += SPEED * ((x - (r.right - EDGE)) / EDGE)
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    document.addEventListener('dragover', onMove)
+    rafRef.current = requestAnimationFrame(tick)
+    return () => { document.removeEventListener('dragover', onMove); if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [draggingId])
 
   const handleDragStart = (e: React.DragEvent, speaker: Speaker) => {
     e.dataTransfer.setData('cardId', speaker.id)
@@ -144,7 +167,35 @@ function KanbanBoard({ speakers, onAdvance, onEdit, advancingId }: {
   }
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-340px)]">
+    <>
+    {draggingId && (
+      <div className="fixed top-16 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+        <div className="flex gap-2 bg-[#0A1628]/95 backdrop-blur-sm border border-[#1a3a5c] rounded-2xl p-2 shadow-2xl pointer-events-auto">
+          <span className="flex items-center px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Drop in</span>
+          {BOARD_COLS.map((col) => {
+            const isTarget = dragOverCol === col.status
+            return (
+              <div
+                key={col.status}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverCol(col.status) }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
+                onDrop={(e) => handleDrop(e, col.status)}
+                className={cn('px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 select-none', isTarget ? 'scale-110' : 'opacity-60')}
+                style={{
+                  background: isTarget ? `${col.hex}28` : `${col.hex}10`,
+                  border: `1px solid ${isTarget ? col.hex : col.hex + '40'}`,
+                  color: col.hex,
+                  boxShadow: isTarget ? `0 0 16px ${col.hex}50` : undefined,
+                }}
+              >
+                {col.label}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )}
+    <div ref={boardRef} className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-340px)]">
       {BOARD_COLS.map((col) => {
         const cards = speakers.filter((s) => s.status === col.status)
         const isOver = dragOverCol === col.status
@@ -202,6 +253,7 @@ function KanbanBoard({ speakers, onAdvance, onEdit, advancingId }: {
         )
       })}
     </div>
+    </>
   )
 }
 
