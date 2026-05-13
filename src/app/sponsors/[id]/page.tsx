@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Globe,
-  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus, Pencil,
+  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus, Pencil, Check,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -14,6 +14,68 @@ import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
 import type { Sponsor, SponsorContact } from '@/types'
 import { cn } from '@/lib/utils'
+
+const SPONSOR_STAGES = ['Not Contacted', 'Emailed', 'In Discussion', 'Confirmed']
+
+function PipelineProgress({ currentStatus, accentHex, onStageChange, saving }: {
+  currentStatus: string; accentHex: string; onStageChange: (s: string) => void; saving: boolean
+}) {
+  const isRejected = currentStatus === 'Rejected'
+  const currentIdx = SPONSOR_STAGES.indexOf(currentStatus)
+
+  return (
+    <div className="whai-card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pipeline Stage</span>
+        {isRejected && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20 font-medium">
+            Rejected
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-0">
+        {SPONSOR_STAGES.map((stage, i) => {
+          const isDone = currentIdx > i
+          const isCurrent = currentIdx === i
+          return (
+            <div key={stage} className="flex items-center flex-1">
+              <button
+                onClick={() => !saving && onStageChange(stage)}
+                disabled={saving}
+                className={cn(
+                  'flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all w-full text-center disabled:cursor-not-allowed',
+                  isCurrent ? 'bg-[#112850]' : 'hover:bg-[#0d2040]'
+                )}
+              >
+                <div
+                  className={cn(
+                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all',
+                    isDone ? 'border-transparent text-[#0A1628]' : isCurrent ? 'border-current' : 'border-slate-700 text-slate-700'
+                  )}
+                  style={isDone ? { background: accentHex } : isCurrent ? { borderColor: accentHex, color: accentHex } : {}}
+                >
+                  {isDone ? <Check className="w-3 h-3" /> : i + 1}
+                </div>
+                <span className={cn(
+                  'text-[10px] font-medium leading-tight whitespace-nowrap',
+                  isCurrent ? 'text-white' : isDone ? 'text-slate-400' : 'text-slate-600'
+                )}>
+                  {stage}
+                </span>
+              </button>
+              {i < SPONSOR_STAGES.length - 1 && (
+                <div
+                  className="h-0.5 flex-1 shrink-0 transition-all duration-500 mx-1"
+                  style={{ background: isDone ? accentHex : '#1a3a5c' }}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 async function fetchSponsor(id: string) {
   const res = await fetch(`/api/sponsors/${id}`)
@@ -27,6 +89,7 @@ export default function SponsorDetailPage() {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [stageSaving, setStageSaving] = useState(false)
   const [addContactOpen, setAddContactOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<SponsorContact | null>(null)
 
@@ -43,6 +106,20 @@ export default function SponsorDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['sponsors'] })
       router.push('/sponsors')
     } finally { setDeleting(false) }
+  }
+
+  const handleStageChange = async (newStatus: string) => {
+    if (!sponsor || newStatus === sponsor.status) return
+    setStageSaving(true)
+    try {
+      await fetch(`/api/sponsors/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      queryClient.invalidateQueries({ queryKey: ['sponsors'] })
+      refetch()
+    } finally { setStageSaving(false) }
   }
 
   if (isLoading) {
@@ -79,36 +156,53 @@ export default function SponsorDetailPage() {
         <span className="text-slate-300">{sponsor.companyName}</span>
       </nav>
 
-      <div className="whai-card p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="w-14 h-14 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold shrink-0">
-          {sponsor.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start flex-wrap gap-2 mb-1">
-            <h1 className="text-xl font-bold text-white">{sponsor.companyName}</h1>
-            {sponsor.tier && <StatusBadge value={sponsor.tier} variant="sponsor_tier" />}
-            <StatusBadge value={sponsor.status} variant="sponsor_status" />
+      <div className="whai-card overflow-hidden">
+        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #f59e0b80 0%, #f59e0b20 60%, transparent 100%)' }} />
+        <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="w-14 h-14 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold shrink-0">
+            {sponsor.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
           </div>
-          {sponsor.website && (
-            <a href={sponsor.website} target="_blank" rel="noopener noreferrer" className="text-sm text-slate-400 hover:text-amber-400 transition-colors flex items-center gap-1">
-              <Globe className="w-3.5 h-3.5" /> {sponsor.website.replace(/^https?:\/\//, '')}
-            </a>
-          )}
-          {(sponsor.city || sponsor.country) && (
-            <div className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
-              <MapPin className="w-3.5 h-3.5" /> {[sponsor.city, sponsor.country].filter(Boolean).join(', ')}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start flex-wrap gap-2 mb-1">
+              <h1 className="text-xl font-bold text-white">{sponsor.companyName}</h1>
+              {sponsor.tier && <StatusBadge value={sponsor.tier} variant="sponsor_tier" />}
+              <StatusBadge value={sponsor.status} variant="sponsor_status" />
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors">
-            <Edit2 className="w-3.5 h-3.5" /> Edit
-          </button>
-          <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
-            <Trash2 className="w-3.5 h-3.5" /> Delete
-          </button>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {sponsor.website && (
+                <a href={sponsor.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs hover:bg-amber-500/20 transition-colors">
+                  <Globe className="w-3 h-3" /> {sponsor.website.replace(/^https?:\/\//, '')}
+                </a>
+              )}
+              {(sponsor.city || sponsor.country) && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700/40 border border-slate-700 text-slate-400 text-xs">
+                  <MapPin className="w-3 h-3" /> {[sponsor.city, sponsor.country].filter(Boolean).join(', ')}
+                </span>
+              )}
+              {sponsor.event && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/8 border border-amber-500/15 text-amber-400/80 text-xs">
+                  {sponsor.event}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors">
+              <Edit2 className="w-3.5 h-3.5" /> Edit
+            </button>
+            <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+          </div>
         </div>
       </div>
+
+      <PipelineProgress
+        currentStatus={sponsor.status}
+        accentHex="#f59e0b"
+        onStageChange={handleStageChange}
+        saving={stageSaving}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-4">

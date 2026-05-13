@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown, Trash2, X, Calendar } from 'lucide-react'
+import { Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown, Trash2, X, Calendar, Pencil } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -86,8 +86,10 @@ export default function DelegatesPage() {
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [showModal, setShowModal] = useState(false)
+  const [editingDelegate, setEditingDelegate] = useState<Delegate | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['delegates', filters, page, pageSize, sortBy, sortDir],
@@ -102,9 +104,13 @@ export default function DelegatesPage() {
     setSelected(new Set())
   }
 
-  const handleSearch = () => {
-    setFilters((prev) => ({ ...prev, query: keyword || undefined }))
-    setPage(1)
+  const handleKeywordChange = (val: string) => {
+    setKeyword(val)
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setFilters((prev) => ({ ...prev, query: val || undefined }))
+      setPage(1)
+    }, 350)
   }
 
   const handleSort = (col: string) => {
@@ -112,7 +118,7 @@ export default function DelegatesPage() {
     else { setSortBy(col); setSortDir('asc') }
   }
 
-  const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()) }
+  const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()); clearTimeout(debounceRef.current) }
 
   // Event / rejected tab helpers
   const isRejectedTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Rejected'
@@ -222,6 +228,7 @@ export default function DelegatesPage() {
     <div className="flex flex-col h-[calc(100vh-56px)]">
       {/* ── Header ── */}
       <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] z-30">
+        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #00B4D880 0%, #00B4D830 50%, transparent 100%)' }} />
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between pt-4 pb-3">
             <div>
@@ -286,20 +293,18 @@ export default function DelegatesPage() {
           {/* Search */}
           <div className="pb-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
               <input
                 value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search by name, email, organisation..."
-                className="w-full pl-10 pr-24 py-2.5 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 transition-colors"
+                onChange={(e) => handleKeywordChange(e.target.value)}
+                placeholder="Search by name, email, organisation…"
+                className="w-full pl-10 pr-10 py-2.5 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 transition-colors"
               />
-              <button
-                onClick={handleSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-md bg-[#00B4D8] text-[#0A1628] text-xs font-semibold hover:bg-[#00B4D8]/90 transition-colors"
-              >
-                Search
-              </button>
+              {keyword && (
+                <button onClick={() => handleKeywordChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -430,7 +435,7 @@ export default function DelegatesPage() {
                         <tr
                           key={d.id}
                           className={cn(
-                            'border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors',
+                            'group/row border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors',
                             selected.has(d.id) && 'bg-[#00B4D8]/5 border-[#00B4D8]/20'
                           )}
                         >
@@ -471,6 +476,14 @@ export default function DelegatesPage() {
                           <td className="px-4 py-3 text-slate-400 text-xs">{d.country ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-500 text-xs">
                             {new Date(d.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="px-3 py-3 w-10">
+                            <button
+                              onClick={(e) => { e.preventDefault(); setEditingDelegate(d) }}
+                              className="opacity-0 group-hover/row:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-[#00B4D8]/15 text-slate-500 hover:text-[#00B4D8]"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -529,6 +542,13 @@ export default function DelegatesPage() {
         <DelegateFormModal
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); refetch() }}
+        />
+      )}
+      {editingDelegate && (
+        <DelegateFormModal
+          delegate={editingDelegate}
+          onClose={() => setEditingDelegate(null)}
+          onSaved={() => { setEditingDelegate(null); refetch() }}
         />
       )}
     </div>
