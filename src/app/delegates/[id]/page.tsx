@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Building2,
-  Briefcase, Tag, Globe, ChevronRight,
+  Briefcase, Tag, Globe, ChevronRight, Pencil, Check, X,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -19,6 +19,13 @@ async function fetchDelegate(id: string) {
   return res.json()
 }
 
+async function fetchCompanySuggestions(): Promise<string[]> {
+  const res = await fetch('/api/sponsors?pageSize=500')
+  if (!res.ok) return []
+  const json = await res.json()
+  return (json.data ?? []).map((s: { companyName: string }) => s.companyName).filter(Boolean).sort()
+}
+
 export default function DelegateDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -26,10 +33,62 @@ export default function DelegateDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // inline org edit
+  const [orgEditing, setOrgEditing] = useState(false)
+  const [orgValue, setOrgValue] = useState('')
+  const [orgSaving, setOrgSaving] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [allCompanies, setAllCompanies] = useState<string[]>([])
+  const [highlightedIdx, setHighlightedIdx] = useState(-1)
+  const orgInputRef = useRef<HTMLInputElement>(null)
+
   const { data: delegate, isLoading, error, refetch } = useQuery<Delegate & { activities: any[] }>({
     queryKey: ['delegate', id],
     queryFn: () => fetchDelegate(id),
   })
+
+  const startOrgEdit = async () => {
+    setOrgValue(delegate?.organization ?? '')
+    setOrgEditing(true)
+    setHighlightedIdx(-1)
+    if (allCompanies.length === 0) {
+      const companies = await fetchCompanySuggestions()
+      setAllCompanies(companies)
+      setSuggestions(companies)
+    } else {
+      setSuggestions(allCompanies)
+    }
+    setTimeout(() => orgInputRef.current?.focus(), 0)
+  }
+
+  const handleOrgInput = (val: string) => {
+    setOrgValue(val)
+    setHighlightedIdx(-1)
+    setSuggestions(
+      val.trim() === ''
+        ? allCompanies
+        : allCompanies.filter((c) => c.toLowerCase().includes(val.toLowerCase()))
+    )
+  }
+
+  const saveOrg = async (value: string) => {
+    if (!delegate) return
+    setOrgSaving(true)
+    try {
+      await fetch(`/api/delegates/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organization: value.trim() || null }),
+      })
+      queryClient.invalidateQueries({ queryKey: ['delegate', id] })
+      queryClient.invalidateQueries({ queryKey: ['delegates'] })
+      await refetch()
+    } finally {
+      setOrgSaving(false)
+      setOrgEditing(false)
+      setSuggestions([])
+    }
+  }
 
   const handleDelete = async () => {
     if (!confirm('Delete this delegate? This cannot be undone.')) return
@@ -146,7 +205,77 @@ export default function DelegateDetailPage() {
                   <span>{[delegate.city, delegate.country].filter(Boolean).join(', ')}</span>
                 </InfoRow>
               )}
-              {delegate.organization && <InfoRow icon={Building2} label="Organisation"><span>{delegate.organization}</span></InfoRow>}
+
+              {/* Organisation — inline editable */}
+              <div className="flex items-start gap-3">
+                <Building2 className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-slate-500 mb-0.5">Organisation</div>
+                  {orgEditing ? (
+                    <div className="relative">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={orgInputRef}
+                          value={orgValue}
+                          onChange={(e) => handleOrgInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedIdx((i) => Math.min(i + 1, suggestions.length - 1)) }
+                            else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightedIdx((i) => Math.max(i - 1, -1)) }
+                            else if (e.key === 'Enter') {
+                              e.preventDefault()
+                              const val = highlightedIdx >= 0 ? suggestions[highlightedIdx] : orgValue
+                              saveOrg(val)
+                            }
+                            else if (e.key === 'Escape') { setOrgEditing(false); setSuggestions([]) }
+                          }}
+                          placeholder="Type or select a company…"
+                          className="flex-1 bg-[#0d2040] border border-[#00B4D8]/40 rounded-lg px-2.5 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#00B4D8] focus:ring-1 focus:ring-[#00B4D8]/30"
+                        />
+                        <button
+                          onClick={() => saveOrg(highlightedIdx >= 0 ? suggestions[highlightedIdx] : orgValue)}
+                          disabled={orgSaving}
+                          className="p-1.5 rounded-lg bg-[#00B4D8]/20 text-[#00B4D8] hover:bg-[#00B4D8]/30 transition-colors disabled:opacity-40"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { setOrgEditing(false); setSuggestions([]) }}
+                          className="p-1.5 rounded-lg hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {suggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 z-40 bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
+                          {suggestions.map((company, idx) => (
+                            <button
+                              key={company}
+                              onMouseDown={(e) => { e.preventDefault(); saveOrg(company) }}
+                              onMouseEnter={() => setHighlightedIdx(idx)}
+                              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${idx === highlightedIdx ? 'bg-[#00B4D8]/15 text-white' : 'text-slate-300 hover:bg-white/5'}`}
+                            >
+                              <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              {company}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="group/org flex items-center gap-2">
+                      <span className="text-sm text-slate-200">{delegate.organization ?? <span className="text-slate-600 italic">No company set</span>}</span>
+                      <button
+                        onClick={startOrgEdit}
+                        className="opacity-0 group-hover/org:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10 text-slate-500 hover:text-slate-300"
+                        title="Change company"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {delegate.jobTitle && <InfoRow icon={Briefcase} label="Job Title"><span>{delegate.jobTitle}</span></InfoRow>}
               {delegate.linkedinUrl && (
                 <InfoRow icon={Linkedin} label="LinkedIn">
