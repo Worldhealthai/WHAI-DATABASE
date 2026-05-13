@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -141,6 +141,29 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
 }) {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const mousePos = useRef({ x: 0, y: 0 })
+  const rafRef = useRef<number>()
+
+  useEffect(() => {
+    if (!draggingId) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return }
+    const EDGE = 100, SPEED = 14
+    const onMove = (e: DragEvent) => { mousePos.current = { x: e.clientX, y: e.clientY } }
+    const tick = () => {
+      const { x, y } = mousePos.current
+      if (y < EDGE) window.scrollBy(0, -SPEED * ((EDGE - y) / EDGE))
+      else if (y > window.innerHeight - EDGE) window.scrollBy(0, SPEED * ((y - (window.innerHeight - EDGE)) / EDGE))
+      if (boardRef.current) {
+        const r = boardRef.current.getBoundingClientRect()
+        if (x < r.left + EDGE) boardRef.current.scrollLeft -= SPEED * ((EDGE - (x - r.left)) / EDGE)
+        else if (x > r.right - EDGE) boardRef.current.scrollLeft += SPEED * ((x - (r.right - EDGE)) / EDGE)
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    document.addEventListener('dragover', onMove)
+    rafRef.current = requestAnimationFrame(tick)
+    return () => { document.removeEventListener('dragover', onMove); if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [draggingId])
 
   const handleDragStart = (e: React.DragEvent, sponsor: Sponsor) => {
     e.dataTransfer.setData('cardId', sponsor.id)
@@ -160,7 +183,7 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
   }
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-340px)]">
+    <div ref={boardRef} className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-340px)]">
       {BOARD_COLS.map((col) => {
         const cards = sponsors.filter((s) => s.status === col.status)
         const totalValue = cards.reduce((sum, s) => sum + (Number(s.valueAmount) || 0), 0)
