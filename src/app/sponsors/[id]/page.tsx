@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Globe,
-  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus, Pencil, Check,
+  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus, Pencil, Check, ArrowRightLeft, Search, X,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -92,6 +92,55 @@ export default function SponsorDetailPage() {
   const [stageSaving, setStageSaving] = useState(false)
   const [addContactOpen, setAddContactOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<SponsorContact | null>(null)
+  const [movingContact, setMovingContact] = useState<{ contact: SponsorContact; isPrimary: boolean } | null>(null)
+  const [moveLoading, setMoveLoading] = useState(false)
+
+  const handleMoveContact = async (targetId: string, targetName: string) => {
+    if (!movingContact || !sponsor) return
+    setMoveLoading(true)
+    try {
+      if (movingContact.isPrimary) {
+        // Create a linked contact on the target company with the primary contact's fields
+        await fetch('/api/sponsors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: targetId,
+            companyName: targetName,
+            status: 'Active',
+            contactFirstName: sponsor.contactFirstName,
+            contactLastName: sponsor.contactLastName,
+            contactEmail: sponsor.contactEmail,
+            contactPhone: sponsor.contactPhone,
+            contactJobTitle: sponsor.contactJobTitle,
+            contactLinkedinUrl: sponsor.contactLinkedinUrl,
+          }),
+        })
+        // Clear primary contact fields from this sponsor
+        await fetch(`/api/sponsors/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contactFirstName: null, contactLastName: null,
+            contactEmail: null, contactPhone: null,
+            contactJobTitle: null, contactLinkedinUrl: null,
+          }),
+        })
+      } else {
+        // Just update the companyId on the linked contact row
+        await fetch(`/api/sponsors/${movingContact.contact.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyId: targetId, companyName: targetName }),
+        })
+      }
+      queryClient.invalidateQueries({ queryKey: ['sponsors'] })
+      await refetch()
+      setMovingContact(null)
+    } finally {
+      setMoveLoading(false)
+    }
+  }
 
   const { data: sponsor, isLoading, error, refetch } = useQuery<Sponsor & { activities: any[]; contacts: SponsorContact[] }>({
     queryKey: ['sponsor', id],
@@ -284,28 +333,28 @@ export default function SponsorDetailPage() {
                   linkedinUrl={sponsor.contactLinkedinUrl}
                   isPrimary
                   onClick={() => setEditingContact({
-                    id: sponsor.id,
-                    companyId: sponsor.id,
-                    contactFirstName: sponsor.contactFirstName,
-                    contactLastName: sponsor.contactLastName,
-                    contactEmail: sponsor.contactEmail,
-                    contactPhone: sponsor.contactPhone,
-                    contactJobTitle: sponsor.contactJobTitle,
-                    contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                    notes: null,
-                    createdAt: sponsor.createdAt,
+                    id: sponsor.id, companyId: sponsor.id,
+                    contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
+                    contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
+                    contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
+                    notes: null, createdAt: sponsor.createdAt,
                   })}
                   onEdit={() => setEditingContact({
-                    id: sponsor.id,
-                    companyId: sponsor.id,
-                    contactFirstName: sponsor.contactFirstName,
-                    contactLastName: sponsor.contactLastName,
-                    contactEmail: sponsor.contactEmail,
-                    contactPhone: sponsor.contactPhone,
-                    contactJobTitle: sponsor.contactJobTitle,
-                    contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                    notes: null,
-                    createdAt: sponsor.createdAt,
+                    id: sponsor.id, companyId: sponsor.id,
+                    contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
+                    contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
+                    contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
+                    notes: null, createdAt: sponsor.createdAt,
+                  })}
+                  onMove={() => setMovingContact({
+                    isPrimary: true,
+                    contact: {
+                      id: sponsor.id, companyId: sponsor.id,
+                      contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
+                      contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
+                      contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
+                      notes: null, createdAt: sponsor.createdAt,
+                    },
                   })}
                 />
               )}
@@ -320,6 +369,7 @@ export default function SponsorDetailPage() {
                   linkedinUrl={c.contactLinkedinUrl}
                   onClick={() => setEditingContact(c)}
                   onEdit={() => setEditingContact(c)}
+                  onMove={() => setMovingContact({ contact: c, isPrimary: false })}
                   onDelete={async () => {
                     if (!confirm('Remove this contact?')) return
                     await fetch(`/api/sponsors/${c.id}`, { method: 'DELETE' })
@@ -381,19 +431,28 @@ export default function SponsorDetailPage() {
         />
       )}
       {editOpen && <SponsorFormModal sponsor={sponsor} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); refetch() }} />}
+      {movingContact && (
+        <MoveContactModal
+          contactName={[movingContact.contact.contactFirstName, movingContact.contact.contactLastName].filter(Boolean).join(' ') || 'Contact'}
+          currentSponsorId={id}
+          onClose={() => setMovingContact(null)}
+          onMove={handleMoveContact}
+          loading={moveLoading}
+        />
+      )}
     </div>
   )
 }
 
-function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onClick, onEdit, onDelete }: {
+function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onClick, onEdit, onMove, onDelete }: {
   name: string; jobTitle?: string | null; email?: string | null
   phone?: string | null; linkedinUrl?: string | null; isPrimary?: boolean
-  onClick?: () => void; onEdit?: () => void; onDelete?: () => void
+  onClick?: () => void; onEdit?: () => void; onMove?: () => void; onDelete?: () => void
 }) {
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c] transition-colors',
+        'flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c] transition-colors group/card',
         onClick && 'cursor-pointer hover:border-amber-500/30 hover:bg-[#0d1f3a]'
       )}
       onClick={onClick}
@@ -413,7 +472,12 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onC
           {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-slate-500 hover:text-slate-300">LinkedIn ↗</a>}
         </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+        {onMove && (
+          <button onClick={onMove} className="text-slate-600 hover:text-blue-400 transition-colors p-1" title="Move to another company">
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+          </button>
+        )}
         {onEdit && (
           <button onClick={onEdit} className="text-slate-600 hover:text-amber-400 transition-colors p-1">
             <Pencil className="w-3.5 h-3.5" />
@@ -423,6 +487,84 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onC
           <button onClick={onDelete} className="text-slate-600 hover:text-red-400 transition-colors p-1">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, loading }: {
+  contactName: string
+  currentSponsorId: string
+  onClose: () => void
+  onMove: (targetId: string, targetName: string) => void
+  loading: boolean
+}) {
+  const [query, setQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const { data } = useQuery<{ data: Sponsor[] }>({
+    queryKey: ['sponsors-all'],
+    queryFn: () => fetch('/api/sponsors?pageSize=500').then((r) => r.json()),
+    staleTime: 30_000,
+  })
+
+  const sponsors = (data?.data ?? [])
+    .filter((s) => s.id !== currentSponsorId)
+    .filter((s) => !query.trim() || s.companyName.toLowerCase().includes(query.toLowerCase()))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-2xl mt-16" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a3a5c]">
+          <div>
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              <ArrowRightLeft className="w-4 h-4 text-amber-400" /> Move Contact
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">Moving <span className="text-slate-300">{contactName}</span> to a new company</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-4 border-b border-[#1a3a5c]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <input
+              ref={inputRef}
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search companies…"
+              className="w-full pl-8 pr-3 py-2 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-amber-500/60 transition-colors"
+            />
+          </div>
+        </div>
+
+        <div className="max-h-72 overflow-y-auto p-2">
+          {sponsors.length === 0 && (
+            <p className="text-sm text-slate-500 text-center py-6">{query ? 'No companies match your search.' : 'No other companies found.'}</p>
+          )}
+          {sponsors.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onMove(s.id, s.companyName)}
+              disabled={loading}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-amber-500/10 transition-colors disabled:opacity-50 group"
+            >
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
+                {s.companyName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">{s.companyName}</div>
+                {(s.city || s.country) && <div className="text-xs text-slate-500 truncate">{[s.city, s.country].filter(Boolean).join(', ')}</div>}
+              </div>
+              <ArrowRightLeft className="w-3.5 h-3.5 text-slate-600 group-hover:text-amber-400 transition-colors shrink-0" />
+            </button>
+          ))}
+        </div>
+
+        {loading && (
+          <div className="px-5 py-3 border-t border-[#1a3a5c] text-xs text-slate-400 text-center">Moving contact…</div>
         )}
       </div>
     </div>
