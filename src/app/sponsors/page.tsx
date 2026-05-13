@@ -761,7 +761,7 @@ export default function SponsorsPage() {
                                         title={`Move to ${next}`}
                                         className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-medium hover:bg-amber-500/20 disabled:opacity-50 transition-all whitespace-nowrap"
                                       >
-                                        {advancingId === s.id ? '…' : <><ArrowRight className="w-3 h-3" />{next.split(' ')[0]}</>}
+                                        {advancingId === s.id ? '…' : <><ArrowRight className="w-3 h-3" />{next}</>}
                                       </button>
                                     )}
                                     <button
