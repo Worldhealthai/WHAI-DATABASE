@@ -316,21 +316,6 @@ export default function DelegateDetailPage() {
             </div>
           )}
 
-          {/* Tags */}
-          {delegate.tags && (
-            <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-slate-400" /> Tags
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {delegate.tags.split(',').map((t) => t.trim()).filter(Boolean).map((tag) => (
-                  <span key={tag} className="px-2 py-0.5 rounded-full bg-[#112850] text-slate-300 text-xs border border-[#1a3a5c]">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Right: Activity feed */}

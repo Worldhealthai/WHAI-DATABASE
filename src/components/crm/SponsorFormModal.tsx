@@ -39,7 +39,7 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     valueAmount: sponsor?.valueAmount ? String(sponsor.valueAmount) : '',
     valueCurrency: sponsor?.valueCurrency ?? 'GBP',
     packageDetails: sponsor?.packageDetails ?? '',
-    tags: sponsor?.tags ?? '',
+
     notes: sponsor?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -191,16 +191,11 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
             </div>
           </div>
 
-          {/* Meta */}
+          {/* Notes */}
           <div className="pt-2 border-t border-[#1a3a5c]">
-            <div className="grid grid-cols-2 gap-4 pt-1">
-              <Field label="Tags (comma-separated)">
-                <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="tech, digital-health" className={inputCls} />
-              </Field>
-              <Field label="Notes">
-                <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
-              </Field>
-            </div>
+            <Field label="Notes">
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
+            </Field>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1a3a5c]">
