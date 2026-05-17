@@ -13,11 +13,12 @@ import {
 
 interface Props {
   sponsor?: Partial<Sponsor>
+  defaultTier?: string
   onClose: () => void
   onSaved: (s: Sponsor) => void
 }
 
-export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
+export function SponsorFormModal({ sponsor, defaultTier, onClose, onSaved }: Props) {
   const isEdit = !!sponsor?.id
   const [form, setForm] = useState({
     companyName: sponsor?.companyName ?? '',
@@ -30,7 +31,7 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
     contactJobTitle: sponsor?.contactJobTitle ?? '',
     country: sponsor?.country ?? '',
     city: sponsor?.city ?? '',
-    tier: sponsor?.tier ?? '',
+    tier: sponsor?.tier ?? defaultTier ?? '',
     status: sponsor?.status ?? 'Not Contacted',
     event: sponsor?.event ?? '',
     valueAmount: sponsor?.valueAmount ? String(sponsor.valueAmount) : '',
