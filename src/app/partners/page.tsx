@@ -391,6 +391,7 @@ export default function PartnersPage() {
       {showModal && (
         <SponsorFormModal
           defaultTier="Media Partner"
+          entityLabel="Partner"
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); refetch() }}
         />
@@ -398,6 +399,7 @@ export default function PartnersPage() {
       {editingPartner && (
         <SponsorFormModal
           sponsor={editingPartner}
+          entityLabel="Partner"
           onClose={() => setEditingPartner(null)}
           onSaved={() => { setEditingPartner(null); refetch() }}
         />

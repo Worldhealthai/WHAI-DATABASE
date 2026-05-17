@@ -344,6 +344,7 @@ export default function PartnerDetailPage() {
       {editOpen && (
         <SponsorFormModal
           sponsor={partner}
+          entityLabel="Partner"
           onClose={() => setEditOpen(false)}
           onSaved={() => { setEditOpen(false); refetch() }}
         />
