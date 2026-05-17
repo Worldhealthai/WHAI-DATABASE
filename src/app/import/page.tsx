@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, FileText, CheckCircle2, AlertCircle, ArrowRight, X, RefreshCw, Users, Building2, Mic, Handshake } from 'lucide-react'
+import { Upload, FileText, CheckCircle2, AlertCircle, ArrowRight, X, RefreshCw, Users, Building2, Mic, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ── People import: column mapping ─────────────────────────────────────────────
@@ -105,7 +105,7 @@ const TYPE_CONFIG: Record<ImportType, {
     isCompany: true,
   },
   partners: {
-    label: 'Association & Media Partners', shortLabel: 'Partners & Media', icon: Handshake,
+    label: 'Association & Media Partners', shortLabel: 'Partners & Media', icon: Network,
     hex: '#10b981', activeBg: 'bg-emerald-500/15', activeBorder: 'border-emerald-500/40', activeText: 'text-emerald-400', spinBorder: 'border-emerald-500',
     isCompany: true,
   },
