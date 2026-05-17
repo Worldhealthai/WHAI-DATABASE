@@ -15,11 +15,12 @@ interface Props {
   sponsor?: Partial<Sponsor>
   defaultTier?: string
   entityLabel?: string
+  keepTier?: boolean
   onClose: () => void
   onSaved: (s: Sponsor) => void
 }
 
-export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor', onClose, onSaved }: Props) {
+export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor', keepTier = false, onClose, onSaved }: Props) {
   const isEdit = !!sponsor?.id
   const [form, setForm] = useState({
     companyName: sponsor?.companyName ?? '',
@@ -57,7 +58,7 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
         ...form,
         valueAmount: form.valueAmount ? parseFloat(form.valueAmount) : null,
         // Clear tier if status is not Confirmed
-        tier: isConfirmed ? form.tier || null : null,
+        tier: keepTier ? (form.tier || null) : (isConfirmed ? form.tier || null : null),
       }
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 

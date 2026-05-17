@@ -392,6 +392,7 @@ export default function PartnersPage() {
         <SponsorFormModal
           defaultTier="Media Partner"
           entityLabel="Partner"
+          keepTier
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); refetch() }}
         />
@@ -400,6 +401,7 @@ export default function PartnersPage() {
         <SponsorFormModal
           sponsor={editingPartner}
           entityLabel="Partner"
+          keepTier
           onClose={() => setEditingPartner(null)}
           onSaved={() => { setEditingPartner(null); refetch() }}
         />
