@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Globe,
-  Briefcase, Tag, Building2, ChevronRight, DollarSign, UserPlus, Pencil, Check, ArrowRightLeft, Search, X,
+  Briefcase, Tag, Building2, ChevronRight, UserPlus, Pencil, ArrowRightLeft, Search, X,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -15,92 +15,33 @@ import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
 import type { Sponsor, SponsorContact } from '@/types'
 import { cn } from '@/lib/utils'
 
-const SPONSOR_STAGES = ['Not Contacted', 'Emailed', 'In Discussion', 'Confirmed']
-
-function PipelineProgress({ currentStatus, accentHex, onStageChange, saving }: {
-  currentStatus: string; accentHex: string; onStageChange: (s: string) => void; saving: boolean
-}) {
-  const isRejected = currentStatus === 'Rejected'
-  const currentIdx = SPONSOR_STAGES.indexOf(currentStatus)
-
-  return (
-    <div className="whai-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pipeline Stage</span>
-        {isRejected && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20 font-medium">
-            Rejected
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-0">
-        {SPONSOR_STAGES.map((stage, i) => {
-          const isDone = currentIdx > i
-          const isCurrent = currentIdx === i
-          return (
-            <div key={stage} className="flex items-center flex-1">
-              <button
-                onClick={() => !saving && onStageChange(stage)}
-                disabled={saving}
-                className={cn(
-                  'flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all w-full text-center disabled:cursor-not-allowed',
-                  isCurrent ? 'bg-[#112850]' : 'hover:bg-[#0d2040]'
-                )}
-              >
-                <div
-                  className={cn(
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all',
-                    isDone ? 'border-transparent text-[#0A1628]' : isCurrent ? 'border-current' : 'border-slate-700 text-slate-700'
-                  )}
-                  style={isDone ? { background: accentHex } : isCurrent ? { borderColor: accentHex, color: accentHex } : {}}
-                >
-                  {isDone ? <Check className="w-3 h-3" /> : i + 1}
-                </div>
-                <span className={cn(
-                  'text-[10px] font-medium leading-tight whitespace-nowrap',
-                  isCurrent ? 'text-white' : isDone ? 'text-slate-400' : 'text-slate-600'
-                )}>
-                  {stage}
-                </span>
-              </button>
-              {i < SPONSOR_STAGES.length - 1 && (
-                <div
-                  className="h-0.5 flex-1 shrink-0 transition-all duration-500 mx-1"
-                  style={{ background: isDone ? accentHex : '#1a3a5c' }}
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-async function fetchSponsor(id: string) {
+async function fetchPartner(id: string) {
   const res = await fetch(`/api/sponsors/${id}`)
   if (!res.ok) throw new Error('Not found')
   return res.json()
 }
 
-export default function SponsorDetailPage() {
+export default function PartnerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [stageSaving, setStageSaving] = useState(false)
   const [addContactOpen, setAddContactOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<SponsorContact | null>(null)
   const [movingContact, setMovingContact] = useState<{ contact: SponsorContact; isPrimary: boolean } | null>(null)
   const [moveLoading, setMoveLoading] = useState(false)
 
+  const { data: partner, isLoading, error, refetch } = useQuery<Sponsor & { activities: any[]; contacts: SponsorContact[] }>({
+    queryKey: ['partner', id],
+    queryFn: () => fetchPartner(id),
+  })
+
   const handleMoveContact = async (targetId: string, targetName: string) => {
-    if (!movingContact || !sponsor) return
+    if (!movingContact || !partner) return
     setMoveLoading(true)
     try {
       if (movingContact.isPrimary) {
-        // Create a linked contact on the target company with the primary contact's fields
         await fetch('/api/sponsors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -108,15 +49,14 @@ export default function SponsorDetailPage() {
             companyId: targetId,
             companyName: targetName,
             status: 'Active',
-            contactFirstName: sponsor.contactFirstName,
-            contactLastName: sponsor.contactLastName,
-            contactEmail: sponsor.contactEmail,
-            contactPhone: sponsor.contactPhone,
-            contactJobTitle: sponsor.contactJobTitle,
-            contactLinkedinUrl: sponsor.contactLinkedinUrl,
+            contactFirstName: partner.contactFirstName,
+            contactLastName: partner.contactLastName,
+            contactEmail: partner.contactEmail,
+            contactPhone: partner.contactPhone,
+            contactJobTitle: partner.contactJobTitle,
+            contactLinkedinUrl: partner.contactLinkedinUrl,
           }),
         })
-        // Clear primary contact fields from this sponsor
         await fetch(`/api/sponsors/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -127,14 +67,13 @@ export default function SponsorDetailPage() {
           }),
         })
       } else {
-        // Just update the companyId on the linked contact row
         await fetch(`/api/sponsors/${movingContact.contact.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ companyId: targetId, companyName: targetName }),
         })
       }
-      queryClient.invalidateQueries({ queryKey: ['sponsors'] })
+      queryClient.invalidateQueries({ queryKey: ['partners'] })
       await refetch()
       setMovingContact(null)
     } finally {
@@ -142,33 +81,14 @@ export default function SponsorDetailPage() {
     }
   }
 
-  const { data: sponsor, isLoading, error, refetch } = useQuery<Sponsor & { activities: any[]; contacts: SponsorContact[] }>({
-    queryKey: ['sponsor', id],
-    queryFn: () => fetchSponsor(id),
-  })
-
   const handleDelete = async () => {
-    if (!confirm('Delete this sponsor? This cannot be undone.')) return
+    if (!confirm('Delete this partner? This cannot be undone.')) return
     setDeleting(true)
     try {
       await fetch(`/api/sponsors/${id}`, { method: 'DELETE' })
-      queryClient.invalidateQueries({ queryKey: ['sponsors'] })
-      router.push('/sponsors')
+      queryClient.invalidateQueries({ queryKey: ['partners'] })
+      router.push('/partners')
     } finally { setDeleting(false) }
-  }
-
-  const handleStageChange = async (newStatus: string) => {
-    if (!sponsor || newStatus === sponsor.status) return
-    setStageSaving(true)
-    try {
-      await fetch(`/api/sponsors/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      })
-      queryClient.invalidateQueries({ queryKey: ['sponsors'] })
-      refetch()
-    } finally { setStageSaving(false) }
   }
 
   if (isLoading) {
@@ -184,11 +104,11 @@ export default function SponsorDetailPage() {
     )
   }
 
-  if (error || !sponsor) {
+  if (error || !partner) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-16 text-center">
-        <div className="text-red-400 mb-4">Sponsor not found.</div>
-        <Link href="/sponsors" className="text-amber-400 text-sm hover:underline">← Back to Sponsors</Link>
+        <div className="text-red-400 mb-4">Partner not found.</div>
+        <Link href="/partners" className="text-emerald-400 text-sm hover:underline">← Back to Partners & Media</Link>
       </div>
     )
   }
@@ -196,40 +116,42 @@ export default function SponsorDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+      {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-slate-500">
-        <Link href="/sponsors" className="hover:text-white transition-colors flex items-center gap-1">
-          <ArrowLeft className="w-3.5 h-3.5" /> Sponsors
+        <Link href="/partners" className="hover:text-white transition-colors flex items-center gap-1">
+          <ArrowLeft className="w-3.5 h-3.5" /> Partners & Media
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-slate-300">{sponsor.companyName}</span>
+        <span className="text-slate-300">{partner.companyName}</span>
       </nav>
 
+      {/* Header card */}
       <div className="whai-card overflow-hidden">
-        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #f59e0b80 0%, #f59e0b20 60%, transparent 100%)' }} />
+        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #10b98180 0%, #10b98120 60%, transparent 100%)' }} />
         <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="w-14 h-14 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold shrink-0">
-            {sponsor.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+          <div className="w-14 h-14 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl font-bold shrink-0">
+            {partner.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start flex-wrap gap-2 mb-1">
-              <h1 className="text-xl font-bold text-white">{sponsor.companyName}</h1>
-              {sponsor.tier && <StatusBadge value={sponsor.tier} variant="sponsor_tier" />}
-              <StatusBadge value={sponsor.status} variant="sponsor_status" />
+              <h1 className="text-xl font-bold text-white">{partner.companyName}</h1>
+              {partner.tier && <StatusBadge value={partner.tier} variant="sponsor_tier" />}
+              <StatusBadge value={partner.status} variant="sponsor_status" />
             </div>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {sponsor.website && (
-                <a href={sponsor.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs hover:bg-amber-500/20 transition-colors">
-                  <Globe className="w-3 h-3" /> {sponsor.website.replace(/^https?:\/\//, '')}
+              {partner.website && (
+                <a href={partner.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs hover:bg-emerald-500/20 transition-colors">
+                  <Globe className="w-3 h-3" /> {partner.website.replace(/^https?:\/\//, '')}
                 </a>
               )}
-              {(sponsor.city || sponsor.country) && (
+              {(partner.city || partner.country) && (
                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700/40 border border-slate-700 text-slate-400 text-xs">
-                  <MapPin className="w-3 h-3" /> {[sponsor.city, sponsor.country].filter(Boolean).join(', ')}
+                  <MapPin className="w-3 h-3" /> {[partner.city, partner.country].filter(Boolean).join(', ')}
                 </span>
               )}
-              {sponsor.event && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/8 border border-amber-500/15 text-amber-400/80 text-xs">
-                  {sponsor.event}
+              {partner.event && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/8 border border-emerald-500/15 text-emerald-400/80 text-xs">
+                  {partner.event}
                 </span>
               )}
             </div>
@@ -245,60 +167,47 @@ export default function SponsorDetailPage() {
         </div>
       </div>
 
-      <PipelineProgress
-        currentStatus={sponsor.status}
-        accentHex="#f59e0b"
-        onStageChange={handleStageChange}
-        saving={stageSaving}
-      />
-
+      {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-4">
-          {/* Sponsorship details */}
+          {/* Partner details */}
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Sponsorship Details</h2>
+            <h2 className="text-sm font-semibold text-white mb-4">Partner Details</h2>
             <div className="grid grid-cols-2 gap-4">
-              <DetailField label="Status" value={<StatusBadge value={sponsor.status} variant="sponsor_status" />} />
-              {sponsor.tier && <DetailField label="Tier" value={<StatusBadge value={sponsor.tier} variant="sponsor_tier" />} />}
-              <DetailField
-                label="Sponsorship Value"
-                value={sponsor.valueAmount
-                  ? <span className="font-semibold text-amber-400">{sponsor.valueCurrency ?? 'GBP'} {Number(sponsor.valueAmount).toLocaleString()}</span>
-                  : '—'
-                }
-              />
-              <DetailField label="Added" value={new Date(sponsor.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
-              <DetailField label="Last Updated" value={new Date(sponsor.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
+              <DetailField label="Status" value={<StatusBadge value={partner.status} variant="sponsor_status" />} />
+              {partner.tier && <DetailField label="Type" value={<StatusBadge value={partner.tier} variant="sponsor_tier" />} />}
+              <DetailField label="Added" value={new Date(partner.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
+              <DetailField label="Last Updated" value={new Date(partner.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
             </div>
 
-            {sponsor.packageDetails && (
+            {partner.packageDetails && (
               <div className="mt-4 pt-4 border-t border-[#1a3a5c]">
                 <div className="text-xs text-slate-500 mb-2">Package Details</div>
-                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{sponsor.packageDetails}</p>
+                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{partner.packageDetails}</p>
               </div>
             )}
           </div>
 
           {/* Primary contact */}
-          {(sponsor.contactFirstName || sponsor.contactLastName || sponsor.contactEmail) && (
+          {(partner.contactFirstName || partner.contactLastName || partner.contactEmail) && (
             <div className="whai-card p-5">
               <h2 className="text-sm font-semibold text-white mb-4">Primary Contact</h2>
               <div className="space-y-3">
-                {(sponsor.contactFirstName || sponsor.contactLastName) && (
+                {(partner.contactFirstName || partner.contactLastName) && (
                   <InfoRow icon={Building2} label="Name">
-                    <span>{[sponsor.contactFirstName, sponsor.contactLastName].filter(Boolean).join(' ')}</span>
+                    <span>{[partner.contactFirstName, partner.contactLastName].filter(Boolean).join(' ')}</span>
                   </InfoRow>
                 )}
-                {sponsor.contactJobTitle && <InfoRow icon={Briefcase} label="Title"><span>{sponsor.contactJobTitle}</span></InfoRow>}
-                {sponsor.contactEmail && (
+                {partner.contactJobTitle && <InfoRow icon={Briefcase} label="Title"><span>{partner.contactJobTitle}</span></InfoRow>}
+                {partner.contactEmail && (
                   <InfoRow icon={Mail} label="Email">
-                    <a href={`mailto:${sponsor.contactEmail}`} className="text-amber-400 hover:underline">{sponsor.contactEmail}</a>
+                    <a href={`mailto:${partner.contactEmail}`} className="text-emerald-400 hover:underline">{partner.contactEmail}</a>
                   </InfoRow>
                 )}
-                {sponsor.contactPhone && <InfoRow icon={Phone} label="Phone"><span>{sponsor.contactPhone}</span></InfoRow>}
-                {sponsor.contactLinkedinUrl && (
+                {partner.contactPhone && <InfoRow icon={Phone} label="Phone"><span>{partner.contactPhone}</span></InfoRow>}
+                {partner.contactLinkedinUrl && (
                   <InfoRow icon={Linkedin} label="LinkedIn">
-                    <a href={sponsor.contactLinkedinUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">View Profile</a>
+                    <a href={partner.contactLinkedinUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">View Profile</a>
                   </InfoRow>
                 )}
               </div>
@@ -310,8 +219,8 @@ export default function SponsorDetailPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-white">
                 Contacts
-                {sponsor.contacts && sponsor.contacts.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-slate-500">({sponsor.contacts.length + (sponsor.contactFirstName || sponsor.contactLastName ? 1 : 0)})</span>
+                {partner.contacts && partner.contacts.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-slate-500">({partner.contacts.length + (partner.contactFirstName || partner.contactLastName ? 1 : 0)})</span>
                 )}
               </h2>
               <button
@@ -323,42 +232,42 @@ export default function SponsorDetailPage() {
             </div>
             <div className="space-y-3">
               {/* Embedded primary contact */}
-              {(sponsor.contactFirstName || sponsor.contactLastName || sponsor.contactEmail) && (
+              {(partner.contactFirstName || partner.contactLastName || partner.contactEmail) && (
                 <ContactCard
-                  name={[sponsor.contactFirstName, sponsor.contactLastName].filter(Boolean).join(' ')}
-                  jobTitle={sponsor.contactJobTitle}
-                  email={sponsor.contactEmail}
-                  phone={sponsor.contactPhone}
-                  linkedinUrl={sponsor.contactLinkedinUrl}
+                  name={[partner.contactFirstName, partner.contactLastName].filter(Boolean).join(' ')}
+                  jobTitle={partner.contactJobTitle}
+                  email={partner.contactEmail}
+                  phone={partner.contactPhone}
+                  linkedinUrl={partner.contactLinkedinUrl}
                   isPrimary
                   onClick={() => setEditingContact({
-                    id: sponsor.id, companyId: sponsor.id,
-                    contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
-                    contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
-                    contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                    notes: null, createdAt: sponsor.createdAt,
+                    id: partner.id, companyId: partner.id,
+                    contactFirstName: partner.contactFirstName, contactLastName: partner.contactLastName,
+                    contactEmail: partner.contactEmail, contactPhone: partner.contactPhone,
+                    contactJobTitle: partner.contactJobTitle, contactLinkedinUrl: partner.contactLinkedinUrl,
+                    notes: null, createdAt: partner.createdAt,
                   })}
                   onEdit={() => setEditingContact({
-                    id: sponsor.id, companyId: sponsor.id,
-                    contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
-                    contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
-                    contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                    notes: null, createdAt: sponsor.createdAt,
+                    id: partner.id, companyId: partner.id,
+                    contactFirstName: partner.contactFirstName, contactLastName: partner.contactLastName,
+                    contactEmail: partner.contactEmail, contactPhone: partner.contactPhone,
+                    contactJobTitle: partner.contactJobTitle, contactLinkedinUrl: partner.contactLinkedinUrl,
+                    notes: null, createdAt: partner.createdAt,
                   })}
                   onMove={() => setMovingContact({
                     isPrimary: true,
                     contact: {
-                      id: sponsor.id, companyId: sponsor.id,
-                      contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
-                      contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
-                      contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                      notes: null, createdAt: sponsor.createdAt,
+                      id: partner.id, companyId: partner.id,
+                      contactFirstName: partner.contactFirstName, contactLastName: partner.contactLastName,
+                      contactEmail: partner.contactEmail, contactPhone: partner.contactPhone,
+                      contactJobTitle: partner.contactJobTitle, contactLinkedinUrl: partner.contactLinkedinUrl,
+                      notes: null, createdAt: partner.createdAt,
                     },
                   })}
                 />
               )}
               {/* Linked contacts */}
-              {sponsor.contacts?.map((c) => (
+              {partner.contacts?.map((c) => (
                 <ContactCard
                   key={c.id}
                   name={[c.contactFirstName, c.contactLastName].filter(Boolean).join(' ')}
@@ -376,33 +285,36 @@ export default function SponsorDetailPage() {
                   }}
                 />
               ))}
-              {!sponsor.contactFirstName && !sponsor.contactLastName && !sponsor.contactEmail && (!sponsor.contacts || sponsor.contacts.length === 0) && (
+              {!partner.contactFirstName && !partner.contactLastName && !partner.contactEmail && (!partner.contacts || partner.contacts.length === 0) && (
                 <p className="text-sm text-slate-500">No contacts yet. Add the first one.</p>
               )}
             </div>
           </div>
 
+
           {/* Notes */}
-          {sponsor.notes && (
+          {partner.notes && (
             <div className="whai-card p-5">
               <h2 className="text-sm font-semibold text-white mb-3">Notes</h2>
-              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{sponsor.notes}</p>
+              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{partner.notes}</p>
             </div>
           )}
         </div>
 
+        {/* Activity feed */}
         <div className="space-y-4">
           <div className="whai-card p-5">
             <h2 className="text-sm font-semibold text-white mb-4">Activity</h2>
-            <ActivityFeed activities={sponsor.activities ?? []} entityType="sponsor" entityId={id} onActivityAdded={refetch} />
+            <ActivityFeed activities={partner.activities ?? []} entityType="sponsor" entityId={id} onActivityAdded={refetch} />
           </div>
         </div>
       </div>
 
+      {/* Modals */}
       {addContactOpen && (
         <SponsorContactModal
           companyId={id}
-          companyName={sponsor.companyName}
+          companyName={partner.companyName}
           onClose={() => setAddContactOpen(false)}
           onSaved={() => { setAddContactOpen(false); refetch() }}
         />
@@ -410,14 +322,22 @@ export default function SponsorDetailPage() {
       {editingContact && (
         <SponsorContactModal
           companyId={id}
-          companyName={sponsor.companyName}
+          companyName={partner.companyName}
           contact={editingContact}
           onClose={() => setEditingContact(null)}
           onSaved={() => { setEditingContact(null); refetch() }}
           onSetPrimary={() => { setEditingContact(null); refetch() }}
         />
       )}
-      {editOpen && <SponsorFormModal sponsor={sponsor} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); refetch() }} />}
+      {editOpen && (
+        <SponsorFormModal
+          sponsor={partner}
+          entityLabel="Partner"
+          keepTier
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setEditOpen(false); refetch() }}
+        />
+      )}
       {movingContact && (
         <MoveContactModal
           contactName={[movingContact.contact.contactFirstName, movingContact.contact.contactLastName].filter(Boolean).join(' ') || 'Contact'}
@@ -440,21 +360,21 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onC
     <div
       className={cn(
         'flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c] transition-colors group/card',
-        onClick && 'cursor-pointer hover:border-amber-500/30 hover:bg-[#0d1f3a]'
+        onClick && 'cursor-pointer hover:border-emerald-500/30 hover:bg-[#0d1f3a]'
       )}
       onClick={onClick}
     >
-      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
+      <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
         {name ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-white">{name || '—'}</span>
-          {isPrimary && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400/80 border border-amber-500/20">Primary</span>}
+          {isPrimary && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400/80 border border-emerald-500/20">Primary</span>}
         </div>
         {jobTitle && <div className="text-xs text-slate-500 mt-0.5">{jobTitle}</div>}
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-          {email && <a href={`mailto:${email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-amber-400 hover:underline">{email}</a>}
+          {email && <a href={`mailto:${email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-emerald-400 hover:underline">{email}</a>}
           {phone && <span className="text-xs text-slate-400">{phone}</span>}
           {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-slate-500 hover:text-slate-300">LinkedIn ↗</a>}
         </div>
@@ -466,7 +386,7 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onC
           </button>
         )}
         {onEdit && (
-          <button onClick={onEdit} className="text-slate-600 hover:text-amber-400 transition-colors p-1">
+          <button onClick={onEdit} className="text-slate-600 hover:text-emerald-400 transition-colors p-1">
             <Pencil className="w-3.5 h-3.5" />
           </button>
         )}
@@ -496,7 +416,7 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
     staleTime: 30_000,
   })
 
-  const sponsors = (data?.data ?? [])
+  const companies = (data?.data ?? [])
     .filter((s) => s.id !== currentSponsorId)
     .filter((s) => !query.trim() || s.companyName.toLowerCase().includes(query.toLowerCase()))
 
@@ -506,7 +426,7 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a3a5c]">
           <div>
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <ArrowRightLeft className="w-4 h-4 text-amber-400" /> Move Contact
+              <ArrowRightLeft className="w-4 h-4 text-emerald-400" /> Move Contact
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">Moving <span className="text-slate-300">{contactName}</span> to a new company</p>
           </div>
@@ -522,30 +442,30 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search companies…"
-              className="w-full pl-8 pr-3 py-2 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-amber-500/60 transition-colors"
+              className="w-full pl-8 pr-3 py-2 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500/60 transition-colors"
             />
           </div>
         </div>
 
         <div className="max-h-72 overflow-y-auto p-2">
-          {sponsors.length === 0 && (
+          {companies.length === 0 && (
             <p className="text-sm text-slate-500 text-center py-6">{query ? 'No companies match your search.' : 'No other companies found.'}</p>
           )}
-          {sponsors.map((s) => (
+          {companies.map((s) => (
             <button
               key={s.id}
               onClick={() => onMove(s.id, s.companyName)}
               disabled={loading}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-amber-500/10 transition-colors disabled:opacity-50 group"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-emerald-500/10 transition-colors disabled:opacity-50 group"
             >
-              <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
                 {s.companyName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-white truncate">{s.companyName}</div>
                 {(s.city || s.country) && <div className="text-xs text-slate-500 truncate">{[s.city, s.country].filter(Boolean).join(', ')}</div>}
               </div>
-              <ArrowRightLeft className="w-3.5 h-3.5 text-slate-600 group-hover:text-amber-400 transition-colors shrink-0" />
+              <ArrowRightLeft className="w-3.5 h-3.5 text-slate-600 group-hover:text-emerald-400 transition-colors shrink-0" />
             </button>
           ))}
         </div>

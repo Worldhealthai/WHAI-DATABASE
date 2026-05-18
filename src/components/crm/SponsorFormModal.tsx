@@ -13,11 +13,14 @@ import {
 
 interface Props {
   sponsor?: Partial<Sponsor>
+  defaultTier?: string
+  entityLabel?: string
+  keepTier?: boolean
   onClose: () => void
   onSaved: (s: Sponsor) => void
 }
 
-export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
+export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor', keepTier = false, onClose, onSaved }: Props) {
   const isEdit = !!sponsor?.id
   const [form, setForm] = useState({
     companyName: sponsor?.companyName ?? '',
@@ -30,13 +33,13 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
     contactJobTitle: sponsor?.contactJobTitle ?? '',
     country: sponsor?.country ?? '',
     city: sponsor?.city ?? '',
-    tier: sponsor?.tier ?? '',
+    tier: sponsor?.tier ?? defaultTier ?? '',
     status: sponsor?.status ?? 'Not Contacted',
     event: sponsor?.event ?? '',
     valueAmount: sponsor?.valueAmount ? String(sponsor.valueAmount) : '',
     valueCurrency: sponsor?.valueCurrency ?? 'GBP',
     packageDetails: sponsor?.packageDetails ?? '',
-    tags: sponsor?.tags ?? '',
+
     notes: sponsor?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -55,7 +58,7 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
         ...form,
         valueAmount: form.valueAmount ? parseFloat(form.valueAmount) : null,
         // Clear tier if status is not Confirmed
-        tier: isConfirmed ? form.tier || null : null,
+        tier: keepTier ? (form.tier || null) : (isConfirmed ? form.tier || null : null),
       }
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
@@ -78,7 +81,7 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-sm overflow-y-auto">
       <div className="w-full max-w-2xl bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-2xl my-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a3a5c]">
-          <h2 className="text-base font-semibold text-white">{isEdit ? 'Edit Sponsor' : 'Add Sponsor'}</h2>
+          <h2 className="text-base font-semibold text-white">{isEdit ? `Edit ${entityLabel}` : `Add ${entityLabel}`}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
@@ -188,22 +191,17 @@ export function SponsorFormModal({ sponsor, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* Meta */}
+          {/* Notes */}
           <div className="pt-2 border-t border-[#1a3a5c]">
-            <div className="grid grid-cols-2 gap-4 pt-1">
-              <Field label="Tags (comma-separated)">
-                <input value={form.tags} onChange={(e) => set('tags', e.target.value)} placeholder="tech, digital-health" className={inputCls} />
-              </Field>
-              <Field label="Notes">
-                <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
-              </Field>
-            </div>
+            <Field label="Notes">
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
+            </Field>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1a3a5c]">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition-colors">Cancel</button>
             <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Sponsor'}
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : `Add ${entityLabel}`}
             </button>
           </div>
         </form>

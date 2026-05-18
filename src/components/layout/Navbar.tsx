@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, Mic, Award, LayoutDashboard, Inbox, Upload } from 'lucide-react'
+import { Users, Mic, Award, LayoutDashboard, Inbox, Upload, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
   { href: '/delegates',  label: 'Delegates',  icon: Users,          activeColor: 'text-[#00B4D8]',  activeBg: 'bg-[#00B4D8]/15' },
   { href: '/speakers',   label: 'Speakers',   icon: Mic,            activeColor: 'text-purple-400', activeBg: 'bg-purple-400/15' },
   { href: '/sponsors',   label: 'Sponsors',   icon: Award,          activeColor: 'text-amber-400',  activeBg: 'bg-amber-400/15' },
+  { href: '/partners',   label: 'Partners',   icon: Network,        activeColor: 'text-emerald-400', activeBg: 'bg-emerald-400/15' },
   { href: '/unassigned', label: 'Unassigned', icon: Inbox,          activeColor: 'text-slate-200',  activeBg: 'bg-white/10' },
   { href: '/import',     label: 'Import',     icon: Upload,         activeColor: 'text-green-400',  activeBg: 'bg-green-400/15' },
 ]
@@ -71,13 +72,13 @@ export function Navbar() {
 export function MobileBottomNav() {
   const pathname = usePathname()
 
-  // Show 4 most important items on mobile
+  // Show 5 most important items on mobile
   const mobileItems = [
-    { href: '/',           label: 'Home',      icon: LayoutDashboard, activeColor: 'text-[#00B4D8]' },
-    { href: '/delegates',  label: 'Delegates', icon: Users,           activeColor: 'text-[#00B4D8]' },
-    { href: '/speakers',   label: 'Speakers',  icon: Mic,             activeColor: 'text-purple-400' },
-    { href: '/sponsors',   label: 'Sponsors',  icon: Award,           activeColor: 'text-amber-400' },
-    { href: '/unassigned', label: 'Inbox',     icon: Inbox,           activeColor: 'text-slate-200' },
+    { href: '/',          label: 'Home',      icon: LayoutDashboard, activeColor: 'text-[#00B4D8]' },
+    { href: '/delegates', label: 'Delegates', icon: Users,           activeColor: 'text-[#00B4D8]' },
+    { href: '/speakers',  label: 'Speakers',  icon: Mic,             activeColor: 'text-purple-400' },
+    { href: '/sponsors',  label: 'Sponsors',  icon: Award,           activeColor: 'text-amber-400' },
+    { href: '/partners',  label: 'Partners',  icon: Network,         activeColor: 'text-emerald-400' },
   ]
 
   return (
