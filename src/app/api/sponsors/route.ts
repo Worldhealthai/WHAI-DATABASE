@@ -53,8 +53,10 @@ export async function GET(req: NextRequest) {
     if (filters.events?.length) query = query.in('event', filters.events)
     if (filters.tiers?.length) query = query.in('tier', filters.tiers)
     if (excludeTiers.length) {
-      // Include rows where tier IS NULL (untiered sponsors) OR tier is not one of the excluded values
-      query = query.or(`tier.is.null,not.tier.in.(${excludeTiers.map((t) => `"${t}"`).join(',')})`)
+      // (tier IS NULL) OR (tier ≠ T1 AND tier ≠ T2 …)
+      // The AND group handles non-null rows; tier.is.null covers sponsors with no tier set.
+      const andParts = excludeTiers.map((t) => `tier.neq.${JSON.stringify(t)}`).join(',')
+      query = query.or(`tier.is.null,and(${andParts})`)
     }
     if (filters.contractStatuses?.length) query = query.in('contractStatus', filters.contractStatuses)
     if (filters.countries?.length) query = query.in('country', filters.countries)

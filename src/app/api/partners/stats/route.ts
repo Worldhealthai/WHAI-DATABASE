@@ -3,16 +3,15 @@ import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
+const PARTNER_TIERS = ['Media Partner', 'Association Partner']
+
 export async function GET() {
   try {
-    const PARTNER_TIERS = ['Media Partner', 'Association Partner']
-    const andParts = PARTNER_TIERS.map((t) => `tier.neq.${JSON.stringify(t)}`).join(',')
-
     const { data, error } = await supabase
       .from('sponsors')
       .select('status, event')
       .is('companyId', null)
-      .or(`tier.is.null,and(${andParts})`)
+      .in('tier', PARTNER_TIERS)
 
     if (error) throw error
 
@@ -25,7 +24,7 @@ export async function GET() {
 
     return NextResponse.json({ total: data?.length ?? 0, byStatus, byEvent })
   } catch (error) {
-    console.error('Sponsors stats error:', error)
+    console.error('Partners stats error:', error)
     return NextResponse.json({ total: 0, byStatus: {}, byEvent: {} })
   }
 }
