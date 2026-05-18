@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
-import { Users, Mic, Award, Upload, Inbox, Plus, ArrowUpRight, ChevronRight } from 'lucide-react'
+import { Users, Mic, Award, Upload, Inbox, Plus, ArrowUpRight, ChevronRight, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ interface AllStats {
   delegates: SectionStats
   speakers:  SectionStats
   sponsors:  SectionStats
+  partners:  SectionStats
 }
 
 // ── Pipeline configs ──────────────────────────────────────────────────────────
@@ -44,17 +45,29 @@ const SPONSOR_PIPELINE = [
   { status: 'Confirmed',     hex: '#10b981' },
   { status: 'Rejected',      hex: '#f43f5e' },
 ]
+const PARTNER_PIPELINE = [
+  { status: 'Not Contacted', hex: '#64748b' },
+  { status: 'Emailed',       hex: '#3b82f6' },
+  { status: 'In Discussion', hex: '#a855f7' },
+  { status: 'Confirmed',     hex: '#10b981' },
+  { status: 'Rejected',      hex: '#f43f5e' },
+]
 
 const EVENTS = ['UK Forum', 'US Forum']
 const EVENT_HEX = ['#00B4D8', '#a855f7']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function keyMetric(pipeline: typeof DELEGATE_PIPELINE, byStatus: Record<string, number>, total: number) {
-  const positiveStatuses = pipeline.filter(p =>
-    ['Confirmed', 'Attended', 'Speaking Confirmed'].includes(p.status)
-  )
-  const n = positiveStatuses.reduce((s, p) => s + (byStatus[p.status] ?? 0), 0)
+function keyMetric(
+  pipeline: typeof DELEGATE_PIPELINE,
+  byStatus: Record<string, number>,
+  total: number,
+  positiveKeys?: string[],
+) {
+  const keys = positiveKeys ?? ['Confirmed', 'Attended', 'Speaking Confirmed']
+  const n = pipeline
+    .filter(p => keys.includes(p.status))
+    .reduce((s, p) => s + (byStatus[p.status] ?? 0), 0)
   return total > 0 ? Math.round((n / total) * 100) : 0
 }
 
@@ -104,16 +117,18 @@ function Ring({ pct, color, size = 88, stroke = 7, animate }: {
 
 function KPICard({
   label, icon: Icon, total, byStatus, byEvent, pipeline,
-  color, accentHex, href, animate, loading,
+  color, accentHex, href, animate, loading, positiveKeys, ringLabel,
 }: {
   label: string; icon: React.ElementType; total: number
   byStatus: Record<string, number>; byEvent: Record<string, number>
   pipeline: { status: string; hex: string }[]
   color: string; accentHex: string; href: string
   animate: boolean; loading: boolean
+  positiveKeys?: string[]
+  ringLabel?: string
 }) {
-  const pct = keyMetric(pipeline, byStatus, total)
-  const top3 = pipeline
+  const pct = keyMetric(pipeline, byStatus, total, positiveKeys)
+  const top4 = pipeline
     .map(p => ({ ...p, count: byStatus[p.status] ?? 0 }))
     .filter(p => p.count > 0)
     .sort((a, b) => b.count - a.count)
@@ -121,11 +136,9 @@ function KPICard({
 
   return (
     <Link href={href} className="group block relative overflow-hidden rounded-xl border border-[#1a3a5c] bg-[#0d2040] hover:border-opacity-60 transition-all hover:shadow-lg hover:shadow-black/40 hover:-translate-y-0.5">
-      {/* Accent top bar */}
       <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${accentHex}80, ${accentHex}20)` }} />
 
       <div className="p-5">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg" style={{ background: `${accentHex}18` }}>
@@ -136,7 +149,6 @@ function KPICard({
           <ArrowUpRight className="w-3.5 h-3.5 text-slate-700 group-hover:text-slate-400 transition-colors" />
         </div>
 
-        {/* Number + Ring */}
         <div className="flex items-end justify-between mb-5">
           <div>
             {loading ? (
@@ -150,19 +162,20 @@ function KPICard({
             <div className="relative shrink-0">
               <Ring pct={pct} color={accentHex} animate={animate} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-white">
-                  {pct}%
-                </span>
+                <span className="text-sm font-bold text-white">{pct}%</span>
               </div>
             </div>
           )}
           {loading && <div className="w-[88px] h-[88px] rounded-full bg-slate-700/30 animate-pulse shrink-0" />}
         </div>
 
-        {/* Status breakdown */}
+        {ringLabel && !loading && total > 0 && (
+          <div className="text-[10px] text-slate-600 -mt-3 mb-3 text-right">{ringLabel}</div>
+        )}
+
         {!loading && (
           <div className="space-y-1.5 mb-4">
-            {top3.map(p => (
+            {top4.map(p => (
               <div key={p.status} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.hex }} />
@@ -191,7 +204,6 @@ function KPICard({
           </div>
         )}
 
-        {/* Event split */}
         {!loading && (
           <div className="pt-3 border-t border-[#1a3a5c]/60">
             <div className="flex items-center gap-3">
@@ -269,6 +281,7 @@ function EventComparison({ stats, animate }: { stats: AllStats; animate: boolean
     { label: 'Delegates', data: stats.delegates, color: '#00B4D8' },
     { label: 'Speakers',  data: stats.speakers,  color: '#a855f7' },
     { label: 'Sponsors',  data: stats.sponsors,  color: '#f59e0b' },
+    { label: 'Partners',  data: stats.partners,  color: '#10b981' },
   ]
 
   const maxPerRow = rows.map(r =>
@@ -330,9 +343,10 @@ export default function DashboardPage() {
       fetch('/api/delegates/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
       fetch('/api/speakers/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
       fetch('/api/sponsors/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-    ]).then(([d, sp, sn]) => {
+      fetch('/api/partners/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
+    ]).then(([d, sp, sn, pt]) => {
       if (cancelled) return
-      setStats({ delegates: d, speakers: sp, sponsors: sn })
+      setStats({ delegates: d, speakers: sp, sponsors: sn, partners: pt })
       setLoading(false)
       setTimeout(() => setAnimate(true), 100)
     }).catch(() => { if (!cancelled) setLoading(false) })
@@ -341,7 +355,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #0c1f3f 0%, #0A1628 60%)' }}>
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-6">
 
         {/* ── Top bar ── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -371,7 +385,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── KPI tiles ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             label="Delegates" icon={Users}
             total={stats?.delegates.total ?? 0}
@@ -396,8 +410,21 @@ export default function DashboardPage() {
             byStatus={stats?.sponsors.byStatus ?? {}}
             byEvent={stats?.sponsors.byEvent ?? {}}
             pipeline={SPONSOR_PIPELINE}
+            positiveKeys={['Emailed', 'In Discussion', 'Confirmed']}
+            ringLabel="contacted"
             color="text-amber-400" accentHex="#f59e0b"
             href="/sponsors" animate={animate} loading={loading}
+          />
+          <KPICard
+            label="Partners & Media" icon={Network}
+            total={stats?.partners.total ?? 0}
+            byStatus={stats?.partners.byStatus ?? {}}
+            byEvent={stats?.partners.byEvent ?? {}}
+            pipeline={PARTNER_PIPELINE}
+            positiveKeys={['Emailed', 'In Discussion', 'Confirmed']}
+            ringLabel="contacted"
+            color="text-emerald-400" accentHex="#10b981"
+            href="/partners" animate={animate} loading={loading}
           />
         </div>
 
@@ -411,7 +438,7 @@ export default function DashboardPage() {
             </div>
             {loading ? (
               <div className="space-y-4">
-                {[1,2,3,4,5,6,7,8,9].map(i => (
+                {[1,2,3,4,5,6,7,8,9,10,11,12].map(i => (
                   <div key={i} className="flex items-center gap-3">
                     <div className="h-3 w-28 bg-slate-700/40 rounded animate-pulse" />
                     <div className="h-1.5 flex-1 bg-slate-700/30 rounded animate-pulse" />
@@ -426,6 +453,8 @@ export default function DashboardPage() {
                 <PipelineSection label="Speaker Leads" pipeline={SPEAKER_PIPELINE} byStatus={stats?.speakers.byStatus ?? {}} total={stats?.speakers.total ?? 0} accentHex="#a855f7" href="/speakers" animate={animate} />
                 <div className="border-t border-[#1a3a5c]/40" />
                 <PipelineSection label="Sponsors" pipeline={SPONSOR_PIPELINE} byStatus={stats?.sponsors.byStatus ?? {}} total={stats?.sponsors.total ?? 0} accentHex="#f59e0b" href="/sponsors" animate={animate} />
+                <div className="border-t border-[#1a3a5c]/40" />
+                <PipelineSection label="Partners & Media" pipeline={PARTNER_PIPELINE} byStatus={stats?.partners.byStatus ?? {}} total={stats?.partners.total ?? 0} accentHex="#10b981" href="/partners" animate={animate} />
               </div>
             )}
           </div>
@@ -447,7 +476,7 @@ export default function DashboardPage() {
               </div>
               {loading ? (
                 <div className="space-y-3">
-                  {[1,2,3].map(i => <div key={i} className="h-10 bg-slate-700/30 rounded animate-pulse" />)}
+                  {[1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-700/30 rounded animate-pulse" />)}
                 </div>
               ) : stats ? (
                 <EventComparison stats={stats} animate={animate} />
@@ -459,11 +488,12 @@ export default function DashboardPage() {
               <h2 className="text-sm font-semibold text-white mb-3">Quick Actions</h2>
               <div className="space-y-1.5">
                 {[
-                  { href: '/delegates', label: 'View Delegates', icon: Users, color: '#00B4D8' },
-                  { href: '/speakers', label: 'View Speakers', icon: Mic, color: '#a855f7' },
-                  { href: '/sponsors', label: 'View Sponsors', icon: Award, color: '#f59e0b' },
-                  { href: '/import', label: 'Import CSV', icon: Upload, color: '#10b981' },
-                  { href: '/unassigned', label: 'Triage Inbox', icon: Inbox, color: '#64748b' },
+                  { href: '/delegates', label: 'View Delegates',  icon: Users,    color: '#00B4D8' },
+                  { href: '/speakers',  label: 'View Speakers',   icon: Mic,      color: '#a855f7' },
+                  { href: '/sponsors',  label: 'View Sponsors',   icon: Award,    color: '#f59e0b' },
+                  { href: '/partners',  label: 'View Partners',   icon: Network,  color: '#10b981' },
+                  { href: '/import',    label: 'Import CSV',      icon: Upload,   color: '#10b981' },
+                  { href: '/unassigned',label: 'Triage Inbox',    icon: Inbox,    color: '#64748b' },
                 ].map(item => {
                   const Icon = item.icon
                   return (
