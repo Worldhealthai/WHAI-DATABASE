@@ -87,4 +87,9 @@
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
+  /* Brighten grey text globally for readability on dark backgrounds */
+  .text-slate-600 { color: rgb(148 163 184) !important; }   /* was ~71 85 105, now slate-400 */
+  .text-slate-500 { color: rgb(186 200 219) !important; }   /* was ~100 116 139, now ~slate-300 */
+  .text-slate-400 { color: rgb(210 220 232) !important; }   /* was ~148 163 184, now ~slate-200 */
 }
