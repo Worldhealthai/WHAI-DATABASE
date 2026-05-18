@@ -15,6 +15,8 @@ import type { Sponsor, SponsorFilters } from '@/types'
 import { SPONSOR_STATUS_OPTIONS, SPONSOR_TIER_OPTIONS, COUNTRY_OPTIONS, EVENT_OPTIONS } from '@/types'
 import { cn } from '@/lib/utils'
 
+const PARTNER_TIERS = ['Media Partner', 'Association Partner']
+
 async function fetchSponsors(
   filters: SponsorFilters, page: number, pageSize: number, sortBy: string, sortDir: string,
 ) {
@@ -26,6 +28,7 @@ async function fetchSponsors(
   filters.events?.forEach((e) => params.append('events', e))
   filters.tiers?.forEach((t) => params.append('tiers', t))
   filters.countries?.forEach((c) => params.append('countries', c))
+  PARTNER_TIERS.forEach((t) => params.append('excludeTiers', t))
   const res = await fetch(`/api/sponsors?${params}`)
   if (!res.ok) throw new Error('Failed to fetch')
   return res.json()
@@ -561,7 +564,7 @@ export default function SponsorsPage() {
           {/* Filters */}
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <FilterDropdown label="Status" options={SPONSOR_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
-            <FilterDropdown label="Tier" options={SPONSOR_TIER_OPTIONS} selected={filters.tiers ?? []} onChange={(v) => updateFilter('tiers', v)} searchable={false} />
+            <FilterDropdown label="Tier" options={SPONSOR_TIER_OPTIONS.filter((t) => !PARTNER_TIERS.includes(t))} selected={filters.tiers ?? []} onChange={(v) => updateFilter('tiers', v)} searchable={false} />
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />
           </div>
 

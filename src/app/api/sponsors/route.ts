@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
       tags: searchParams.getAll('tags').filter(Boolean),
     }
 
+    const excludeTiers = searchParams.getAll('excludeTiers').filter(Boolean)
+
     let query = supabase
       .from('sponsors')
       .select('*', { count: 'exact' })
@@ -50,6 +52,7 @@ export async function GET(req: NextRequest) {
     if (filters.statuses?.length) query = query.in('status', filters.statuses)
     if (filters.events?.length) query = query.in('event', filters.events)
     if (filters.tiers?.length) query = query.in('tier', filters.tiers)
+    if (excludeTiers.length) query = query.not('tier', 'in', `(${excludeTiers.map((t) => `"${t}"`).join(',')})`)
     if (filters.contractStatuses?.length) query = query.in('contractStatus', filters.contractStatuses)
     if (filters.countries?.length) query = query.in('country', filters.countries)
     if (filters.tags?.length) {
