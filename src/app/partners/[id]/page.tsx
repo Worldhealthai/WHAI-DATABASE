@@ -520,7 +520,12 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-white truncate">{s.companyName}</div>
-                {(s.city || s.country) && <div className="text-xs text-slate-500 truncate">{[s.city, s.country].filter(Boolean).join(', ')}</div>}
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  {s.event && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#112850] text-slate-400 border border-[#1a3a5c] truncate max-w-[120px]">{s.event}</span>}
+                  {s.status && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{s.status}</span>}
+                  {typeof s.contactCount === 'number' && <span className="text-[10px] text-slate-500">{s.contactCount} contact{s.contactCount !== 1 ? 's' : ''}</span>}
+                  {(s.city || s.country) && <span className="text-[10px] text-slate-500 truncate">{[s.city, s.country].filter(Boolean).join(', ')}</span>}
+                </div>
               </div>
               <ArrowRightLeft className="w-3.5 h-3.5 text-slate-600 group-hover:text-emerald-400 transition-colors shrink-0" />
             </button>
