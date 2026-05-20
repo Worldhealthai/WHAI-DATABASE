@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Users, Mic, Award, LayoutDashboard, Inbox, Upload, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { GlobalSearch } from './GlobalSearch'
 
 const NAV_ITEMS = [
   { href: '/delegates',  label: 'Delegates',  icon: Users,          activeColor: 'text-[#00B4D8]',  activeBg: 'bg-[#00B4D8]/15' },
@@ -56,11 +57,10 @@ export function Navbar() {
         </nav>
 
         {/* Right side */}
-        <div className="ml-auto flex items-center gap-3 shrink-0">
-          <span className="text-xs px-2 py-0.5 rounded-full bg-[#00B4D8]/20 text-[#00B4D8] border border-[#00B4D8]/30 font-medium hidden sm:inline">
-            Internal
-          </span>
-          <div className="w-7 h-7 rounded-full bg-[#1a3a5c] flex items-center justify-center text-xs font-semibold text-white">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <GlobalSearch />
+          <div className="hidden sm:block w-px h-5 bg-[#1a3a5c]" />
+          <div className="w-7 h-7 rounded-full bg-[#1a3a5c] flex items-center justify-center text-xs font-semibold text-white shrink-0">
             WH
           </div>
         </div>

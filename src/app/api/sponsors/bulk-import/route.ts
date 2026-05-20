@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
             country: firstRow.country || null,
             city: firstRow.city || null,
             tier: firstRow.tier || null,
-            status: firstRow.status || 'Prospecting',
+            status: firstRow.status || 'Not Contacted',
             event: resolvedEvent,
             notes: firstRow.notes || null,
             tags: firstRow.tags || null,
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
           contactLinkedinUrl: r.contactLinkedinUrl || null,
           notes: r.notes || null,
           // Contact rows inherit company-level fields for completeness
-          status: r.status || 'Prospecting',
+          status: r.status || 'Not Contacted',
           event: event || r.event || null,
         }))
 
