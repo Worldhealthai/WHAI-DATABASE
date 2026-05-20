@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         city: contact.city,
         tags: contact.tags,
         notes: contact.notes,
-        status: 'Prospecting',
+        status: 'Not Contacted',
       }
     }
 
