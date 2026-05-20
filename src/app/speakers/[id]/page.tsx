@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Building2,
-  Briefcase, Tag, Mic, ChevronRight, Plane, Hotel, Check,
+  Briefcase, Tag, Mic, ChevronRight, ChevronLeft, Plane, Hotel, Check,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -95,6 +95,26 @@ export default function SpeakerDetailPage() {
     queryFn: () => fetchSpeaker(id),
   })
 
+  const { data: navData } = useQuery<{ data: { id: string; firstName: string; lastName: string }[] }>({
+    queryKey: ['speakers-nav'],
+    queryFn: () => fetch('/api/speakers?pageSize=1000&sortBy=createdAt&sortDir=desc').then(r => r.json()),
+    staleTime: 60_000,
+  })
+  const navList = navData?.data ?? []
+  const currentIdx = navList.findIndex(s => s.id === id)
+  const prevItem = currentIdx > 0 ? navList[currentIdx - 1] : null
+  const nextItem = currentIdx < navList.length - 1 ? navList[currentIdx + 1] : null
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'ArrowLeft' && prevItem) router.push(`/speakers/${prevItem.id}`)
+      if (e.key === 'ArrowRight' && nextItem) router.push(`/speakers/${nextItem.id}`)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [prevItem, nextItem, router])
+
   const handleDelete = async () => {
     if (!confirm('Delete this speaker? This cannot be undone.')) return
     setDeleting(true)
@@ -145,12 +165,49 @@ export default function SpeakerDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-      <nav className="flex items-center gap-1.5 text-sm text-slate-500">
-        <Link href="/speakers" className="hover:text-white transition-colors flex items-center gap-1">
-          <ArrowLeft className="w-3.5 h-3.5" /> Speakers
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-slate-300">{speaker.firstName} {speaker.lastName}</span>
+      <nav className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+          <Link href="/speakers" className="hover:text-white transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Speakers
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="text-slate-300">{speaker.firstName} {speaker.lastName}</span>
+          {currentIdx >= 0 && (
+            <span className="text-xs text-slate-600 ml-1">{currentIdx + 1} / {navList.length}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Link
+            href={prevItem ? `/speakers/${prevItem.id}` : '#'}
+            aria-disabled={!prevItem}
+            title={prevItem ? `← ${prevItem.firstName} ${prevItem.lastName}` : 'No previous'}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+              prevItem
+                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
+                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+            )}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{prevItem ? `${prevItem.firstName} ${prevItem.lastName}` : 'Previous'}</span>
+            <span className="sm:hidden">Prev</span>
+          </Link>
+          <Link
+            href={nextItem ? `/speakers/${nextItem.id}` : '#'}
+            aria-disabled={!nextItem}
+            title={nextItem ? `${nextItem.firstName} ${nextItem.lastName} →` : 'No next'}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+              nextItem
+                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
+                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+            )}
+          >
+            <span className="hidden sm:inline">{nextItem ? `${nextItem.firstName} ${nextItem.lastName}` : 'Next'}</span>
+            <span className="sm:hidden">Next</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </nav>
 
       <div className="whai-card overflow-hidden">

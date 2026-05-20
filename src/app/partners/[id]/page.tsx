@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Globe,
-  Briefcase, Tag, Building2, ChevronRight, UserPlus, Pencil, ArrowRightLeft, Search, X,
+  Briefcase, Tag, Building2, ChevronRight, ChevronLeft, UserPlus, Pencil, ArrowRightLeft, Search, X,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
@@ -36,6 +36,26 @@ export default function PartnerDetailPage() {
     queryKey: ['partner', id],
     queryFn: () => fetchPartner(id),
   })
+
+  const { data: navData } = useQuery<{ data: { id: string; companyName: string }[] }>({
+    queryKey: ['partners-nav'],
+    queryFn: () => fetch('/api/sponsors?pageSize=1000&sortBy=createdAt&sortDir=desc&tiers=Media+Partner&tiers=Association+Partner').then(r => r.json()),
+    staleTime: 60_000,
+  })
+  const navList = navData?.data ?? []
+  const currentIdx = navList.findIndex(s => s.id === id)
+  const prevItem = currentIdx > 0 ? navList[currentIdx - 1] : null
+  const nextItem = currentIdx < navList.length - 1 ? navList[currentIdx + 1] : null
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'ArrowLeft' && prevItem) router.push(`/partners/${prevItem.id}`)
+      if (e.key === 'ArrowRight' && nextItem) router.push(`/partners/${nextItem.id}`)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [prevItem, nextItem, router])
 
   const handleMoveContact = async (targetId: string, targetName: string) => {
     if (!movingContact || !partner) return
@@ -116,13 +136,50 @@ export default function PartnerDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-sm text-slate-500">
-        <Link href="/partners" className="hover:text-white transition-colors flex items-center gap-1">
-          <ArrowLeft className="w-3.5 h-3.5" /> Partners & Media
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-slate-300">{partner.companyName}</span>
+      {/* Breadcrumb + nav */}
+      <nav className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+          <Link href="/partners" className="hover:text-white transition-colors flex items-center gap-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Partners & Media
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span className="text-slate-300">{partner.companyName}</span>
+          {currentIdx >= 0 && (
+            <span className="text-xs text-slate-600 ml-1">{currentIdx + 1} / {navList.length}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Link
+            href={prevItem ? `/partners/${prevItem.id}` : '#'}
+            aria-disabled={!prevItem}
+            title={prevItem ? `← ${prevItem.companyName}` : 'No previous'}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+              prevItem
+                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
+                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+            )}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{prevItem ? prevItem.companyName : 'Previous'}</span>
+            <span className="sm:hidden">Prev</span>
+          </Link>
+          <Link
+            href={nextItem ? `/partners/${nextItem.id}` : '#'}
+            aria-disabled={!nextItem}
+            title={nextItem ? `${nextItem.companyName} →` : 'No next'}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+              nextItem
+                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
+                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+            )}
+          >
+            <span className="hidden sm:inline">{nextItem ? nextItem.companyName : 'Next'}</span>
+            <span className="sm:hidden">Next</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </nav>
 
       {/* Header card */}
