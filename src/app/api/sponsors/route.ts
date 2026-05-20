@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
     const page = parseInt(searchParams.get('page') ?? '1')
-    const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '25'), 100)
+    const pageSize = Math.min(parseInt(searchParams.get('pageSize') ?? '25'), 1000)
     const sortBy = searchParams.get('sortBy') ?? 'createdAt'
     const sortDir = (searchParams.get('sortDir') ?? 'desc') as 'asc' | 'desc'
 
