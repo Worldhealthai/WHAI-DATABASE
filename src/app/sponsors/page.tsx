@@ -439,19 +439,25 @@ export default function SponsorsPage() {
   }
 
   const exportCSV = (ids?: Set<string>) => {
-    const source = (data?.data as Sponsor[]) ?? []
-    const list = ids ? source.filter((s) => ids.has(s.id)) : source
-    if (!list.length) return
-    const out = list.map((s) => [
-      s.companyName, s.website ?? '', s.contactFirstName ?? '', s.contactLastName ?? '',
-      s.contactEmail ?? '', s.contactPhone ?? '', s.contactJobTitle ?? '',
-      s.country ?? '', s.city ?? '', s.event ?? '', s.status, s.tier ?? '',
-      s.valueAmount ? `${s.valueCurrency ?? 'GBP'} ${s.valueAmount}` : '',
-    ])
-    const header = ['Company', 'Website', 'First Name', 'Last Name', 'Email', 'Phone', 'Job Title', 'Country', 'City', 'Event', 'Status', 'Tier', 'Value']
-    const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sponsors.csv'; a.click()
+    const PARTNER_TIERS = ['Media Partner', 'Association Partner']
+    const params = new URLSearchParams()
+    // Exclude partner tiers so only sponsors are exported
+    PARTNER_TIERS.forEach((t) => params.append('excludeTiers', t))
+    // If specific rows are selected, restrict by ID
+    if (ids && ids.size > 0) {
+      params.set('ids', [...ids].join(','))
+    }
+    // Pass current active filters so the export respects them when exporting all
+    if (!ids || ids.size === 0) {
+      if (filters.query) params.set('query', filters.query)
+      filters.events?.forEach((e) => params.append('event', e))
+      filters.statuses?.forEach((s) => params.append('status', s))
+      filters.tiers?.forEach((t) => params.append('tier', t))
+    }
+    const a = document.createElement('a')
+    a.href = `/api/sponsors/export?${params}`
+    a.download = 'sponsors-export.csv'
+    a.click()
   }
 
   const activeFilters: { category: string; key: string; value: string }[] = []
@@ -667,8 +673,8 @@ export default function SponsorsPage() {
                 <span className="text-sm text-slate-400">
                   {isLoading ? 'Loading…' : (<><span className={cn('font-bold text-white', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>)}
                 </span>
-                <button onClick={() => exportCSV()} disabled={!data?.data?.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors">
-                  <Download className="w-3.5 h-3.5" /> Export CSV
+                <button onClick={() => exportCSV()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors">
+                  <Download className="w-3.5 h-3.5" /> Export all
                 </button>
               </div>
 
