@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, FileText, CheckCircle2, AlertCircle, ArrowRight, X, RefreshCw, Users, Building2, Mic, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import * as XLSX from 'xlsx'
 
 // ── People import: column mapping ─────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ const TYPE_CONFIG: Record<ImportType, {
   },
 }
 
-// ── CSV parser ────────────────────────────────────────────────────────────────
+// ── File parsers (CSV + Excel) ────────────────────────────────────────────────
 
 function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim())
@@ -144,6 +145,102 @@ function parseCSV(text: string): { headers: string[]; rows: Record<string, strin
   }).filter((row) => Object.values(row).some((v) => v.trim()))
 
   return { headers, rows }
+}
+
+function parseExcel(buffer: ArrayBuffer): { headers: string[]; rows: Record<string, string>[] } {
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+  if (raw.length < 2) return { headers: [], rows: [] }
+  const headers = (raw[0] as any[]).map((h) => String(h ?? '').trim())
+  const rows = raw.slice(1)
+    .map((cells) => {
+      const obj: Record<string, string> = {}
+      headers.forEach((h, i) => { obj[h] = String(cells[i] ?? '').trim() })
+      return obj
+    })
+    .filter((row) => Object.values(row).some((v) => v))
+  return { headers, rows }
+}
+
+// Detects numbered contact columns like "Contact 1 First Name", "Contact 2 Email", etc.
+// and expands each company row into one row per contact found.
+const CONTACT_NUM_RE = /^contact\s*(\d+)\s+(.+)$/i
+const CONTACT_FIELD_MAP: Record<string, string> = {
+  'first name': 'contactFirstName', 'firstname': 'contactFirstName',
+  'last name': 'contactLastName', 'lastname': 'contactLastName', 'surname': 'contactLastName',
+  'email': 'contactEmail', 'email address': 'contactEmail',
+  'phone': 'contactPhone', 'mobile': 'contactPhone', 'telephone': 'contactPhone',
+  'job title': 'contactJobTitle', 'title': 'contactJobTitle', 'position': 'contactJobTitle', 'role': 'contactJobTitle',
+  'linkedin': 'contactLinkedinUrl', 'linkedin url': 'contactLinkedinUrl',
+  'name': 'contactFirstName', // fallback
+}
+
+function expandMultiContactRows(headers: string[], rows: Record<string, string>[]): { headers: string[]; rows: Record<string, string>[] } {
+  // Find which headers are numbered contact columns
+  const numberedCols = new Map<number, Map<string, string>>() // contactNum → {header → crmField}
+  let hasNumbered = false
+
+  for (const h of headers) {
+    const m = h.match(CONTACT_NUM_RE)
+    if (!m) continue
+    const num = parseInt(m[1])
+    const fieldKey = m[2].toLowerCase().trim()
+    const crmField = CONTACT_FIELD_MAP[fieldKey]
+    if (!crmField) continue
+    hasNumbered = true
+    if (!numberedCols.has(num)) numberedCols.set(num, new Map())
+    numberedCols.get(num)!.set(h, crmField)
+  }
+
+  if (!hasNumbered) return { headers, rows }
+
+  // Base fields: everything that is NOT a numbered contact column
+  const baseHeaders = headers.filter((h) => !h.match(CONTACT_NUM_RE))
+  const sortedNums = [...numberedCols.keys()].sort((a, b) => a - b)
+
+  const expanded: Record<string, string>[] = []
+
+  for (const row of rows) {
+    // Build base object (company-level fields)
+    const base: Record<string, string> = {}
+    for (const h of baseHeaders) base[h] = row[h] ?? ''
+
+    for (const num of sortedNums) {
+      const colMap = numberedCols.get(num)!
+      // Check if this contact slot has any data
+      const hasData = [...colMap.keys()].some((h) => row[h]?.trim())
+      if (!hasData) continue
+
+      // Create a new row with base fields + this contact's fields mapped to standard names
+      const contactRow: Record<string, string> = { ...base }
+      for (const [srcHeader, crmField] of colMap) {
+        // Find if there's already a standard header for this crmField; if not, use the crmField key directly
+        contactRow[crmField] = row[srcHeader] ?? ''
+      }
+      expanded.push(contactRow)
+    }
+
+    // Also check if there's a plain (non-numbered) primary contact on this row
+    const hasPlainContact = baseHeaders.some((h) => {
+      const lower = h.toLowerCase().trim()
+      return (lower === 'first name' || lower === 'firstname' || lower === 'email' || lower === 'contact first name' || lower === 'contact email') && row[h]?.trim()
+    })
+    if (hasPlainContact && sortedNums.length > 0) {
+      // Primary contact already included via base fields — don't double-add
+    } else if (sortedNums.length === 0) {
+      expanded.push(base)
+    }
+  }
+
+  // Rebuild headers to include standard contact fields instead of numbered ones
+  const standardContactHeaders = ['contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone', 'contactJobTitle', 'contactLinkedinUrl']
+  const newHeaders = [
+    ...baseHeaders.filter((h) => !standardContactHeaders.includes(h)),
+    ...standardContactHeaders.filter((h) => expanded.some((r) => r[h])),
+  ]
+
+  return { headers: newHeaders, rows: expanded }
 }
 
 function autoMap(headers: string[], importType: ImportType): Record<string, string> {
@@ -226,17 +323,38 @@ export default function ImportPage() {
   const handleFile = useCallback((file: File) => {
     setError('')
     setFileName(file.name)
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
-      const { headers: h, rows: r } = parseCSV(text)
-      if (h.length === 0) { setError('Could not parse file — is it a valid CSV?'); return }
+    const isExcel = /\.(xlsx|xls|ods)$/i.test(file.name)
+
+    const process = (parsed: { headers: string[]; rows: Record<string, string>[] }) => {
+      let { headers: h, rows: r } = parsed
+      if (h.length === 0) { setError('Could not parse file — is it a valid CSV or Excel file?'); return }
+      // For company imports, auto-expand numbered contact columns
+      if (TYPE_CONFIG[importType].isCompany) {
+        const expanded = expandMultiContactRows(h, r)
+        h = expanded.headers
+        r = expanded.rows
+      }
       setHeaders(h)
       setRows(r)
       setMapping(autoMap(h, importType))
       setStep('map')
     }
-    reader.readAsText(file)
+
+    if (isExcel) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          process(parseExcel(e.target?.result as ArrayBuffer))
+        } catch {
+          setError('Could not parse Excel file — try saving as CSV and re-uploading.')
+        }
+      }
+      reader.readAsArrayBuffer(file)
+    } else {
+      const reader = new FileReader()
+      reader.onload = (e) => process(parseCSV(e.target?.result as string))
+      reader.readAsText(file)
+    }
   }, [importType])
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -392,8 +510,8 @@ export default function ImportPage() {
         <div className={cn('px-4 py-3 rounded-lg text-sm border', importType === 'partners' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300')}>
           <span className="font-semibold">{cfg.label} import</span>
           {importType === 'partners'
-            ? ' — each row represents one contact at an association or media organisation. Rows with the same Company Name are grouped automatically. Imported as "Media Partner" tier by default.'
-            : ' — each row represents one contact. Multiple rows with the same Company Name will be grouped under one company profile automatically.'}
+            ? ' — each row represents one contact at an association or media organisation. Rows with the same Company Name are grouped automatically. Supports numbered contact columns (Contact 1 Email, Contact 2 Email…). Imported as "Media Partner" tier by default.'
+            : ' — each row represents one contact, or use numbered columns (Contact 1 First Name, Contact 2 First Name…) to put multiple contacts on one row. Rows with the same Company Name are grouped automatically.'}
         </div>
       )}
 
@@ -445,14 +563,14 @@ export default function ImportPage() {
           onMouseLeave={(e) => { if (!isDragging) (e.currentTarget as HTMLElement).style.borderColor = '' }}
         >
           <Upload className="w-10 h-10 text-slate-500 mx-auto mb-4" />
-          <p className="text-white font-medium mb-1">Drop your CSV file here</p>
-          <p className="text-slate-500 text-sm">or click to browse</p>
+          <p className="text-white font-medium mb-1">Drop your file here</p>
+          <p className="text-slate-500 text-sm">or click to browse · CSV or Excel (.xlsx)</p>
           <p className="text-slate-600 text-xs mt-3">
             {isCompany
-              ? 'One row per contact — rows with the same company name are grouped automatically'
-              : `Supports CSV files exported from WorldHealthAI admin · Importing as ${cfg.label}`}
+              ? 'One row per contact (or numbered columns like "Contact 1 Email", "Contact 2 Email") — grouped by company automatically'
+              : `Supports CSV or Excel files exported from WorldHealthAI admin · Importing as ${cfg.label}`}
           </p>
-          <input ref={fileRef} type="file" accept=".csv,.txt" onChange={onFileInput} className="hidden" />
+          <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls,.ods" onChange={onFileInput} className="hidden" />
         </div>
       )}
 
