@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
-import { Users, Mic, Award, Upload, Inbox, Plus, ArrowUpRight, ChevronRight, Network } from 'lucide-react'
+import { Users, Mic, Award, Upload, Inbox, ArrowUpRight, ChevronRight, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AIAssistant } from '@/components/crm/AIAssistant'
 
@@ -428,31 +428,26 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* ── Pulse AI panel ── */}
-        <div style={{ height: 540 }}>
-          <AIAssistant inline />
-        </div>
-
         {/* ── Pipeline + Event grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Pipeline detail — 2/3 width */}
-          <div className="lg:col-span-2 rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-5 space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="lg:col-span-2 rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-4">
+            <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-white">Pipeline Breakdown</h2>
               <span className="text-[10px] text-slate-600 uppercase tracking-wider font-medium">Status distribution</span>
             </div>
             {loading ? (
-              <div className="space-y-4">
-                {[1,2,3,4,5,6,7,8,9,10,11,12].map(i => (
+              <div className="space-y-3">
+                {[1,2,3,4,5,6,7,8].map(i => (
                   <div key={i} className="flex items-center gap-3">
-                    <div className="h-3 w-28 bg-slate-700/40 rounded animate-pulse" />
+                    <div className="h-2.5 w-28 bg-slate-700/40 rounded animate-pulse" />
                     <div className="h-1.5 flex-1 bg-slate-700/30 rounded animate-pulse" />
-                    <div className="h-3 w-6 bg-slate-700/30 rounded animate-pulse" />
+                    <div className="h-2.5 w-6 bg-slate-700/30 rounded animate-pulse" />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <PipelineSection label="Delegates" pipeline={DELEGATE_PIPELINE} byStatus={stats?.delegates.byStatus ?? {}} total={stats?.delegates.total ?? 0} accentHex="#00B4D8" href="/delegates" animate={animate} />
                 <div className="border-t border-[#1a3a5c]/40" />
                 <PipelineSection label="Speaker Leads" pipeline={SPEAKER_PIPELINE} byStatus={stats?.speakers.byStatus ?? {}} total={stats?.speakers.total ?? 0} accentHex="#a855f7" href="/speakers" animate={animate} />
@@ -464,60 +459,32 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Right column — 1/3 width */}
-          <div className="space-y-4">
-            {/* Event performance */}
-            <div className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-white">Event Performance</h2>
-                <div className="flex items-center gap-2">
-                  {EVENTS.map((ev, i) => (
-                    <div key={ev} className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: EVENT_HEX[i] }} />
-                      <span className="text-[10px] text-slate-600">{ev.split(' ')[0]}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {loading ? (
-                <div className="space-y-3">
-                  {[1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-700/30 rounded animate-pulse" />)}
-                </div>
-              ) : stats ? (
-                <EventComparison stats={stats} animate={animate} />
-              ) : null}
-            </div>
-
-            {/* Quick actions */}
-            <div className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Quick Actions</h2>
-              <div className="space-y-1.5">
-                {[
-                  { href: '/delegates', label: 'View Delegates',  icon: Users,    color: '#00B4D8' },
-                  { href: '/speakers',  label: 'View Speakers',   icon: Mic,      color: '#a855f7' },
-                  { href: '/sponsors',  label: 'View Sponsors',   icon: Award,    color: '#f59e0b' },
-                  { href: '/partners',  label: 'View Partners',   icon: Network,  color: '#10b981' },
-                  { href: '/import',    label: 'Import CSV',      icon: Upload,   color: '#10b981' },
-                  { href: '/unassigned',label: 'Triage Inbox',    icon: Inbox,    color: '#64748b' },
-                ].map(item => {
-                  const Icon = item.icon
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#112850] transition-colors"
-                    >
-                      <div className="p-1 rounded" style={{ background: `${item.color}18` }}>
-                        <Icon className="w-3.5 h-3.5" style={{ color: item.color }} />
-                      </div>
-                      <span className="text-sm text-slate-400 group-hover:text-white transition-colors flex-1">{item.label}</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-700 group-hover:text-slate-400 transition-colors" />
-                    </Link>
-                  )
-                })}
+          {/* Event performance — 1/3 width */}
+          <div className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-white">Event Performance</h2>
+              <div className="flex items-center gap-2">
+                {EVENTS.map((ev, i) => (
+                  <div key={ev} className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: EVENT_HEX[i] }} />
+                    <span className="text-[10px] text-slate-600">{ev.split(' ')[0]}</span>
+                  </div>
+                ))}
               </div>
             </div>
+            {loading ? (
+              <div className="space-y-3">
+                {[1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-700/30 rounded animate-pulse" />)}
+              </div>
+            ) : stats ? (
+              <EventComparison stats={stats} animate={animate} />
+            ) : null}
           </div>
+        </div>
+
+        {/* ── Pulse AI — full width ── */}
+        <div style={{ height: 560 }}>
+          <AIAssistant inline />
         </div>
 
         {/* ── Footer strip ── */}
