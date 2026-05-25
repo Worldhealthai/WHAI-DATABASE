@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Navbar, MobileBottomNav } from '@/components/layout/Navbar'
 import { QueryProvider } from '@/components/layout/QueryProvider'
+import { AIAssistant } from '@/components/crm/AIAssistant'
 
 export const metadata: Metadata = {
   title: 'WHAI CRM',
@@ -30,6 +31,7 @@ export default function RootLayout({
               {children}
             </main>
             <MobileBottomNav />
+            <AIAssistant />
           </div>
         </QueryProvider>
       </body>
