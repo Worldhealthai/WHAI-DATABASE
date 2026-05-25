@@ -4,6 +4,9 @@
 .pnp.js
 .yarn/install-state.gz
 
+# claude code worktrees (agent SDK internal)
+.claude/
+
 # testing
 /coverage
 

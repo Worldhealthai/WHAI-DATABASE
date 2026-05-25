@@ -53,7 +53,6 @@ export const SPEAKER_STATUS_OPTIONS = [
   'Invited',
   'Discussing',
   'Speaking Confirmed',
-  'Speaking Rejected',
   'Rejected',
 ]
 
