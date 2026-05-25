@@ -428,8 +428,10 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* ── AI Assistant panel ── */}
-        <AIAssistant inline />
+        {/* ── Pulse AI panel ── */}
+        <div style={{ height: 540 }}>
+          <AIAssistant inline />
+        </div>
 
         {/* ── Pipeline + Event grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
