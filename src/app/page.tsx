@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { Users, Mic, Award, Upload, Inbox, Plus, ArrowUpRight, ChevronRight, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AIAssistant } from '@/components/crm/AIAssistant'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -426,6 +427,9 @@ export default function DashboardPage() {
             href="/partners" animate={animate} loading={loading}
           />
         </div>
+
+        {/* ── AI Assistant panel ── */}
+        <AIAssistant inline />
 
         {/* ── Pipeline + Event grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
