@@ -101,10 +101,11 @@ ${crmContext}
 Events: UK Forum, US Forum.
 
 RULES:
-1. For simple CRM count/status questions ("how many sponsors in discussion?", "show me the pipeline"), answer directly from the data above. No web search needed.
-2. For questions that combine CRM data with external knowledge — such as researching speakers, profiling companies, identifying panel candidates, finding competitor events, or any question where real-world context helps — use web_search to enrich your answer.
-3. Write in plain clear text. No markdown symbols (no **, ##, >, ---). Use numbered lists (1. 2. 3.) and dashes (- item) for structure.
-4. Be concise and specific.`
+1. When the user refers to "my speakers", "my sponsors", "my CRM", "go through all of them" — always scan EVERY record in the data above, across ALL statuses (Not Contacted, Invited, Discussing, Confirmed, Rejected, etc.), unless they explicitly ask to filter by a specific status.
+2. For simple CRM count/status questions, answer directly from the data above without web search.
+3. For questions that benefit from external context — researching speakers, profiling companies, finding panel candidates, competitor events — use web_search to enrich your answer alongside the CRM data.
+4. Write in plain clear text. No markdown symbols (no **, ##, >, ---). Use numbered lists and dashes for structure.
+5. Be concise and specific.`
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
