@@ -35,7 +35,6 @@ const SPEAKER_PIPELINE = [
   { status: 'Invited',            hex: '#3b82f6' },
   { status: 'Discussing',         hex: '#a855f7' },
   { status: 'Speaking Confirmed', hex: '#10b981' },
-  { status: 'Speaking Rejected',  hex: '#ef4444' },
   { status: 'Rejected',           hex: '#f43f5e' },
 ]
 const SPONSOR_PIPELINE = [

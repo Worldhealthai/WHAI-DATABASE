@@ -17,7 +17,7 @@ const SPEAKER_STATUS_COLORS: Record<string, string> = {
   'Invited':            'bg-blue-500/15 text-blue-400 border-blue-500/30',
   'Discussing':         'bg-purple-500/15 text-purple-400 border-purple-500/30',
   'Speaking Confirmed': 'bg-green-500/15 text-green-400 border-green-500/30',
-  'Speaking Rejected':  'bg-red-500/15 text-red-400 border-red-500/30',
+  'Speaking Rejected':  'bg-rose-500/15 text-rose-400 border-rose-500/30',
   'Rejected':           'bg-rose-500/15 text-rose-400 border-rose-500/30',
 }
 

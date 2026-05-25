@@ -345,7 +345,26 @@ export default function SponsorsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
   const [advancingId, setAdvancingId] = useState<string | null>(null)
+  const [sidePanelId, setSidePanelId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // Restore list state after back-navigation from a sponsor profile
+  useEffect(() => {
+    const saved = sessionStorage.getItem('sponsors-list-state')
+    if (saved) {
+      try {
+        const s = JSON.parse(saved)
+        if (s.filters) setFilters(s.filters)
+        if (s.keyword) setKeyword(s.keyword)
+        if (s.page) setPage(s.page)
+        if (s.pageSize) setPageSize(s.pageSize)
+        if (s.sortBy) setSortBy(s.sortBy)
+        if (s.sortDir) setSortDir(s.sortDir)
+        if (s.viewMode) setViewMode(s.viewMode)
+      } catch {}
+      sessionStorage.removeItem('sponsors-list-state')
+    }
+  }, [])
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['sponsors', filters, page, pageSize, sortBy, sortDir],
@@ -358,6 +377,13 @@ export default function SponsorsPage() {
     queryFn: () => fetchSponsors(filters, 1, 500, 'companyName', 'asc'),
     enabled: viewMode === 'board',
     placeholderData: (prev) => prev,
+  })
+
+  const { data: panelData } = useQuery<Sponsor & { activities: any[] }>({
+    queryKey: ['sponsor-detail', sidePanelId],
+    queryFn: () => fetch(`/api/sponsors/${sidePanelId}`).then(r => r.json()),
+    enabled: !!sidePanelId,
+    staleTime: 30_000,
   })
 
   const updateFilter = (key: keyof SponsorFilters, value: string[]) => {
@@ -719,36 +745,40 @@ export default function SponsorsPage() {
                         <tbody>
                           {rows.map((s) => {
                             const next = nextStage(s.status)
+                            const saveState = () => sessionStorage.setItem('sponsors-list-state', JSON.stringify({ filters, keyword, page, pageSize, sortBy, sortDir, viewMode }))
                             return (
                               <tr
                                 key={s.id}
-                                className={cn('group/row border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors', selected.has(s.id) && 'bg-amber-500/5 border-amber-500/20')}
+                                onClick={() => setSidePanelId(s.id)}
+                                className={cn('group/row border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors cursor-pointer', selected.has(s.id) && 'bg-amber-500/5 border-amber-500/20')}
                               >
-                                <td className="pl-4 pr-2 py-3">
+                                <td className="pl-4 pr-2 py-3" onClick={(e) => e.stopPropagation()}>
                                   <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
                                 </td>
                                 <td className="px-4 py-3">
-                                  <Link href={`/sponsors/${s.id}`} className="flex items-center gap-3 group">
-                                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
-                                      {companyInitials(s)}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <div className="font-medium text-white group-hover:text-amber-400 transition-colors">{s.companyName}</div>
-                                      {(s.contactFirstName || s.contactLastName) && (
-                                        <div className="text-xs text-slate-500">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
-                                      )}
-                                      {s.event && (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400/80 border border-amber-500/20 whitespace-nowrap mt-0.5 inline-block">
-                                          {s.event}
-                                        </span>
-                                      )}
-                                      {s.contactCount > 0 && (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700 mt-0.5 inline-block ml-1">
-                                          {s.contactCount} contact{s.contactCount === 1 ? '' : 's'}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </Link>
+                                  <span onClick={(e) => e.stopPropagation()}>
+                                    <Link href={`/sponsors/${s.id}`} onClick={saveState} className="flex items-center gap-3 group">
+                                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
+                                        {companyInitials(s)}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="font-medium text-white group-hover:text-amber-400 transition-colors">{s.companyName}</div>
+                                        {(s.contactFirstName || s.contactLastName) && (
+                                          <div className="text-xs text-slate-500">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
+                                        )}
+                                        {s.event && (
+                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400/80 border border-amber-500/20 whitespace-nowrap mt-0.5 inline-block">
+                                            {s.event}
+                                          </span>
+                                        )}
+                                        {s.contactCount > 0 && (
+                                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700 mt-0.5 inline-block ml-1">
+                                            {s.contactCount} contact{s.contactCount === 1 ? '' : 's'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </Link>
+                                  </span>
                                 </td>
                                 <td className="px-4 py-3"><StatusBadge value={s.status} variant="sponsor_status" /></td>
                                 <td className="px-4 py-3">
@@ -765,7 +795,7 @@ export default function SponsorsPage() {
                                   <div className="flex items-center gap-1 justify-end opacity-0 group-hover/row:opacity-100 transition-opacity">
                                     {next && (
                                       <button
-                                        onClick={() => advanceStage(s.id, next)}
+                                        onClick={(e) => { e.stopPropagation(); advanceStage(s.id, next) }}
                                         disabled={advancingId === s.id}
                                         title={`Move to ${next}`}
                                         className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-medium hover:bg-amber-500/20 disabled:opacity-50 transition-all whitespace-nowrap"
@@ -774,7 +804,7 @@ export default function SponsorsPage() {
                                       </button>
                                     )}
                                     <button
-                                      onClick={(e) => { e.preventDefault(); setEditingSponsor(s) }}
+                                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditingSponsor(s) }}
                                       className="p-1.5 rounded-md hover:bg-amber-500/15 text-slate-500 hover:text-amber-400"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
@@ -792,7 +822,7 @@ export default function SponsorsPage() {
                       {rows.map((s) => (
                         <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-amber-500/5' : 'hover:bg-[#112850]/60')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
-                          <Link href={`/sponsors/${s.id}`} className="flex items-start gap-3 flex-1 min-w-0">
+                          <Link href={`/sponsors/${s.id}`} onClick={() => sessionStorage.setItem('sponsors-list-state', JSON.stringify({ filters, keyword, page, pageSize, sortBy, sortDir, viewMode }))} className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                               {companyInitials(s)}
                             </div>
@@ -832,6 +862,118 @@ export default function SponsorsPage() {
           onClose={() => setEditingSponsor(null)}
           onSaved={() => { setEditingSponsor(null); refetch(); queryClient.invalidateQueries({ queryKey: ['sponsors-board'] }) }}
         />
+      )}
+
+      {/* ── Side panel ── */}
+      {sidePanelId && (
+        <>
+          {/* backdrop */}
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSidePanelId(null)} />
+          {/* panel */}
+          <div className="fixed right-0 top-0 h-full w-full max-w-sm z-50 bg-[#0d2040] border-l border-[#1a3a5c] shadow-2xl flex flex-col overflow-hidden">
+            {/* header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a3a5c] shrink-0">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick View</span>
+              <button onClick={() => setSidePanelId(null)} className="text-slate-500 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {!panelData ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {/* Company identity */}
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-bold shrink-0">
+                    {panelData.companyName?.split(' ').slice(0,2).map((w:string) => w[0]).join('').toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/sponsors/${sidePanelId}`}
+                      onClick={() => setSidePanelId(null)}
+                      className="font-semibold text-white hover:text-amber-400 transition-colors block truncate"
+                    >
+                      {panelData.companyName}
+                    </Link>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <StatusBadge value={panelData.status} variant="sponsor_status" />
+                      {panelData.tier && <StatusBadge value={panelData.tier} variant="sponsor_tier" />}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Event */}
+                {panelData.event && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Event</p>
+                    <span className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">{panelData.event}</span>
+                  </div>
+                )}
+
+                {/* Primary contact */}
+                {(panelData.contactFirstName || panelData.contactLastName || panelData.contactEmail) && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Primary Contact</p>
+                    <div className="bg-[#112850] rounded-lg p-3 space-y-1">
+                      {(panelData.contactFirstName || panelData.contactLastName) && (
+                        <p className="text-sm font-medium text-white">{[panelData.contactFirstName, panelData.contactLastName].filter(Boolean).join(' ')}</p>
+                      )}
+                      {panelData.contactJobTitle && <p className="text-xs text-slate-400">{panelData.contactJobTitle}</p>}
+                      {panelData.contactEmail && <p className="text-xs text-slate-500">{panelData.contactEmail}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Last activity */}
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Last Activity</p>
+                  {panelData.activities && panelData.activities.length > 0 ? (
+                    <div className="bg-[#112850] rounded-lg p-3 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700 font-medium">{panelData.activities[0].type}</span>
+                        <span className="text-[10px] text-slate-600">{new Date(panelData.activities[0].createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">{panelData.activities[0].content}</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-600 italic">No activity logged yet.</p>
+                  )}
+                </div>
+
+                {/* All activities (up to 5) */}
+                {panelData.activities && panelData.activities.length > 1 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Recent Activity</p>
+                    <div className="space-y-2">
+                      {panelData.activities.slice(1, 5).map((a: any) => (
+                        <div key={a.id} className="border-l-2 border-[#1a3a5c] pl-3 space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-500 font-medium">{a.type}</span>
+                            <span className="text-[10px] text-slate-700">{new Date(a.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                          </div>
+                          <p className="text-xs text-slate-400 leading-relaxed">{a.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* footer */}
+            <div className="shrink-0 px-5 py-4 border-t border-[#1a3a5c]">
+              <Link
+                href={`/sponsors/${sidePanelId}`}
+                onClick={() => setSidePanelId(null)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-[#0A1628] font-semibold text-sm transition-colors"
+              >
+                Open Full Profile <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
