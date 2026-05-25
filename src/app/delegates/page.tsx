@@ -177,19 +177,20 @@ export default function DelegatesPage() {
   }
 
   const exportCSV = (ids?: Set<string>) => {
-    const source = (data?.data as Delegate[]) ?? []
-    const rows = ids ? source.filter((d) => ids.has(d.id)) : source
-    if (!rows.length) return
-    const out = rows.map((d) => [
-      d.firstName, d.lastName, d.email ?? '', d.phone ?? '', d.organization ?? '',
-      d.jobTitle ?? '', d.country ?? '', d.city ?? '', d.status, d.event ?? '',
-      d.subType ?? '', d.ticketType ?? '', d.source ?? '',
-    ])
-    const header = ['First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title', 'Country', 'City', 'Status', 'Event', 'Type', 'Ticket Type', 'Source']
-    const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
+    const params = new URLSearchParams()
+    if (ids && ids.size > 0) {
+      params.set('ids', [...ids].join(','))
+    } else {
+      filters.statuses?.forEach((s) => params.append('statuses', s))
+      filters.events?.forEach((e) => params.append('events', e))
+      filters.subTypes?.forEach((t) => params.append('subTypes', t))
+      filters.ticketTypes?.forEach((t) => params.append('ticketTypes', t))
+      filters.countries?.forEach((c) => params.append('countries', c))
+    }
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob); a.download = 'delegates.csv'; a.click()
+    a.href = `/api/delegates/export?${params}`
+    a.download = 'delegates-export.csv'
+    a.click()
   }
 
   const activeFilters: { category: string; key: string; value: string }[] = []
@@ -372,10 +373,9 @@ export default function DelegatesPage() {
             </span>
             <button
               onClick={() => exportCSV()}
-              disabled={!data?.data?.length}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors"
             >
-              <Download className="w-3.5 h-3.5" /> Export CSV
+              <Download className="w-3.5 h-3.5" /> Export all
             </button>
           </div>
 

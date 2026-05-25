@@ -425,16 +425,20 @@ export default function SpeakersPage() {
   }
 
   const exportCSV = (ids?: Set<string>) => {
-    const source = (data?.data as Speaker[]) ?? []
-    const out = (ids ? source.filter((s) => ids.has(s.id)) : source).map((s) => [
-      s.firstName, s.lastName, s.email ?? '', s.phone ?? '', s.organization ?? '',
-      s.jobTitle ?? '', s.country ?? '', s.event ?? '', s.subType ?? '',
-      s.status, s.year ? String(s.year) : '', s.notes ?? '',
-    ])
-    const header = ['First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title', 'Country', 'Event', 'Type', 'Status', 'Year', 'Notes']
-    const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'speakers.csv'; a.click()
+    const params = new URLSearchParams()
+    if (ids && ids.size > 0) {
+      params.set('ids', [...ids].join(','))
+    } else {
+      filters.statuses?.forEach((s) => params.append('statuses', s))
+      filters.events?.forEach((e) => params.append('events', e))
+      filters.subTypes?.forEach((t) => params.append('subTypes', t))
+      filters.countries?.forEach((c) => params.append('countries', c))
+      filters.years?.forEach((y) => params.append('years', String(y)))
+    }
+    const a = document.createElement('a')
+    a.href = `/api/speakers/export?${params}`
+    a.download = 'speakers-export.csv'
+    a.click()
   }
 
   const activeFilters: { category: string; key: string; value: string }[] = []
@@ -644,8 +648,8 @@ export default function SpeakersPage() {
                 <span className="text-sm text-slate-400">
                   {isLoading ? 'Loading…' : (<><span className={cn('font-bold text-white', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>)}
                 </span>
-                <button onClick={() => exportCSV()} disabled={!rows.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors">
-                  <Download className="w-3.5 h-3.5" /> Export CSV
+                <button onClick={() => exportCSV()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors">
+                  <Download className="w-3.5 h-3.5" /> Export all
                 </button>
               </div>
 
