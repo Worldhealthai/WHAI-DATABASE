@@ -17,12 +17,10 @@ async function getCRMContext(): Promise<string> {
       supabase.from('delegates')
         .select('firstName, lastName, organization, jobTitle, status, event, subType')
         .limit(500),
-      // Parent company rows (companyId IS NULL)
       supabase.from('sponsors')
-        .select('id, companyName, tier, status, event, country, city, contactFirstName, contactLastName, contactJobTitle, tags')
+        .select('id, companyName, tier, status, event, country, contactFirstName, contactLastName, contactJobTitle, tags')
         .is('companyId', null)
         .limit(500),
-      // Linked contact rows (companyId IS NOT NULL)
       supabase.from('sponsors')
         .select('companyId, contactFirstName, contactLastName, contactJobTitle')
         .not('companyId', 'is', null)
@@ -31,18 +29,15 @@ async function getCRMContext(): Promise<string> {
 
     const countBy = (rows: any[], key: string) =>
       (rows ?? []).reduce((acc: Record<string, number>, r: any) => {
-        const v = r[key] ?? 'Unknown'
-        acc[v] = (acc[v] ?? 0) + 1
-        return acc
+        const v = r[key] ?? 'Unknown'; acc[v] = (acc[v] ?? 0) + 1; return acc
       }, {})
 
-    // Build contact map: companyId → contact names
     const contactMap: Record<string, string[]> = {}
     for (const c of contactsRes.data ?? []) {
       const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ')
       if (name) {
         if (!contactMap[c.companyId]) contactMap[c.companyId] = []
-        contactMap[c.companyId].push(`${name}${c.contactJobTitle ? ' (' + c.contactJobTitle + ')' : ''}`)
+        contactMap[c.companyId].push(c.contactJobTitle ? `${name} (${c.contactJobTitle})` : name)
       }
     }
 
@@ -52,55 +47,39 @@ async function getCRMContext(): Promise<string> {
     const sponsors = allCompanies.filter((c: any) => !PARTNER_TIERS.includes(c.tier))
     const partners = allCompanies.filter((c: any) => PARTNER_TIERS.includes(c.tier))
 
-    const spByStatus = countBy(speakers, 'status')
-    const dByStatus  = countBy(delegates, 'status')
-    const snByStatus = countBy(sponsors, 'status')
-    const ptByStatus = countBy(partners, 'status')
-
-    const fmtSpeaker = (r: any) => {
-      const name = [r.firstName, r.lastName].filter(Boolean).join(' ') || 'Unknown'
-      const org  = r.organization ? ` (${r.organization}${r.jobTitle ? ', ' + r.jobTitle : ''})` : ''
-      const meta = [r.status, r.event].filter(Boolean).join(' | ')
-      const session = r.sessionTitle ? ` — "${r.sessionTitle}"` : ''
-      const tags = r.tags ? ` [${r.tags}]` : ''
-      return `  - ${name}${org} | ${meta}${session}${tags}`
+    // Compact one-liner per record to minimise tokens
+    const fmtSp = (r: any) => {
+      const name = [r.firstName, r.lastName].filter(Boolean).join(' ') || '?'
+      const org  = [r.organization, r.jobTitle].filter(Boolean).join(', ')
+      const session = r.sessionTitle ? ` | "${r.sessionTitle}"` : ''
+      return `${name} | ${org} | ${r.status ?? '?'} | ${r.event ?? '?'}${session}`
     }
-
-    const fmtDelegate = (r: any) => {
-      const name = [r.firstName, r.lastName].filter(Boolean).join(' ') || 'Unknown'
-      const org  = r.organization ? ` (${r.organization}${r.jobTitle ? ', ' + r.jobTitle : ''})` : ''
-      const meta = [r.status, r.event, r.subType].filter(Boolean).join(' | ')
-      return `  - ${name}${org} | ${meta}`
+    const fmtDel = (r: any) => {
+      const name = [r.firstName, r.lastName].filter(Boolean).join(' ') || '?'
+      const org  = [r.organization, r.jobTitle].filter(Boolean).join(', ')
+      return `${name} | ${org} | ${r.status ?? '?'} | ${r.event ?? '?'}`
     }
-
-    const fmtCompany = (r: any) => {
-      const loc  = [r.city, r.country].filter(Boolean).join(', ')
-      const meta = [r.status, r.tier, r.event, loc].filter(Boolean).join(' | ')
-      // Primary contact on the company record
-      const primaryName = [r.contactFirstName, r.contactLastName].filter(Boolean).join(' ')
-      const primaryTitle = r.contactJobTitle ? ` (${r.contactJobTitle})` : ''
-      const primary = primaryName ? `${primaryName}${primaryTitle}` : ''
-      // Additional linked contacts
+    const fmtCo = (r: any) => {
+      const primary = [r.contactFirstName, r.contactLastName].filter(Boolean).join(' ')
+      const primaryFull = primary ? (r.contactJobTitle ? `${primary} (${r.contactJobTitle})` : primary) : ''
       const linked = contactMap[r.id] ?? []
-      const allContacts = [...new Set([primary, ...linked].filter(Boolean))]
-      const contacts = allContacts.length ? ` | Contacts: ${allContacts.join(', ')}` : ''
-      const tags = r.tags ? ` [${r.tags}]` : ''
-      return `  - ${r.companyName ?? 'Unknown'} | ${meta}${contacts}${tags}`
+      const contacts = [...new Set([primaryFull, ...linked].filter(Boolean))].join(', ')
+      return `${r.companyName ?? '?'} | ${r.tier ?? '?'} | ${r.status ?? '?'} | ${r.event ?? '?'} | ${r.country ?? '?'}${contacts ? ' | ' + contacts : ''}`
     }
 
-    return `LIVE CRM DATA:
+    return `LIVE CRM DATA (${new Date().toISOString().slice(0, 10)}):
 
-SPEAKERS (${speakers.length} total) — pipeline: ${JSON.stringify(spByStatus)}
-${speakers.map(fmtSpeaker).join('\n') || '  (none)'}
+SPEAKERS (${speakers.length}) — ${JSON.stringify(countBy(speakers, 'status'))}
+${speakers.map(fmtSp).join('\n') || '(none)'}
 
-DELEGATES (${delegates.length} total) — pipeline: ${JSON.stringify(dByStatus)}
-${delegates.map(fmtDelegate).join('\n') || '  (none yet)'}
+DELEGATES (${delegates.length}) — ${JSON.stringify(countBy(delegates, 'status'))}
+${delegates.map(fmtDel).join('\n') || '(none yet)'}
 
-SPONSORS (${sponsors.length} total) — pipeline: ${JSON.stringify(snByStatus)}
-${sponsors.map(fmtCompany).join('\n') || '  (none)'}
+SPONSORS (${sponsors.length}) — ${JSON.stringify(countBy(sponsors, 'status'))}
+${sponsors.map(fmtCo).join('\n') || '(none)'}
 
-PARTNERS & MEDIA (${partners.length} total) — pipeline: ${JSON.stringify(ptByStatus)}
-${partners.map(fmtCompany).join('\n') || '  (none)'}`
+PARTNERS (${partners.length}) — ${JSON.stringify(countBy(partners, 'status'))}
+${partners.map(fmtCo).join('\n') || '(none)'}`
   } catch {
     return 'CRM data temporarily unavailable.'
   }
@@ -134,11 +113,17 @@ RULES:
           const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 1200,
-            system: systemPrompt,
+            system: [
+              {
+                type: 'text',
+                text: systemPrompt,
+                cache_control: { type: 'ephemeral' } as any,
+              },
+            ],
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             tools: [{ type: 'web_search_20260209' as any, name: 'web_search', max_uses: 2 }],
             stream: true,
-          })
+          } as any)
 
           for await (const event of response) {
             if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
