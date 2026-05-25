@@ -8,9 +8,10 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 async function getCRMContext(): Promise<string> {
   try {
-    const [delegates, speakers, sponsors] = await Promise.all([
-      supabase.from('delegates').select('status, event').limit(2000),
-      supabase.from('speakers').select('status, event').limit(2000),
+    const [delegatesRes, speakersRes, sponsorsRes, companiesRes] = await Promise.all([
+      supabase.from('delegates').select('firstName, lastName, organization, jobTitle, status, event, subType').limit(500),
+      supabase.from('speakers').select('firstName, lastName, organization, jobTitle, status, event, subType, sessionTitle, tags, bio').limit(500),
+      supabase.from('companies').select('name, status, tier, event, country, city').limit(500),
       supabase.from('companies').select('status, tier').limit(2000),
     ])
 
@@ -21,23 +22,50 @@ async function getCRMContext(): Promise<string> {
         return acc
       }, {})
 
-    const dByStatus = countBy(delegates.data ?? [], 'status')
-    const spByStatus = countBy(speakers.data ?? [], 'status')
-    const sponsorRows = (sponsors.data ?? []).filter((c: any) => !['Media Partner', 'Association Partner'].includes(c.tier))
+    const dByStatus  = countBy(delegatesRes.data ?? [], 'status')
+    const spByStatus = countBy(speakersRes.data ?? [], 'status')
+    const sponsorRows = (companiesRes.data ?? []).filter((c: any) => !['Media Partner', 'Association Partner'].includes(c.tier))
     const snByStatus = countBy(sponsorRows, 'status')
 
     const fmt = (obj: Record<string, number>) =>
       Object.entries(obj).map(([k, v]) => `  - ${k}: ${v}`).join('\n') || '  - (none)'
 
+    const fmtPerson = (r: any) => {
+      const name = [r.firstName, r.lastName].filter(Boolean).join(' ') || 'Unknown'
+      const org  = r.organization ? ` (${r.organization}${r.jobTitle ? ', ' + r.jobTitle : ''})` : ''
+      const meta = [r.status, r.event, r.subType].filter(Boolean).join(' | ')
+      const session = r.sessionTitle ? ` - Session: "${r.sessionTitle}"` : ''
+      const tags = r.tags ? ` [${r.tags}]` : ''
+      return `  - ${name}${org} | ${meta}${session}${tags}`
+    }
+
+    const fmtCompany = (r: any) => {
+      const loc  = [r.city, r.country].filter(Boolean).join(', ')
+      const meta = [r.status, r.event, loc].filter(Boolean).join(' | ')
+      return `  - ${r.name ?? 'Unknown'} | ${meta}`
+    }
+
+    const speakers  = speakersRes.data  ?? []
+    const delegates = delegatesRes.data ?? []
+    const companies = sponsorsRes.data  ?? []
+    const sponsorCompanies = companies.filter((c: any) => !['Media Partner', 'Association Partner'].includes(c.tier))
+
     return `LIVE CRM DATA:
-Delegates (${delegates.data?.length ?? 0} total):
-${fmt(dByStatus)}
 
-Speakers (${speakers.data?.length ?? 0} total):
-${fmt(spByStatus)}
+SPEAKERS (${speakers.length} total):
+Pipeline: ${JSON.stringify(spByStatus)}
+Individual records:
+${speakers.map(fmtPerson).join('\n') || '  (none)'}
 
-Sponsors (${sponsorRows.length} total):
-${fmt(snByStatus)}`
+DELEGATES (${delegates.length} total):
+Pipeline: ${JSON.stringify(dByStatus)}
+Individual records:
+${delegates.map(fmtPerson).join('\n') || '  (none)'}
+
+SPONSORS (${sponsorCompanies.length} total):
+Pipeline: ${JSON.stringify(snByStatus)}
+Individual records:
+${sponsorCompanies.map(fmtCompany).join('\n') || '  (none)'}`
   } catch {
     return 'CRM data temporarily unavailable.'
   }
@@ -70,7 +98,7 @@ RULES:
         try {
           const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 800,
+            max_tokens: 1200,
             system: systemPrompt,
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             tools: [{ type: 'web_search_20260209' as any, name: 'web_search', max_uses: 2 }],
