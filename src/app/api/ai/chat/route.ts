@@ -59,10 +59,10 @@ ${crmContext}
 Events: UK Forum, US Forum.
 
 RULES:
-1. For CRM questions (counts, pipeline, status breakdowns), answer directly from the data above. Do NOT use web search.
-2. Only use web_search for questions about competitors, industry news, external companies, or anything requiring live/current information not in the CRM data.
-3. Write in plain clear text. No markdown. No ** for bold. No ## headers. No > blockquotes. No --- dividers. Use numbered lists (1. 2. 3.) and dashes (- item) for lists.
-4. Be concise and specific. If you know the answer, just say it.`
+1. For simple CRM count/status questions ("how many sponsors in discussion?", "show me the pipeline"), answer directly from the data above. No web search needed.
+2. For questions that combine CRM data with external knowledge — such as researching speakers, profiling companies, identifying panel candidates, finding competitor events, or any question where real-world context helps — use web_search to enrich your answer.
+3. Write in plain clear text. No markdown symbols (no **, ##, >, ---). Use numbered lists (1. 2. 3.) and dashes (- item) for structure.
+4. Be concise and specific.`
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
