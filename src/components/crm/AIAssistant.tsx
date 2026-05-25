@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Globe, Loader2, ChevronDown, Sparkles, X, Bot, Activity } from 'lucide-react'
+import { Send, Globe, Loader2, ChevronDown, X, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Message {
@@ -12,7 +12,7 @@ interface Message {
 }
 
 const SUGGESTIONS = [
-  { label: 'Sponsor pipeline snapshot', icon: '📊' },
+  { label: 'How many sponsors are In Discussion?', icon: '📊' },
   { label: 'Who are WHAI\'s main competitors?', icon: '🔍' },
   { label: 'Ideas for chasing healthcare AI sponsors', icon: '💡' },
   { label: 'Top healthcare AI events in 2025', icon: '🌍' },
@@ -20,32 +20,24 @@ const SUGGESTIONS = [
 
 function PulseLogo({ size = 40 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
       <defs>
-        <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.3" />
+        <radialGradient id="pg" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25" />
           <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
         </radialGradient>
-        <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <linearGradient id="pl" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#0ea5e9" />
           <stop offset="50%" stopColor="#22d3ee" />
           <stop offset="100%" stopColor="#10b981" />
         </linearGradient>
       </defs>
-      {/* Glow circle */}
-      <circle cx="20" cy="20" r="18" fill="url(#glow)" />
-      {/* Outer ring */}
-      <circle cx="20" cy="20" r="17" stroke="#0ea5e9" strokeWidth="1" strokeOpacity="0.3" />
-      {/* ECG/pulse line */}
+      <circle cx="20" cy="20" r="18" fill="url(#pg)" />
+      <circle cx="20" cy="20" r="17" stroke="#0ea5e9" strokeWidth="1" strokeOpacity="0.25" />
       <polyline
         points="3,20 8,20 11,13 14,27 17,20 20,20 23,10 26,30 29,20 32,20 37,20"
-        stroke="url(#lineGrad)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
+        stroke="url(#pl)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"
       />
-      {/* Center dot */}
       <circle cx="20" cy="20" r="2" fill="#22d3ee" />
     </svg>
   )
@@ -55,11 +47,8 @@ function TypingDots() {
   return (
     <span className="inline-flex items-center gap-1 px-1">
       {[0, 1, 2].map(i => (
-        <span
-          key={i}
-          className="w-1.5 h-1.5 rounded-full bg-cyan-400/60 animate-bounce"
-          style={{ animationDelay: `${i * 160}ms` }}
-        />
+        <span key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-400/60 animate-bounce"
+          style={{ animationDelay: `${i * 160}ms` }} />
       ))}
     </span>
   )
@@ -67,33 +56,27 @@ function TypingDots() {
 
 function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }) {
   return (
-    <div className="flex flex-col h-full">
-      {/* Hero section */}
-      <div className="relative overflow-hidden rounded-xl mx-1 mb-4 p-5"
+    <div className="flex flex-col gap-3 py-2">
+      <div className="relative overflow-hidden rounded-xl p-4"
         style={{ background: 'linear-gradient(135deg, #071e3d 0%, #0c2d52 50%, #071e3d 100%)' }}>
-        {/* Ambient glow */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-24 rounded-full opacity-20"
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-20 rounded-full opacity-20"
             style={{ background: 'radial-gradient(ellipse, #22d3ee, transparent)' }} />
         </div>
-        {/* Grid lines */}
         <div className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: 'linear-gradient(#22d3ee 1px, transparent 1px), linear-gradient(90deg, #22d3ee 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-
-        <div className="relative flex items-center gap-4">
-          <div className="shrink-0 p-2 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-teal-500/10 border border-cyan-500/20">
-            <PulseLogo size={44} />
+        <div className="relative flex items-center gap-3">
+          <div className="shrink-0 p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+            <PulseLogo size={40} />
           </div>
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-white tracking-tight">Pulse</span>
+              <span className="text-lg font-bold text-white tracking-tight">Pulse</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/70 bg-cyan-400/10 px-1.5 py-0.5 rounded-full border border-cyan-400/20">by WHAI</span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 leading-snug">Your intelligent events intelligence engine —<br />live CRM data meets live web search.</p>
+            <p className="text-xs text-slate-400 mt-0.5 leading-snug">Live CRM data meets live web search</p>
           </div>
         </div>
-
-        {/* Live indicator */}
         <div className="relative mt-3 flex items-center gap-1.5">
           <span className="relative flex h-1.5 w-1.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
@@ -103,17 +86,13 @@ function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }) {
         </div>
       </div>
 
-      {/* Suggestions */}
-      <div className="px-1 space-y-2">
-        <p className="text-[10px] uppercase tracking-widest text-slate-600 font-semibold px-0.5 mb-2">Try asking</p>
+      <p className="text-[10px] uppercase tracking-widest text-slate-600 font-semibold px-0.5">Try asking</p>
+      <div className="space-y-1.5">
         {SUGGESTIONS.map(s => (
-          <button
-            key={s.label}
-            onClick={() => onSuggest(s.label)}
-            className="group w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-[#1a3a5c] hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all text-left"
-          >
-            <span className="text-base leading-none shrink-0">{s.icon}</span>
-            <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors flex-1 leading-snug">{s.label}</span>
+          <button key={s.label} onClick={() => onSuggest(s.label)}
+            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[#1a3a5c] hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all text-left">
+            <span className="text-sm leading-none shrink-0">{s.icon}</span>
+            <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors flex-1">{s.label}</span>
             <span className="text-slate-700 group-hover:text-cyan-500 transition-colors text-xs">↗</span>
           </button>
         ))}
@@ -122,18 +101,7 @@ function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }) {
   )
 }
 
-function ChatPanel({
-  messages,
-  loading,
-  input,
-  setInput,
-  onSubmit,
-  onSuggest,
-  inputRef,
-  bottomRef,
-  inline,
-  onClose,
-}: {
+interface PanelProps {
   messages: Message[]
   loading: boolean
   input: string
@@ -141,25 +109,26 @@ function ChatPanel({
   onSubmit: (e: React.FormEvent) => void
   onSuggest: (s: string) => void
   inputRef: React.RefObject<HTMLInputElement>
+  scrollRef: React.RefObject<HTMLDivElement>
   bottomRef: React.RefObject<HTMLDivElement>
+  onScroll: () => void
   inline: boolean
   onClose?: () => void
-}) {
+}
+
+function ChatPanel({ messages, loading, input, setInput, onSubmit, onSuggest, inputRef, scrollRef, bottomRef, onScroll, inline, onClose }: PanelProps) {
   return (
     <div className={cn(
-      'flex flex-col',
-      'bg-[#0a1c38] border border-[#1a3a5c]',
-      inline
-        ? 'rounded-2xl overflow-hidden'
-        : 'rounded-2xl shadow-2xl shadow-black/60 w-[390px]',
+      'flex flex-col bg-[#0a1c38] border border-[#1a3a5c]',
+      inline ? 'rounded-2xl h-full' : 'rounded-2xl h-full w-full',
     )}
-      style={{ boxShadow: inline ? '0 0 0 1px #1a3a5c, 0 24px 60px -12px rgba(0,0,0,0.7)' : undefined }}
-    >
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a3a5c]/80"
+      style={{ boxShadow: '0 0 0 1px #1a3a5c, 0 24px 60px -12px rgba(0,0,0,0.7)' }}>
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a3a5c]/80 shrink-0"
         style={{ background: 'linear-gradient(90deg, #071e3d 0%, #0c2540 100%)' }}>
         <div className="flex items-center gap-2.5">
-          <PulseLogo size={28} />
+          <PulseLogo size={26} />
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-white tracking-tight">Pulse</span>
@@ -178,8 +147,9 @@ function ChatPanel({
         )}
       </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ minHeight: 0 }}>
+      {/* Messages — flex-1 min-h-0 is critical for overflow to work inside flex */}
+      <div ref={scrollRef} onScroll={onScroll}
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 ? (
           <EmptyState onSuggest={onSuggest} />
         ) : (
@@ -197,7 +167,7 @@ function ChatPanel({
                   : 'bg-[#0f2545] border border-[#1a3a5c] text-slate-200 rounded-bl-sm',
               )}>
                 {msg.role === 'assistant' && msg.searching && !msg.content && (
-                  <div className="flex items-center gap-2 text-slate-400 text-xs">
+                  <div className="flex items-center gap-2 text-xs">
                     <Globe className="w-3 h-3 text-cyan-400 animate-spin" style={{ animationDuration: '2s' }} />
                     <span className="text-cyan-400/70">Searching the web…</span>
                   </div>
@@ -214,7 +184,7 @@ function ChatPanel({
       </div>
 
       {/* Input */}
-      <div className="px-3 pb-3 pt-2 border-t border-[#1a3a5c]/60">
+      <div className="px-3 pb-3 pt-2 border-t border-[#1a3a5c]/60 shrink-0">
         <form onSubmit={onSubmit}>
           <div className="flex items-center gap-2 rounded-xl border border-[#1e3f6a] focus-within:border-cyan-500/40 transition-colors px-3.5 py-2.5"
             style={{ background: 'linear-gradient(135deg, #061525, #071e3d)' }}>
@@ -226,12 +196,9 @@ function ChatPanel({
               className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-700 outline-none"
               disabled={loading}
             />
-            <button
-              type="submit"
-              disabled={!input.trim() || loading}
+            <button type="submit" disabled={!input.trim() || loading}
               className="p-1.5 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all shrink-0"
-              style={{ background: 'linear-gradient(135deg, #0891b2, #0d9488)' }}
-            >
+              style={{ background: 'linear-gradient(135deg, #0891b2, #0d9488)' }}>
               {loading
                 ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
                 : <Send className="w-3.5 h-3.5 text-white" />
@@ -239,7 +206,7 @@ function ChatPanel({
             </button>
           </div>
         </form>
-        <p className="text-center text-[9px] text-slate-700 mt-2 tracking-wide">Powered by Claude · Brave Web Search</p>
+        <p className="text-center text-[9px] text-slate-700 mt-1.5 tracking-wide">Powered by Claude · Brave Web Search</p>
       </div>
     </div>
   )
@@ -250,23 +217,37 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const scrollRef               = useRef<HTMLDivElement>(null)
   const bottomRef               = useRef<HTMLDivElement>(null)
   const inputRef                = useRef<HTMLInputElement>(null)
+  const stickToBottom           = useRef(true)
 
+  // Only scroll to bottom when new content arrives if user hasn't scrolled up
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (stickToBottom.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages])
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 120)
   }, [open])
 
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
+
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || loading) return
 
-    const userMsg: Message    = { id: crypto.randomUUID(), role: 'user', content: trimmed }
-    const assistantId         = crypto.randomUUID()
+    // New message = snap back to bottom
+    stickToBottom.current = true
+
+    const userMsg: Message      = { id: crypto.randomUUID(), role: 'user', content: trimmed }
+    const assistantId           = crypto.randomUUID()
     const assistantMsg: Message = { id: assistantId, role: 'assistant', content: '', searching: false }
 
     setMessages(prev => [...prev, userMsg, assistantMsg])
@@ -314,7 +295,9 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
       }
     } catch {
       setMessages(prev => prev.map(m =>
-        m.id === assistantId ? { ...m, content: 'Sorry, something went wrong. Please try again.', searching: false } : m,
+        m.id === assistantId
+          ? { ...m, content: 'Sorry, something went wrong. Please try again.', searching: false }
+          : m,
       ))
     } finally {
       setLoading(false)
@@ -323,15 +306,18 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); sendMessage(input) }
 
-  const panelProps = {
+  const panelProps: PanelProps = {
     messages, loading, input, setInput,
-    onSubmit: handleSubmit,
-    onSuggest: sendMessage,
-    inputRef, bottomRef, inline,
+    onSubmit: handleSubmit, onSuggest: sendMessage,
+    inputRef, scrollRef, bottomRef, onScroll: handleScroll, inline,
   }
 
   if (inline) {
-    return <ChatPanel {...panelProps} />
+    return (
+      <div className="h-full">
+        <ChatPanel {...panelProps} />
+      </div>
+    )
   }
 
   return (
@@ -342,21 +328,21 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
         aria-label="Open Pulse AI"
         className={cn(
           'fixed bottom-20 right-5 md:bottom-6 md:right-6 z-50',
-          'w-13 h-13 w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-all duration-200',
-          open
-            ? 'bg-[#1a3a5c] text-slate-400'
-            : 'text-white shadow-lg shadow-cyan-900/40',
+          'w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-all duration-200',
+          open ? 'bg-[#1a3a5c] text-slate-400' : 'text-white shadow-lg shadow-cyan-900/40',
         )}
         style={open ? {} : { background: 'linear-gradient(135deg, #0891b2, #0d9488)' }}
       >
         {open ? <ChevronDown className="w-5 h-5" /> : <Activity className="w-5 h-5" />}
       </button>
 
-      {/* Floating panel */}
-      <div className={cn(
-        'fixed bottom-36 right-5 md:bottom-[76px] md:right-6 z-50 transition-all duration-300 origin-bottom-right',
-        open ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none',
-      )}
+      {/* Floating panel — fixed size, ChatPanel fills it */}
+      <div
+        className={cn(
+          'fixed bottom-[84px] right-5 md:bottom-[76px] md:right-6 z-50',
+          'w-[390px] transition-all duration-300 origin-bottom-right',
+          open ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none',
+        )}
         style={{ height: '540px' }}
       >
         <ChatPanel {...panelProps} onClose={() => setOpen(false)} />

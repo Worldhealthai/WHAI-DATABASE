@@ -9,36 +9,35 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 async function getCRMContext(): Promise<string> {
   try {
     const [delegates, speakers, sponsors] = await Promise.all([
-      supabase.from('delegates').select('status, event, subType').limit(2000),
-      supabase.from('speakers').select('status, event, subType').limit(2000),
-      supabase.from('companies').select('status, event, tier, name').limit(2000),
+      supabase.from('delegates').select('status, event').limit(2000),
+      supabase.from('speakers').select('status, event').limit(2000),
+      supabase.from('companies').select('status, tier').limit(2000),
     ])
 
     const countBy = (rows: any[], key: string) =>
-      rows?.reduce((acc: Record<string, number>, r: any) => {
+      (rows ?? []).reduce((acc: Record<string, number>, r: any) => {
         const v = r[key] ?? 'Unknown'
         acc[v] = (acc[v] ?? 0) + 1
         return acc
-      }, {}) ?? {}
+      }, {})
 
-    const delegatesByStatus = countBy(delegates.data ?? [], 'status')
-    const speakersByStatus  = countBy(speakers.data ?? [], 'status')
-    const sponsorsByStatus  = countBy(
-      (sponsors.data ?? []).filter((c: any) => !['Media Partner', 'Association Partner'].includes(c.tier)),
-      'status',
-    )
+    const dByStatus = countBy(delegates.data ?? [], 'status')
+    const spByStatus = countBy(speakers.data ?? [], 'status')
+    const sponsorRows = (sponsors.data ?? []).filter((c: any) => !['Media Partner', 'Association Partner'].includes(c.tier))
+    const snByStatus = countBy(sponsorRows, 'status')
 
-    const totalDelegates = delegates.data?.length ?? 0
-    const totalSpeakers  = speakers.data?.length ?? 0
-    const totalSponsors  = Object.values(sponsorsByStatus).reduce((a, b) => a + b, 0)
+    const fmt = (obj: Record<string, number>) =>
+      Object.entries(obj).map(([k, v]) => `  - ${k}: ${v}`).join('\n') || '  - (none)'
 
-    return `
-WHAI CRM LIVE DATA (as of now):
-- Delegates: ${totalDelegates} total | ${JSON.stringify(delegatesByStatus)}
-- Speaker Leads: ${totalSpeakers} total | ${JSON.stringify(speakersByStatus)}
-- Sponsors: ${totalSponsors} total | ${JSON.stringify(sponsorsByStatus)}
-Events: UK Forum, US Forum
-`.trim()
+    return `LIVE CRM DATA:
+Delegates (${delegates.data?.length ?? 0} total):
+${fmt(dByStatus)}
+
+Speakers (${speakers.data?.length ?? 0} total):
+${fmt(spByStatus)}
+
+Sponsors (${sponsorRows.length} total):
+${fmt(snByStatus)}`
   } catch {
     return 'CRM data temporarily unavailable.'
   }
@@ -53,12 +52,17 @@ export async function POST(req: NextRequest) {
 
     const crmContext = await getCRMContext()
 
-    const systemPrompt = `You are WHAI AI Assistant for the World Health AI events team. Be concise and professional.
+    const systemPrompt = `You are Pulse, the AI assistant for World Health AI (WHAI) events.
 
-LIVE CRM DATA:
 ${crmContext}
 
-Events: UK Forum, US Forum. Use web search for live industry info, competitors, and speaker research.`
+Events: UK Forum, US Forum.
+
+RULES:
+1. For CRM questions (counts, pipeline, status breakdowns), answer directly from the data above. Do NOT use web search.
+2. Only use web_search for questions about competitors, industry news, external companies, or anything requiring live/current information not in the CRM data.
+3. Write in plain clear text. No markdown. No ** for bold. No ## headers. No > blockquotes. No --- dividers. Use numbered lists (1. 2. 3.) and dashes (- item) for lists.
+4. Be concise and specific. If you know the answer, just say it.`
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
@@ -66,24 +70,18 @@ Events: UK Forum, US Forum. Use web search for live industry info, competitors, 
         try {
           const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 1024,
+            max_tokens: 800,
             system: systemPrompt,
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-            tools: [{ type: 'web_search_20260209' as any, name: 'web_search', max_uses: 3 }],
+            tools: [{ type: 'web_search_20260209' as any, name: 'web_search', max_uses: 2 }],
             stream: true,
           })
 
-          let buffer = ''
           for await (const event of response) {
-            if (event.type === 'content_block_delta') {
-              if (event.delta.type === 'text_delta') {
-                buffer += event.delta.text
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', text: event.delta.text })}\n\n`))
-              }
-            } else if (event.type === 'content_block_start') {
-              if (event.content_block.type === 'tool_use' && event.content_block.name === 'web_search') {
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'searching' })}\n\n`))
-              }
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', text: event.delta.text })}\n\n`))
+            } else if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'searching' })}\n\n`))
             } else if (event.type === 'message_stop') {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`))
             }
