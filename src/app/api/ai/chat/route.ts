@@ -53,26 +53,19 @@ export async function POST(req: NextRequest) {
 
     const crmContext = await getCRMContext()
 
-    const systemPrompt = `You are WHAI AI Assistant — an intelligent assistant for the World Health AI (WHAI) events team.
+    const systemPrompt = `You are WHAI AI Assistant for the World Health AI events team. Be concise and professional.
 
-You have access to live CRM data and can search the web for current information.
-
+LIVE CRM DATA:
 ${crmContext}
 
-Your capabilities:
-1. Answer questions about the CRM data above (delegates, speakers, sponsors)
-2. Search the web for live information about healthcare AI events, competitors, speakers, companies
-3. Help with event strategy, outreach ideas, and industry insights
-
-Always be concise, professional, and data-driven. When searching the web, summarise findings clearly.
-If asked about a specific person or company in the CRM, refer to the live data above.`
+Events: UK Forum, US Forum. Use web search for live industry info, competitors, and speaker research.`
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
         try {
           const response = await client.messages.create({
-            model: 'claude-opus-4-7',
+            model: 'claude-sonnet-4-6',
             max_tokens: 1024,
             system: systemPrompt,
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
