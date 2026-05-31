@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown,
-  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, ArrowRight, CheckCircle2, DollarSign, GripVertical,
+  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, Rows, ArrowRight, CheckCircle2, DollarSign, GripVertical,
 } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
@@ -343,7 +343,7 @@ export default function SponsorsPage() {
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
-  const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
+  const [viewMode, setViewMode] = useState<'table' | 'board' | 'rows'>('table')
   const [advancingId, setAdvancingId] = useState<string | null>(null)
   const [sidePanelId, setSidePanelId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
@@ -547,6 +547,16 @@ export default function SponsorsPage() {
                 >
                   <LayoutGrid className="w-3.5 h-3.5" /> Board
                 </button>
+                <div className="w-px h-5 bg-[#1a3a5c]" />
+                <button
+                  onClick={() => setViewMode('rows')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
+                    viewMode === 'rows' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-white'
+                  )}
+                >
+                  <Rows className="w-3.5 h-3.5" /> Rows
+                </button>
               </div>
               <button
                 onClick={() => setShowModal(true)}
@@ -605,7 +615,7 @@ export default function SponsorsPage() {
       </div>
 
       {/* ── Bulk actions bar ── */}
-      {selected.size > 0 && viewMode === 'table' && (
+      {selected.size > 0 && viewMode !== 'board' && (
         <div className="shrink-0 bg-[#0d2040] border-b border-amber-500/20 z-20">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 flex-wrap">
             <span className="text-sm font-semibold text-amber-400 shrink-0">{selected.size} selected</span>
@@ -690,6 +700,104 @@ export default function SponsorsPage() {
                 />
               )}
             </div>
+          )}
+
+          {/* ── Rows view ── */}
+          {viewMode === 'rows' && (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">
+                  {isLoading ? 'Loading…' : (<><span className="font-bold text-white">{(data?.total ?? 0).toLocaleString()}</span> results</>)}
+                </span>
+                <button onClick={() => exportCSV()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors">
+                  <Download className="w-3.5 h-3.5" /> Export all
+                </button>
+              </div>
+              <div className="whai-card overflow-hidden divide-y divide-[#1a3a5c]/40">
+                {isLoading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 px-4 py-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-700/50 animate-pulse shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3.5 w-48 rounded bg-slate-700/50 animate-pulse" />
+                        <div className="h-2.5 w-32 rounded bg-slate-700/30 animate-pulse" />
+                      </div>
+                      <div className="h-5 w-20 rounded-full bg-slate-700/30 animate-pulse" />
+                    </div>
+                  ))
+                ) : !rows.length ? (
+                  <div className="py-16 text-center text-slate-500 text-sm">No sponsors found.</div>
+                ) : rows.map((s) => {
+                  const next = nextStage(s.status)
+                  const saveState = () => sessionStorage.setItem('sponsors-list-state', JSON.stringify({ filters, keyword, page, pageSize, sortBy, sortDir, viewMode }))
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setSidePanelId(s.id)}
+                      className={cn('group/row flex items-center gap-4 px-4 py-3.5 hover:bg-[#112850]/60 transition-colors cursor-pointer', selected.has(s.id) && 'bg-amber-500/5')}
+                    >
+                      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                        <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
+                      </div>
+                      {/* Avatar */}
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-bold shrink-0">
+                        {companyInitials(s)}
+                      </div>
+                      {/* Main info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span onClick={(e) => e.stopPropagation()}>
+                            <Link href={`/sponsors/${s.id}`} onClick={saveState} className="font-semibold text-white hover:text-amber-400 transition-colors text-sm">
+                              {s.companyName}
+                            </Link>
+                          </span>
+                          {s.event && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400/80 border border-amber-500/20">{s.event}</span>}
+                          {s.contactCount > 0 && <span className="text-[10px] text-slate-600">{s.contactCount} contact{s.contactCount === 1 ? '' : 's'}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          {(s.contactFirstName || s.contactLastName) && (
+                            <span className="text-xs text-slate-500">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}{s.contactJobTitle ? ` · ${s.contactJobTitle}` : ''}</span>
+                          )}
+                          {s.country && <span className="text-xs text-slate-600">{s.country}</span>}
+                          {s.valueAmount && <span className="text-xs text-slate-400 font-medium">{s.valueCurrency ?? 'GBP'} {Number(s.valueAmount).toLocaleString()}</span>}
+                        </div>
+                      </div>
+                      {/* Badges */}
+                      <div className="hidden sm:flex items-center gap-2 shrink-0">
+                        <StatusBadge value={s.status} variant="sponsor_status" />
+                        {s.tier && <StatusBadge value={s.tier} variant="sponsor_tier" />}
+                      </div>
+                      {/* Date */}
+                      <div className="hidden lg:block text-xs text-slate-600 shrink-0 w-24 text-right">
+                        {new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
+                      </div>
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                        {next && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); advanceStage(s.id, next) }}
+                            disabled={advancingId === s.id}
+                            title={`Move to ${next}`}
+                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-medium hover:bg-amber-500/20 disabled:opacity-50 transition-all whitespace-nowrap"
+                          >
+                            {advancingId === s.id ? '…' : <><ArrowRight className="w-3 h-3" />{next}</>}
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditingSponsor(s) }}
+                          className="p-1.5 rounded-md hover:bg-amber-500/15 text-slate-500 hover:text-amber-400"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {data && data.total > 0 && (
+                <Pagination page={page} totalPages={data.totalPages} total={data.total} pageSize={pageSize} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1) }} />
+              )}
+            </>
           )}
 
           {/* ── Table view ── */}
