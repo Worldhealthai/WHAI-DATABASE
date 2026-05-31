@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown,
-  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, Rows, ArrowRight, CheckCircle2, GripVertical,
+  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, Grid3X3, ArrowRight, CheckCircle2, GripVertical,
 } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
@@ -318,7 +318,7 @@ export default function SpeakersPage() {
   const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
-  const [viewMode, setViewMode] = useState<'table' | 'board' | 'rows'>('table')
+  const [viewMode, setViewMode] = useState<'table' | 'board' | 'grid'>('table')
   const [advancingId, setAdvancingId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
@@ -500,13 +500,13 @@ export default function SpeakersPage() {
                 </button>
                 <div className="w-px h-5 bg-[#1a3a5c]" />
                 <button
-                  onClick={() => setViewMode('rows')}
+                  onClick={() => setViewMode('grid')}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
-                    viewMode === 'rows' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-500 hover:text-white'
+                    viewMode === 'grid' ? 'bg-purple-500/20 text-purple-400' : 'text-slate-500 hover:text-white'
                   )}
                 >
-                  <Rows className="w-3.5 h-3.5" /> Rows
+                  <Grid3X3 className="w-3.5 h-3.5" /> Grid
                 </button>
               </div>
               <button
@@ -789,8 +789,8 @@ export default function SpeakersPage() {
             </>
           )}
 
-          {/* ── Rows view ── */}
-          {viewMode === 'rows' && (
+          {/* ── Grid view ── */}
+          {viewMode === 'grid' && (
             <>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">
@@ -800,81 +800,89 @@ export default function SpeakersPage() {
                   <Download className="w-3.5 h-3.5" /> Export all
                 </button>
               </div>
-              <div className="whai-card overflow-hidden divide-y divide-[#1a3a5c]/40">
-                {isLoading ? (
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4 px-4 py-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-700/50 animate-pulse shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3.5 w-48 rounded bg-slate-700/50 animate-pulse" />
-                        <div className="h-2.5 w-32 rounded bg-slate-700/30 animate-pulse" />
-                      </div>
-                      <div className="h-5 w-20 rounded-full bg-slate-700/30 animate-pulse" />
+              {isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-4 space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-700/50 animate-pulse mx-auto" />
+                      <div className="h-3.5 w-32 rounded bg-slate-700/50 animate-pulse mx-auto" />
+                      <div className="h-2.5 w-24 rounded bg-slate-700/30 animate-pulse mx-auto" />
+                      <div className="h-5 w-20 rounded-full bg-slate-700/30 animate-pulse mx-auto" />
                     </div>
-                  ))
-                ) : !rows.length ? (
-                  <div className="py-16 text-center text-slate-500 text-sm">No speakers found.</div>
-                ) : rows.map((s) => {
-                  const next = nextStage(s.status)
-                  return (
-                    <div
-                      key={s.id}
-                      className={cn('group/row flex items-center gap-4 px-4 py-3.5 hover:bg-[#112850]/60 transition-colors cursor-pointer', selected.has(s.id) && 'bg-purple-500/5')}
-                    >
-                      <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-                        <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
-                      </div>
-                      {/* Avatar */}
-                      <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-sm font-bold shrink-0">
-                        {initials(s)}
-                      </div>
-                      {/* Main info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Link href={`/speakers/${s.id}`} className="font-semibold text-white hover:text-purple-400 transition-colors text-sm">
-                            {s.firstName} {s.lastName}
-                          </Link>
-                          {s.event && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400/80 border border-purple-500/20">{s.event}</span>}
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 flex-wrap">
-                          {(s.organization || s.jobTitle) && (
-                            <span className="text-xs text-slate-500">{s.organization}{s.jobTitle ? ` · ${s.jobTitle}` : ''}</span>
-                          )}
-                          {s.country && <span className="text-xs text-slate-600">{s.country}</span>}
-                        </div>
-                      </div>
-                      {/* Badges */}
-                      <div className="hidden sm:flex items-center gap-2 shrink-0">
-                        <StatusBadge value={s.status} variant="speaker_status" />
-                        {s.subType && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-700">{s.subType}</span>}
-                      </div>
-                      {/* Date */}
-                      <div className="hidden lg:block text-xs text-slate-600 shrink-0 w-24 text-right">
-                        {new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
-                      </div>
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                        {next && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); advanceStage(s.id, next) }}
-                            disabled={advancingId === s.id}
-                            title={`Move to ${next}`}
-                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium hover:bg-purple-500/20 disabled:opacity-50 transition-all whitespace-nowrap"
-                          >
-                            {advancingId === s.id ? '…' : <><ArrowRight className="w-3 h-3" />{next}</>}
-                          </button>
+                  ))}
+                </div>
+              ) : !rows.length ? (
+                <div className="py-16 text-center text-slate-500 text-sm">No speakers found.</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {rows.map((s) => {
+                    const next = nextStage(s.status)
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => { window.location.href = `/speakers/${s.id}` }}
+                        className={cn(
+                          'group/card relative rounded-xl border bg-[#0d2040] hover:bg-[#112850] transition-all cursor-pointer p-4 flex flex-col gap-3',
+                          selected.has(s.id) ? 'border-purple-500/40 bg-purple-500/5' : 'border-[#1a3a5c] hover:border-purple-500/30',
                         )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditingSpeaker(s) }}
-                          className="p-1.5 rounded-md hover:bg-purple-500/15 text-slate-500 hover:text-purple-400"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                      >
+                        {/* Top row: checkbox + actions */}
+                        <div className="flex items-center justify-between">
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                            {next && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); advanceStage(s.id, next) }}
+                                disabled={advancingId === s.id}
+                                title={`Move to ${next}`}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium hover:bg-purple-500/20 disabled:opacity-50 transition-all whitespace-nowrap"
+                              >
+                                {advancingId === s.id ? '…' : <><ArrowRight className="w-3 h-3" />{next}</>}
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditingSpeaker(s) }}
+                              className="p-1.5 rounded-md hover:bg-purple-500/15 text-slate-500 hover:text-purple-400"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {/* Avatar + name */}
+                        <div className="flex flex-col items-center text-center gap-2">
+                          <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl font-bold shrink-0">
+                            {initials(s)}
+                          </div>
+                          <div>
+                            <span onClick={(e) => e.stopPropagation()}>
+                              <Link href={`/speakers/${s.id}`} className="font-semibold text-white hover:text-purple-400 transition-colors text-sm leading-snug">
+                                {[s.firstName, s.lastName].filter(Boolean).join(' ') || '—'}
+                              </Link>
+                            </span>
+                            {(s.organization || s.jobTitle) && (
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                {s.organization}{s.jobTitle && <span className="text-slate-600"> · {s.jobTitle}</span>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* Badges */}
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <StatusBadge value={s.status} variant="speaker_status" />
+                          {s.subType && <StatusBadge value={s.subType} variant="delegate_type" />}
+                        </div>
+                        {/* Meta */}
+                        <div className="flex items-center justify-center gap-2 flex-wrap mt-auto">
+                          {s.event && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400/70 border border-purple-500/15">{s.event}</span>}
+                          {s.country && <span className="text-[10px] text-slate-600">{s.country}</span>}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
               {data && data.total > 0 && (
                 <Pagination page={page} totalPages={data.totalPages} total={data.total} pageSize={pageSize} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1) }} />
               )}
