@@ -34,7 +34,7 @@ export async function GET() {
     {
       ok: true,
       endpoint: 'POST /api/webhooks/register',
-      secretConfigured: Boolean(process.env.WEBHOOK_SECRET),
+      secretConfigured: Boolean(process.env.WEBHOOK_SECRET?.trim()),
       supabaseConfigured: Boolean(
         process.env.NEXT_PUBLIC_SUPABASE_URL &&
           (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
@@ -46,9 +46,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    // Auth: require the shared secret when one is configured
-    const secret = process.env.WEBHOOK_SECRET
-    if (secret && req.headers.get('x-webhook-secret') !== secret) {
+    // Auth: require the shared secret when one is configured.
+    // Both sides are trimmed so a stray space/newline pasted into Vercel
+    // can't cause a mismatch.
+    const secret = process.env.WEBHOOK_SECRET?.trim()
+    if (secret && req.headers.get('x-webhook-secret')?.trim() !== secret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: CORS_HEADERS })
     }
 
