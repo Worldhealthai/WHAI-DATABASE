@@ -115,7 +115,13 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error
     return NextResponse.json(data, { status: 201 })
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+      return NextResponse.json(
+        { error: 'This sponsor already exists in your CRM — duplicate entries are not allowed.' },
+        { status: 409 },
+      )
+    }
     console.error('Sponsors POST error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

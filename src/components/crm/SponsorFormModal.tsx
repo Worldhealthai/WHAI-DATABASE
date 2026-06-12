@@ -67,11 +67,14 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error('Failed to save')
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to save')
+      }
       const saved = await res.json()
       onSaved(saved)
-    } catch {
-      setError('Something went wrong. Please try again.')
+    } catch (err: any) {
+      setError(err?.message && err.message !== 'Failed to save' ? err.message : 'Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }
