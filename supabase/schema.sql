@@ -19,6 +19,8 @@ create table if not exists delegates (
   country               text,
   city                  text,
   status                text not null default 'Registered',
+  event                 text,
+  "subType"             text,
   "ticketType"          text,
   "dietaryRequirements" text,
   "accessibilityNeeds"  text,
@@ -31,6 +33,7 @@ create table if not exists delegates (
 );
 
 create index if not exists idx_delegates_status  on delegates(status);
+create index if not exists idx_delegates_event   on delegates(event);
 create index if not exists idx_delegates_country on delegates(country);
 create index if not exists idx_delegates_email   on delegates(email);
 create index if not exists idx_delegates_created on delegates("createdAt" desc);
@@ -54,6 +57,9 @@ create table if not exists speakers (
   bio                  text,
   "expertiseAreas"     text,
   status               text not null default 'Prospecting',
+  event                text,
+  "subType"            text,
+  year                 integer,
   "sessionTitle"       text,
   "sessionDescription" text,
   "sessionType"        text,
@@ -70,6 +76,7 @@ create table if not exists speakers (
 );
 
 create index if not exists idx_speakers_status  on speakers(status);
+create index if not exists idx_speakers_event   on speakers(event);
 create index if not exists idx_speakers_country on speakers(country);
 create index if not exists idx_speakers_email   on speakers(email);
 create index if not exists idx_speakers_created on speakers("createdAt" desc);
@@ -92,6 +99,7 @@ create table if not exists sponsors (
   city                 text,
   tier                 text default 'Bronze',
   status               text not null default 'Prospecting',
+  event                text,
   "valueAmount"        numeric(12,2),
   "valueCurrency"      text default 'GBP',
   "contractStatus"     text default 'Not Started',
@@ -103,6 +111,7 @@ create table if not exists sponsors (
 );
 
 create index if not exists idx_sponsors_status  on sponsors(status);
+create index if not exists idx_sponsors_event   on sponsors(event);
 create index if not exists idx_sponsors_tier    on sponsors(tier);
 create index if not exists idx_sponsors_country on sponsors(country);
 create index if not exists idx_sponsors_created on sponsors("createdAt" desc);

@@ -13,17 +13,35 @@ export const dynamic = 'force-dynamic'
 //   "firstName": "...", "lastName": "...", "email": "...",
 //   "phone": "...", "organization": "...", "jobTitle": "...",
 //   "country": "...", "city": "...", "event": "UK Forum" | "US Forum",
+//   "subType": "End User" | "Solution Provider",
 //   "linkedinUrl": "...", "notes": "..."
 // }
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, x-webhook-secret',
 }
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
+// Health check — open this URL in a browser to verify the deployment is live
+// and the env vars are configured. Reports presence only, never values.
+export async function GET() {
+  return NextResponse.json(
+    {
+      ok: true,
+      endpoint: 'POST /api/webhooks/register',
+      secretConfigured: Boolean(process.env.WEBHOOK_SECRET),
+      supabaseConfigured: Boolean(
+        process.env.NEXT_PUBLIC_SUPABASE_URL &&
+          (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+      ),
+    },
+    { headers: CORS_HEADERS },
+  )
 }
 
 export async function POST(req: NextRequest) {
@@ -54,6 +72,7 @@ export async function POST(req: NextRequest) {
       country: body.country ?? null,
       city: body.city ?? null,
       event: body.event ?? null,
+      subType: body.subType ?? null,
       linkedinUrl: body.linkedinUrl ?? null,
       notes: body.notes ?? null,
     }
@@ -90,6 +109,9 @@ export async function POST(req: NextRequest) {
       )
     }
     console.error('Registration webhook error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: CORS_HEADERS })
+    // Include a short detail so the calling site's logs show the root cause
+    // (e.g. a missing column) instead of an opaque 500.
+    const detail = (error?.message || String(error)).slice(0, 300)
+    return NextResponse.json({ error: 'Internal server error', detail }, { status: 500, headers: CORS_HEADERS })
   }
 }
