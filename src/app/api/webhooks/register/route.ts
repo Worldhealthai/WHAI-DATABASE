@@ -64,10 +64,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Normalised for matching and storage — emails differing only in case
+    // are the same mailbox.
+    const email =
+      typeof body.email === 'string' && body.email.trim() ? body.email.trim().toLowerCase() : null
+    const firstName = typeof body.firstName === 'string' ? body.firstName.trim() : ''
+    const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : ''
+
     const common = {
-      firstName: body.firstName ?? null,
-      lastName: body.lastName ?? null,
-      email: body.email ?? null,
+      firstName: firstName || null,
+      lastName: lastName || null,
+      email,
       phone: body.phone ?? null,
       organization: body.organization ?? null,
       jobTitle: body.jobTitle ?? null,
@@ -84,16 +91,48 @@ export async function POST(req: NextRequest) {
       ? { ...common, status: 'Not Contacted', tags: 'Website Registration' }
       : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration' }
 
-    // Skip if this email already exists in the table (idempotent)
-    if (body.email) {
+    // Literal-match helper for ilike: emails/names may contain the LIKE
+    // wildcards _ and %.
+    const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&')
+
+    // Skip if this email already exists in the table, case-insensitively —
+    // imported contacts often have mixed-case emails (idempotent).
+    if (email) {
       const { data: existing } = await supabase
         .from(table)
         .select('id')
-        .eq('email', body.email)
+        .ilike('email', escapeLike(email))
         .limit(1)
       if (existing?.length) {
         return NextResponse.json(
           { ok: true, duplicate: true, id: existing[0].id, message: 'Already registered — skipped.' },
+          { status: 200, headers: CORS_HEADERS },
+        )
+      }
+    }
+
+    // A contact with the same name but no email on file is almost always the
+    // same person, imported before their email was known. Fill in the email
+    // on the existing record instead of creating a second one.
+    if (firstName && lastName) {
+      const { data: sameName } = await supabase
+        .from(table)
+        .select('id, email')
+        .ilike('firstName', escapeLike(firstName))
+        .ilike('lastName', escapeLike(lastName))
+        .limit(10)
+      const emailless = sameName?.find((r: { id: string; email: string | null }) => !r.email?.trim())
+      if (emailless) {
+        if (email) {
+          await supabase.from(table).update({ email }).eq('id', emailless.id)
+        }
+        return NextResponse.json(
+          {
+            ok: true,
+            duplicate: true,
+            id: emailless.id,
+            message: 'Existing contact with the same name and no email — added the email instead of duplicating.',
+          },
           { status: 200, headers: CORS_HEADERS },
         )
       }
