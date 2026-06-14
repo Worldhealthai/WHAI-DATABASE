@@ -14,7 +14,11 @@ export const dynamic = 'force-dynamic'
 //   "phone": "...", "organization": "...", "jobTitle": "...",
 //   "country": "...", "city": "...", "event": "UK Forum" | "US Forum",
 //   "subType": "End User" | "Solution Provider",
-//   "linkedinUrl": "...", "notes": "..."
+//   "linkedinUrl": "...", "notes": "...",
+//   // Optional control fields used by the website's admin actions:
+//   "action": "delete",   // remove the matching contact (by email) from the CRM
+//   "status": "Cancelled" | "Rejected"  // set status on the matching contact,
+//                                        // creating it with that status if absent
 // }
 
 const CORS_HEADERS = {
@@ -94,6 +98,66 @@ export async function POST(req: NextRequest) {
     // Literal-match helper for ilike: emails/names may contain the LIKE
     // wildcards _ and %.
     const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&')
+
+    // ── action: "delete" ──────────────────────────────────────────────────
+    // The website calls this when an admin permanently deletes a registration.
+    // Remove the matching contact from this table by email.
+    if (body.action === 'delete') {
+      if (!email) {
+        return NextResponse.json(
+          { ok: true, deleted: 0, message: 'No email to match — nothing deleted.' },
+          { status: 200, headers: CORS_HEADERS },
+        )
+      }
+      const { data: removed, error: delErr } = await supabase
+        .from(table)
+        .delete()
+        .ilike('email', escapeLike(email))
+        .select('id')
+      if (delErr) throw delErr
+      return NextResponse.json(
+        { ok: true, deleted: removed?.length ?? 0 },
+        { status: 200, headers: CORS_HEADERS },
+      )
+    }
+
+    // ── status override: cancel / reject ──────────────────────────────────
+    // The website calls this when an admin cancels or rejects a registration.
+    // Update the existing contact's status; if it was never synced (e.g. a
+    // pending registration that gets rejected) create it with that status so
+    // it still shows up in the matching Cancelled / Rejected section.
+    const statusOverride =
+      typeof body.status === 'string' && body.status.trim() ? body.status.trim() : null
+    if (statusOverride) {
+      if (email) {
+        const { data: existing } = await supabase
+          .from(table)
+          .select('id')
+          .ilike('email', escapeLike(email))
+          .limit(1)
+        if (existing?.length) {
+          const { error: updErr } = await supabase
+            .from(table)
+            .update({ status: statusOverride })
+            .eq('id', existing[0].id)
+          if (updErr) throw updErr
+          return NextResponse.json(
+            { ok: true, updated: true, id: existing[0].id, status: statusOverride },
+            { status: 200, headers: CORS_HEADERS },
+          )
+        }
+      }
+      const { data: createdRow, error: insErr } = await supabase
+        .from(table)
+        .insert({ ...record, status: statusOverride })
+        .select('id')
+        .single()
+      if (insErr) throw insErr
+      return NextResponse.json(
+        { ok: true, created: true, id: createdRow.id, status: statusOverride },
+        { status: 201, headers: CORS_HEADERS },
+      )
+    }
 
     // Skip if this email already exists in the table, case-insensitively —
     // imported contacts often have mixed-case emails (idempotent).

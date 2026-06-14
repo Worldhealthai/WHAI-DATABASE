@@ -121,13 +121,17 @@ export default function DelegatesPage() {
 
   const clearAll = () => { setFilters({}); setKeyword(''); setPage(1); setSelected(new Set()); clearTimeout(debounceRef.current) }
 
-  // Event / rejected tab helpers
+  // Event / rejected / cancelled tab helpers
   const isRejectedTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Rejected'
-  const activeEventTab = isRejectedTab ? '' : (filters.events?.length === 1 ? filters.events[0] : '')
+  const isCancelledTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Cancelled'
+  const isStatusTab = isRejectedTab || isCancelledTab
+  const activeEventTab = isStatusTab ? '' : (filters.events?.length === 1 ? filters.events[0] : '')
   const setEventTab = (event: string) => {
     setFilters((prev) => {
       const next = { ...prev, events: event ? [event] : undefined }
-      if (next.statuses?.length === 1 && next.statuses[0] === 'Rejected') delete next.statuses
+      if (next.statuses?.length === 1 && (next.statuses[0] === 'Rejected' || next.statuses[0] === 'Cancelled')) {
+        delete next.statuses
+      }
       return next
     })
     setPage(1)
@@ -135,6 +139,11 @@ export default function DelegatesPage() {
   }
   const setRejectedTab = () => {
     setFilters((prev) => ({ ...prev, statuses: ['Rejected'], events: undefined }))
+    setPage(1)
+    setSelected(new Set())
+  }
+  const setCancelledTab = () => {
+    setFilters((prev) => ({ ...prev, statuses: ['Cancelled'], events: undefined }))
     setPage(1)
     setSelected(new Set())
   }
@@ -238,7 +247,7 @@ export default function DelegatesPage() {
               {data && (
                 <p className="text-xs text-slate-500 mt-0.5">
                   {data.total.toLocaleString()} {data.total === 1 ? 'record' : 'records'}
-                  {isRejectedTab ? <span className="text-rose-400"> · Rejected</span> : activeEventTab && <span className="text-[#00B4D8]"> · {activeEventTab}</span>}
+                  {isRejectedTab ? <span className="text-rose-400"> · Rejected</span> : isCancelledTab ? <span className="text-amber-400"> · Cancelled</span> : activeEventTab && <span className="text-[#00B4D8]"> · {activeEventTab}</span>}
                 </p>
               )}
             </div>
@@ -280,7 +289,7 @@ export default function DelegatesPage() {
               onClick={() => setEventTab('')}
               className={cn(
                 'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                !isRejectedTab && activeEventTab === ''
+                !isStatusTab && activeEventTab === ''
                   ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
                   : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
               )}
@@ -293,7 +302,7 @@ export default function DelegatesPage() {
                 onClick={() => setEventTab(ev)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                  !isRejectedTab && activeEventTab === ev
+                  !isStatusTab && activeEventTab === ev
                     ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
                     : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
                 )}
@@ -303,6 +312,17 @@ export default function DelegatesPage() {
               </button>
             ))}
             <div className="w-px h-5 bg-[#1a3a5c] shrink-0 mx-1" />
+            <button
+              onClick={setCancelledTab}
+              className={cn(
+                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                isCancelledTab
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+              )}
+            >
+              Cancelled
+            </button>
             <button
               onClick={setRejectedTab}
               className={cn(
