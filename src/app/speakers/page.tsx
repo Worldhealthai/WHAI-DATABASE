@@ -39,7 +39,7 @@ const BOARD_COLS = [
   { status: 'Invited',            hex: '#3b82f6', label: 'Invited' },
   { status: 'Discussing',         hex: '#a855f7', label: 'Discussing' },
   { status: 'Speaking Confirmed', hex: '#10b981', label: 'Confirmed' },
-  { status: 'Cancelled',          hex: '#f59e0b', label: 'Cancelled' },
+  { status: 'Cancelled',          hex: '#facc15', label: 'Cancelled' },
   { status: 'Rejected',           hex: '#ef4444', label: 'Rejected' },
 ]
 const PROGRESSION = ['Not Contacted', 'Invited', 'Discussing', 'Speaking Confirmed']

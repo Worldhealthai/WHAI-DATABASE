@@ -247,7 +247,7 @@ export default function DelegatesPage() {
               {data && (
                 <p className="text-xs text-slate-500 mt-0.5">
                   {data.total.toLocaleString()} {data.total === 1 ? 'record' : 'records'}
-                  {isRejectedTab ? <span className="text-rose-400"> · Rejected</span> : isCancelledTab ? <span className="text-amber-400"> · Cancelled</span> : activeEventTab && <span className="text-[#00B4D8]"> · {activeEventTab}</span>}
+                  {isRejectedTab ? <span className="text-rose-400"> · Rejected</span> : isCancelledTab ? <span className="text-yellow-400"> · Cancelled</span> : activeEventTab && <span className="text-[#00B4D8]"> · {activeEventTab}</span>}
                 </p>
               )}
             </div>
@@ -317,7 +317,7 @@ export default function DelegatesPage() {
               className={cn(
                 'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
                 isCancelledTab
-                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+                  ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/40'
                   : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
               )}
             >
