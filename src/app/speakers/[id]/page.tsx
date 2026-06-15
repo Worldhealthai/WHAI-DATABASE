@@ -95,9 +95,36 @@ export default function SpeakerDetailPage() {
     queryFn: () => fetchSpeaker(id),
   })
 
+  // Build prev/next nav query from the filters applied in the list view (saved
+  // to sessionStorage when opening this profile) so next/prev walks the
+  // filtered list, not the full unfiltered one.
+  const navParams = (() => {
+    const params = new URLSearchParams()
+    params.set('pageSize', '1000')
+    let sortBy = 'createdAt', sortDir = 'desc'
+    try {
+      const saved = typeof window !== 'undefined' ? sessionStorage.getItem('speakers-list-state') : null
+      if (saved) {
+        const s = JSON.parse(saved)
+        if (s.sortBy) sortBy = s.sortBy
+        if (s.sortDir) sortDir = s.sortDir
+        const f = s.filters ?? {}
+        if (f.query) params.set('query', f.query)
+        f.statuses?.forEach((v: string) => params.append('statuses', v))
+        f.events?.forEach((v: string) => params.append('events', v))
+        f.subTypes?.forEach((v: string) => params.append('subTypes', v))
+        f.countries?.forEach((v: string) => params.append('countries', v))
+        f.years?.forEach((v: number | string) => params.append('years', String(v)))
+      }
+    } catch {}
+    params.set('sortBy', sortBy)
+    params.set('sortDir', sortDir)
+    return params.toString()
+  })()
+
   const { data: navData } = useQuery<{ data: { id: string; firstName: string; lastName: string }[] }>({
-    queryKey: ['speakers-nav'],
-    queryFn: () => fetch('/api/speakers?pageSize=1000&sortBy=createdAt&sortDir=desc').then(r => r.json()),
+    queryKey: ['speakers-nav', navParams],
+    queryFn: () => fetch(`/api/speakers?${navParams}`).then(r => r.json()),
     staleTime: 60_000,
   })
   const navList = navData?.data ?? []

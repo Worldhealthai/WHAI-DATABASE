@@ -222,10 +222,13 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
   const inputRef                = useRef<HTMLInputElement>(null)
   const stickToBottom           = useRef(true)
 
-  // Only scroll to bottom when new content arrives if user hasn't scrolled up
+  // Scroll the inner message container only (never the page) when new
+  // content arrives and the user is already near the bottom. Skipped while
+  // there are no messages so opening the dashboard never jumps to Pulse.
   useEffect(() => {
-    if (stickToBottom.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messages.length === 0) return
+    if (stickToBottom.current && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
 

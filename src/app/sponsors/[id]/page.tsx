@@ -147,10 +147,38 @@ export default function SponsorDetailPage() {
     queryFn: () => fetchSponsor(id),
   })
 
-  // Fetch all sponsor IDs for prev/next navigation (excluding partner tiers)
+  // Build the prev/next nav query from the filters the user had applied in the
+  // list view (saved to sessionStorage when they opened this profile), so
+  // next/prev walks the filtered list — not the full unfiltered one.
+  const navParams = (() => {
+    const PARTNER_TIERS = ['Media Partner', 'Association Partner']
+    const params = new URLSearchParams()
+    params.set('pageSize', '1000')
+    let sortBy = 'createdAt', sortDir = 'desc'
+    try {
+      const saved = typeof window !== 'undefined' ? sessionStorage.getItem('sponsors-list-state') : null
+      if (saved) {
+        const s = JSON.parse(saved)
+        if (s.sortBy) sortBy = s.sortBy
+        if (s.sortDir) sortDir = s.sortDir
+        const f = s.filters ?? {}
+        if (f.query) params.set('query', f.query)
+        f.statuses?.forEach((v: string) => params.append('statuses', v))
+        f.events?.forEach((v: string) => params.append('events', v))
+        f.tiers?.forEach((v: string) => params.append('tiers', v))
+        f.countries?.forEach((v: string) => params.append('countries', v))
+      }
+    } catch {}
+    params.set('sortBy', sortBy)
+    params.set('sortDir', sortDir)
+    PARTNER_TIERS.forEach((t) => params.append('excludeTiers', t))
+    return params.toString()
+  })()
+
+  // Fetch sponsor IDs for prev/next navigation, scoped to the active filters
   const { data: navData } = useQuery<{ data: { id: string; companyName: string }[] }>({
-    queryKey: ['sponsors-nav'],
-    queryFn: () => fetch('/api/sponsors?pageSize=1000&sortBy=createdAt&sortDir=desc').then(r => r.json()),
+    queryKey: ['sponsors-nav', navParams],
+    queryFn: () => fetch(`/api/sponsors?${navParams}`).then(r => r.json()),
     staleTime: 60_000,
   })
   const navList = navData?.data ?? []
