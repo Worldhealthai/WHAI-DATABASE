@@ -27,7 +27,7 @@ const DELEGATE_PIPELINE = [
   { status: 'Confirmed',   hex: '#06b6d4' },
   { status: 'Attended',    hex: '#10b981' },
   { status: 'Waitlisted',  hex: '#f59e0b' },
-  { status: 'Cancelled',   hex: '#ef4444' },
+  { status: 'Cancelled',   hex: '#facc15' },
   { status: 'No-show',     hex: '#64748b' },
   { status: 'Rejected',    hex: '#f43f5e' },
 ]

@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 //   "firstName": "...", "lastName": "...", "email": "...",
 //   "phone": "...", "organization": "...", "jobTitle": "...",
 //   "country": "...", "city": "...", "event": "UK Forum" | "US Forum",
-//   "subType": "End User" | "Solution Provider",
+//   "subType": "End User" | "Solution Provider", "year": 2026,
 //   "linkedinUrl": "...", "notes": "...",
 //   // Optional control fields used by the website's admin actions:
 //   "action": "delete",   // remove the matching contact (by email) from the CRM
@@ -90,9 +90,16 @@ export async function POST(req: NextRequest) {
       notes: body.notes ?? null,
     }
 
+    // Event year (e.g. 2026) so the speaker lands under the right Year tab.
+    // Only the speakers table has a year column; delegates don't use one.
+    const year =
+      Number.isInteger(body.year) ? body.year
+      : (typeof body.year === 'string' && /^\d{4}$/.test(body.year.trim())) ? parseInt(body.year.trim(), 10)
+      : null
+
     const table = type === 'speaker' ? 'speakers' : 'delegates'
     const record = type === 'speaker'
-      ? { ...common, status: 'Not Contacted', tags: 'Website Registration' }
+      ? { ...common, status: 'Not Contacted', tags: 'Website Registration', year }
       : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration' }
 
     // Literal-match helper for ilike: emails/names may contain the LIKE
