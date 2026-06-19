@@ -336,6 +336,29 @@ export default function SpeakersPage() {
     placeholderData: (prev) => prev,
   })
 
+  // Restore list state after back-navigation from a speaker profile
+  useEffect(() => {
+    const saved = sessionStorage.getItem('speakers-list-state')
+    if (saved) {
+      try {
+        const s = JSON.parse(saved)
+        if (s.filters) setFilters(s.filters)
+        if (s.keyword) setKeyword(s.keyword)
+        if (s.page) setPage(s.page)
+        if (s.pageSize) setPageSize(s.pageSize)
+        if (s.sortBy) setSortBy(s.sortBy)
+        if (s.sortDir) setSortDir(s.sortDir)
+        if (s.viewMode) setViewMode(s.viewMode)
+      } catch {}
+      sessionStorage.removeItem('speakers-list-state')
+    }
+  }, [])
+
+  const saveListState = () => sessionStorage.setItem(
+    'speakers-list-state',
+    JSON.stringify({ filters, keyword, page, pageSize, sortBy, sortDir, viewMode }),
+  )
+
   useEffect(() => { setPage(1) }, [filters])
 
   const updateFilter = (key: keyof SpeakerFilters, value: string[]) => {
@@ -711,7 +734,7 @@ export default function SpeakersPage() {
                                   <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
                                 </td>
                                 <td className="px-4 py-3">
-                                  <Link href={`/speakers/${s.id}`} className="flex items-center gap-3 group">
+                                  <Link href={`/speakers/${s.id}`} onClick={saveListState} className="flex items-center gap-3 group">
                                     <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
                                       {initials(s)}
                                     </div>
@@ -765,7 +788,7 @@ export default function SpeakersPage() {
                       {rows.map((s) => (
                         <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-purple-500/5' : 'hover:bg-[#112850]/60')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
-                          <Link href={`/speakers/${s.id}`} className="flex items-start gap-3 flex-1 min-w-0">
+                          <Link href={`/speakers/${s.id}`} onClick={saveListState} className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-9 h-9 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{initials(s)}</div>
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-white">{s.firstName} {s.lastName}</div>
@@ -821,7 +844,7 @@ export default function SpeakersPage() {
                     return (
                       <div
                         key={s.id}
-                        onClick={() => { window.location.href = `/speakers/${s.id}` }}
+                        onClick={() => { saveListState(); window.location.href = `/speakers/${s.id}` }}
                         className={cn(
                           'group/card relative rounded-xl border bg-[#0d2040] hover:bg-[#112850] transition-all cursor-pointer p-4 flex flex-col gap-3',
                           selected.has(s.id) ? 'border-purple-500/40 bg-purple-500/5' : 'border-[#1a3a5c] hover:border-purple-500/30',
@@ -858,7 +881,7 @@ export default function SpeakersPage() {
                           </div>
                           <div>
                             <span onClick={(e) => e.stopPropagation()}>
-                              <Link href={`/speakers/${s.id}`} className="font-semibold text-white hover:text-purple-400 transition-colors text-sm leading-snug">
+                              <Link href={`/speakers/${s.id}`} onClick={saveListState} className="font-semibold text-white hover:text-purple-400 transition-colors text-sm leading-snug">
                                 {[s.firstName, s.lastName].filter(Boolean).join(' ') || '—'}
                               </Link>
                             </span>
