@@ -70,7 +70,8 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
       }
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
-      const res = await fetch(isEdit ? `/api/sponsors/${sponsor!.id}` : '/api/sponsors', {
+      const base = partnerMode ? '/api/partners' : '/api/sponsors'
+      const res = await fetch(isEdit ? `${base}/${sponsor!.id}` : base, {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

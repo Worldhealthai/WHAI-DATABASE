@@ -8,9 +8,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 async function getCRMContext(): Promise<string> {
   try {
-    const PARTNER_TIERS = ['Media Partner', 'Association Partner']
-
-    const [speakersRes, delegatesRes, companiesRes, contactsRes] = await Promise.all([
+    const [speakersRes, delegatesRes, sponsorsRes, partnersRes, contactsRes, partnerContactsRes] = await Promise.all([
       supabase.from('speakers')
         .select('firstName, lastName, organization, jobTitle, status, event, subType, sessionTitle, tags')
         .limit(500),
@@ -21,7 +19,15 @@ async function getCRMContext(): Promise<string> {
         .select('id, companyName, tier, status, event, country, contactFirstName, contactLastName, contactJobTitle, tags')
         .is('companyId', null)
         .limit(500),
+      supabase.from('partners')
+        .select('id, companyName, tier, status, event, country, contactFirstName, contactLastName, contactJobTitle, tags')
+        .is('companyId', null)
+        .limit(500),
       supabase.from('sponsors')
+        .select('companyId, contactFirstName, contactLastName, contactJobTitle')
+        .not('companyId', 'is', null)
+        .limit(1000),
+      supabase.from('partners')
         .select('companyId, contactFirstName, contactLastName, contactJobTitle')
         .not('companyId', 'is', null)
         .limit(1000),
@@ -33,7 +39,7 @@ async function getCRMContext(): Promise<string> {
       }, {})
 
     const contactMap: Record<string, string[]> = {}
-    for (const c of contactsRes.data ?? []) {
+    for (const c of [...(contactsRes.data ?? []), ...(partnerContactsRes.data ?? [])]) {
       const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ')
       if (name) {
         if (!contactMap[c.companyId]) contactMap[c.companyId] = []
@@ -43,9 +49,8 @@ async function getCRMContext(): Promise<string> {
 
     const speakers  = speakersRes.data  ?? []
     const delegates = delegatesRes.data ?? []
-    const allCompanies = companiesRes.data ?? []
-    const sponsors = allCompanies.filter((c: any) => !PARTNER_TIERS.includes(c.tier))
-    const partners = allCompanies.filter((c: any) => PARTNER_TIERS.includes(c.tier))
+    const sponsors  = sponsorsRes.data  ?? []
+    const partners  = partnersRes.data  ?? []
 
     // Compact one-liner per record to minimise tokens
     const fmtSp = (r: any) => {

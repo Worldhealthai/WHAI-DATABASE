@@ -16,7 +16,7 @@ import type { Sponsor, SponsorContact } from '@/types'
 import { cn } from '@/lib/utils'
 
 async function fetchPartner(id: string) {
-  const res = await fetch(`/api/sponsors/${id}`)
+  const res = await fetch(`/api/partners/${id}`)
   if (!res.ok) throw new Error('Not found')
   return res.json()
 }
@@ -39,7 +39,7 @@ export default function PartnerDetailPage() {
 
   const { data: navData } = useQuery<{ data: { id: string; companyName: string }[] }>({
     queryKey: ['partners-nav'],
-    queryFn: () => fetch('/api/sponsors?pageSize=1000&sortBy=createdAt&sortDir=desc&tiers=Media+Partner&tiers=Association+Partner').then(r => r.json()),
+    queryFn: () => fetch('/api/partners?pageSize=1000&sortBy=createdAt&sortDir=desc').then(r => r.json()),
     staleTime: 60_000,
   })
   const navList = navData?.data ?? []
@@ -62,7 +62,7 @@ export default function PartnerDetailPage() {
     setMoveLoading(true)
     try {
       if (movingContact.isPrimary) {
-        await fetch('/api/sponsors', {
+        await fetch('/api/partners', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -77,7 +77,7 @@ export default function PartnerDetailPage() {
             contactLinkedinUrl: partner.contactLinkedinUrl,
           }),
         })
-        await fetch(`/api/sponsors/${id}`, {
+        await fetch(`/api/partners/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -87,7 +87,7 @@ export default function PartnerDetailPage() {
           }),
         })
       } else {
-        await fetch(`/api/sponsors/${movingContact.contact.id}`, {
+        await fetch(`/api/partners/${movingContact.contact.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ companyId: targetId, companyName: targetName }),
@@ -105,7 +105,7 @@ export default function PartnerDetailPage() {
     if (!confirm('Delete this partner? This cannot be undone.')) return
     setDeleting(true)
     try {
-      await fetch(`/api/sponsors/${id}`, { method: 'DELETE' })
+      await fetch(`/api/partners/${id}`, { method: 'DELETE' })
       queryClient.invalidateQueries({ queryKey: ['partners'] })
       router.push('/partners')
     } finally { setDeleting(false) }
@@ -337,7 +337,7 @@ export default function PartnerDetailPage() {
                   onMove={() => setMovingContact({ contact: c, isPrimary: false })}
                   onDelete={async () => {
                     if (!confirm('Remove this contact?')) return
-                    await fetch(`/api/sponsors/${c.id}`, { method: 'DELETE' })
+                    await fetch(`/api/partners/${c.id}`, { method: 'DELETE' })
                     refetch()
                   }}
                 />
@@ -362,7 +362,7 @@ export default function PartnerDetailPage() {
         <div className="space-y-4">
           <div className="whai-card p-5">
             <h2 className="text-sm font-semibold text-white mb-4">Activity</h2>
-            <ActivityFeed activities={partner.activities ?? []} entityType="sponsor" entityId={id} onActivityAdded={refetch} />
+            <ActivityFeed activities={partner.activities ?? []} entityType="partner" entityId={id} onActivityAdded={refetch} />
           </div>
         </div>
       </div>
@@ -372,6 +372,7 @@ export default function PartnerDetailPage() {
         <SponsorContactModal
           companyId={id}
           companyName={partner.companyName}
+          basePath="/api/partners"
           onClose={() => setAddContactOpen(false)}
           onSaved={() => { setAddContactOpen(false); refetch() }}
         />
@@ -381,6 +382,7 @@ export default function PartnerDetailPage() {
           companyId={id}
           companyName={partner.companyName}
           contact={editingContact}
+          basePath="/api/partners"
           onClose={() => setEditingContact(null)}
           onSaved={() => { setEditingContact(null); refetch() }}
           onSetPrimary={() => { setEditingContact(null); refetch() }}
@@ -391,6 +393,7 @@ export default function PartnerDetailPage() {
           sponsor={partner}
           entityLabel="Partner"
           keepTier
+          partnerMode
           onClose={() => setEditOpen(false)}
           onSaved={() => { setEditOpen(false); refetch() }}
         />
@@ -468,8 +471,8 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { data } = useQuery<{ data: Sponsor[] }>({
-    queryKey: ['sponsors-all'],
-    queryFn: () => fetch('/api/sponsors?pageSize=500').then((r) => r.json()),
+    queryKey: ['partners-all'],
+    queryFn: () => fetch('/api/partners?pageSize=500').then((r) => r.json()),
     staleTime: 30_000,
   })
 

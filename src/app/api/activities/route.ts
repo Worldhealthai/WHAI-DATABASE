@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       if (entityType === 'delegate') query = query.eq('delegateId', entityId)
       else if (entityType === 'speaker') query = query.eq('speakerId', entityId)
       else if (entityType === 'sponsor') query = query.eq('sponsorId', entityId)
+      else if (entityType === 'partner') query = query.eq('partnerId', entityId)
     } else if (entityType) {
       query = query.eq('entityType', entityType)
     }
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
     if (entityType === 'delegate') record.delegateId = entityId
     else if (entityType === 'speaker') record.speakerId = entityId
     else if (entityType === 'sponsor') record.sponsorId = entityId
+    else if (entityType === 'partner') record.partnerId = entityId
 
     const { data, error } = await supabase
       .from('activities')

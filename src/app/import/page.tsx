@@ -413,7 +413,7 @@ export default function ImportPage() {
           if (importType === 'partners' && !row.tier) row.tier = 'Media Partner'
           return row
         })
-        const res = await fetch('/api/sponsors/bulk-import', {
+        const res = await fetch(importType === 'partners' ? '/api/partners/bulk-import' : '/api/sponsors/bulk-import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rows: rows_transformed, event: importEvent || null }),
@@ -925,7 +925,7 @@ export default function ImportPage() {
                 </p>
                 <p className="text-slate-400 text-sm mt-2">
                   {importType === 'partners'
-                    ? 'Associations and media partners are live in the Sponsors section, tagged as Media Partner.'
+                    ? 'Associations and media partners are live in the Partners section.'
                     : 'Companies and contacts are live in the Sponsors section.'}
                 </p>
               </>
