@@ -734,6 +734,7 @@ export default function PartnersPage() {
           defaultTier="Media Partner"
           entityLabel="Partner"
           keepTier
+          partnerMode
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); refetch() }}
         />
@@ -743,6 +744,7 @@ export default function PartnersPage() {
           sponsor={editingPartner}
           entityLabel="Partner"
           keepTier
+          partnerMode
           onClose={() => setEditingPartner(null)}
           onSaved={() => { setEditingPartner(null); refetch(); queryClient.invalidateQueries({ queryKey: ['partners-board'] }) }}
         />
