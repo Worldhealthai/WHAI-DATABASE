@@ -14,8 +14,6 @@ import type { Sponsor, SponsorFilters } from '@/types'
 import { EVENT_OPTIONS } from '@/types'
 import { cn } from '@/lib/utils'
 
-const PARTNER_TIERS = ['Media Partner', 'Association Partner']
-
 async function fetchPartners(
   query: string, page: number, pageSize: number, sortBy: string, sortDir: string,
 ) {
@@ -24,9 +22,8 @@ async function fetchPartners(
   params.set('pageSize', String(pageSize))
   params.set('sortBy', sortBy)
   params.set('sortDir', sortDir)
-  PARTNER_TIERS.forEach((t) => params.append('tiers', t))
   if (query) params.set('query', query)
-  const res = await fetch(`/api/sponsors?${params}`)
+  const res = await fetch(`/api/partners?${params}`)
   if (!res.ok) throw new Error('Failed to fetch')
   return res.json()
 }
@@ -351,7 +348,7 @@ export default function PartnersPage() {
   const advanceStage = async (id: string, next: string) => {
     setAdvancingId(id)
     try {
-      await fetch(`/api/sponsors/${id}`, {
+      await fetch(`/api/partners/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next }),
@@ -391,7 +388,7 @@ export default function PartnersPage() {
     if (!confirm(`Permanently delete ${selected.size} partner${selected.size === 1 ? '' : 's'}? This cannot be undone.`)) return
     setBulkDeleting(true)
     try {
-      await Promise.allSettled([...selected].map((id) => fetch(`/api/sponsors/${id}`, { method: 'DELETE' })))
+      await Promise.allSettled([...selected].map((id) => fetch(`/api/partners/${id}`, { method: 'DELETE' })))
       setSelected(new Set())
       queryClient.invalidateQueries({ queryKey: ['partners'] })
     } finally {
@@ -734,6 +731,7 @@ export default function PartnersPage() {
           defaultTier="Media Partner"
           entityLabel="Partner"
           keepTier
+          partnerMode
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); refetch() }}
         />
@@ -743,6 +741,7 @@ export default function PartnersPage() {
           sponsor={editingPartner}
           entityLabel="Partner"
           keepTier
+          partnerMode
           onClose={() => setEditingPartner(null)}
           onSaved={() => { setEditingPartner(null); refetch(); queryClient.invalidateQueries({ queryKey: ['partners-board'] }) }}
         />

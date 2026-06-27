@@ -51,11 +51,10 @@ export function GlobalSearch() {
     if (!q.trim()) { setResults([]); return }
     setLoading(true)
     try {
-      const PARTNER_TIERS = ['Media Partner', 'Association Partner']
       const [sponsorsRes, speakersRes, partnersRes] = await Promise.all([
-        fetch(`/api/sponsors?query=${encodeURIComponent(q)}&pageSize=5&${PARTNER_TIERS.map(t => `excludeTiers=${encodeURIComponent(t)}`).join('&')}`),
+        fetch(`/api/sponsors?query=${encodeURIComponent(q)}&pageSize=5`),
         fetch(`/api/speakers?query=${encodeURIComponent(q)}&pageSize=5`),
-        fetch(`/api/sponsors?query=${encodeURIComponent(q)}&pageSize=5&${PARTNER_TIERS.map(t => `tiers=${encodeURIComponent(t)}`).join('&')}`),
+        fetch(`/api/partners?query=${encodeURIComponent(q)}&pageSize=5`),
       ])
       const [sponsors, speakers, partners] = await Promise.all([
         sponsorsRes.ok ? sponsorsRes.json() : { data: [] },

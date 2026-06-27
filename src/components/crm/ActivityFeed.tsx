@@ -43,7 +43,7 @@ function timeAgo(dateStr: string) {
 
 interface ActivityFeedProps {
   activities: Activity[]
-  entityType: 'delegate' | 'speaker' | 'sponsor'
+  entityType: 'delegate' | 'speaker' | 'sponsor' | 'partner'
   entityId: string
   onActivityAdded?: () => void
 }

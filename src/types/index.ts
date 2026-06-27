@@ -118,8 +118,6 @@ export const SPONSOR_TIER_OPTIONS = [
   'Silver Sponsor',
   'Gold Sponsor',
   'Platinum Sponsor',
-  'Media Partner',
-  'Association Partner',
 ]
 
 export const SPONSOR_STATUS_OPTIONS = [
@@ -129,6 +127,15 @@ export const SPONSOR_STATUS_OPTIONS = [
   'Confirmed',
   'Rejected',
 ]
+
+// Partners live in their own table now. "Tier" on a partner record means the
+// partner type. Partners share the sponsor status pipeline.
+export const PARTNER_TYPE_OPTIONS = [
+  'Media Partner',
+  'Association Partner',
+]
+
+export const PARTNER_STATUS_OPTIONS = SPONSOR_STATUS_OPTIONS
 
 export const SPONSOR_CONTRACT_STATUS_OPTIONS = [
   'Not Started',
@@ -303,12 +310,19 @@ export interface SponsorContact {
   createdAt: string
 }
 
+// Partners share the exact shape of Sponsors — they were split into their own
+// table but keep the same fields (companyName, contacts, tier = partner type…).
+export type Partner = Sponsor
+export type PartnerContact = SponsorContact
+export type PartnerFilters = SponsorFilters
+
 export interface Activity {
   id: string
-  entityType: 'delegate' | 'speaker' | 'sponsor'
+  entityType: 'delegate' | 'speaker' | 'sponsor' | 'partner'
   delegateId?: string | null
   speakerId?: string | null
   sponsorId?: string | null
+  partnerId?: string | null
   type: string
   content: string
   metadata?: string | null

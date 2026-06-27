@@ -3,15 +3,12 @@ import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-const PARTNER_TIERS = ['Media Partner', 'Association Partner']
-
 export async function GET() {
   try {
     const { data, error } = await supabase
-      .from('sponsors')
+      .from('partners')
       .select('status, event')
       .is('companyId', null)
-      .in('tier', PARTNER_TIERS)
 
     if (error) throw error
 

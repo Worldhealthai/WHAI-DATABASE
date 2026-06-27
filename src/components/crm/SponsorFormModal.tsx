@@ -16,11 +16,16 @@ interface Props {
   defaultTier?: string
   entityLabel?: string
   keepTier?: boolean
+  partnerMode?: boolean
   onClose: () => void
   onSaved: (s: Sponsor) => void
 }
 
-export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor', keepTier = false, onClose, onSaved }: Props) {
+// Partner records are distinguished from sponsors purely by these tiers.
+// A partner must always carry one of them, otherwise it leaks into sponsors.
+const PARTNER_TIER_OPTIONS = ['Media Partner', 'Association Partner']
+
+export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor', keepTier = false, partnerMode = false, onClose, onSaved }: Props) {
   const isEdit = !!sponsor?.id
   const [form, setForm] = useState({
     companyName: sponsor?.companyName ?? '',
@@ -33,7 +38,7 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     contactJobTitle: sponsor?.contactJobTitle ?? '',
     country: sponsor?.country ?? '',
     city: sponsor?.city ?? '',
-    tier: sponsor?.tier ?? defaultTier ?? '',
+    tier: sponsor?.tier ?? defaultTier ?? (partnerMode ? 'Media Partner' : ''),
     status: sponsor?.status ?? 'Not Contacted',
     event: sponsor?.event ?? '',
     valueAmount: sponsor?.valueAmount ? String(sponsor.valueAmount) : '',
@@ -57,12 +62,16 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
       const body: any = {
         ...form,
         valueAmount: form.valueAmount ? parseFloat(form.valueAmount) : null,
-        // Clear tier if status is not Confirmed
-        tier: keepTier ? (form.tier || null) : (isConfirmed ? form.tier || null : null),
+        // Partners must always carry a partner tier so they never leak into
+        // the sponsors list. Sponsors only get a tier once Confirmed.
+        tier: partnerMode
+          ? (PARTNER_TIER_OPTIONS.includes(form.tier) ? form.tier : 'Media Partner')
+          : keepTier ? (form.tier || null) : (isConfirmed ? form.tier || null : null),
       }
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
-      const res = await fetch(isEdit ? `/api/sponsors/${sponsor!.id}` : '/api/sponsors', {
+      const base = partnerMode ? '/api/partners' : '/api/sponsors'
+      const res = await fetch(isEdit ? `${base}/${sponsor!.id}` : base, {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -133,8 +142,17 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
               </Field>
             </div>
 
-            {/* Tier — only shown when Confirmed */}
-            {isConfirmed && (
+            {/* Partner mode: always pick a partner type (keeps it out of sponsors).
+                Sponsor mode: tier only shown once Confirmed. */}
+            {partnerMode ? (
+              <div className="mt-4">
+                <Field label="Partner Type">
+                  <select value={form.tier || 'Media Partner'} onChange={(e) => set('tier', e.target.value)} className={inputCls}>
+                    {PARTNER_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </Field>
+              </div>
+            ) : isConfirmed ? (
               <div className="mt-4">
                 <Field label="Tier">
                   <select value={form.tier} onChange={(e) => set('tier', e.target.value)} className={inputCls}>
@@ -143,7 +161,7 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
                   </select>
                 </Field>
               </div>
-            )}
+            ) : null}
 
             <div className="grid grid-cols-3 gap-4 mt-4">
               <div className="col-span-2">

@@ -8,12 +8,13 @@ interface Props {
   companyId: string
   companyName: string
   contact?: SponsorContact // when provided, modal is in edit mode
+  basePath?: string // '/api/sponsors' (default) or '/api/partners'
   onClose: () => void
   onSaved: () => void
   onSetPrimary?: () => void // called after successfully setting as primary
 }
 
-export function SponsorContactModal({ companyId, companyName, contact, onClose, onSaved, onSetPrimary }: Props) {
+export function SponsorContactModal({ companyId, companyName, contact, basePath = '/api/sponsors', onClose, onSaved, onSetPrimary }: Props) {
   const isEdit = !!contact
   const [settingPrimary, setSettingPrimary] = useState(false)
 
@@ -22,7 +23,7 @@ export function SponsorContactModal({ companyId, companyName, contact, onClose, 
     if (!confirm('Set this contact as the primary contact for this company? The current primary will be moved to the contacts list.')) return
     setSettingPrimary(true)
     try {
-      const res = await fetch(`/api/sponsors/${companyId}/set-primary`, {
+      const res = await fetch(`${basePath}/${companyId}/set-primary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactId: contact.id }),
@@ -64,14 +65,14 @@ export function SponsorContactModal({ companyId, companyName, contact, onClose, 
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
       if (isEdit) {
-        const res = await fetch(`/api/sponsors/${contact!.id}`, {
+        const res = await fetch(`${basePath}/${contact!.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
         if (!res.ok) throw new Error('Failed to save')
       } else {
-        const res = await fetch('/api/sponsors', {
+        const res = await fetch(basePath, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ companyId, companyName, status: 'Active', ...body }),
