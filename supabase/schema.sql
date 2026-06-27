@@ -80,6 +80,7 @@ create index if not exists idx_speakers_created on speakers("createdAt" desc);
 
 create table if not exists sponsors (
   id                   text primary key default gen_random_uuid()::text,
+  "companyId"          text,
   "companyName"        text not null,
   website              text,
   "contactFirstName"   text,
@@ -92,6 +93,7 @@ create table if not exists sponsors (
   city                 text,
   tier                 text default 'Bronze',
   status               text not null default 'Prospecting',
+  event                text,
   "valueAmount"        numeric(12,2),
   "valueCurrency"      text default 'GBP',
   "contractStatus"     text default 'Not Started',
@@ -105,6 +107,7 @@ create table if not exists sponsors (
 create index if not exists idx_sponsors_status  on sponsors(status);
 create index if not exists idx_sponsors_tier    on sponsors(tier);
 create index if not exists idx_sponsors_country on sponsors(country);
+create index if not exists idx_sponsors_company on sponsors("companyId");
 create index if not exists idx_sponsors_created on sponsors("createdAt" desc);
 
 -- ─────────────────────────────────────────────────────────────────────────────

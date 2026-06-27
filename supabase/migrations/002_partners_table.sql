@@ -10,7 +10,20 @@
 -- after you've verified the Partners section works.
 --
 -- Run this in your Supabase SQL editor (Database → SQL editor → New query).
+--
+-- The whole script runs inside a single transaction (BEGIN…COMMIT): if any
+-- step fails, EVERYTHING rolls back and you are left exactly where you started —
+-- no half-applied state.
 -- ─────────────────────────────────────────────────────────────────────────────
+
+BEGIN;
+
+-- 0. Make the dependency on sponsors.companyId / sponsors.event explicit.
+--    These columns already exist on the live database (the app reads/writes
+--    them), so these are no-ops there. They guarantee the migration also works
+--    on a database rebuilt from schema.sql, and make step 3 below safe.
+ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS "companyId" TEXT;
+ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS event       TEXT;
 
 -- 1. The partners table (1:1 mirror of the live sponsors table) ───────────────
 CREATE TABLE IF NOT EXISTS partners (
@@ -92,8 +105,18 @@ SET "partnerId"  = "sponsorId",
     "entityType" = 'partner'
 WHERE "sponsorId" IN (SELECT id FROM partners);
 
+COMMIT;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Verify, then run 003_partners_cleanup_sponsors.sql to remove the duplicates
 -- from `sponsors`. Until then, partners safely exist in both tables — the
 -- sponsors list already filters partner tiers out, so nothing shows twice.
+--
+-- Quick sanity check after running this (should return the same number twice):
+--   SELECT count(*) FROM partners;
+--   SELECT count(*) FROM sponsors
+--   WHERE "companyId" IS NULL AND tier IN ('Media Partner','Association Partner')
+--      OR "companyId" IN (SELECT id FROM sponsors
+--                         WHERE "companyId" IS NULL
+--                           AND tier IN ('Media Partner','Association Partner'));
 -- ─────────────────────────────────────────────────────────────────────────────

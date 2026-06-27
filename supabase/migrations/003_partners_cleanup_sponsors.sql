@@ -13,8 +13,15 @@
 -- delete will NOT cascade-delete any activity history.
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- This delete can only ever remove rows whose id already exists in `partners`
+-- (i.e. were copied by 002), so it cannot touch a genuine sponsor. Wrapped in a
+-- transaction so it is all-or-nothing.
+BEGIN;
+
 DELETE FROM sponsors
 WHERE id IN (SELECT id FROM partners);
+
+COMMIT;
 
 -- After this runs, `sponsors` contains only true sponsors and `partners`
 -- contains only partners. The two sections are fully independent.
