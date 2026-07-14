@@ -2,9 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, Mic, Award, LayoutDashboard, Inbox, Upload, Network } from 'lucide-react'
+import { Users, Mic, Award, LayoutDashboard, Inbox, Upload, Network, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GlobalSearch } from './GlobalSearch'
+
+async function logout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' })
+  } finally {
+    window.location.assign('/login')
+  }
+}
 
 const NAV_ITEMS = [
   { href: '/delegates',  label: 'Delegates',  icon: Users,          activeColor: 'text-[#00B4D8]',  activeBg: 'bg-[#00B4D8]/15' },
@@ -63,6 +71,13 @@ export function Navbar() {
           <div className="w-7 h-7 rounded-full bg-[#1a3a5c] flex items-center justify-center text-xs font-semibold text-white shrink-0">
             WH
           </div>
+          <button
+            onClick={logout}
+            title="Log out"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>
