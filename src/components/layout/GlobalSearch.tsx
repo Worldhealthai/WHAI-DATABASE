@@ -2,18 +2,19 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, X, Award, Mic, Network, Loader2 } from 'lucide-react'
+import { Search, X, Award, Mic, Network, Users, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Result {
   id: string
   label: string
   sub?: string
-  type: 'sponsor' | 'speaker' | 'partner'
+  type: 'delegate' | 'sponsor' | 'speaker' | 'partner'
   href: string
 }
 
 const TYPE_META = {
+  delegate: { icon: Users,   color: '#38bdf8', label: 'Delegates',         bg: 'bg-sky-500/10',     border: 'border-sky-500/20',     text: 'text-sky-400' },
   sponsor: { icon: Award,   color: '#f59e0b', label: 'Sponsors',        bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   text: 'text-amber-400' },
   speaker: { icon: Mic,    color: '#a855f7', label: 'Speakers',         bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  text: 'text-purple-400' },
   partner: { icon: Network, color: '#10b981', label: 'Partners & Media', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400' },
@@ -51,18 +52,25 @@ export function GlobalSearch() {
     if (!q.trim()) { setResults([]); return }
     setLoading(true)
     try {
-      const [sponsorsRes, speakersRes, partnersRes] = await Promise.all([
+      const [delegatesRes, sponsorsRes, speakersRes, partnersRes] = await Promise.all([
+        fetch(`/api/delegates?query=${encodeURIComponent(q)}&pageSize=5`),
         fetch(`/api/sponsors?query=${encodeURIComponent(q)}&pageSize=5`),
         fetch(`/api/speakers?query=${encodeURIComponent(q)}&pageSize=5`),
         fetch(`/api/partners?query=${encodeURIComponent(q)}&pageSize=5`),
       ])
-      const [sponsors, speakers, partners] = await Promise.all([
+      const [delegates, sponsors, speakers, partners] = await Promise.all([
+        delegatesRes.ok ? delegatesRes.json() : { data: [] },
         sponsorsRes.ok ? sponsorsRes.json() : { data: [] },
         speakersRes.ok ? speakersRes.json() : { data: [] },
         partnersRes.ok ? partnersRes.json() : { data: [] },
       ])
 
       const out: Result[] = [
+        ...(delegates.data ?? []).map((d: any) => ({
+          id: d.id, type: 'delegate' as const, href: `/delegates/${d.id}`,
+          label: `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim() || d.email,
+          sub: d.organization || d.jobTitle || d.email,
+        })),
         ...(sponsors.data ?? []).map((s: any) => ({
           id: s.id, type: 'sponsor' as const, href: `/sponsors/${s.id}`,
           label: s.companyName,
@@ -105,7 +113,7 @@ export function GlobalSearch() {
   }
 
   // Group results by type
-  const grouped = (['sponsor', 'speaker', 'partner'] as const)
+  const grouped = (['delegate', 'sponsor', 'speaker', 'partner'] as const)
     .map(type => ({ type, items: results.filter(r => r.type === type) }))
     .filter(g => g.items.length > 0)
 
@@ -143,7 +151,7 @@ export function GlobalSearch() {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Search sponsors, speakers, partners…"
+                placeholder="Search delegates, sponsors, speakers, partners…"
                 className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none"
               />
               {query && (
@@ -158,7 +166,7 @@ export function GlobalSearch() {
             <div className="max-h-[60vh] overflow-y-auto">
               {!query.trim() && (
                 <div className="px-4 py-8 text-center text-sm text-slate-500">
-                  Type to search across all sponsors, speakers, and partners
+                  Type to search across all delegates, sponsors, speakers, and partners
                 </div>
               )}
 
