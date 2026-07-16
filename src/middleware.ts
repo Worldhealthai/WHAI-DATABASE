@@ -10,6 +10,23 @@ export async function middleware(req: NextRequest) {
   const expected = await tokenFor(getPassword())
 
   if (cookie && cookie === expected) {
+    // The session cookie is SameSite=None so it works inside the admin-panel
+    // iframe. That means browsers would also attach it to requests forged by
+    // other websites — so for data-changing API calls, require the request to
+    // originate from the CRM itself. (The iframe's own fetches pass this:
+    // the embedded document's origin IS the CRM's origin.)
+    if (req.nextUrl.pathname.startsWith('/api/') && req.method !== 'GET') {
+      const origin = req.headers.get('origin')
+      if (origin) {
+        try {
+          if (new URL(origin).host !== req.nextUrl.host) {
+            return NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 })
+          }
+        } catch {
+          return NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 })
+        }
+      }
+    }
     return NextResponse.next()
   }
 
