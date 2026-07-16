@@ -12,10 +12,14 @@ export async function POST(req: NextRequest) {
 
     const token = await tokenFor(getPassword())
     const res = NextResponse.json({ success: true })
+    // SameSite=None so the session cookie also works when the CRM is embedded
+    // in an iframe (e.g. inside the admin panel). None requires Secure, so we
+    // fall back to Lax in local http dev where Secure cookies are rejected.
+    const secure = process.env.NODE_ENV === 'production'
     res.cookies.set(AUTH_COOKIE, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure,
+      sameSite: secure ? 'none' : 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 30, // 30 days
     })
