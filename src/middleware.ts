@@ -30,8 +30,16 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // API calls get a clean 401 rather than an HTML redirect.
+  // API calls get a clean 401 rather than an HTML redirect — unless they
+  // carry the shared webhook secret. That's how server-to-server automation
+  // authenticates (website registration webhooks, the Nexus admin's
+  // "Add to CRM" staging) — those callers have no browser session.
   if (req.nextUrl.pathname.startsWith('/api/')) {
+    const secret = (process.env.WEBHOOK_SECRET || '').trim()
+    const provided = (req.headers.get('x-webhook-secret') || '').trim()
+    if (secret && provided && provided === secret) {
+      return NextResponse.next()
+    }
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
