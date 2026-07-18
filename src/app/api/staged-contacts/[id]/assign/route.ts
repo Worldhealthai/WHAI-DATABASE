@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     let subType: string | null = null
     try {
       const raw = JSON.parse(contact.rawData ?? '{}')
-      const eventKey = Object.keys(raw).find((k) => ['primary event', 'event'].includes(k.toLowerCase()))
+      const eventKey = Object.keys(raw).find((k) => ['primary event', 'event', 'event_label', 'event label'].includes(k.toLowerCase()))
       const typeKey = Object.keys(raw).find((k) => ['attendee type', 'type'].includes(k.toLowerCase()))
       if (eventKey) event = raw[eventKey] || null
       if (typeKey) {

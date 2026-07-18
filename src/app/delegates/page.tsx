@@ -18,6 +18,7 @@ import {
 } from '@/types'
 import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
 import { cn } from '@/lib/utils'
+import { useEventOptions } from '@/lib/useEventOptions'
 
 async function fetchDelegates(
   filters: DelegateFilters, page: number, pageSize: number, sortBy: string, sortDir: string,
@@ -78,6 +79,7 @@ function Checkbox({ checked, indeterminate, onChange }: {
 }
 
 export default function DelegatesPage() {
+  const eventOptions = useEventOptions()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DelegateFilters>({})
   const [keyword, setKeyword] = useState('')
@@ -296,7 +298,7 @@ export default function DelegatesPage() {
             >
               All Events
             </button>
-            {EVENT_OPTIONS.map((ev) => (
+            {eventOptions.map((ev) => (
               <button
                 key={ev}
                 onClick={() => setEventTab(ev)}

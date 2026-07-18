@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Upload, FileText, CheckCircle2, AlertCircle, ArrowRight, X, RefreshCw, Users, Building2, Mic, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
+import { useEventOptions } from '@/lib/useEventOptions'
 
 // ── People import: column mapping ─────────────────────────────────────────────
 
@@ -298,6 +299,7 @@ function transformCompanyRow(row: Record<string, string>, mapping: Record<string
 type Step = 'upload' | 'map' | 'preview' | 'importing' | 'done'
 
 export default function ImportPage() {
+  const eventOptions = useEventOptions()
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [importType, setImportType] = useState<ImportType>('delegates')
@@ -598,7 +600,7 @@ export default function ImportPage() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {['UK Forum', 'US Forum'].map((ev) => (
+              {eventOptions.map((ev) => (
                 <button key={ev} type="button" onClick={() => setImportEvent(ev)}
                   className={cn('px-5 py-2.5 rounded-lg text-sm font-semibold border transition-all',
                     importEvent === ev ? 'text-white border-white/30 bg-white/10' : 'text-slate-300 border-[#1a3a5c] hover:text-white hover:border-slate-500 hover:bg-[#112850]/50'

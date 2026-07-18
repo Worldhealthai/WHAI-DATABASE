@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Delegate } from '@/types'
+import { useEventOptions } from '@/lib/useEventOptions'
 import {
   DELEGATE_STATUS_OPTIONS,
   DELEGATE_TICKET_OPTIONS,
@@ -42,6 +43,7 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
     notes: delegate?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
+  const eventOptions = useEventOptions()
   const [error, setError] = useState('')
 
   const set = (key: string, value: string) => setForm((p) => ({ ...p, [key]: value }))
@@ -143,7 +145,7 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
             <Field label="Event">
               <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
                 <option value="">Select event</option>
-                {EVENT_OPTIONS.map((e) => <option key={e} value={e}>{e}</option>)}
+                {eventOptions.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </Field>
             <Field label="Delegate Type">

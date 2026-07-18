@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Users, Mic, Award, Upload, Inbox, ArrowUpRight, ChevronRight, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AIAssistant } from '@/components/crm/AIAssistant'
+import { useEventOptions } from '@/lib/useEventOptions'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,8 +54,9 @@ const PARTNER_PIPELINE = [
   { status: 'Rejected',      hex: '#f43f5e' },
 ]
 
-const EVENTS = ['UK Forum', 'US Forum']
-const EVENT_HEX = ['#00B4D8', '#a855f7']
+// Colours cycle when there are more events than swatches.
+const EVENT_HEX = ['#00B4D8', '#a855f7', '#22C55E', '#F59E0B', '#F43F5E', '#6495ED']
+const eventHex = (i: number) => EVENT_HEX[i % EVENT_HEX.length]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -127,6 +129,7 @@ function KPICard({
   positiveKeys?: string[]
   ringLabel?: string
 }) {
+  const EVENTS = useEventOptions()
   const pct = keyMetric(pipeline, byStatus, total, positiveKeys)
   const top4 = pipeline
     .map(p => ({ ...p, count: byStatus[p.status] ?? 0 }))
@@ -209,7 +212,7 @@ function KPICard({
             <div className="flex items-center gap-3">
               {EVENTS.map((ev, i) => (
                 <div key={ev} className="flex items-center gap-1.5 flex-1">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: EVENT_HEX[i] }} />
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: eventHex(i) }} />
                   <span className="text-[10px] text-slate-600">{ev}</span>
                   <span className="text-[10px] font-semibold text-slate-400 ml-auto">{byEvent[ev] ?? 0}</span>
                 </div>
@@ -277,6 +280,7 @@ function PipelineSection({
 // ── Event comparison ──────────────────────────────────────────────────────────
 
 function EventComparison({ stats, animate }: { stats: AllStats; animate: boolean }) {
+  const EVENTS = useEventOptions()
   const rows = [
     { label: 'Delegates', data: stats.delegates, color: '#00B4D8' },
     { label: 'Speakers',  data: stats.speakers,  color: '#a855f7' },
@@ -307,7 +311,7 @@ function EventComparison({ stats, animate }: { stats: AllStats; animate: boolean
                   <div className="flex-1 h-1.5 bg-[#0A1628] rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{ width: animate ? `${pct}%` : '0%', background: EVENT_HEX[i] }}
+                      style={{ width: animate ? `${pct}%` : '0%', background: eventHex(i) }}
                     />
                   </div>
                   <span className="text-[10px] tabular-nums text-slate-500 w-5 text-right">{count}</span>
@@ -325,6 +329,7 @@ function EventComparison({ stats, animate }: { stats: AllStats; animate: boolean
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const EVENTS = useEventOptions()
   const [stats, setStats] = useState<AllStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [animate, setAnimate] = useState(false)
@@ -466,7 +471,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 {EVENTS.map((ev, i) => (
                   <div key={ev} className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: EVENT_HEX[i] }} />
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: eventHex(i) }} />
                     <span className="text-[10px] text-slate-600">{ev.split(' ')[0]}</span>
                   </div>
                 ))}
