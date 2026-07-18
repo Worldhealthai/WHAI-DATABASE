@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Speaker } from '@/types'
+import { useEventOptions } from '@/lib/useEventOptions'
 import {
   SPEAKER_STATUS_OPTIONS,
   COUNTRY_OPTIONS,
@@ -34,6 +35,7 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
     notes: speaker?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
+  const eventOptions = useEventOptions()
   const [error, setError] = useState('')
 
   const set = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }))
@@ -123,7 +125,7 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
             <Field label="Event">
               <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
                 <option value="">Unassigned</option>
-                {EVENT_OPTIONS.map((e) => <option key={e} value={e}>{e}</option>)}
+                {eventOptions.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </Field>
           </div>

@@ -14,6 +14,7 @@ import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import type { Speaker, SpeakerFilters } from '@/types'
 import { SPEAKER_STATUS_OPTIONS, COUNTRY_OPTIONS, EVENT_OPTIONS, SUBTYPE_OPTIONS } from '@/types'
 import { cn } from '@/lib/utils'
+import { useEventOptions } from '@/lib/useEventOptions'
 
 async function fetchSpeakers(
   filters: SpeakerFilters, page: number, pageSize: number, sortBy: string, sortDir: string,
@@ -309,6 +310,7 @@ const COLS = [
 
 export default function SpeakersPage() {
   const queryClient = useQueryClient()
+  const eventOptions = useEventOptions()
   const [filters, setFilters] = useState<SpeakerFilters>({})
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -544,7 +546,7 @@ export default function SpeakersPage() {
 
           {/* Event tabs */}
           <div className="flex items-center gap-1.5 pb-2 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-            {['', ...EVENT_OPTIONS].map((ev) => (
+            {['', ...eventOptions].map((ev) => (
               <button
                 key={ev || '_all'}
                 onClick={() => setEventTab(ev)}

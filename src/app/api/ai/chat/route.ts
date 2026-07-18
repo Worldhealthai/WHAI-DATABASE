@@ -6,6 +6,27 @@ export const dynamic = 'force-dynamic'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// Distinct event labels in the data, so the assistant knows every event —
+// not just the legacy UK/US Forum pair.
+async function getEventNames(): Promise<string[]> {
+  const names = new Set<string>(['UK Forum', 'US Forum'])
+  try {
+    const [d, s] = await Promise.all([
+      supabase.from('delegates').select('event').not('event', 'is', null),
+      supabase.from('speakers').select('event').not('event', 'is', null),
+    ])
+    for (const rows of [d.data, s.data]) {
+      for (const r of rows ?? []) {
+        const v = (r as { event?: string }).event?.trim()
+        if (v) names.add(v)
+      }
+    }
+  } catch {
+    // fall back to the base pair
+  }
+  return [...names]
+}
+
 async function getCRMContext(): Promise<string> {
   try {
     const [speakersRes, delegatesRes, sponsorsRes, partnersRes, contactsRes, partnerContactsRes] = await Promise.all([
@@ -98,12 +119,13 @@ export async function POST(req: NextRequest) {
     }
 
     const crmContext = await getCRMContext()
+    const eventNames = await getEventNames()
 
     const systemPrompt = `You are Pulse, the AI assistant for World Health AI (WHAI) events.
 
 ${crmContext}
 
-Events: UK Forum, US Forum.
+Events: ${eventNames.join(', ')}.
 
 RULES:
 1. When the user refers to "my speakers", "my sponsors", "my CRM", "go through all of them" — always scan EVERY record in the data above, across ALL statuses (Not Contacted, Invited, Discussing, Confirmed, Rejected, etc.), unless they explicitly ask to filter by a specific status.

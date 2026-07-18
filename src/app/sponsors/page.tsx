@@ -14,6 +14,7 @@ import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import type { Sponsor, SponsorFilters } from '@/types'
 import { SPONSOR_STATUS_OPTIONS, SPONSOR_TIER_OPTIONS, COUNTRY_OPTIONS, EVENT_OPTIONS } from '@/types'
 import { cn } from '@/lib/utils'
+import { useEventOptions } from '@/lib/useEventOptions'
 
 const PARTNER_TIERS = ['Media Partner', 'Association Partner']
 
@@ -333,6 +334,7 @@ const COLS = [
 
 export default function SponsorsPage() {
   const queryClient = useQueryClient()
+  const eventOptions = useEventOptions()
   const [filters, setFilters] = useState<SponsorFilters>({})
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -569,7 +571,7 @@ export default function SponsorsPage() {
 
           {/* Event tabs */}
           <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-            {['', ...EVENT_OPTIONS].map((ev) => (
+            {['', ...eventOptions].map((ev) => (
               <button
                 key={ev || '_all'}
                 onClick={() => setEventTab(ev)}
