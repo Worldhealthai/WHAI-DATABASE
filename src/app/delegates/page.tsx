@@ -10,6 +10,8 @@ import { StatusBadge } from '@/components/crm/StatusBadge'
 import type { Delegate, DelegateFilters } from '@/types'
 import {
   DELEGATE_STATUS_OPTIONS,
+  DELEGATE_STATUS_LABELS,
+  delegateStatusLabel,
   DELEGATE_TICKET_OPTIONS,
   DELEGATE_SOURCE_OPTIONS,
   COUNTRY_OPTIONS,
@@ -206,9 +208,9 @@ export default function DelegatesPage() {
     a.click()
   }
 
-  const activeFilters: { category: string; key: string; value: string }[] = []
+  const activeFilters: { category: string; key: string; value: string; display?: string }[] = []
   if (filters.query) activeFilters.push({ category: 'Search', key: 'query', value: filters.query })
-  filters.statuses?.forEach((s) => activeFilters.push({ category: 'Status', key: 'statuses', value: s }))
+  filters.statuses?.forEach((s) => activeFilters.push({ category: 'Status', key: 'statuses', value: s, display: delegateStatusLabel(s) }))
   filters.events?.forEach((e) => activeFilters.push({ category: 'Event', key: 'events', value: e }))
   filters.subTypes?.forEach((t) => activeFilters.push({ category: 'Type', key: 'subTypes', value: t }))
   filters.ticketTypes?.forEach((t) => activeFilters.push({ category: 'Ticket', key: 'ticketTypes', value: t }))
@@ -341,7 +343,7 @@ export default function DelegatesPage() {
 
           {/* Filters */}
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-            <FilterDropdown label="Status" options={DELEGATE_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
+            <FilterDropdown label="Status" options={DELEGATE_STATUS_OPTIONS} labels={DELEGATE_STATUS_LABELS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
             <FilterDropdown label="Type" options={SUBTYPE_OPTIONS} selected={filters.subTypes ?? []} onChange={(v) => updateFilter('subTypes', v)} searchable={false} />
             <FilterDropdown label="Ticket Type" options={DELEGATE_TICKET_OPTIONS} selected={filters.ticketTypes ?? []} onChange={(v) => updateFilter('ticketTypes', v)} searchable={false} />
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />

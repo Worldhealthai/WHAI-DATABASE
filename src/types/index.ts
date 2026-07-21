@@ -17,12 +17,20 @@ export const SUBTYPE_OPTIONS = [
 export const DELEGATE_STATUS_OPTIONS = [
   'Registered',
   'Confirmed',
-  'Attended',
   'Cancelled',
   'No-show',
-  'Waitlisted',
   'Rejected',
 ]
+
+// Stored value → display label. 'Confirmed' predates the invite flow and now
+// reads as "Invited" everywhere; the stored value stays untouched so synced
+// systems and existing rows keep working. Removed options (Attended,
+// Waitlisted) still display via the fallback if old rows carry them.
+export const DELEGATE_STATUS_LABELS: Record<string, string> = {
+  Confirmed: 'Invited',
+}
+export const delegateStatusLabel = (s: string | null | undefined): string =>
+  (s && DELEGATE_STATUS_LABELS[s]) || s || ''
 
 export const DELEGATE_TICKET_OPTIONS = [
   'Standard',

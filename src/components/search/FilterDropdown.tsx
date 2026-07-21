@@ -11,6 +11,9 @@ interface FilterDropdownProps {
   selected: string[]
   onChange: (selected: string[]) => void
   searchable?: boolean
+  // Optional display names for option values (e.g. delegate status
+  // 'Confirmed' shown as "Invited"); filtering still uses the raw value.
+  labels?: Record<string, string>
 }
 
 export function FilterDropdown({
@@ -19,6 +22,7 @@ export function FilterDropdown({
   selected,
   onChange,
   searchable = true,
+  labels,
 }: FilterDropdownProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -69,8 +73,9 @@ export function FilterDropdown({
     if (open && searchable) inputRef.current?.focus()
   }, [open, searchable])
 
+  const display = (o: string) => labels?.[o] ?? o
   const filtered = search
-    ? options.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
+    ? options.filter((o) => display(o).toLowerCase().includes(search.toLowerCase()))
     : options
 
   const toggle = (val: string) => {
@@ -128,7 +133,7 @@ export function FilterDropdown({
                 >
                   {isSelected && <Check className="w-3 h-3 text-[#0A1628]" strokeWidth={3} />}
                 </div>
-                <span className="truncate">{option}</span>
+                <span className="truncate">{display(option)}</span>
               </button>
             )
           })
@@ -186,6 +191,7 @@ interface ActiveFilter {
   category: string
   key: string
   value: string
+  display?: string // optional display name when the raw value isn't user-facing
 }
 
 interface ActiveFiltersBarProps {
@@ -215,7 +221,7 @@ export function ActiveFiltersBar({ filters, onRemove, onClearAll }: ActiveFilter
               key={`${item.key}-${item.value}`}
               className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-[#112850] text-slate-200 border border-[#1a3a5c] hover:border-slate-500 transition-colors"
             >
-              {item.value}
+              {item.display ?? item.value}
               <button
                 onClick={() => onRemove(item.key, item.value)}
                 className="ml-0.5 p-0.5 rounded-full hover:bg-slate-600/50 text-slate-400 hover:text-white transition-colors"
