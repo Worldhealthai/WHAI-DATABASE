@@ -23,14 +23,13 @@ interface AllStats {
 
 // ── Pipeline configs ──────────────────────────────────────────────────────────
 
+// 'Confirmed' is the stored value; it reads as "Invited" in the UI.
 const DELEGATE_PIPELINE = [
-  { status: 'Registered',  hex: '#3b82f6' },
-  { status: 'Confirmed',   hex: '#06b6d4' },
-  { status: 'Attended',    hex: '#10b981' },
-  { status: 'Waitlisted',  hex: '#f59e0b' },
-  { status: 'Cancelled',   hex: '#facc15' },
-  { status: 'No-show',     hex: '#64748b' },
-  { status: 'Rejected',    hex: '#f43f5e' },
+  { status: 'Registered',  label: 'Registered', hex: '#3b82f6' },
+  { status: 'Confirmed',   label: 'Invited',    hex: '#06b6d4' },
+  { status: 'Cancelled',   label: 'Cancelled',  hex: '#facc15' },
+  { status: 'No-show',     label: 'No-show',    hex: '#64748b' },
+  { status: 'Rejected',    label: 'Rejected',   hex: '#f43f5e' },
 ]
 const SPEAKER_PIPELINE = [
   { status: 'Not Contacted',      hex: '#64748b' },
@@ -61,12 +60,12 @@ const eventHex = (i: number) => EVENT_HEX[i % EVENT_HEX.length]
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function keyMetric(
-  pipeline: typeof DELEGATE_PIPELINE,
+  pipeline: { status: string; hex: string; label?: string }[],
   byStatus: Record<string, number>,
   total: number,
   positiveKeys?: string[],
 ) {
-  const keys = positiveKeys ?? ['Confirmed', 'Attended', 'Speaking Confirmed']
+  const keys = positiveKeys ?? ['Confirmed', 'Speaking Confirmed']
   const n = pipeline
     .filter(p => keys.includes(p.status))
     .reduce((s, p) => s + (byStatus[p.status] ?? 0), 0)
@@ -123,7 +122,7 @@ function KPICard({
 }: {
   label: string; icon: React.ElementType; total: number
   byStatus: Record<string, number>; byEvent: Record<string, number>
-  pipeline: { status: string; hex: string }[]
+  pipeline: { status: string; hex: string; label?: string }[]
   color: string; accentHex: string; href: string
   animate: boolean; loading: boolean
   positiveKeys?: string[]
@@ -182,7 +181,7 @@ function KPICard({
               <div key={p.status} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.hex }} />
-                  <span className="text-xs text-slate-500">{p.status}</span>
+                  <span className="text-xs text-slate-500">{p.label ?? p.status}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-16 h-1 bg-[#1a3a5c] rounded-full overflow-hidden">
@@ -230,7 +229,7 @@ function KPICard({
 function PipelineSection({
   label, pipeline, byStatus, total, accentHex, href, animate,
 }: {
-  label: string; pipeline: { status: string; hex: string }[]
+  label: string; pipeline: { status: string; hex: string; label?: string }[]
   byStatus: Record<string, number>; total: number
   accentHex: string; href: string; animate: boolean
 }) {

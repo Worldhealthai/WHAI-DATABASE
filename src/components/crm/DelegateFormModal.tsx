@@ -6,6 +6,7 @@ import type { Delegate } from '@/types'
 import { useEventOptions } from '@/lib/useEventOptions'
 import {
   DELEGATE_STATUS_OPTIONS,
+  delegateStatusLabel,
   DELEGATE_TICKET_OPTIONS,
   DELEGATE_SOURCE_OPTIONS,
   EVENT_OPTIONS,
@@ -160,7 +161,11 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
           <div className="grid grid-cols-3 gap-4">
             <Field label="Status">
               <select value={form.status} onChange={(e) => set('status', e.target.value)} className={inputCls}>
-                {DELEGATE_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                {DELEGATE_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{delegateStatusLabel(s)}</option>)}
+                {/* Legacy statuses (Attended/Waitlisted) stay selectable on rows that already carry them */}
+                {form.status && !DELEGATE_STATUS_OPTIONS.includes(form.status) && (
+                  <option value={form.status}>{delegateStatusLabel(form.status)}</option>
+                )}
               </select>
             </Field>
             <Field label="Ticket Type">

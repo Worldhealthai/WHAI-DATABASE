@@ -87,11 +87,17 @@ interface StatusBadgeProps {
   className?: string
 }
 
+// Stored value → display label, per variant. Delegate 'Confirmed' predates
+// the invite flow and reads as "Invited"; the stored value is unchanged.
+const DISPLAY_LABELS: Partial<Record<BadgeVariant, Record<string, string>>> = {
+  delegate_status: { Confirmed: 'Invited' },
+}
+
 export function StatusBadge({ value, variant, className }: StatusBadgeProps) {
   const colorClass = COLOR_MAPS[variant]?.[value] ?? 'bg-slate-500/15 text-slate-400 border-slate-500/30'
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border', colorClass, className)}>
-      {value}
+      {DISPLAY_LABELS[variant]?.[value] ?? value}
     </span>
   )
 }
