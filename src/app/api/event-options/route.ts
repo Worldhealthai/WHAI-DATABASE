@@ -20,6 +20,10 @@ export async function GET() {
     const s = typeof v === 'string' ? v.trim() : ''
     if (s && !options.includes(s)) options.push(s)
   }
+  // Structured info per label (series/city/year) from the Nexus events list —
+  // lets the UI group labels into series+city categories with year sub-tabs
+  // even when the label itself doesn't carry the city.
+  const meta: { label: string; series: string | null; city: string | null; year: string | null }[] = []
 
   try {
     const [d, s, sp] = await Promise.all([
@@ -41,11 +45,21 @@ export async function GET() {
     })
     if (res.ok) {
       const j = await res.json()
-      for (const ev of j?.events ?? []) add(ev?.label)
+      for (const ev of j?.events ?? []) {
+        add(ev?.label)
+        if (typeof ev?.label === 'string' && ev.label.trim()) {
+          meta.push({
+            label: ev.label.trim(),
+            series: typeof ev?.series === 'string' ? ev.series : null,
+            city: typeof ev?.city === 'string' ? ev.city : null,
+            year: String(ev?.date ?? ev?.label ?? '').match(/\b(20\d{2})\b/)?.[1] ?? null,
+          })
+        }
+      }
     }
   } catch {
     // Nexus unreachable — data-derived list still covers active events
   }
 
-  return NextResponse.json({ options })
+  return NextResponse.json({ options, meta })
 }

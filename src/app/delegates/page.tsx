@@ -18,7 +18,8 @@ import {
 } from '@/types'
 import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
 import { cn } from '@/lib/utils'
-import { useEventOptions } from '@/lib/useEventOptions'
+import { useEventCategories, describeEventSelection } from '@/lib/eventCategories'
+import { EventCategoryTabs } from '@/components/search/EventCategoryTabs'
 
 async function fetchDelegates(
   filters: DelegateFilters, page: number, pageSize: number, sortBy: string, sortDir: string,
@@ -79,7 +80,7 @@ function Checkbox({ checked, indeterminate, onChange }: {
 }
 
 export default function DelegatesPage() {
-  const eventOptions = useEventOptions()
+  const eventCategories = useEventCategories()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DelegateFilters>({})
   const [keyword, setKeyword] = useState('')
@@ -127,10 +128,10 @@ export default function DelegatesPage() {
   const isRejectedTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Rejected'
   const isCancelledTab = filters.statuses?.length === 1 && filters.statuses[0] === 'Cancelled'
   const isStatusTab = isRejectedTab || isCancelledTab
-  const activeEventTab = isStatusTab ? '' : (filters.events?.length === 1 ? filters.events[0] : '')
-  const setEventTab = (event: string) => {
+  const activeEventTab = isStatusTab ? '' : describeEventSelection(filters.events ?? [], eventCategories)
+  const setEventLabels = (labels: string[] | undefined) => {
     setFilters((prev) => {
-      const next = { ...prev, events: event ? [event] : undefined }
+      const next = { ...prev, events: labels && labels.length ? labels : undefined }
       if (next.statuses?.length === 1 && (next.statuses[0] === 'Rejected' || next.statuses[0] === 'Cancelled')) {
         delete next.statuses
       }
@@ -285,58 +286,40 @@ export default function DelegatesPage() {
             </div>
           </div>
 
-          {/* Event + Rejected tabs */}
-          <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-            <button
-              onClick={() => setEventTab('')}
-              className={cn(
-                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                !isStatusTab && activeEventTab === ''
-                  ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
-                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
-              )}
-            >
-              All Events
-            </button>
-            {eventOptions.map((ev) => (
-              <button
-                key={ev}
-                onClick={() => setEventTab(ev)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                  !isStatusTab && activeEventTab === ev
-                    ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
-                    : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
-                )}
-              >
-                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                {ev}
-              </button>
-            ))}
-            <div className="w-px h-5 bg-[#1a3a5c] shrink-0 mx-1" />
-            <button
-              onClick={setCancelledTab}
-              className={cn(
-                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                isCancelledTab
-                  ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/40'
-                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
-              )}
-            >
-              Cancelled
-            </button>
-            <button
-              onClick={setRejectedTab}
-              className={cn(
-                'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                isRejectedTab
-                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/40'
-                  : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
-              )}
-            >
-              Rejected
-            </button>
-          </div>
+          {/* Event categories (series + city, with year sub-tabs) + status queues */}
+          <EventCategoryTabs
+            selected={isStatusTab ? [] : filters.events ?? []}
+            onChange={setEventLabels}
+            accent="cyan"
+            disabled={isStatusTab}
+            trailing={
+              <>
+                <div className="w-px h-5 bg-[#1a3a5c] shrink-0 mx-1" />
+                <button
+                  onClick={setCancelledTab}
+                  className={cn(
+                    'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                    isCancelledTab
+                      ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/40'
+                      : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+                  )}
+                >
+                  Cancelled
+                </button>
+                <button
+                  onClick={setRejectedTab}
+                  className={cn(
+                    'flex items-center px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
+                    isRejectedTab
+                      ? 'bg-rose-500/15 text-rose-400 border-rose-500/40'
+                      : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+                  )}
+                >
+                  Rejected
+                </button>
+              </>
+            }
+          />
 
           {/* Search */}
           <div className="pb-3">

@@ -12,9 +12,10 @@ import { Pagination } from '@/components/search/Pagination'
 import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import type { Sponsor, SponsorFilters } from '@/types'
-import { SPONSOR_STATUS_OPTIONS, SPONSOR_TIER_OPTIONS, COUNTRY_OPTIONS, EVENT_OPTIONS } from '@/types'
+import { SPONSOR_STATUS_OPTIONS, SPONSOR_TIER_OPTIONS, COUNTRY_OPTIONS } from '@/types'
 import { cn } from '@/lib/utils'
-import { useEventOptions } from '@/lib/useEventOptions'
+import { useEventCategories, describeEventSelection } from '@/lib/eventCategories'
+import { EventCategoryTabs } from '@/components/search/EventCategoryTabs'
 
 const PARTNER_TIERS = ['Media Partner', 'Association Partner']
 
@@ -334,7 +335,7 @@ const COLS = [
 
 export default function SponsorsPage() {
   const queryClient = useQueryClient()
-  const eventOptions = useEventOptions()
+  const eventCategories = useEventCategories()
   const [filters, setFilters] = useState<SponsorFilters>({})
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
@@ -424,9 +425,9 @@ export default function SponsorsPage() {
     }
   }
 
-  const activeEventTab = filters.events?.length === 1 ? filters.events[0] : ''
-  const setEventTab = (event: string) => {
-    setFilters((prev) => ({ ...prev, events: event ? [event] : undefined }))
+  const activeEventTab = describeEventSelection(filters.events ?? [], eventCategories)
+  const setEventLabels = (labels: string[] | undefined) => {
+    setFilters((prev) => ({ ...prev, events: labels && labels.length ? labels : undefined }))
     setPage(1); setSelected(new Set())
   }
 
@@ -569,23 +570,12 @@ export default function SponsorsPage() {
             </div>
           </div>
 
-          {/* Event tabs */}
-          <div className="flex items-center gap-1.5 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-            {['', ...eventOptions].map((ev) => (
-              <button
-                key={ev || '_all'}
-                onClick={() => setEventTab(ev)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
-                  activeEventTab === ev
-                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
-                    : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
-                )}
-              >
-                {ev ? <><Calendar className="w-3.5 h-3.5 shrink-0" />{ev}</> : 'All Events'}
-              </button>
-            ))}
-          </div>
+          {/* Event categories (series + city, with year sub-tabs) */}
+          <EventCategoryTabs
+            selected={filters.events ?? []}
+            onChange={setEventLabels}
+            accent="amber"
+          />
 
           {/* Search */}
           <div className="pb-3">
