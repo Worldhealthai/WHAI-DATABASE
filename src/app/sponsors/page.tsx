@@ -413,13 +413,19 @@ export default function SponsorsPage() {
   const advanceStage = async (id: string, next: string) => {
     setAdvancingId(id)
     try {
-      await fetch(`/api/sponsors/${id}`, {
+      const res = await fetch(`/api/sponsors/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next }),
       })
       queryClient.invalidateQueries({ queryKey: ['sponsors'] })
       queryClient.invalidateQueries({ queryKey: ['sponsors-board'] })
+      // Landing on Confirmed reveals the deal fields — pop the form so the
+      // sponsorship value and package can be recorded right away.
+      if (next === 'Confirmed' && res.ok) {
+        const updated = await res.json().catch(() => null)
+        if (updated?.id) setEditingSponsor(updated)
+      }
     } finally {
       setAdvancingId(null)
     }
