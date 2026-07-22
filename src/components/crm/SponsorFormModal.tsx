@@ -165,24 +165,34 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
               </div>
             ) : null}
 
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              <div className="col-span-2">
-                <Field label="Sponsorship Value">
-                  <input type="number" step="0.01" min="0" value={form.valueAmount} onChange={(e) => set('valueAmount', e.target.value)} placeholder="0.00" className={inputCls} />
-                </Field>
-              </div>
-              <Field label="Currency">
-                <select value={form.valueCurrency} onChange={(e) => set('valueCurrency', e.target.value)} className={inputCls}>
-                  {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
-            </div>
+            {/* Deal fields only matter once the deal is closed — they appear
+                when the status reaches Confirmed. */}
+            {isConfirmed ? (
+              <>
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  <div className="col-span-2">
+                    <Field label="Sponsorship Value">
+                      <input type="number" step="0.01" min="0" value={form.valueAmount} onChange={(e) => set('valueAmount', e.target.value)} placeholder="0.00" className={inputCls} />
+                    </Field>
+                  </div>
+                  <Field label="Currency">
+                    <select value={form.valueCurrency} onChange={(e) => set('valueCurrency', e.target.value)} className={inputCls}>
+                      {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                </div>
 
-            <div className="mt-4">
-              <Field label="Package Details">
-                <textarea value={form.packageDetails} onChange={(e) => set('packageDetails', e.target.value)} rows={3} placeholder="Describe the sponsorship package, deliverables, inclusions..." className={`${inputCls} resize-none`} />
-              </Field>
-            </div>
+                <div className="mt-4">
+                  <Field label="Package Details">
+                    <textarea value={form.packageDetails} onChange={(e) => set('packageDetails', e.target.value)} rows={3} placeholder="Describe the sponsorship package, deliverables, inclusions..." className={`${inputCls} resize-none`} />
+                  </Field>
+                </div>
+              </>
+            ) : (
+              <p className="mt-4 text-xs text-slate-500">
+                Value &amp; package fields appear once the status is <span className="text-slate-300">Confirmed</span>.
+              </p>
+            )}
           </div>
 
           {/* Primary Contact */}
