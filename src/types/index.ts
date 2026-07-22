@@ -2,9 +2,12 @@
 
 // ── Shared event + sub-type options ──────────────────────────────────────────
 
+// Base event labels — the data-driven /api/event-options extends this with
+// whatever labels exist in the records plus events configured on Nexus.
+// (The legacy "UK Forum" / "US Forum" labels were migrated to these names.)
 export const EVENT_OPTIONS = [
-  'UK Forum',
-  'US Forum',
+  'World Health AI London 2026',
+  'World Health AI Boston 2025',
 ]
 
 export const SUBTYPE_OPTIONS = [
