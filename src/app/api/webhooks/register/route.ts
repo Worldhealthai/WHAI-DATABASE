@@ -13,7 +13,9 @@ export const dynamic = 'force-dynamic'
 //   "type": "delegate" | "speaker",
 //   "firstName": "...", "lastName": "...", "email": "...",
 //   "phone": "...", "organization": "...", "jobTitle": "...",
-//   "country": "...", "city": "...", "event": "UK Forum" | "US Forum",
+//   "country": "...", "city": "...",
+//   "event": "World Health AI London 2026" | "World Health AI Boston 2025"
+//            (legacy "UK Forum" / "US Forum" still accepted — normalised on arrival),
 //   "subType": "End User" | "Solution Provider", "year": 2026,
 //   "linkedinUrl": "...", "notes": "...",
 //   // Optional control fields used by the website's admin actions:
@@ -76,6 +78,13 @@ export async function POST(req: NextRequest) {
     const firstName = typeof body.firstName === 'string' ? body.firstName.trim() : ''
     const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : ''
 
+    // Event year (e.g. 2026) so the speaker lands under the right Year tab.
+    // Only the speakers table has a year column; delegates don't use one.
+    const year =
+      Number.isInteger(body.year) ? body.year
+      : (typeof body.year === 'string' && /^\d{4}$/.test(body.year.trim())) ? parseInt(body.year.trim(), 10)
+      : null
+
     const common = {
       firstName: firstName || null,
       lastName: lastName || null,
@@ -86,19 +95,12 @@ export async function POST(req: NextRequest) {
       country: body.country ?? null,
       city: body.city ?? null,
       // Normalised so every writer (UK Forum, World Health AI 2026, …)
-      // converges on the canonical label set.
-      event: canonicalEventLabel(body.event),
+      // converges on the canonical label set; forum names use the sent year.
+      event: canonicalEventLabel(body.event, year),
       subType: body.subType ?? null,
       linkedinUrl: body.linkedinUrl ?? null,
       notes: body.notes ?? null,
     }
-
-    // Event year (e.g. 2026) so the speaker lands under the right Year tab.
-    // Only the speakers table has a year column; delegates don't use one.
-    const year =
-      Number.isInteger(body.year) ? body.year
-      : (typeof body.year === 'string' && /^\d{4}$/.test(body.year.trim())) ? parseInt(body.year.trim(), 10)
-      : null
 
     const table = type === 'speaker' ? 'speakers' : 'delegates'
     const record = type === 'speaker'

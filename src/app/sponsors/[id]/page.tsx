@@ -217,7 +217,10 @@ export default function SponsorDetailPage() {
         body: JSON.stringify({ status: newStatus }),
       })
       queryClient.invalidateQueries({ queryKey: ['sponsors'] })
-      refetch()
+      await refetch()
+      // Landing on Confirmed reveals the deal fields — open the form so the
+      // sponsorship value and package can be recorded right away.
+      if (newStatus === 'Confirmed') setEditOpen(true)
     } finally { setStageSaving(false) }
   }
 

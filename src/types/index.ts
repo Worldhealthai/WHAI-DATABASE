@@ -3,7 +3,8 @@
 // ── Shared event + sub-type options ──────────────────────────────────────────
 
 // Canonical event labels — series + city + year, so same-year cities never
-// collide. Everything the websites/webhooks send is normalised to these.
+// collide. Everything the websites/webhooks send is normalised to these, and
+// the data-driven /api/event-options extends the list with anything new.
 export const EVENT_OPTIONS = [
   'World Health AI London 2026',
   'World Health AI Boston 2025',
@@ -24,9 +25,13 @@ const EVENT_ALIASES: Record<string, string> = {
   'world pharma ai 2027': 'World Pharma AI London 2027',
 }
 
-export function canonicalEventLabel(label: string | null | undefined): string | null {
+export function canonicalEventLabel(label: string | null | undefined, year?: number | null): string | null {
   const raw = (label || '').trim()
   if (!raw) return null
+  // Forum names are year-aware when the caller knows the year (the webhook
+  // does): "UK Forum" + 2027 → the 2027 London edition.
+  if (/^uk\s*forum$/i.test(raw)) return `World Health AI London ${year ?? 2026}`
+  if (/^us\s*forum$/i.test(raw)) return `World Health AI Boston ${year ?? 2025}`
   const direct = EVENT_ALIASES[raw.toLowerCase()]
   if (direct) return direct
   // Generic fallback for future city-less labels: "World Health AI 2028" →

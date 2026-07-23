@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// Distinct event labels in the data, so the assistant knows every event —
-// not just the legacy UK/US Forum pair.
+// Distinct event labels in the data, seeded with the base list so the
+// assistant knows every event even if the data query fails.
 async function getEventNames(): Promise<string[]> {
   const names = new Set<string>(EVENT_OPTIONS)
   try {

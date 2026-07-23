@@ -350,6 +350,16 @@ export default function SponsorsPage() {
   const [advancingId, setAdvancingId] = useState<string | null>(null)
   const [sidePanelId, setSidePanelId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const pendingScrollRef = useRef<number | null>(null)
+
+  // Snapshot the list UI state (including scroll position) right before
+  // navigating into a profile, so coming back lands on the exact same spot.
+  const saveListState = useCallback(() => {
+    sessionStorage.setItem('sponsors-list-state', JSON.stringify({
+      filters, keyword, page, pageSize, sortBy, sortDir, viewMode,
+      scrollY: window.scrollY,
+    }))
+  }, [filters, keyword, page, pageSize, sortBy, sortDir, viewMode])
 
   // Restore list state after back-navigation from a sponsor profile
   useEffect(() => {
@@ -364,6 +374,7 @@ export default function SponsorsPage() {
         if (s.sortBy) setSortBy(s.sortBy)
         if (s.sortDir) setSortDir(s.sortDir)
         if (s.viewMode) setViewMode(s.viewMode)
+        if (typeof s.scrollY === 'number') pendingScrollRef.current = s.scrollY
       } catch {}
       sessionStorage.removeItem('sponsors-list-state')
     }
@@ -374,6 +385,15 @@ export default function SponsorsPage() {
     queryFn: () => fetchSponsors(filters, page, pageSize, sortBy, sortDir),
     placeholderData: (prev) => prev,
   })
+
+  // Once the restored page's rows have rendered, jump back to where the user
+  // was when they opened the profile.
+  useEffect(() => {
+    if (pendingScrollRef.current === null || !data) return
+    const y = pendingScrollRef.current
+    pendingScrollRef.current = null
+    requestAnimationFrame(() => window.scrollTo({ top: y }))
+  }, [data])
 
   const { data: boardData, isLoading: boardLoading } = useQuery({
     queryKey: ['sponsors-board', filters],
@@ -413,13 +433,19 @@ export default function SponsorsPage() {
   const advanceStage = async (id: string, next: string) => {
     setAdvancingId(id)
     try {
-      await fetch(`/api/sponsors/${id}`, {
+      const res = await fetch(`/api/sponsors/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next }),
       })
       queryClient.invalidateQueries({ queryKey: ['sponsors'] })
       queryClient.invalidateQueries({ queryKey: ['sponsors-board'] })
+      // Landing on Confirmed reveals the deal fields — pop the form so the
+      // sponsorship value and package can be recorded right away.
+      if (next === 'Confirmed' && res.ok) {
+        const updated = await res.json().catch(() => null)
+        if (updated?.id) setEditingSponsor(updated)
+      }
     } finally {
       setAdvancingId(null)
     }
@@ -722,7 +748,6 @@ export default function SponsorsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {rows.map((s) => {
                     const next = nextStage(s.status)
-                    const saveState = () => sessionStorage.setItem('sponsors-list-state', JSON.stringify({ filters, keyword, page, pageSize, sortBy, sortDir, viewMode }))
                     return (
                       <div
                         key={s.id}
@@ -763,7 +788,7 @@ export default function SponsorsPage() {
                           </div>
                           <div>
                             <span onClick={(e) => e.stopPropagation()}>
-                              <Link href={`/sponsors/${s.id}`} onClick={saveState} className="font-semibold text-white hover:text-amber-400 transition-colors text-sm leading-snug">
+                              <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="font-semibold text-white hover:text-amber-400 transition-colors text-sm leading-snug">
                                 {s.companyName}
                               </Link>
                             </span>
@@ -853,7 +878,6 @@ export default function SponsorsPage() {
                         <tbody>
                           {rows.map((s) => {
                             const next = nextStage(s.status)
-                            const saveState = () => sessionStorage.setItem('sponsors-list-state', JSON.stringify({ filters, keyword, page, pageSize, sortBy, sortDir, viewMode }))
                             return (
                               <tr
                                 key={s.id}
@@ -865,7 +889,7 @@ export default function SponsorsPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <span onClick={(e) => e.stopPropagation()}>
-                                    <Link href={`/sponsors/${s.id}`} onClick={saveState} className="flex items-center gap-3 group">
+                                    <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="flex items-center gap-3 group">
                                       <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
                                         {companyInitials(s)}
                                       </div>
@@ -930,7 +954,7 @@ export default function SponsorsPage() {
                       {rows.map((s) => (
                         <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-amber-500/5' : 'hover:bg-[#112850]/60')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
-                          <Link href={`/sponsors/${s.id}`} onClick={() => sessionStorage.setItem('sponsors-list-state', JSON.stringify({ filters, keyword, page, pageSize, sortBy, sortDir, viewMode }))} className="flex items-start gap-3 flex-1 min-w-0">
+                          <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                               {companyInitials(s)}
                             </div>
@@ -1000,7 +1024,7 @@ export default function SponsorsPage() {
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/sponsors/${sidePanelId}`}
-                      onClick={() => setSidePanelId(null)}
+                      onClick={() => { saveListState(); setSidePanelId(null) }}
                       className="font-semibold text-white hover:text-amber-400 transition-colors block truncate"
                     >
                       {panelData.companyName}
@@ -1074,7 +1098,7 @@ export default function SponsorsPage() {
             <div className="shrink-0 px-5 py-4 border-t border-[#1a3a5c]">
               <Link
                 href={`/sponsors/${sidePanelId}`}
-                onClick={() => setSidePanelId(null)}
+                onClick={() => { saveListState(); setSidePanelId(null) }}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-[#0A1628] font-semibold text-sm transition-colors"
               >
                 Open Full Profile <ArrowRight className="w-4 h-4" />
