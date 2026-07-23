@@ -10,6 +10,7 @@ import { useEventOptions } from '@/lib/useEventOptions'
 // ── People import: column mapping ─────────────────────────────────────────────
 
 const PEOPLE_AUTO_MAP: Record<string, string> = {
+  'name': 'firstName', 'full name': 'firstName', 'fullname': 'firstName', 'contact name': 'firstName',
   'first name': 'firstName', 'firstname': 'firstName', 'first_name': 'firstName', 'given name': 'firstName',
   'last name': 'lastName', 'lastname': 'lastName', 'last_name': 'lastName', 'surname': 'lastName', 'family name': 'lastName',
   'email': 'email', 'email address': 'email', 'e-mail': 'email',
@@ -54,6 +55,7 @@ const SPONSOR_AUTO_MAP: Record<string, string> = {
   'tier': 'tier', 'sponsorship tier': 'tier', 'level': 'tier',
   'status': 'status', 'sponsorship status': 'status',
   'event': 'event',
+  'name': 'contactFirstName', 'full name': 'contactFirstName', 'fullname': 'contactFirstName', 'contact name': 'contactFirstName',
   'first name': 'contactFirstName', 'firstname': 'contactFirstName', 'first_name': 'contactFirstName', 'contact first name': 'contactFirstName',
   'last name': 'contactLastName', 'lastname': 'contactLastName', 'last_name': 'contactLastName', 'contact last name': 'contactLastName', 'surname': 'contactLastName',
   'email': 'contactEmail', 'email address': 'contactEmail', 'contact email': 'contactEmail',
@@ -251,6 +253,17 @@ function autoMap(headers: string[], importType: ImportType): Record<string, stri
   return mapping
 }
 
+// A full name landing in the first-name field ("Jane van der Berg") is split
+// into first name + the rest as last name. Only applies when there is no
+// separate last name, so real first names stay intact.
+function splitFullName(out: any, firstKey: string, lastKey: string) {
+  const v = out[firstKey]
+  if (typeof v !== 'string' || out[lastKey] || !/\s/.test(v.trim())) return
+  const parts = v.trim().split(/\s+/)
+  out[firstKey] = parts[0]
+  out[lastKey] = parts.slice(1).join(' ')
+}
+
 // ── Transform helpers ─────────────────────────────────────────────────────────
 
 function transformPeopleRow(row: Record<string, string>, mapping: Record<string, string>): any {
@@ -272,6 +285,8 @@ function transformPeopleRow(row: Record<string, string>, mapping: Record<string,
 
   if (notesParts.length) out.notes = notesParts.join('\n\n')
 
+  splitFullName(out, 'firstName', 'lastName')
+
   const tagParts: string[] = []
   if (out.primaryEvent) tagParts.push(out.primaryEvent.replace(/\s+/g, '-').toLowerCase())
   if (out.importStatus) tagParts.push(out.importStatus)
@@ -291,6 +306,7 @@ function transformCompanyRow(row: Record<string, string>, mapping: Record<string
     if (!val) return
     out[crmField] = val
   })
+  splitFullName(out, 'contactFirstName', 'contactLastName')
   return out
 }
 
