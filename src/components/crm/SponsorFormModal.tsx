@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, AlertTriangle } from 'lucide-react'
 import type { Sponsor } from '@/types'
 import { useEventOptions } from '@/lib/useEventOptions'
 import {
@@ -51,8 +51,38 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
   const [saving, setSaving] = useState(false)
   const eventOptions = useEventOptions()
   const [error, setError] = useState('')
+  const [dupMatch, setDupMatch] = useState<{
+    id: string; existingName: string; status: string; table: string
+  } | null>(null)
 
   const set = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }))
+
+  // Live duplicate check: as the company name is typed, look for an existing
+  // company with the same or a similar name (fuzzy — catches "Accurx Ltd"
+  // vs "AccuRx") across both Sponsors and Partners.
+  useEffect(() => {
+    const name = form.companyName.trim()
+    if (name.length < 3 || (isEdit && name === (sponsor?.companyName ?? '').trim())) {
+      setDupMatch(null)
+      return
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/check-duplicates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emails: [], names: [], companyNames: [name] }),
+        })
+        if (!res.ok) return
+        const { duplicates } = await res.json()
+        const best = (duplicates ?? [])
+          .filter((d: any) => d.match === 'company' && d.id && d.id !== sponsor?.id)
+          .sort((a: any, b: any) => (b.score ?? 0) - (a.score ?? 0))[0]
+        setDupMatch(best ?? null)
+      } catch { /* non-blocking */ }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [form.companyName, isEdit, sponsor?.companyName, sponsor?.id])
 
   const isConfirmed = form.status === 'Confirmed'
 
@@ -113,6 +143,24 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
                 <input value={form.website} onChange={(e) => set('website', e.target.value)} placeholder="https://..." className={inputCls} />
               </Field>
             </div>
+            {dupMatch && (
+              <div className="mt-3 flex items-start gap-2 text-xs bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2.5 text-amber-300">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  Similar company already in your CRM:{' '}
+                  <a
+                    href={`${dupMatch.table === 'partners' ? '/partners' : '/sponsors'}/${dupMatch.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold underline hover:text-amber-200"
+                  >
+                    {dupMatch.existingName}
+                  </a>{' '}
+                  ({dupMatch.table === 'partners' ? 'Partners' : 'Sponsors'} · {dupMatch.status}).
+                  {' '}Open it instead of creating a duplicate — or save anyway if this is genuinely a different company.
+                </span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4 mt-4">
               <Field label="Country">
                 <select value={form.country} onChange={(e) => set('country', e.target.value)} className={inputCls}>
