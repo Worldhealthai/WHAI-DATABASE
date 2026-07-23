@@ -266,6 +266,10 @@ function splitFullName(out: any, firstKey: string, lastKey: string) {
 
 // ── Transform helpers ─────────────────────────────────────────────────────────
 
+// Column headers whose values need no label prefix when collected into Notes.
+const PLAIN_NOTES_HEADERS = new Set(['notes', 'note', 'admin notes', 'comments', 'comment'])
+
+
 function transformPeopleRow(row: Record<string, string>, mapping: Record<string, string>): any {
   const out: any = { _raw: row }
   const notesParts: string[] = []
@@ -279,11 +283,16 @@ function transformPeopleRow(row: Record<string, string>, mapping: Record<string,
     else if (crmField === 'importStatus') out.importStatus = val
     else if (crmField === 'attendeeType') out.attendeeType = val
     else if (crmField === 'primaryEvent') out.primaryEvent = val
-    else if (crmField === 'notes') notesParts.push(val)
-    else out[crmField] = val
+    else if (crmField === 'notes') {
+      // Several columns can map to Notes — collect them all, labelled with
+      // their CSV column so nothing overrides anything.
+      notesParts.push(PLAIN_NOTES_HEADERS.has(csvCol.trim().toLowerCase()) ? val : `${csvCol.trim()}: ${val}`)
+    }
+    else if (crmField === 'tags') out.tags = out.tags ? `${out.tags}, ${val}` : val
+    else if (!(crmField in out)) out[crmField] = val
   })
 
-  if (notesParts.length) out.notes = notesParts.join('\n\n')
+  if (notesParts.length) out.notes = notesParts.join(' / ')
 
   splitFullName(out, 'firstName', 'lastName')
 
@@ -300,12 +309,26 @@ function transformPeopleRow(row: Record<string, string>, mapping: Record<string,
 
 function transformCompanyRow(row: Record<string, string>, mapping: Record<string, string>): any {
   const out: any = {}
+  const notesParts: string[] = []
+  const tagParts: string[] = []
   Object.entries(mapping).forEach(([csvCol, crmField]) => {
     if (crmField === '_skip') return
     const val = row[csvCol]?.trim() ?? ''
     if (!val) return
-    out[crmField] = val
+    if (crmField === 'notes') {
+      // Several columns can map to Notes — collect them all, labelled with
+      // their CSV column so nothing overrides anything.
+      notesParts.push(PLAIN_NOTES_HEADERS.has(csvCol.trim().toLowerCase()) ? val : `${csvCol.trim()}: ${val}`)
+    } else if (crmField === 'tags') {
+      tagParts.push(val)
+    } else if (!(crmField in out)) {
+      // Two columns mapped to the same field (e.g. Mobile + Phone → Contact
+      // Phone): the first column with a value wins, later ones don't override.
+      out[crmField] = val
+    }
   })
+  if (notesParts.length) out.notes = notesParts.join(' / ')
+  if (tagParts.length) out.tags = tagParts.join(', ')
   splitFullName(out, 'contactFirstName', 'contactLastName')
   return out
 }
