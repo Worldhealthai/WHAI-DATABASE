@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
+import { EVENT_OPTIONS } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 // Distinct event labels in the data, so the assistant knows every event —
 // not just the legacy UK/US Forum pair.
 async function getEventNames(): Promise<string[]> {
-  const names = new Set<string>(['UK Forum', 'US Forum'])
+  const names = new Set<string>(EVENT_OPTIONS)
   try {
     const [d, s] = await Promise.all([
       supabase.from('delegates').select('event').not('event', 'is', null),

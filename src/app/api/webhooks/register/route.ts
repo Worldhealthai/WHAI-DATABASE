@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { canonicalEventLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +85,9 @@ export async function POST(req: NextRequest) {
       jobTitle: body.jobTitle ?? null,
       country: body.country ?? null,
       city: body.city ?? null,
-      event: body.event ?? null,
+      // Normalised so every writer (UK Forum, World Health AI 2026, …)
+      // converges on the canonical label set.
+      event: canonicalEventLabel(body.event),
       subType: body.subType ?? null,
       linkedinUrl: body.linkedinUrl ?? null,
       notes: body.notes ?? null,
