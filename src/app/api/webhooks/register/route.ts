@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { canonicalEventLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,17 +85,6 @@ export async function POST(req: NextRequest) {
       : (typeof body.year === 'string' && /^\d{4}$/.test(body.year.trim())) ? parseInt(body.year.trim(), 10)
       : null
 
-    // The website may still send the legacy event names — store the canonical
-    // "<series> <city> <year>" label so records group under the right event
-    // tab and year chip. Unrecognised labels pass through untouched.
-    const normaliseEvent = (ev: unknown): string | null => {
-      const s = typeof ev === 'string' ? ev.trim() : ''
-      if (!s) return null
-      if (/^uk\s*forum$/i.test(s)) return `World Health AI London ${year ?? 2026}`
-      if (/^us\s*forum$/i.test(s)) return `World Health AI Boston ${year ?? 2025}`
-      return s
-    }
-
     const common = {
       firstName: firstName || null,
       lastName: lastName || null,
@@ -104,7 +94,9 @@ export async function POST(req: NextRequest) {
       jobTitle: body.jobTitle ?? null,
       country: body.country ?? null,
       city: body.city ?? null,
-      event: normaliseEvent(body.event),
+      // Normalised so every writer (UK Forum, World Health AI 2026, …)
+      // converges on the canonical label set; forum names use the sent year.
+      event: canonicalEventLabel(body.event, year),
       subType: body.subType ?? null,
       linkedinUrl: body.linkedinUrl ?? null,
       notes: body.notes ?? null,

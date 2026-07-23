@@ -1,13 +1,14 @@
 // GET /api/event-options — the event labels the UI should offer as
 // tabs/columns/dropdowns. Union of:
-//   1. the static base list (legacy UK/US Forum),
+//   1. the canonical base list (series + city + year),
 //   2. every distinct event label already present in the data,
 //   3. events configured on worldnexusgroup.com (so a new event gets its
 //      column before its first booking arrives).
-// Best-effort on every source — the base list always ships.
+// All labels are normalised to the canonical set; best-effort on every
+// source — the base list always ships.
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { EVENT_OPTIONS } from '@/types'
+import { EVENT_OPTIONS, canonicalEventLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,9 @@ const NEXUS_EVENTS_URL =
 export async function GET() {
   const options: string[] = [...EVENT_OPTIONS]
   const add = (v: unknown) => {
-    const s = typeof v === 'string' ? v.trim() : ''
+    // Every label is normalised to the canonical set so the dropdowns never
+    // show the same event under several historical names.
+    const s = typeof v === 'string' ? canonicalEventLabel(v.trim()) || '' : ''
     if (s && !options.includes(s)) options.push(s)
   }
   // Structured info per label (series/city/year) from the Nexus events list —
@@ -49,7 +52,7 @@ export async function GET() {
         add(ev?.label)
         if (typeof ev?.label === 'string' && ev.label.trim()) {
           meta.push({
-            label: ev.label.trim(),
+            label: canonicalEventLabel(ev.label.trim()) || ev.label.trim(),
             series: typeof ev?.series === 'string' ? ev.series : null,
             city: typeof ev?.city === 'string' ? ev.city : null,
             year: String(ev?.date ?? ev?.label ?? '').match(/\b(20\d{2})\b/)?.[1] ?? null,

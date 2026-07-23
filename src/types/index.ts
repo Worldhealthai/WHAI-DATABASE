@@ -2,13 +2,47 @@
 
 // ── Shared event + sub-type options ──────────────────────────────────────────
 
-// Base event labels — the data-driven /api/event-options extends this with
-// whatever labels exist in the records plus events configured on Nexus.
-// (The legacy "UK Forum" / "US Forum" labels were migrated to these names.)
+// Canonical event labels — series + city + year, so same-year cities never
+// collide. Everything the websites/webhooks send is normalised to these, and
+// the data-driven /api/event-options extends the list with anything new.
 export const EVENT_OPTIONS = [
   'World Health AI London 2026',
   'World Health AI Boston 2025',
+  'World Health AI London 2027',
+  'World Pharma AI London 2027',
 ]
+
+// Aliases that have reached the CRM from different writers over time:
+// legacy internal names (UK/US Forum) and the city-less labels the Nexus
+// sites push ("World Health AI 2026"). Mapped on write and when building
+// option lists, so the dropdowns only ever show the canonical set.
+const EVENT_ALIASES: Record<string, string> = {
+  'uk forum': 'World Health AI London 2026',
+  'us forum': 'World Health AI Boston 2025',
+  'world health ai 2025': 'World Health AI Boston 2025',
+  'world health ai 2026': 'World Health AI London 2026',
+  'world health ai 2027': 'World Health AI London 2027',
+  'world pharma ai 2027': 'World Pharma AI London 2027',
+}
+
+export function canonicalEventLabel(label: string | null | undefined, year?: number | null): string | null {
+  const raw = (label || '').trim()
+  if (!raw) return null
+  // Forum names are year-aware when the caller knows the year (the webhook
+  // does): "UK Forum" + 2027 → the 2027 London edition.
+  if (/^uk\s*forum$/i.test(raw)) return `World Health AI London ${year ?? 2026}`
+  if (/^us\s*forum$/i.test(raw)) return `World Health AI Boston ${year ?? 2025}`
+  const direct = EVENT_ALIASES[raw.toLowerCase()]
+  if (direct) return direct
+  // Generic fallback for future city-less labels: "World Health AI 2028" →
+  // London (Boston editions are expected to carry the city or the 2025 alias).
+  const m = raw.match(/^world (health|pharma) ai (20\d{2})$/i)
+  if (m) {
+    const series = m[1].toLowerCase() === 'pharma' ? 'World Pharma AI' : 'World Health AI'
+    return `${series} London ${m[2]}`
+  }
+  return raw
+}
 
 export const SUBTYPE_OPTIONS = [
   'End User',
