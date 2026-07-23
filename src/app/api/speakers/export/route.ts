@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
       .from('speakers')
       .select('*')
       .order('createdAt', { ascending: false })
+      .limit(10000)
 
     if (ids.length) {
       query = query.in('id', ids)

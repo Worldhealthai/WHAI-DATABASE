@@ -16,9 +16,13 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
     const ids = searchParams.get('ids')?.split(',').filter(Boolean) ?? []
-    const event = searchParams.get('event')
-    const status = searchParams.get('status')
-    const tier = searchParams.get('tier')
+    // Multi-select filters arrive as repeated params (status=A&status=B) —
+    // reading only the first value silently dropped every other selection
+    // from the export.
+    const q = searchParams.get('query')?.trim() || ''
+    const events = searchParams.getAll('event').filter(Boolean)
+    const statuses = searchParams.getAll('status').filter(Boolean)
+    const tiers = searchParams.getAll('tier').filter(Boolean)
     const excludeTiers = searchParams.getAll('excludeTiers').filter(Boolean)
 
     // ── Fetch all companies ───────────────────────────────────────────────
@@ -27,11 +31,18 @@ export async function GET(req: NextRequest) {
       .select('*')
       .is('companyId', null)
       .order('companyName', { ascending: true })
+      .limit(10000)
 
     if (ids.length) companyQuery = companyQuery.in('id', ids)
-    if (event) companyQuery = companyQuery.eq('event', event)
-    if (status) companyQuery = companyQuery.eq('status', status)
-    if (tier) companyQuery = companyQuery.eq('tier', tier)
+    if (q) {
+      const like = q.replace(/[\\%_]/g, '\\$&')
+      companyQuery = companyQuery.or(
+        `companyName.ilike.%${like}%,contactFirstName.ilike.%${like}%,contactLastName.ilike.%${like}%,contactEmail.ilike.%${like}%`
+      )
+    }
+    if (events.length) companyQuery = companyQuery.in('event', events)
+    if (statuses.length) companyQuery = companyQuery.in('status', statuses)
+    if (tiers.length) companyQuery = companyQuery.in('tier', tiers)
     if (excludeTiers.length) {
       const andParts = excludeTiers.map((t) => `tier.neq.${JSON.stringify(t)}`).join(',')
       companyQuery = companyQuery.or(`tier.is.null,and(${andParts})`)
@@ -53,6 +64,7 @@ export async function GET(req: NextRequest) {
         .not('companyId', 'is', null)
         .in('companyId', companyIds)
         .order('createdAt', { ascending: true })
+        .limit(10000)
 
       for (const c of contacts ?? []) {
         if (!contactMap[c.companyId]) contactMap[c.companyId] = []
