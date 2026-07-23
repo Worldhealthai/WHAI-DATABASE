@@ -396,19 +396,16 @@ export default function PartnersPage() {
     }
   }
 
+  // Server-side export — the old client-side CSV only covered the rows on the
+  // current page, silently dropping everyone else.
   const exportCSV = (ids?: Set<string>) => {
-    const source = (data?.data as Sponsor[]) ?? []
-    const list = ids ? source.filter((s) => ids.has(s.id)) : source
-    if (!list.length) return
-    const out = list.map((s) => [
-      s.companyName, s.website ?? '', s.contactFirstName ?? '', s.contactLastName ?? '',
-      s.contactEmail ?? '', s.contactPhone ?? '', s.contactJobTitle ?? '',
-      s.country ?? '', s.city ?? '', s.event ?? '', s.tier ?? '', s.status,
-    ])
-    const header = ['Company', 'Website', 'First Name', 'Last Name', 'Email', 'Phone', 'Job Title', 'Country', 'City', 'Event', 'Type', 'Status']
-    const csv = [header, ...out].map((r) => r.map((v) => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'partners.csv'; a.click()
+    const params = new URLSearchParams()
+    if (ids && ids.size > 0) params.set('ids', Array.from(ids).join(','))
+    else if (keyword) params.set('query', keyword)
+    const a = document.createElement('a')
+    a.href = `/api/partners/export?${params}`
+    a.download = 'partners-export.csv'
+    a.click()
   }
 
   return (
