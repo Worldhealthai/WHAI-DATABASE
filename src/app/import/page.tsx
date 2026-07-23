@@ -316,6 +316,10 @@ export default function ImportPage() {
   const [splitByEvent, setSplitByEvent] = useState(true)
   const [importEvent, setImportEvent] = useState<string>('')
   const [duplicateKeys, setDuplicateKeys] = useState<Set<string>>(new Set())
+  // Fuzzy company matches from the duplicate check, keyed by the incoming
+  // company name (lowercased): who it matched and what to do about it.
+  const [dupMatches, setDupMatches] = useState<Map<string, { id: string; existingName: string; table: string; status: string }>>(new Map())
+  const [dupActions, setDupActions] = useState<Record<string, 'merge' | 'create' | 'skip'>>({})
   const [checkingDupes, setCheckingDupes] = useState(false)
   const [error, setError] = useState('')
 
@@ -374,6 +378,7 @@ export default function ImportPage() {
     setImportType(type)
     if (step !== 'upload') setMapping(autoMap(headers, type))
     setDuplicateKeys(new Set())
+    setDupMatches(new Map()); setDupActions({})
   }
 
   const previewRows = rows.slice(0, 5)
@@ -409,12 +414,22 @@ export default function ImportPage() {
     setError('')
     try {
       if (isCompany) {
-        const rows_transformed = rows.map((r) => {
-          const row = transformCompanyRow(r, mapping)
-          // For partners, default tier to 'Media Partner' if not set
-          if (importType === 'partners' && !row.tier) row.tier = 'Media Partner'
-          return row
-        })
+        const rows_transformed = rows
+          .map((r) => {
+            const row = transformCompanyRow(r, mapping)
+            // For partners, default tier to 'Media Partner' if not set
+            if (importType === 'partners' && !row.tier) row.tier = 'Media Partner'
+            // Apply the duplicate decision made in the preview: "merge" renames
+            // the row to the existing company's exact name so the bulk import
+            // folds its contacts into that record; "skip" drops the rows.
+            const dupKey = row.companyName?.trim().toLowerCase()
+            const match = dupKey ? dupMatches.get(dupKey) : undefined
+            const action = match ? (dupActions[dupKey!] ?? 'merge') : undefined
+            if (action === 'skip') return null
+            if (action === 'merge' && match) row.companyName = match.existingName
+            return row
+          })
+          .filter(Boolean)
         const res = await fetch(importType === 'partners' ? '/api/partners/bulk-import' : '/api/sponsors/bulk-import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -663,6 +678,20 @@ export default function ImportPage() {
                     if (res.ok) {
                       const { duplicates } = await res.json()
                       setDuplicateKeys(new Set(duplicates.map((d: any) => d.key)))
+                      // Rich company matches → default each to "merge" when the
+                      // existing record lives in the table we're importing into,
+                      // otherwise "create" (can't merge a sponsor into a partner).
+                      const target = importType === 'partners' ? 'partners' : 'sponsors'
+                      const matches = new Map<string, { id: string; existingName: string; table: string; status: string }>()
+                      const actions: Record<string, 'merge' | 'create' | 'skip'> = {}
+                      for (const d of duplicates) {
+                        if (d.match === 'company' && d.id && d.existingName) {
+                          matches.set(d.key, { id: d.id, existingName: d.existingName, table: d.table, status: d.status })
+                          actions[d.key] = d.table === target ? 'merge' : 'create'
+                        }
+                      }
+                      setDupMatches(matches)
+                      setDupActions(actions)
                     }
                   } else {
                     const transformed = rows.map((r) => transformPeopleRow(r, mapping))
@@ -746,19 +775,57 @@ export default function ImportPage() {
               </div>
               <div className="divide-y divide-[#1a3a5c]/50">
                 {[...companyGroups.entries()].slice(0, 20).map(([company, contacts]) => {
-                  const isDupe = duplicateKeys.has(company.toLowerCase().trim())
+                  const dupKey = company.toLowerCase().trim()
+                  const match = dupMatches.get(dupKey)
+                  const action = match ? (dupActions[dupKey] ?? 'merge') : undefined
+                  const isDupe = !!match || duplicateKeys.has(dupKey)
+                  const canMerge = match && match.table === (importType === 'partners' ? 'partners' : 'sponsors')
+                  const setAction = (a: 'merge' | 'create' | 'skip') =>
+                    setDupActions((prev) => ({ ...prev, [dupKey]: a }))
                   return (
-                    <div key={company} className={cn('px-4 py-3', isDupe && 'bg-amber-500/5')}>
+                    <div key={company} className={cn('px-4 py-3', isDupe && action !== 'skip' && 'bg-amber-500/5', action === 'skip' && 'opacity-40')}>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {isDupe && <span className="text-amber-400 text-[10px] font-bold">⚠</span>}
-                          <span className={cn('text-sm font-medium', isDupe ? 'text-amber-300' : 'text-white')}>{company}</span>
-                          {isDupe && <span className="text-[10px] text-amber-500/80 bg-amber-500/10 px-1.5 py-0.5 rounded">Already exists — contacts will be added</span>}
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isDupe && <span className="text-amber-400 text-[10px] font-bold shrink-0">⚠</span>}
+                          <span className={cn('text-sm font-medium truncate', isDupe ? 'text-amber-300' : 'text-white')}>{company}</span>
                         </div>
-                        <span className="text-xs text-slate-400 bg-[#112850] px-2 py-0.5 rounded-full">
+                        <span className="text-xs text-slate-400 bg-[#112850] px-2 py-0.5 rounded-full shrink-0">
                           {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'}
                         </span>
                       </div>
+                      {match && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] text-amber-400/90">
+                            Matches existing: <span className="font-semibold">{match.existingName}</span>
+                            <span className="text-amber-500/60"> · {match.table === 'partners' ? 'Partners' : 'Sponsors'} · {match.status}</span>
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {canMerge && (
+                              <button
+                                onClick={() => setAction('merge')}
+                                className={cn('text-[10px] px-2 py-0.5 rounded border transition-colors',
+                                  action === 'merge' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'border-[#1a3a5c] text-slate-400 hover:text-white')}
+                              >
+                                Merge into existing
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setAction('create')}
+                              className={cn('text-[10px] px-2 py-0.5 rounded border transition-colors',
+                                action === 'create' ? 'bg-blue-500/20 border-blue-500/40 text-blue-300' : 'border-[#1a3a5c] text-slate-400 hover:text-white')}
+                            >
+                              Create new
+                            </button>
+                            <button
+                              onClick={() => setAction('skip')}
+                              className={cn('text-[10px] px-2 py-0.5 rounded border transition-colors',
+                                action === 'skip' ? 'bg-red-500/20 border-red-500/40 text-red-300' : 'border-[#1a3a5c] text-slate-400 hover:text-white')}
+                            >
+                              Skip
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {contacts.map((c, i) => (
                           <span key={i} className="text-[11px] text-slate-500 bg-[#112850]/60 px-2 py-0.5 rounded">
@@ -969,7 +1036,7 @@ export default function ImportPage() {
               </button>
             )}
             <button
-              onClick={() => { setStep('upload'); setFileName(''); setHeaders([]); setRows([]); setImportResult(null); setDuplicateKeys(new Set()) }}
+              onClick={() => { setStep('upload'); setFileName(''); setHeaders([]); setRows([]); setImportResult(null); setDuplicateKeys(new Set()); setDupMatches(new Map()); setDupActions({}) }}
               className="px-4 py-2.5 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white text-sm transition-colors"
             >
               Import another file
