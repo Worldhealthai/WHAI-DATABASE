@@ -5,12 +5,13 @@ import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Plus, Download, ChevronUp, ChevronDown, ChevronsUpDown,
-  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, Grid3X3, ArrowRight, CheckCircle2, DollarSign, GripVertical,
+  Trash2, X, Calendar, Pencil, LayoutGrid, LayoutList, Grid3X3, ArrowRight, CheckCircle2, DollarSign, GripVertical, Merge,
 } from 'lucide-react'
 import { FilterDropdown, ActiveFiltersBar } from '@/components/search/FilterDropdown'
 import { Pagination } from '@/components/search/Pagination'
 import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
+import { DuplicateCompaniesModal } from '@/components/crm/DuplicateCompaniesModal'
 import type { Sponsor, SponsorFilters } from '@/types'
 import { SPONSOR_STATUS_OPTIONS, SPONSOR_TIER_OPTIONS, COUNTRY_OPTIONS } from '@/types'
 import { cn } from '@/lib/utils'
@@ -343,6 +344,7 @@ export default function SponsorsPage() {
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [showModal, setShowModal] = useState(false)
+  const [showDuplicates, setShowDuplicates] = useState(false)
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -587,6 +589,13 @@ export default function SponsorsPage() {
                   <Grid3X3 className="w-3.5 h-3.5" /> Grid
                 </button>
               </div>
+              <button
+                onClick={() => setShowDuplicates(true)}
+                title="Find and merge duplicate companies"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 text-sm font-medium hover:text-white hover:border-slate-500 transition-colors"
+              >
+                <Merge className="w-4 h-4" /> <span className="hidden sm:inline">Duplicates</span>
+              </button>
               <button
                 onClick={() => setShowModal(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 transition-colors"
@@ -985,6 +994,15 @@ export default function SponsorsPage() {
         </div>
       </div>
 
+      {showDuplicates && (
+        <DuplicateCompaniesModal
+          table="sponsors"
+          entityLabel="sponsor"
+          accent="amber"
+          onClose={() => setShowDuplicates(false)}
+          onMerged={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['sponsors-board'] }) }}
+        />
+      )}
       {showModal && (
         <SponsorFormModal onClose={() => setShowModal(false)} onSaved={() => { setShowModal(false); refetch() }} />
       )}
