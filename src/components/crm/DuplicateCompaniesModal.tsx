@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Merge, Loader2, CheckCircle2, AlertTriangle, Users, Mail, Phone, Globe } from 'lucide-react'
+import { X, Merge, Loader2, CheckCircle2, AlertTriangle, Users, Mail, Phone, Globe, Activity, StickyNote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DuplicateRecord {
@@ -21,6 +21,8 @@ interface DuplicateRecord {
   valueAmount: number | null
   notes: string | null
   contactCount: number
+  activityCount: number
+  hasNotes: boolean
   createdAt: string
 }
 
@@ -208,8 +210,11 @@ export function DuplicateCompaniesModal({
 
                     {!finished && (
                       <div className="divide-y divide-[#1a3a5c]/60">
-                        {group.records.map((r) => {
+                        {group.records.map((r, i) => {
                           const keeping = keepId === r.id
+                          // The API returns the most-progressed record first.
+                          const recommended = i === 0
+                          const worked = (r.status && r.status !== 'Not Contacted') || r.activityCount > 0 || r.hasNotes
                           return (
                             <label
                               key={r.id}
@@ -243,6 +248,11 @@ export function DuplicateCompaniesModal({
                                   >
                                     {keeping ? 'Keeping this one' : 'Will be merged in'}
                                   </span>
+                                  {recommended && worked && (
+                                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                                      Most progress
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-3 flex-wrap mt-1.5 text-[11px] text-slate-400">
                                   <span className="flex items-center gap-1">
@@ -263,7 +273,21 @@ export function DuplicateCompaniesModal({
                                       <Globe className="w-3 h-3" /> {r.website}
                                     </span>
                                   )}
-                                  {r.status && <span className="text-slate-300">{r.status}</span>}
+                                  {r.activityCount > 0 && (
+                                    <span className="flex items-center gap-1 text-emerald-400">
+                                      <Activity className="w-3 h-3" /> {r.activityCount} update{r.activityCount === 1 ? '' : 's'}
+                                    </span>
+                                  )}
+                                  {r.hasNotes && (
+                                    <span className="flex items-center gap-1 text-emerald-400">
+                                      <StickyNote className="w-3 h-3" /> Has notes
+                                    </span>
+                                  )}
+                                  {r.status && (
+                                    <span className={r.status === 'Not Contacted' ? 'text-slate-500' : 'text-slate-200 font-medium'}>
+                                      {r.status}
+                                    </span>
+                                  )}
                                   {r.event && <span className={accentText}>{r.event}</span>}
                                 </div>
                               </div>
