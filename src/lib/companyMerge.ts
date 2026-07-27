@@ -157,10 +157,16 @@ function mergeNotes(a: string | null, b: string | null, fromName: string): strin
 
 // ── Detection ────────────────────────────────────────────────────────────────
 
+export type DuplicateRecord = CompanyRow & {
+  contactCount: number
+  activityCount: number
+  hasNotes: boolean
+}
+
 export interface DuplicateGroup {
   key: string
   name: string
-  records: (CompanyRow & { contactCount: number })[]
+  records: DuplicateRecord[]
 }
 
 // Every set of 2+ company rows sharing a normalised name, newest activity first.
@@ -183,19 +189,37 @@ export async function findDuplicateCompanies(table: MergeTable): Promise<Duplica
     counts.set(c.companyId, (counts.get(c.companyId) ?? 0) + 1)
   }
 
-  const byKey = new Map<string, (CompanyRow & { contactCount: number })[]>()
+  // Logged activity per company — a record you've actually worked is the one
+  // worth keeping, so it needs to outrank a bigger but untouched duplicate.
+  const activityCol = table === 'sponsors' ? 'sponsorId' : 'partnerId'
+  const { data: acts } = await supabase
+    .from('activities')
+    .select(activityCol)
+    .not(activityCol, 'is', null)
+  const activityCounts = new Map<string, number>()
+  for (const a of (acts ?? []) as Record<string, string>[]) {
+    const id = a[activityCol]
+    if (id) activityCounts.set(id, (activityCounts.get(id) ?? 0) + 1)
+  }
+
+  const byKey = new Map<string, DuplicateRecord[]>()
   for (const r of rows) {
     const key = normaliseCompanyName(r.companyName)
     if (!key) continue
     const list = byKey.get(key) ?? []
-    list.push({ ...r, contactCount: counts.get(r.id) ?? 0 })
+    list.push({
+      ...r,
+      contactCount: counts.get(r.id) ?? 0,
+      activityCount: activityCounts.get(r.id) ?? 0,
+      hasNotes: !isBlank(r.notes),
+    })
     byKey.set(key, list)
   }
 
   const groups: DuplicateGroup[] = []
   byKey.forEach((records, key) => {
     if (records.length < 2) return
-    // Richest record first — it's the sensible default to keep.
+    // Most-progressed record first — it's the one to keep by default.
     records.sort((a, b) => recordWeight(b) - recordWeight(a))
     groups.push({ key, name: records[0].companyName || key, records })
   })
@@ -203,13 +227,24 @@ export async function findDuplicateCompanies(table: MergeTable): Promise<Duplica
   return groups
 }
 
-// How much substance a record carries, used to pre-select which one to keep.
-function recordWeight(r: CompanyRow & { contactCount: number }): number {
+// Which record deserves to survive. Ordered so that evidence of real work
+// always beats sheer size: a company you've emailed or are in discussion with
+// outranks an untouched duplicate even if the untouched one has more contacts.
+// Nothing is lost either way — the loser's data is merged in before deletion —
+// but the survivor keeps its id, its primary contact and its history in place.
+export function recordWeight(r: DuplicateRecord): number {
   const filled = [
     r.website, r.contactEmail, r.contactPhone, r.contactJobTitle,
-    r.country, r.city, r.tier, r.event, r.packageDetails, r.notes,
+    r.country, r.city, r.tier, r.event, r.packageDetails,
   ].filter((v) => !isBlank(v)).length
-  return r.contactCount * 10 + filled + statusRank(r.status) * 5 + (r.valueAmount ? 3 : 0)
+  return (
+    statusRank(r.status) * 1_000_000 +   // Confirmed > In Discussion > Emailed > Rejected > Not Contacted
+    Math.min(r.activityCount, 99) * 5_000 + // logged calls / emails / notes on the timeline
+    (r.hasNotes ? 2_000 : 0) +           // someone typed something into notes
+    (r.valueAmount ? 1_000 : 0) +        // a deal value has been agreed
+    r.contactCount * 100 +               // then size
+    filled                               // then general completeness
+  )
 }
 
 // ── Merge ────────────────────────────────────────────────────────────────────
