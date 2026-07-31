@@ -157,6 +157,7 @@ export const EXPERTISE_OPTIONS = [
 export const SPONSOR_TIER_OPTIONS = [
   'Exhibitor',
   'Event Partner',
+  'Branding Partner',
   'Drinks Sponsor',
   'Badge & Lanyard Sponsor',
   'Wifi Sponsor',

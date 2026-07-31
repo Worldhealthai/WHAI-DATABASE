@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { canonicalEventLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     } catch { /* ignore malformed rawData */ }
 
+    // Normalise whatever the source site sent to the canonical event labels:
+    // the worldhealth.ai inbox stores bare city slugs, the Nexus inbox stores
+    // its own labels ("World Health AI 2026") — all collapse to one tab here.
+    if (event) {
+      const slug = event.trim().toLowerCase()
+      if (slug === 'london') event = 'World Health AI London 2026'
+      else if (slug === 'boston') event = 'World Health AI Boston 2025'
+      else event = canonicalEventLabel(event)
+    }
+
+    // Enquiries staged from the admin panels ("Add to CRM" on a contact
+    // submission) have already been replied to before being added — they
+    // arrive mid-conversation, not cold. Imports and other batches still
+    // start at the top of the pipeline.
+    const fromEnquiry = /enquir/i.test(contact.importBatch ?? '')
+
     // Build the record for the target table
     const base = {
       firstName: contact.firstName,
@@ -61,7 +78,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       record = { ...base, status: 'Registered', event, subType }
     } else if (assignAs === 'speaker') {
       table = 'speakers'
-      record = { ...base, status: 'Not Contacted', event, subType, year: new Date().getFullYear() }
+      record = { ...base, status: fromEnquiry ? 'Discussing' : 'Not Contacted', event, subType, year: new Date().getFullYear() }
     } else {
       table = 'sponsors'
       record = {
@@ -77,7 +94,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         city: contact.city,
         tags: contact.tags,
         notes: contact.notes,
-        status: 'Not Contacted',
+        event,
+        status: fromEnquiry ? 'In Discussion' : 'Not Contacted',
       }
     }
 
@@ -96,7 +114,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .update({ status: 'assigned', assignedAs: assignAs, assignedId: created.id })
       .eq('id', params.id)
 
-    return NextResponse.json({ success: true, assignedAs, assignedId: created.id, record: created })
+    return NextResponse.json({ success: true, assignedAs: assignAs, assignedId: created.id, record: created })
   } catch (error) {
     console.error('Assign error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
