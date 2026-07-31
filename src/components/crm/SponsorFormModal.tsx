@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTierOptions } from '@/lib/useTierOptions'
 import { X } from 'lucide-react'
 import type { Sponsor } from '@/types'
 import { useEventOptions } from '@/lib/useEventOptions'
@@ -27,6 +28,7 @@ interface Props {
 const PARTNER_TIER_OPTIONS = ['Media Partner', 'Association Partner']
 
 export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor', keepTier = false, partnerMode = false, onClose, onSaved }: Props) {
+  const tierOptions = useTierOptions()
   const isEdit = !!sponsor?.id
   const [form, setForm] = useState({
     companyName: sponsor?.companyName ?? '',
@@ -159,7 +161,7 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
                 <Field label="Tier">
                   <select value={form.tier} onChange={(e) => set('tier', e.target.value)} className={inputCls}>
                     <option value="">Select tier</option>
-                    {SPONSOR_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {tierOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </Field>
               </div>
