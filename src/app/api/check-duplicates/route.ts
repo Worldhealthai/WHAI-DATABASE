@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { companySimilarity, COMPANY_MATCH_THRESHOLD } from '@/lib/companyMatch'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
     const found: { key: string; match: string; table: string }[] = []
 
     // Email check across all entity tables
-    const cleanEmails = (emails as string[]).filter(Boolean).map((e) => e.toLowerCase().trim())
+    const cleanEmails = ((emails as string[]) ?? []).filter(Boolean).map((e) => e.toLowerCase().trim())
 
     if (cleanEmails.length) {
       const tables = [
@@ -60,27 +61,45 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Company name check for sponsor imports
-    const cleanCompanyNames = ((companyNames as string[]) ?? [])
-      .filter(Boolean)
-      .map((n) => n.trim().toLowerCase())
+    // Company name check for sponsor/partner imports and the add-company
+    // forms. Fuzzy: "Accurx Ltd" ↔ "AccuRx" is flagged, not just exact
+    // matches. Each flagged input carries the best existing match so the UI
+    // can show/link it and offer merge-into-existing.
+    const rawCompanyNames = ((companyNames as string[]) ?? []).filter(Boolean).map((n) => n.trim())
 
-    if (cleanCompanyNames.length) {
-      // Fetch all existing company-level sponsor records
-      const { data } = await supabase
-        .from('sponsors')
-        .select('companyName')
-        .is('companyId', null)
+    if (rawCompanyNames.length) {
+      const [sponsorCompanies, partnerCompanies] = await Promise.all([
+        supabase.from('sponsors').select('id, companyName, status').is('companyId', null),
+        supabase.from('partners').select('id, companyName, status').is('companyId', null),
+      ])
+      const existing = [
+        ...(sponsorCompanies.data ?? []).map((r: any) => ({ ...r, table: 'sponsors' })),
+        ...(partnerCompanies.data ?? []).map((r: any) => ({ ...r, table: 'partners' })),
+      ]
 
-      if (data) {
-        data.forEach((row: any) => {
-          const name = row.companyName?.toLowerCase()
-          if (name && cleanCompanyNames.includes(name)) {
-            found.push({ key: name, match: 'company', table: 'sponsors' })
+      for (const input of rawCompanyNames) {
+        let best: { score: number; row: any } | null = null
+        for (const row of existing) {
+          if (!row.companyName) continue
+          const score = companySimilarity(input, row.companyName)
+          if (score >= COMPANY_MATCH_THRESHOLD && (!best || score > best.score)) {
+            best = { score, row }
           }
-        })
+        }
+        if (best) {
+          found.push({
+            key: input.toLowerCase(),
+            match: 'company',
+            table: best.row.table,
+            id: best.row.id,
+            existingName: best.row.companyName,
+            status: best.row.status,
+            score: Math.round(best.score * 100) / 100,
+          } as any)
+        }
       }
     }
+    const cleanCompanyNames = rawCompanyNames.map((n) => n.toLowerCase())
 
     // Rich company lookup — does this organisation exist ANYWHERE in the CRM
     // (sponsor records by company name, delegates/speakers by organisation)?

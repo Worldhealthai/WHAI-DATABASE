@@ -62,12 +62,14 @@ export async function POST(req: NextRequest) {
 
     let companiesCreated = 0
     let contactsCreated = 0
+    let contactsEnriched = 0
 
     for (const [key, group] of groupMap) {
       const firstRow = group.rows[0]
       const resolvedEvent = event || firstRow.event || null
 
       let companyId: string
+      let isNewCompany = false
 
       if (existingMap.has(key)) {
         // Company already exists — use its id
@@ -98,12 +100,90 @@ export async function POST(req: NextRequest) {
 
         companyId = newCompany.id
         companiesCreated++
+        isNewCompany = true
       }
 
-      // Insert contacts for this company
-      const contactRows = group.rows
-        .filter((r) => r.contactFirstName || r.contactLastName || r.contactEmail)
-        .map((r) => ({
+      // Merge incoming contacts with what's already on the company so each
+      // person ends up with the best of both records — e.g. the CRM knows
+      // their phone number and the CSV brings their email. Matching is by
+      // email first, then by first+last name; existing values are never
+      // overwritten, only blanks are filled.
+      const incoming = group.rows.filter((r) => r.contactFirstName || r.contactLastName || r.contactEmail)
+
+      const emailKey = (e?: string | null) => (e ?? '').trim().toLowerCase()
+      const nameKey = (f?: string | null, l?: string | null) => {
+        const k = `${(f ?? '').trim().toLowerCase()}|${(l ?? '').trim().toLowerCase()}`
+        return k === '|' ? '' : k
+      }
+      const samePerson = (a: any, b: any) => {
+        const e1 = emailKey(a?.contactEmail), e2 = emailKey(b?.contactEmail)
+        if (e1 && e2) return e1 === e2
+        const n1 = nameKey(a?.contactFirstName, a?.contactLastName)
+        const n2 = nameKey(b?.contactFirstName, b?.contactLastName)
+        return !!n1 && n1 === n2
+      }
+      const CONTACT_FIELDS = [
+        'contactFirstName', 'contactLastName', 'contactEmail',
+        'contactPhone', 'contactJobTitle', 'contactLinkedinUrl',
+      ] as const
+
+      // Existing records for this company: its own primary-contact fields plus
+      // every linked contact row. Freshly created companies have neither.
+      let companyRecord: any = null
+      let linkedContacts: any[] = []
+      if (!isNewCompany) {
+        const [p, l] = await Promise.all([
+          supabase.from('partners').select('*').eq('id', companyId).single(),
+          supabase.from('partners').select('*').eq('companyId', companyId),
+        ])
+        companyRecord = p.data ?? null
+        linkedContacts = l.data ?? []
+
+        // Fill blank company details from the import while we're here.
+        if (companyRecord) {
+          const patch: Record<string, any> = {}
+          if (firstRow.website && !companyRecord.website) patch.website = firstRow.website
+          if (firstRow.country && !companyRecord.country) patch.country = firstRow.country
+          if (firstRow.city && !companyRecord.city) patch.city = firstRow.city
+          if (resolvedEvent && !companyRecord.event) patch.event = resolvedEvent
+          if (Object.keys(patch).length) {
+            await supabase.from('partners').update(patch).eq('id', companyId)
+          }
+        }
+      }
+
+      const toInsert: any[] = []
+      for (const r of incoming) {
+        const existing =
+          (companyRecord && samePerson(companyRecord, r) ? companyRecord : null) ||
+          linkedContacts.find((c) => samePerson(c, r))
+
+        if (existing) {
+          const patch: Record<string, any> = {}
+          for (const f of CONTACT_FIELDS) {
+            const val = typeof (r as any)[f] === 'string' ? (r as any)[f].trim() : (r as any)[f]
+            if (val && !existing[f]) patch[f] = val
+          }
+          if (Object.keys(patch).length) {
+            const { error: updateError } = await supabase.from('partners').update(patch).eq('id', existing.id)
+            if (!updateError) {
+              Object.assign(existing, patch)
+              contactsEnriched++
+            }
+          }
+          continue
+        }
+
+        // Same person listed twice in the file — merge into the pending row.
+        const pending = toInsert.find((c) => samePerson(c, r))
+        if (pending) {
+          for (const f of CONTACT_FIELDS) {
+            if ((r as any)[f] && !pending[f]) pending[f] = (r as any)[f]
+          }
+          continue
+        }
+
+        toInsert.push({
           companyId,
           companyName: group.canonical,
           contactFirstName: r.contactFirstName || null,
@@ -116,12 +196,13 @@ export async function POST(req: NextRequest) {
           // Contact rows inherit company-level fields for completeness
           status: r.status || 'Not Contacted',
           event: event || r.event || null,
-        }))
+        })
+      }
 
-      if (contactRows.length > 0) {
+      if (toInsert.length > 0) {
         const { data: inserted, error: contactError } = await supabase
           .from('partners')
-          .insert(contactRows)
+          .insert(toInsert)
           .select('id')
 
         if (contactError) {
@@ -135,6 +216,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       companies: companiesCreated,
       contacts: contactsCreated,
+      contactsEnriched,
       existingCompaniesUpdated: companyNames.length - companiesCreated,
     })
   } catch (error) {
