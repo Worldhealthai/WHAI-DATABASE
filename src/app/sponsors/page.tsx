@@ -16,6 +16,7 @@ import type { Sponsor, SponsorFilters } from '@/types'
 import { SPONSOR_STATUS_OPTIONS, SPONSOR_TIER_OPTIONS, COUNTRY_OPTIONS } from '@/types'
 import { cn } from '@/lib/utils'
 import { useEventCategories, describeEventSelection } from '@/lib/eventCategories'
+import { useTierOptions } from '@/lib/useTierOptions'
 import { EventCategoryTabs } from '@/components/search/EventCategoryTabs'
 
 const PARTNER_TIERS = ['Media Partner', 'Association Partner']
@@ -336,6 +337,7 @@ const COLS = [
 
 export default function SponsorsPage() {
   const queryClient = useQueryClient()
+  const tierOptions = useTierOptions()
   const eventCategories = useEventCategories()
   const [filters, setFilters] = useState<SponsorFilters>({})
   const [keyword, setKeyword] = useState('')
@@ -633,7 +635,7 @@ export default function SponsorsPage() {
           {/* Filters */}
           <div className="flex items-center gap-2 pb-3 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             <FilterDropdown label="Status" options={SPONSOR_STATUS_OPTIONS} selected={filters.statuses ?? []} onChange={(v) => updateFilter('statuses', v)} searchable={false} />
-            <FilterDropdown label="Tier" options={SPONSOR_TIER_OPTIONS.filter((t) => !PARTNER_TIERS.includes(t))} selected={filters.tiers ?? []} onChange={(v) => updateFilter('tiers', v)} searchable={false} />
+            <FilterDropdown label="Tier" options={tierOptions.filter((t) => !PARTNER_TIERS.includes(t))} selected={filters.tiers ?? []} onChange={(v) => updateFilter('tiers', v)} searchable={false} />
             <FilterDropdown label="Country" options={COUNTRY_OPTIONS} selected={filters.countries ?? []} onChange={(v) => updateFilter('countries', v)} />
           </div>
 
