@@ -31,6 +31,9 @@ const SPONSOR_STATUS_COLORS: Record<string, string> = {
 }
 
 const SPONSOR_TIER_COLORS: Record<string, string> = {
+  'Exhibition Partner':     'bg-slate-500/15 text-slate-300 border-slate-500/30',
+  // Renamed to Exhibition Partner; rows saved before the rename keep the old
+  // value until migration 004 runs.
   'Exhibitor':              'bg-slate-500/15 text-slate-300 border-slate-500/30',
   'Event Partner':          'bg-blue-500/15 text-blue-400 border-blue-500/30',
   'Drinks Sponsor':         'bg-teal-500/15 text-teal-400 border-teal-500/30',
@@ -91,6 +94,7 @@ interface StatusBadgeProps {
 // the invite flow and reads as "Invited"; the stored value is unchanged.
 const DISPLAY_LABELS: Partial<Record<BadgeVariant, Record<string, string>>> = {
   delegate_status: { Confirmed: 'Invited' },
+  sponsor_tier: { Exhibitor: 'Exhibition Partner' },
 }
 
 export function StatusBadge({ value, variant, className }: StatusBadgeProps) {

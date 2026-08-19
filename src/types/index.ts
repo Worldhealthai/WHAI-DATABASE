@@ -155,7 +155,7 @@ export const EXPERTISE_OPTIONS = [
 // ── Sponsor enums ─────────────────────────────────────────────────────────────
 
 export const SPONSOR_TIER_OPTIONS = [
-  'Exhibitor',
+  'Exhibition Partner',
   'Event Partner',
   'Branding Partner',
   'Drinks Sponsor',
