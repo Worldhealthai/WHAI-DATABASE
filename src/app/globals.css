@@ -49,6 +49,10 @@
     --prod-ink: #0b6e87;
     --prod-soft: #e0f2f7;
     --prod-line: #9fd6e5;
+    --mkt: #6d4fc4;
+    --mkt-ink: #5b3fae;
+    --mkt-soft: #eeeafa;
+    --mkt-line: #c8bcef;
 
     /* Event accents: London blue, Boston reddish pink, Pharma teal green */
     --ev-london: #2563eb;
@@ -135,6 +139,10 @@
     --prod-ink: #4cd3ee;
     --prod-soft: rgba(34, 199, 232, 0.14);
     --prod-line: rgba(34, 199, 232, 0.4);
+    --mkt: #a78bfa;
+    --mkt-ink: #c4b0fc;
+    --mkt-soft: rgba(167, 139, 250, 0.16);
+    --mkt-line: rgba(167, 139, 250, 0.45);
 
     --ev-london: #5b8def;
     --ev-london-ink: #8db0f7;

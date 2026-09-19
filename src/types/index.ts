@@ -309,6 +309,11 @@ export interface Speaker {
   hotelRequired: boolean
   tags?: string | null
   notes?: string | null
+  // Marketing: LinkedIn welcome post
+  linkedinConsent?: boolean | null
+  postStatus?: 'To do' | 'Posted' | 'Not needed' | null
+  postUrl?: string | null
+  postedAt?: string | null
   createdAt: string
   updatedAt: string
   activities?: Activity[]
@@ -335,6 +340,11 @@ export interface Sponsor {
   packageDetails?: string | null
   tags?: string | null
   notes?: string | null
+  // Marketing: LinkedIn posts the package includes, and how many are done
+  linkedinPostsDue?: number | null
+  linkedinPostsDone?: number | null
+  onboardedAt?: string | null
+  logoUrl?: string | null
   companyId?: string | null
   contactCount?: number
   contacts?: SponsorContact[]

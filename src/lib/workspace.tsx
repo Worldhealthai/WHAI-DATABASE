@@ -33,7 +33,7 @@ export interface WorkspaceView {
   href: (section?: string, year?: string) => string
 }
 
-const WORKSPACE_RX = /^\/(sales|production)\/([^/]+)(?:\/([^/?#]+))?/
+const WORKSPACE_RX = /^\/(sales|production|marketing)\/([^/]+)(?:\/([^/?#]+))?/
 
 export function useWorkspaceFromUrl(): WorkspaceView {
   const pathname = usePathname()

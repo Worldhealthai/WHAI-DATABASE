@@ -41,7 +41,18 @@ interface Known {
   id: string; companyName: string; website?: string | null; event?: string | null; status: string; tier?: string | null
   contactFirstName?: string | null; contactLastName?: string | null; contactEmail?: string | null; contactJobTitle?: string | null
   valueAmount?: number | null; valueCurrency?: string | null
+  /** People saved as separate contact records under the company */
+  contactCount?: number
 }
+
+// A contact record under a known company (a sponsors row with a companyId).
+interface KnownContact {
+  contactFirstName?: string | null; contactLastName?: string | null; contactEmail?: string | null
+  contactPhone?: string | null; contactJobTitle?: string | null; contactLinkedinUrl?: string | null; notes?: string | null
+}
+
+const contactName = (c: { contactFirstName?: string | null; contactLastName?: string | null }) =>
+  `${c.contactFirstName ?? ''} ${c.contactLastName ?? ''}`.trim()
 
 function QuickAddLead({
   kind, eventLabel, stage, existing, onClose, onSaved,
@@ -50,6 +61,8 @@ function QuickAddLead({
   const def = KINDS[kind]
   const [known, setKnown] = useState<Known[]>([])
   const [picked, setPicked] = useState<Known | null>(null)
+  // The known company's people, carried onto the new row when it is saved.
+  const [contacts, setContacts] = useState<KnownContact[]>([])
   const [open, setOpen] = useState(false)
   const lookup = useRef<ReturnType<typeof setTimeout>>()
 
@@ -68,17 +81,31 @@ function QuickAddLead({
       } catch { setKnown([]) }
     }, 250)
   }
-  const pick = (k: Known) => {
+  const pick = async (k: Known) => {
     setPicked(k)
     setOpen(false)
+    setContacts([])
+    // The people under the company are separate records: fetch them so the
+    // form has a primary contact even when the company row itself has none,
+    // and so every one of them follows the company into the new year.
+    let people: KnownContact[] = []
+    if ((k.contactCount ?? 0) > 0) {
+      try {
+        const r = await fetch(`${def.api}/${k.id}`)
+        const j = r.ok ? await r.json() : null
+        people = (j?.contacts ?? []) as KnownContact[]
+        setContacts(people)
+      } catch { /* the company details still copy */ }
+    }
+    const lead = contactName(k) || k.contactEmail ? k : people.find((c) => contactName(c) || c.contactEmail) ?? k
     setF((prev) => ({
       ...prev,
       companyName: k.companyName,
       website: k.website ?? prev.website,
-      contactFirstName: k.contactFirstName ?? prev.contactFirstName,
-      contactLastName: k.contactLastName ?? prev.contactLastName,
-      contactEmail: k.contactEmail ?? prev.contactEmail,
-      contactJobTitle: k.contactJobTitle ?? prev.contactJobTitle,
+      contactFirstName: lead.contactFirstName ?? prev.contactFirstName,
+      contactLastName: lead.contactLastName ?? prev.contactLastName,
+      contactEmail: lead.contactEmail ?? prev.contactEmail,
+      contactJobTitle: lead.contactJobTitle ?? prev.contactJobTitle,
       tier: prev.tier || k.tier || '',
       valueAmount: prev.valueAmount || (k.valueAmount ? String(k.valueAmount) : ''),
       valueCurrency: k.valueCurrency ?? prev.valueCurrency,
@@ -118,6 +145,30 @@ function QuickAddLead({
       })
       const j = await res.json().catch(() => null)
       if (!res.ok) { setError(j?.error || 'Could not save this lead.'); return }
+      // Bring the known company's people along as contacts of the new row,
+      // so the new year's record starts with everyone from the last one.
+      if (j?.id && contacts.length) {
+        await Promise.all(
+          contacts.map((c) =>
+            fetch(def.api, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                companyId: j.id,
+                companyName: f.companyName.trim(),
+                status: 'Active',
+                contactFirstName: c.contactFirstName ?? null,
+                contactLastName: c.contactLastName ?? null,
+                contactEmail: c.contactEmail ?? null,
+                contactPhone: c.contactPhone ?? null,
+                contactJobTitle: c.contactJobTitle ?? null,
+                contactLinkedinUrl: c.contactLinkedinUrl ?? null,
+                notes: c.notes ?? null,
+              }),
+            }).catch(() => null)
+          )
+        )
+      }
       onSaved()
     } catch {
       setError('Could not save this lead.')
@@ -159,7 +210,9 @@ function QuickAddLead({
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(k)} className="w-full text-left px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-2)]">
                     <span className="min-w-0">
                       <span className="block text-[13px] font-medium truncate" style={{ color: 'var(--fg)' }}>{k.companyName}</span>
-                      <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>{[`${k.contactFirstName ?? ''} ${k.contactLastName ?? ''}`.trim(), k.contactJobTitle].filter(Boolean).join(' · ') || k.contactEmail || 'No contact on file'}</span>
+                      <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>
+                        {[[contactName(k), k.contactJobTitle].filter(Boolean).join(' · ') || k.contactEmail, k.contactCount ? `${k.contactCount} ${k.contactCount === 1 ? 'contact' : 'contacts'} on file` : ''].filter(Boolean).join(' · ') || 'No contact on file'}
+                      </span>
                     </span>
                     <span className="text-[11.5px] shrink-0 text-right" style={{ color: 'var(--fg-4)' }}>
                       {k.event ? String(k.event).replace(/^World (Health|Pharma) AI\s*/i, '') : '—'}<br />{def.statusLabel(k.status)}
@@ -171,7 +224,7 @@ function QuickAddLead({
           )}
           {picked && (
             <p className="text-[11.5px] mt-1.5" style={{ color: 'var(--fg-3)' }}>
-              Known company — details copied from {picked.event ? String(picked.event).replace(/^World (Health|Pharma) AI\s*/i, '') : 'their last record'} ({def.statusLabel(picked.status)}). This adds them to the {eventLabel.match(/\d{4}/)?.[0]} pipeline as a fresh conversation.
+              Known company — details{contacts.length ? ` and ${contacts.length} ${contacts.length === 1 ? 'contact' : 'contacts'}` : ''} copied from {picked.event ? String(picked.event).replace(/^World (Health|Pharma) AI\s*/i, '') : 'their last record'} ({def.statusLabel(picked.status)}). This adds them to the {eventLabel.match(/\d{4}/)?.[0]} pipeline as a fresh conversation.
             </p>
           )}
           {alreadyHere && !picked && f.companyName.trim().length > 1 && (

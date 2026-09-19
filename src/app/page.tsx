@@ -142,7 +142,9 @@ function Entrance() {
     if (!n) return ''
     return portal === 'sales'
       ? `${plural(n.sponsor, 'sponsor')} · ${plural(n.partner, 'partner')}`
-      : `${plural(n.speaker, 'speaker')} · ${plural(n.delegate, 'delegate')}`
+      : portal === 'marketing'
+        ? `${plural(n.speaker, 'speaker')} · ${plural(n.sponsor, 'sponsor')}`
+        : `${plural(n.speaker, 'speaker')} · ${plural(n.delegate, 'delegate')}`
   }
 
   const busy = picked !== null && wash !== null
@@ -162,12 +164,12 @@ function Entrance() {
       <main className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
         {/* ── 1. Portal ─────────────────────────────────────────────────── */}
         {step === 'portal' && (
-          <section className={cn('w-full max-w-3xl', leaving ? 'anim-zoom-away' : 'anim-rise')}>
+          <section className={cn('w-full max-w-5xl', leaving ? 'anim-zoom-away' : 'anim-rise')}>
             <p className="text-center text-[12px] font-semibold tracking-[0.14em] uppercase" style={{ color: 'var(--fg-4)' }}>World Nexus Group</p>
             <h1 className="text-center text-[34px] leading-tight mt-2 font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>Where are you working today?</h1>
             <p className="text-center text-[14.5px] mt-2" style={{ color: 'var(--fg-3)' }}>Pick a portal. You can switch any time from the sidebar.</p>
 
-            <div className="grid sm:grid-cols-2 gap-5 mt-10">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-10">
               {Object.values(PORTALS).map((p, i) => {
                 const vars = { '--tile': p.accent.fill, '--tile-soft': p.accent.soft, '--tile-line': p.accent.line } as React.CSSProperties
                 return (
@@ -183,7 +185,7 @@ function Entrance() {
                     <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-[15px] font-bold" style={{ background: 'var(--tile-soft)', color: 'var(--tile)' }}>
                       {p.short[0]}
                     </span>
-                    <h2 className="text-[22px] font-semibold mt-5" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>{p.name}</h2>
+                    <h2 className="text-[21px] font-semibold mt-5" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>{p.name}</h2>
                     <p className="text-[14px] mt-0.5" style={{ color: 'var(--fg-3)' }}>{p.tagline}</p>
                     <p className="text-[13.5px] mt-4 leading-relaxed" style={{ color: 'var(--fg-2)' }}>{p.description}</p>
                     <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold mt-6" style={{ color: 'var(--tile)' }}>
@@ -209,7 +211,7 @@ function Entrance() {
                 const total = s.events.reduce((acc, c) => {
                   const n = counts?.[c.name]
                   if (!n) return acc
-                  return acc + (portal === 'sales' ? n.sponsor + n.partner : n.speaker + n.delegate)
+                  return acc + (portal === 'sales' ? n.sponsor + n.partner : portal === 'marketing' ? n.speaker + n.sponsor : n.speaker + n.delegate)
                 }, 0)
                 return (
                   <button
@@ -242,7 +244,7 @@ function Entrance() {
 
                     <div className="flex items-center justify-between mt-6">
                       <span className="text-[13px]" style={{ color: 'var(--fg-3)' }}>
-                        {counts ? plural(total, portal === 'sales' ? 'company' : 'person').replace('companys', 'companies').replace('persons', 'people') : ''}
+                        {counts ? plural(total, portal === 'sales' ? 'company' : portal === 'marketing' ? 'record' : 'person').replace('companys', 'companies').replace('persons', 'people') : ''}
                       </span>
                       <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold" style={{ color: 'var(--tile)' }}>
                         {s.events.length === 1 ? 'Open' : 'Choose city'} <ArrowRight className="ev-arrow w-4 h-4" />
@@ -314,7 +316,7 @@ function Entrance() {
 
         {step !== 'portal' && (
           <p className="text-center text-[12.5px] mt-10" style={{ color: 'var(--fg-4)' }}>
-            <Link href={portal === 'sales' ? '/sponsors' : '/delegates'} className="hover:underline underline-offset-4">Browse every record instead</Link>
+            <Link href={portal === 'sales' ? '/sponsors' : portal === 'marketing' ? '/speakers' : '/delegates'} className="hover:underline underline-offset-4">Browse every record instead</Link>
           </p>
         )}
       </main>

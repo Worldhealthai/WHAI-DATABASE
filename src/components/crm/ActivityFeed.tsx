@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquare, Phone, Mail, Users, ArrowUpDown, CheckSquare, Clock, Trash2 } from 'lucide-react'
+import { MessageSquare, Phone, Mail, Users, ArrowUpDown, CheckSquare, Clock, Trash2, Megaphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Activity } from '@/types'
 
@@ -12,6 +12,7 @@ const ACTIVITY_ICONS: Record<string, React.ElementType> = {
   meeting:       Users,
   status_change: ArrowUpDown,
   task:          CheckSquare,
+  linkedin_post: Megaphone,
 }
 
 const ACTIVITY_COLORS: Record<string, string> = {
@@ -21,11 +22,12 @@ const ACTIVITY_COLORS: Record<string, string> = {
   meeting:       'bg-purple-500/20 text-purple-400',
   status_change: 'bg-amber-500/20 text-amber-400',
   task:          'bg-cyan-500/20 text-cyan-400',
+  linkedin_post: 'bg-[var(--mkt-soft)] text-[var(--mkt-ink)]',
 }
 
 const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   note: 'Note', call: 'Call', email: 'Email',
-  meeting: 'Meeting', status_change: 'Status Change', task: 'Task',
+  meeting: 'Meeting', status_change: 'Status Change', task: 'Task', linkedin_post: 'LinkedIn post',
 }
 
 const ACTIVITY_TYPE_OPTIONS = ['note', 'call', 'email', 'meeting', 'task']

@@ -9,11 +9,11 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Award, Network, KanbanSquare, LayoutDashboard, Mic, Users, Upload, Inbox,
+  Award, Network, KanbanSquare, LayoutDashboard, Mic, Users, Upload, Inbox, Megaphone, Building2,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
 
-export type PortalKey = 'sales' | 'production'
+export type PortalKey = 'sales' | 'production' | 'marketing'
 
 export interface PortalSection {
   key: string
@@ -68,6 +68,21 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
     ],
     entities: ['speaker', 'delegate'],
   },
+  marketing: {
+    key: 'marketing',
+    name: 'Marketing CRM',
+    short: 'Marketing',
+    tagline: 'LinkedIn posts for speakers & sponsors',
+    description:
+      'Who has agreed to a welcome post, who has had one, and how many posts each sponsor package still owes — by event and by year.',
+    accent: { fill: 'var(--mkt)', ink: 'var(--mkt-ink)', soft: 'var(--mkt-soft)', line: 'var(--mkt-line)' },
+    sections: [
+      { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
+      { key: 'speakers', label: 'Speaker posts', icon: Megaphone, path: 'speakers' },
+      { key: 'sponsors', label: 'Sponsor posts', icon: Building2, path: 'sponsors' },
+    ],
+    entities: ['speaker', 'sponsor'],
+  },
 }
 
 export const TOOLS: PortalSection[] = [
@@ -76,7 +91,7 @@ export const TOOLS: PortalSection[] = [
 ]
 
 export function isPortalKey(v: string | null | undefined): v is PortalKey {
-  return v === 'sales' || v === 'production'
+  return v === 'sales' || v === 'production' || v === 'marketing'
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -222,6 +237,7 @@ export function groupSeries(categories: EventCategory[]): EventSeries[] {
 export function portalForPath(pathname: string): PortalKey | null {
   if (pathname.startsWith('/sales')) return 'sales'
   if (pathname.startsWith('/production')) return 'production'
+  if (pathname.startsWith('/marketing')) return 'marketing'
   if (pathname.startsWith('/sponsors') || pathname.startsWith('/partners')) return 'sales'
   if (pathname.startsWith('/speakers') || pathname.startsWith('/delegates')) return 'production'
   return null
