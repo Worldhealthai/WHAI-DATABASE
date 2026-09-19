@@ -7,7 +7,7 @@
 // in place; "Log post" records the post on the speaker's timeline.
 
 import { useMemo, useState } from 'react'
-import { ExternalLink, Megaphone, Search, SearchX } from 'lucide-react'
+import { ExternalLink, Megaphone, RefreshCw, Search, SearchX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import type { Speaker } from '@/types'
@@ -15,11 +15,11 @@ import { EmptyState, Segmented, Stat, timeAgo } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import {
-  Avatar, LogPostModal, MigrationNotice, POST_STATUSES, Tone, consentLabel, isConfirmedSpeaker, speakerPostStatus, useMarketing, useMarketingActions, type PostStatus,
+  Avatar, LogPostModal, MigrationNotice, POST_STATUSES, Tone, consentLabel, isLineupSpeaker, speakerPostStatus, useMarketing, useMarketingActions, type PostStatus,
 } from './shared'
 
 type Filter = 'all' | 'todo' | 'posted' | 'notneeded' | 'noconsent' | 'missing'
-type Scope = 'confirmed' | 'everyone'
+type Scope = 'lineup' | 'everyone'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -67,15 +67,17 @@ function PostCell({ s, onSave }: { s: Speaker; onSave: (url: string) => void }) 
 export function SpeakerPosts() {
   const { labels, year } = useWorkspace()
   const { data, isLoading } = useMarketing<Speaker>('speaker', labels)
-  const { patch, logPost, refresh } = useMarketingActions('speaker')
-  const [scope, setScope] = useState<Scope>('confirmed')
+  const { patch, logPost, refresh, syncLineup } = useMarketingActions('speaker')
+  const [scope, setScope] = useState<Scope>('lineup')
+  const [syncing, setSyncing] = useState(false)
+  const [syncNote, setSyncNote] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [logging, setLogging] = useState<Speaker | null>(null)
   const [editing, setEditing] = useState<Speaker | null>(null)
 
   const everyone = data?.data ?? []
-  const rows = useMemo(() => (scope === 'confirmed' ? everyone.filter(isConfirmedSpeaker) : everyone), [everyone, scope])
+  const rows = useMemo(() => (scope === 'lineup' ? everyone.filter(isLineupSpeaker) : everyone), [everyone, scope])
   const counts = useMemo(() => {
     const c = { total: rows.length, consented: 0, posted: 0, todo: 0, notneeded: 0, noconsent: 0, missing: 0 }
     for (const s of rows) {
@@ -104,30 +106,44 @@ export function SpeakerPosts() {
     return true
   })
 
-  const unconfirmed = everyone.length - everyone.filter(isConfirmedSpeaker).length
+  const unconfirmed = everyone.length - everyone.filter(isLineupSpeaker).length
+
+  const sync = async () => {
+    setSyncing(true)
+    setSyncNote('')
+    const r = await syncLineup(labels)
+    setSyncing(false)
+    setSyncNote(r.ok ? `Admin panel line-up: ${r.lineup} speaker${r.lineup === 1 ? '' : 's'} · ${r.created} added · ${r.updated} updated${r.unflagged ? ` · ${r.unflagged} no longer on it` : ''}` : r.error)
+  }
 
   return (
     <WorkspacePage
       title="Speaker posts"
       description={`Welcome posts on our LinkedIn page for the ${year} speakers. Consent comes from the registration form.`}
       actions={
-        <Segmented
-          size="sm"
-          value={scope}
-          onChange={setScope}
-          options={[
-            { value: 'confirmed', label: 'Confirmed speakers', hint: 'Speaking confirmed' },
-            { value: 'everyone', label: `Everyone${unconfirmed ? ` (+${unconfirmed})` : ''}`, hint: 'Including speakers still being lined up' },
-          ]}
-        />
+        <>
+          <Segmented
+            size="sm"
+            value={scope}
+            onChange={setScope}
+            options={[
+              { value: 'lineup', label: 'Admin panel line-up', hint: 'Approved speakers, as the admin panel holds them' },
+              { value: 'everyone', label: `Everyone${unconfirmed ? ` (+${unconfirmed})` : ''}`, hint: 'Including speakers still being lined up in the CRM' },
+            ]}
+          />
+          <button className="ws-btn ws-btn-primary" onClick={sync} disabled={syncing} title="Pull the approved speakers from the admin panel">
+            <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} /> {syncing ? 'Syncing…' : 'Sync from admin panel'}
+          </button>
+        </>
       }
     >
+      {syncNote && <p className="text-[13px] mb-3" style={{ color: 'var(--fg-2)' }}>{syncNote}</p>}
       {data?.error ? (
         <MigrationNotice message={data.error} />
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <Stat label={scope === 'confirmed' ? 'Confirmed speakers' : 'Speakers'} value={counts.total} loading={isLoading} hint={`${counts.consented} consented`} />
+            <Stat label={scope === 'lineup' ? 'On the line-up' : 'Speakers'} value={counts.total} loading={isLoading} hint={`${counts.consented} consented`} />
             <Stat label="To do" value={counts.todo} loading={isLoading} hint="No post yet" />
             <Stat label="Posted" value={counts.posted} loading={isLoading} hint={counts.total ? `${Math.round((counts.posted / counts.total) * 100)}% of speakers` : ''} />
             <Stat label="Missing photo or bio" value={counts.missing} loading={isLoading} hint="A post needs both" />
@@ -150,8 +166,9 @@ export function SpeakerPosts() {
             {!isLoading && shown.length === 0 ? (
               <EmptyState
                 icon={SearchX}
-                title={rows.length === 0 ? (scope === 'confirmed' ? `No confirmed speakers in the ${year} edition yet` : `No speakers in the ${year} edition yet`) : 'No matches'}
-                body={rows.length === 0 ? (scope === 'confirmed' && unconfirmed ? `${unconfirmed} ${unconfirmed === 1 ? 'person is' : 'people are'} still being lined up — switch to Everyone to see them.` : 'Speakers arrive here when their registration is approved in the admin panel.') : 'Try another filter.'}
+                title={rows.length === 0 ? (scope === 'lineup' ? `No line-up for ${year} here yet` : `No speakers in the ${year} edition yet`) : 'No matches'}
+                body={rows.length === 0 ? (scope === 'lineup' ? 'Use Sync from admin panel to pull the approved speakers. New approvals arrive on their own from now on.' : 'Speakers arrive here when their registration is approved in the admin panel.') : 'Try another filter.'}
+                action={rows.length === 0 && scope === 'lineup' ? <button className="ws-btn ws-btn-primary" onClick={sync} disabled={syncing}><RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} /> Sync from admin panel</button> : undefined}
               />
             ) : (
               <table className="ws-table ws-table-fixed w-full">

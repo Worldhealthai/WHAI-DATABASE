@@ -10,7 +10,7 @@ import { useWorkspace } from '@/lib/workspace'
 import type { Speaker, Sponsor } from '@/types'
 import { EmptyState, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
-import { Avatar, MigrationNotice, Tone, consentLabel, isConfirmedSpeaker, isConfirmedSponsor, speakerPostStatus, sponsorRemaining, useMarketing } from './shared'
+import { Avatar, MigrationNotice, Tone, consentLabel, isConfirmedSponsor, isLineupSpeaker, speakerPostStatus, sponsorRemaining, useMarketing } from './shared'
 
 export function MarketingOverview() {
   const { labels, year, href } = useWorkspace()
@@ -18,7 +18,7 @@ export function MarketingOverview() {
   const so = useMarketing<Sponsor>('sponsor', labels)
   const loading = sp.isLoading || so.isLoading
   // Confirmed only: the lists also hold people and companies still in play.
-  const speakers = (sp.data?.data ?? []).filter(isConfirmedSpeaker)
+  const speakers = (sp.data?.data ?? []).filter(isLineupSpeaker)
   const sponsors = (so.data?.data ?? []).filter(isConfirmedSponsor)
 
   const todo = speakers.filter((s) => speakerPostStatus(s) === 'To do')
@@ -31,13 +31,13 @@ export function MarketingOverview() {
   const error = sp.data?.error || so.data?.error
 
   return (
-    <WorkspacePage title="Overview" description="LinkedIn posts for this edition: confirmed speakers to welcome and confirmed sponsor packages to honour.">
+    <WorkspacePage title="Overview" description="LinkedIn posts for this edition: the admin panel's speakers to welcome and confirmed sponsor packages to honour.">
       {error ? (
         <MigrationNotice message={error} />
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-            <Stat label="Speakers to welcome" value={todo.length} loading={loading} hint={`${consented.length} of ${speakers.length} confirmed consented`} />
+            <Stat label="Speakers to welcome" value={todo.length} loading={loading} hint={`${consented.length} of ${speakers.length} on the line-up consented`} />
             <Stat label="Welcome posts made" value={posted.length} loading={loading} hint={speakers.length ? `${Math.round((posted.length / speakers.length) * 100)}% of speakers` : 'No speakers yet'} />
             <Stat label="Sponsor posts owed" value={owedPosts} loading={loading} hint={`${owed.length} ${owed.length === 1 ? 'company' : 'companies'} waiting`} />
             <Stat label="Sponsor posts included" value={included} loading={loading} hint={`${sponsors.length} ${sponsors.length === 1 ? 'sponsor' : 'sponsors'} this edition`} />
@@ -50,7 +50,7 @@ export function MarketingOverview() {
                 <Link href={href('speakers')} className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>Speaker posts <ArrowRight className="w-3.5 h-3.5" /></Link>
               </div>
               {!loading && todo.length === 0 ? (
-                <EmptyState icon={Megaphone} title="Everyone is welcomed" body={speakers.length ? 'Every consenting speaker has had their post.' : `No speakers in the ${year} edition yet.`} className="py-10" />
+                <EmptyState icon={Megaphone} title="Everyone is welcomed" body={speakers.length ? 'Every consenting speaker has had their post.' : `No line-up for ${year} yet — use Sync from admin panel on Speaker posts.`} className="py-10" />
               ) : (
                 <ul>
                   {todo.slice(0, 8).map((s) => {

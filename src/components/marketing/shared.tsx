@@ -26,9 +26,10 @@ export function consentLabel(v: boolean | null | undefined): { text: string; ton
   return { text: 'Not asked', tone: 'muted' }
 }
 
-// Welcome posts are for people actually on the line-up; the speakers list
-// also holds everyone still being invited.
-export const isConfirmedSpeaker = (s: Speaker) => s.status === 'Speaking Confirmed'
+// Welcome posts are for people actually on the line-up — the admin panel's
+// approved speakers, flagged here on approval and by "Sync from admin
+// panel". The speakers list also holds everyone still being invited.
+export const isLineupSpeaker = (s: Speaker) => s.adminLineup === true
 // Sponsor posts are owed once the deal is done.
 export const isConfirmedSponsor = (s: Sponsor) => s.status === 'Confirmed'
 
@@ -77,7 +78,18 @@ export function useMarketingActions(kind: 'speaker' | 'sponsor') {
     refresh()
     return r.ok
   }
-  return { patch, logPost, refresh }
+  // Pull the admin panel's approved speakers for these editions.
+  const syncLineup = async (labels: string[]) => {
+    const r = await fetch('/api/marketing/sync-lineup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: labels }),
+    })
+    const j = await r.json().catch(() => ({}))
+    refresh()
+    return r.ok ? { ok: true as const, ...j } : { ok: false as const, error: j?.error || 'Sync failed' }
+  }
+  return { patch, logPost, refresh, syncLineup }
 }
 
 // "Log a post": the link and a line about it. Goes on the record's timeline.

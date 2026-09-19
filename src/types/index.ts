@@ -309,6 +309,8 @@ export interface Speaker {
   hotelRequired: boolean
   tags?: string | null
   notes?: string | null
+  // Marketing: on the admin panel's line-up (approved speaker registration)
+  adminLineup?: boolean | null
   // Marketing: LinkedIn welcome post
   linkedinConsent?: boolean | null
   postStatus?: 'To do' | 'Posted' | 'Not needed' | null
