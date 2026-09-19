@@ -4,12 +4,11 @@
 
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
 import { workspaceHref } from '@/lib/portals'
-import { StatusBadge } from '@/components/crm/StatusBadge'
-import { Initials, Stat, StageDot, formatMoney, timeAgo } from './ui'
+import { Initials, Stat, StageDot, StagePill, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 
 interface Stats {
@@ -91,7 +90,7 @@ function Recent({ kind, labels }: { kind: RecordKind; labels: string[] }) {
     <div className="ws-card p-5">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Recently added {def.plural.toLowerCase()}</p>
-        <Link href={listHref} className="text-[12.5px] font-medium inline-flex items-center gap-1 hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>
+        <Link href={listHref} className="text-[12.5px] font-medium inline-flex items-center gap-1 hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
           View all <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -111,7 +110,7 @@ function Recent({ kind, labels }: { kind: RecordKind; labels: string[] }) {
                     <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
                     <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{recordSubtitle(kind, r) || '—'}</span>
                   </span>
-                  <StatusBadge value={r.status} variant={def.badgeVariant} />
+                  <StagePill kind={kind} status={r.status} />
                   <span className="text-[11.5px] tabular w-14 text-right" style={{ color: 'var(--fg-4)' }}>{timeAgo(r.createdAt)}</span>
                 </Link>
               </li>
@@ -131,16 +130,16 @@ export function Overview() {
   const b = useKindStats(kinds[1] ?? 'partner', labels)
   const loading = a.isLoading || b.isLoading
 
-  const tiles: { label: string; value: React.ReactNode; hint?: React.ReactNode; tone?: 'default' | 'accent' | 'ok' | 'warn' }[] = []
+  const tiles: { label: string; value: React.ReactNode; hint?: React.ReactNode }[] = []
   if (portal?.key === 'sales') {
     const s = a.data, p = b.data
     const confirmed = s?.byStatus['Confirmed'] ?? 0
     const inPlay = (s?.byStatus['Emailed'] ?? 0) + (s?.byStatus['In Discussion'] ?? 0)
     const notYet = s?.byStatus['Not Contacted'] ?? 0
     tiles.push(
-      { label: 'Confirmed sponsors', value: confirmed, hint: s?.value.byStatus['Confirmed'] ? `${formatMoney(s.value.byStatus['Confirmed'], s.value.currency)} confirmed` : 'No value recorded yet', tone: 'ok' },
-      { label: 'In conversation', value: inPlay, hint: `${s?.byStatus['In Discussion'] ?? 0} in discussion · ${s?.byStatus['Emailed'] ?? 0} emailed`, tone: 'accent' },
-      { label: 'Still to contact', value: notYet, hint: notYet ? 'Leads waiting for a first email' : 'Every lead has been contacted', tone: notYet ? 'warn' : 'default' },
+      { label: 'Confirmed sponsors', value: confirmed, hint: s?.value.byStatus['Confirmed'] ? `${formatMoney(s.value.byStatus['Confirmed'], s.value.currency)} confirmed` : 'No value recorded yet' },
+      { label: 'In conversation', value: inPlay, hint: `${s?.byStatus['In Discussion'] ?? 0} in discussion · ${s?.byStatus['Emailed'] ?? 0} emailed` },
+      { label: 'Still to contact', value: notYet, hint: notYet ? 'Leads waiting for a first email' : 'Every lead has been contacted' },
       { label: 'Partners confirmed', value: p?.byStatus['Confirmed'] ?? 0, hint: `${p?.total ?? 0} partners & media in total` },
     )
   } else {
@@ -149,10 +148,10 @@ export function Overview() {
     const talking = (sp?.byStatus['Invited'] ?? 0) + (sp?.byStatus['Discussing'] ?? 0)
     const registered = (dl?.byStatus['Registered'] ?? 0) + (dl?.byStatus['Confirmed'] ?? 0)
     tiles.push(
-      { label: 'Speakers confirmed', value: confirmed, hint: `${sp?.total ?? 0} speaker leads in total`, tone: 'ok' },
-      { label: 'Speakers in conversation', value: talking, hint: `${sp?.byStatus['Discussing'] ?? 0} discussing · ${sp?.byStatus['Invited'] ?? 0} invited`, tone: 'accent' },
+      { label: 'Speakers confirmed', value: confirmed, hint: `${sp?.total ?? 0} speaker leads in total` },
+      { label: 'Speakers in conversation', value: talking, hint: `${sp?.byStatus['Discussing'] ?? 0} discussing · ${sp?.byStatus['Invited'] ?? 0} invited` },
       { label: 'Delegates registered', value: registered, hint: `${dl?.byStatus['Confirmed'] ?? 0} invited to the calendar` },
-      { label: 'Cancelled / no-show', value: (dl?.byStatus['Cancelled'] ?? 0) + (dl?.byStatus['No-show'] ?? 0), hint: `${dl?.byStatus['Rejected'] ?? 0} rejected`, tone: 'warn' },
+      { label: 'Cancelled / no-show', value: (dl?.byStatus['Cancelled'] ?? 0) + (dl?.byStatus['No-show'] ?? 0), hint: `${dl?.byStatus['Rejected'] ?? 0} rejected` },
     )
   }
 
@@ -168,9 +167,8 @@ export function Overview() {
       </div>
 
       {empty && portal && ws.slug && (
-        <div className="ws-card mt-4 p-5 flex flex-wrap items-center justify-between gap-4" style={{ borderColor: 'var(--accent-line)', background: 'var(--accent-soft)' }}>
+        <div className="ws-card mt-4 p-5 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--surface)', color: 'var(--accent-ink)' }}><Sparkles className="w-5 h-5" /></span>
             <div>
               <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Nothing in the {year} edition yet</p>
               <p className="text-[13px]" style={{ color: 'var(--fg-3)' }}>

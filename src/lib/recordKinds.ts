@@ -35,28 +35,28 @@ export interface KindDef {
 const PARTNER_TIERS = ['Media Partner', 'Association Partner']
 
 const SPONSOR_STAGES: Stage[] = [
-  { status: 'Not Contacted', label: 'Not contacted', hex: '#94a3b8' },
-  { status: 'Emailed', label: 'Emailed', hex: '#3b82f6' },
-  { status: 'In Discussion', label: 'In discussion', hex: '#8b5cf6' },
-  { status: 'Confirmed', label: 'Confirmed', hex: '#10b981' },
-  { status: 'Rejected', label: 'Rejected', hex: '#ef4444', negative: true },
+  { status: 'Not Contacted', label: 'Not contacted', hex: 'var(--line-3)' },
+  { status: 'Emailed', label: 'Emailed', hex: 'var(--fg-4)' },
+  { status: 'In Discussion', label: 'In discussion', hex: 'var(--fg-4)' },
+  { status: 'Confirmed', label: 'Confirmed', hex: 'var(--ok)' },
+  { status: 'Rejected', label: 'Rejected', hex: 'var(--bad)', negative: true },
 ]
 
 const SPEAKER_STAGES: Stage[] = [
-  { status: 'Not Contacted', label: 'Not contacted', hex: '#94a3b8' },
-  { status: 'Invited', label: 'Invited', hex: '#3b82f6' },
-  { status: 'Discussing', label: 'Discussing', hex: '#8b5cf6' },
-  { status: 'Speaking Confirmed', label: 'Confirmed', hex: '#10b981' },
-  { status: 'Cancelled', label: 'Cancelled', hex: '#f59e0b', negative: true },
-  { status: 'Rejected', label: 'Rejected', hex: '#ef4444', negative: true },
+  { status: 'Not Contacted', label: 'Not contacted', hex: 'var(--line-3)' },
+  { status: 'Invited', label: 'Invited', hex: 'var(--fg-4)' },
+  { status: 'Discussing', label: 'Discussing', hex: 'var(--fg-4)' },
+  { status: 'Speaking Confirmed', label: 'Confirmed', hex: 'var(--ok)' },
+  { status: 'Cancelled', label: 'Cancelled', hex: 'var(--bad)', negative: true },
+  { status: 'Rejected', label: 'Rejected', hex: 'var(--bad)', negative: true },
 ]
 
 const DELEGATE_STAGES: Stage[] = [
-  { status: 'Registered', label: 'Registered', hex: '#3b82f6' },
-  { status: 'Confirmed', label: 'Invited', hex: '#0ea5e9' },
-  { status: 'Cancelled', label: 'Cancelled', hex: '#f59e0b', negative: true },
-  { status: 'No-show', label: 'No-show', hex: '#94a3b8', negative: true },
-  { status: 'Rejected', label: 'Rejected', hex: '#ef4444', negative: true },
+  { status: 'Registered', label: 'Registered', hex: 'var(--fg-4)' },
+  { status: 'Confirmed', label: 'Invited', hex: 'var(--fg-4)' },
+  { status: 'Cancelled', label: 'Cancelled', hex: 'var(--bad)', negative: true },
+  { status: 'No-show', label: 'No-show', hex: 'var(--line-3)', negative: true },
+  { status: 'Rejected', label: 'Rejected', hex: 'var(--bad)', negative: true },
 ]
 
 export const KINDS: Record<RecordKind, KindDef> = {
@@ -122,7 +122,7 @@ export const STATUS_OPTIONS: Record<RecordKind, string[]> = {
 }
 
 export function stageOf(kind: RecordKind, status: string): Stage {
-  return KINDS[kind].stages.find((s) => s.status === status) ?? { status, label: status, hex: '#94a3b8' }
+  return KINDS[kind].stages.find((s) => s.status === status) ?? { status, label: status, hex: 'var(--line-3)' }
 }
 
 // A record's display name, whatever its shape.

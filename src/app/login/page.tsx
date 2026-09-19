@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Lock, Loader2, Sparkles, ArrowRight } from 'lucide-react'
+import { Lock, Loader2, ArrowRight } from 'lucide-react'
 import { ThemeToggle } from '@/components/shell/ThemeToggle'
 
 function LoginForm() {
@@ -43,15 +43,14 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'radial-gradient(900px 500px at 50% -10%, var(--teal-soft) 0%, transparent 60%), var(--bg)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
       <header className="flex items-center justify-end px-6 h-16"><ThemeToggle /></header>
       <main className="flex-1 flex items-center justify-center px-4 pb-16">
         <div className="w-full max-w-sm anim-fade-up">
           <div className="flex flex-col items-center mb-7">
-            <span className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'linear-gradient(135deg, var(--teal) 0%, #0b3b5c 100%)', boxShadow: 'var(--shadow-md)' }}>
-              <Sparkles className="w-7 h-7 text-white" />
-            </span>
-            <h1 className="display text-[24px]" style={{ color: 'var(--fg)', fontWeight: 600 }}>Nexus CRM</h1>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/wng-emblem.png" alt="World Nexus Group" width={56} height={56} className="mb-4" />
+            <h1 className="text-[24px]" style={{ color: 'var(--fg)' }}>Nexus CRM</h1>
             <p className="text-[13.5px] mt-1" style={{ color: 'var(--fg-3)' }}>World Nexus Group · Sales &amp; Production</p>
           </div>
 

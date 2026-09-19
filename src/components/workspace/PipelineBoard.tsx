@@ -4,17 +4,16 @@
 // one to the next as the conversation moves. Made for the next edition —
 // the leads to chase for 2027 go in here before a single one has replied.
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Award, Network, Plus, Sparkles } from 'lucide-react'
+import { Award, KanbanSquare, Network, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, changeStage, listParams, type RecordKind, type Stage } from '@/lib/recordKinds'
 import { editionLabel } from '@/lib/portals'
 import { useTierOptions } from '@/lib/useTierOptions'
 import { CURRENCY_OPTIONS, PARTNER_TYPE_OPTIONS } from '@/types'
-import { StatusBadge } from '@/components/crm/StatusBadge'
 import { EmptyState, Field, Initials, Modal, Segmented, StageDot, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 
@@ -37,11 +36,54 @@ function useBoard(kind: BoardKind, labels: string[]) {
 
 // ── Quick add ────────────────────────────────────────────────────────────────
 
+// A company already in the database, offered as the admin types its name.
+interface Known {
+  id: string; companyName: string; website?: string | null; event?: string | null; status: string; tier?: string | null
+  contactFirstName?: string | null; contactLastName?: string | null; contactEmail?: string | null; contactJobTitle?: string | null
+  valueAmount?: number | null; valueCurrency?: string | null
+}
+
 function QuickAddLead({
-  kind, eventLabel, stage, onClose, onSaved,
-}: { kind: BoardKind; eventLabel: string; stage: string; onClose: () => void; onSaved: () => void }) {
+  kind, eventLabel, stage, existing, onClose, onSaved,
+}: { kind: BoardKind; eventLabel: string; stage: string; existing: Lead[]; onClose: () => void; onSaved: () => void }) {
   const tiers = useTierOptions()
   const def = KINDS[kind]
+  const [known, setKnown] = useState<Known[]>([])
+  const [picked, setPicked] = useState<Known | null>(null)
+  const [open, setOpen] = useState(false)
+  const lookup = useRef<ReturnType<typeof setTimeout>>()
+
+  // Every company the CRM already knows, whatever year it was worked in —
+  // so the 2027 pipeline starts from last year's contacts, not a blank form.
+  const search = (q: string) => {
+    clearTimeout(lookup.current)
+    if (q.trim().length < 2) { setKnown([]); return }
+    lookup.current = setTimeout(async () => {
+      try {
+        const p = listParams(kind, [], { query: q.trim(), pageSize: '8', sortBy: 'updatedAt', sortDir: 'desc' })
+        const r = await fetch(`${def.api}?${p}`)
+        const j = r.ok ? await r.json() : { data: [] }
+        setKnown((j.data ?? []) as Known[])
+        setOpen(true)
+      } catch { setKnown([]) }
+    }, 250)
+  }
+  const pick = (k: Known) => {
+    setPicked(k)
+    setOpen(false)
+    setF((prev) => ({
+      ...prev,
+      companyName: k.companyName,
+      website: k.website ?? prev.website,
+      contactFirstName: k.contactFirstName ?? prev.contactFirstName,
+      contactLastName: k.contactLastName ?? prev.contactLastName,
+      contactEmail: k.contactEmail ?? prev.contactEmail,
+      contactJobTitle: k.contactJobTitle ?? prev.contactJobTitle,
+      tier: prev.tier || k.tier || '',
+      valueAmount: prev.valueAmount || (k.valueAmount ? String(k.valueAmount) : ''),
+      valueCurrency: k.valueCurrency ?? prev.valueCurrency,
+    }))
+  }
   const [f, setF] = useState({
     companyName: '', website: '', contactFirstName: '', contactLastName: '', contactEmail: '', contactJobTitle: '',
     tier: kind === 'partner' ? PARTNER_TYPE_OPTIONS[0] : '', valueAmount: '', valueCurrency: 'GBP', status: stage, notes: '',
@@ -49,9 +91,11 @@ function QuickAddLead({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }))
+  const alreadyHere = existing.find((l) => String(l.companyName).trim().toLowerCase() === f.companyName.trim().toLowerCase())
 
   const save = async () => {
     if (!f.companyName.trim()) { setError('Company name is required.'); return }
+    if (alreadyHere) { setError(`${alreadyHere.companyName} is already in this pipeline.`); return }
     setSaving(true); setError('')
     try {
       const res = await fetch(def.api, {
@@ -95,7 +139,45 @@ function QuickAddLead({
       }
     >
       <div className="grid sm:grid-cols-2 gap-3">
-        <Field label="Company" span><input autoFocus className="ws-input" value={f.companyName} onChange={(e) => set('companyName', e.target.value)} placeholder="Acme Health" /></Field>
+        <div className="sm:col-span-2 relative">
+          <Field label="Company">
+            <input
+              autoFocus
+              className="ws-input"
+              value={f.companyName}
+              onChange={(e) => { set('companyName', e.target.value); setPicked(null); search(e.target.value) }}
+              onFocus={() => known.length && setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              placeholder="Start typing — companies you already know appear here"
+              autoComplete="off"
+            />
+          </Field>
+          {open && known.length > 0 && (
+            <ul className="absolute left-0 right-0 z-10 mt-1 rounded-lg overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line-2)', boxShadow: 'var(--shadow-md)' }}>
+              {known.map((k) => (
+                <li key={k.id}>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(k)} className="w-full text-left px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--surface-2)]">
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-medium truncate" style={{ color: 'var(--fg)' }}>{k.companyName}</span>
+                      <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>{[`${k.contactFirstName ?? ''} ${k.contactLastName ?? ''}`.trim(), k.contactJobTitle].filter(Boolean).join(' · ') || k.contactEmail || 'No contact on file'}</span>
+                    </span>
+                    <span className="text-[11.5px] shrink-0 text-right" style={{ color: 'var(--fg-4)' }}>
+                      {k.event ? String(k.event).replace(/^World (Health|Pharma) AI\s*/i, '') : '—'}<br />{def.statusLabel(k.status)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {picked && (
+            <p className="text-[11.5px] mt-1.5" style={{ color: 'var(--fg-3)' }}>
+              Known company — details copied from {picked.event ? String(picked.event).replace(/^World (Health|Pharma) AI\s*/i, '') : 'their last record'} ({def.statusLabel(picked.status)}). This adds them to the {eventLabel.match(/\d{4}/)?.[0]} pipeline as a fresh conversation.
+            </p>
+          )}
+          {alreadyHere && !picked && f.companyName.trim().length > 1 && (
+            <p className="text-[11.5px] mt-1.5" style={{ color: 'var(--bad)' }}>Already in this pipeline.</p>
+          )}
+        </div>
         <Field label="Contact first name"><input className="ws-input" value={f.contactFirstName} onChange={(e) => set('contactFirstName', e.target.value)} /></Field>
         <Field label="Contact last name"><input className="ws-input" value={f.contactLastName} onChange={(e) => set('contactLastName', e.target.value)} /></Field>
         <Field label="Email"><input type="email" className="ws-input" value={f.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} /></Field>
@@ -142,7 +224,7 @@ function LeadCard({ lead, kind, dragging, onDragStart, onDragEnd }: {
       onDragEnd={onDragEnd}
       className={cn('block rounded-xl p-3.5 transition-all cursor-grab active:cursor-grabbing select-none', dragging && 'opacity-40 scale-[0.98]')}
       style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent-line)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)' }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--line-3)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)' }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)' }}
     >
       <div className="flex items-start gap-2.5">
@@ -153,7 +235,7 @@ function LeadCard({ lead, kind, dragging, onDragStart, onDragEnd }: {
         </div>
       </div>
       <div className="flex items-center justify-between gap-2 mt-3">
-        {lead.tier ? <StatusBadge value={lead.tier} variant="sponsor_tier" /> : <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>No package yet</span>}
+        <span className="text-[12px] truncate" style={{ color: lead.tier ? 'var(--fg-3)' : 'var(--fg-4)' }}>{lead.tier || 'No package yet'}</span>
         <span className="text-[12.5px] font-semibold tabular" style={{ color: lead.valueAmount ? 'var(--fg)' : 'var(--fg-4)' }}>{formatMoney(lead.valueAmount, lead.valueCurrency || 'GBP')}</span>
       </div>
       <p className="text-[11px] mt-2.5" style={{ color: 'var(--fg-4)' }}>Updated {timeAgo(lead.updatedAt)}</p>
@@ -177,8 +259,8 @@ function Column({
       style={{
         flex: stage.negative ? '0 0 200px' : '1 1 240px',
         minWidth: stage.negative ? 200 : 232,
-        background: over ? 'var(--accent-soft)' : 'var(--surface-2)',
-        border: `1px solid ${over ? 'var(--accent-line)' : 'var(--line)'}`,
+        background: over ? 'var(--surface-3)' : 'var(--surface-2)',
+        border: `1px solid ${over ? 'var(--line-3)' : 'var(--line)'}`,
       }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overStage !== stage.status) setOverStage(stage.status) }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverStage(null) }}
@@ -296,9 +378,9 @@ export function PipelineBoard() {
       {empty ? (
         <div className="ws-card">
           <EmptyState
-            icon={Sparkles}
+            icon={KanbanSquare}
             title={`Start the ${year} ${kind === 'partner' ? 'partner list' : 'pipeline'}`}
-            body={`Nothing for ${eventLabel} yet. Add the ${kind === 'partner' ? 'partners' : 'leads'} you will be chasing — they start at “Not contacted” and move across as you work them.`}
+            body={`Nothing for ${eventLabel} yet. Add the ${kind === 'partner' ? 'partners' : 'companies'} you will be chasing — type a name and anyone already in the database is filled in for you.`}
             action={<button onClick={() => setAdding(def.stages[0].status)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add the first {kind === 'partner' ? 'partner' : 'lead'}</button>}
           />
         </div>
@@ -327,6 +409,7 @@ export function PipelineBoard() {
           kind={kind}
           eventLabel={eventLabel}
           stage={adding}
+          existing={leads}
           onClose={() => setAdding(null)}
           onSaved={() => { setAdding(null); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }); queryClient.invalidateQueries({ queryKey: ['ws-list', kind] }) }}
         />

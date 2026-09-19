@@ -5,6 +5,7 @@ import { AppShell } from '@/components/shell/AppShell'
 
 export const metadata: Metadata = {
   title: 'Nexus CRM',
+  icons: { icon: '/wng-icon-192.png', apple: '/apple-icon.png' },
   description: 'World Nexus Group CRM — sales pipeline, sponsors, partners, speakers and delegates for every event.',
 }
 

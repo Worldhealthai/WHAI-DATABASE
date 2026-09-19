@@ -43,13 +43,8 @@ function Frame({ children }: { children: React.ReactNode }) {
     setMenuOpen(false)
   }, [pathname])
 
-  const accent = view.portal?.accent
-  const accentVars = accent
-    ? ({ '--accent': accent.fill, '--accent-ink': accent.ink, '--accent-soft': accent.soft, '--accent-line': accent.line } as React.CSSProperties)
-    : undefined
-
   return (
-    <div className="flex min-h-screen" style={accentVars}>
+    <div className="flex min-h-screen">
       {/* Desktop sidebar */}
       <div className="hidden lg:block sticky top-0 h-screen">
         <Sidebar view={view} />

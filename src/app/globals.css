@@ -10,7 +10,7 @@
    these tokens, so nothing in the app belongs to a different app.
    ───────────────────────────────────────────────────────────────────────── */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -172,8 +172,9 @@
     text-rendering: optimizeLegibility;
   }
   h1, h2, h3, .display {
-    font-family: 'Lexend', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.01em;
+    font-family: 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.015em;
+    font-weight: 600;
   }
   ::selection {
     background: var(--accent-soft);
@@ -326,9 +327,9 @@
   }
   .ws-chip:hover { color: var(--fg); border-color: var(--line-3); }
   .ws-chip[data-active='true'] {
-    color: var(--accent-ink);
-    background: var(--accent-soft);
-    border-color: var(--accent-line);
+    color: var(--fg);
+    background: var(--surface-3);
+    border-color: var(--line-3);
   }
   .ws-label {
     display: block;
@@ -361,8 +362,8 @@
   }
   .ws-nav-item:hover { background: var(--surface-2); color: var(--fg); }
   .ws-nav-item[data-active='true'] {
-    background: var(--accent-soft);
-    color: var(--accent-ink);
+    background: var(--surface-3);
+    color: var(--fg);
     font-weight: 600;
   }
   .ws-table th {

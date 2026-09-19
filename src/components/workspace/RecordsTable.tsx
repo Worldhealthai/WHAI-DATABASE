@@ -1,6 +1,9 @@
 'use client'
 
-// One clean table for any kind of record, scoped to the edition in view.
+// One clean table for any kind of record. Speakers and delegates belong to
+// an edition; sponsors and partners are companies that come back year after
+// year, so their tables show every company and the pipeline holds the
+// per-year work.
 // Search, a stage filter, sorting, paging, an inline stage change on each
 // row, and the existing forms for adding and editing.
 
@@ -13,12 +16,11 @@ import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, STATUS_OPTIONS, changeStage, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
 import { editionLabel } from '@/lib/portals'
-import { StatusBadge } from '@/components/crm/StatusBadge'
 import { Pagination } from '@/components/search/Pagination'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
-import { EmptyState, Initials, StageDot, formatMoney, timeAgo } from './ui'
+import { EmptyState, Initials, StageDot, StagePill, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 
 type Row = Record<string, any>
@@ -31,7 +33,7 @@ interface Column {
   render: (r: Row) => React.ReactNode
 }
 
-function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, busyId: string | null): Column[] {
+function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, busyId: string | null, showEdition: boolean): Column[] {
   const def = KINDS[kind]
   const stageCell = (r: Row) => (
     <span className="relative inline-flex items-center">
@@ -45,7 +47,7 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, bus
       >
         {STATUS_OPTIONS[kind].map((s) => <option key={s} value={s}>{def.statusLabel(s)}</option>)}
       </select>
-      <StatusBadge value={r.status} variant={def.badgeVariant} className={cn('pointer-events-none', busyId === r.id && 'opacity-50')} />
+      <span className={cn('pointer-events-none', busyId === r.id && 'opacity-50')}><StagePill kind={kind} status={r.status} /></span>
       <ChevronDown className="w-3 h-3 ml-1 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
     </span>
   )
@@ -62,11 +64,14 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, bus
     )
   }
   const added: Column = { key: 'createdAt', label: 'Added', sortable: true, width: '90px', render: (r) => <span className="tabular" style={{ color: 'var(--fg-3)' }}>{timeAgo(r.createdAt)}</span> }
+  // "World Health AI London 2027" → "London 2027": the series is the workspace.
+  const edition: Column = { key: 'event', label: 'Edition', sortable: true, width: '130px', render: (r) => <span style={{ color: r.event ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.event ? String(r.event).replace(/^World (Health|Pharma) AI\s*/i, '') : '—'}</span> }
 
   if (kind === 'sponsor' || kind === 'partner') {
     return [
       { key: 'companyName', label: 'Company', sortable: true, render: nameCell },
-      { key: 'tier', label: kind === 'partner' ? 'Type' : 'Tier', sortable: true, width: '160px', render: (r) => r.tier ? <StatusBadge value={r.tier} variant="sponsor_tier" /> : <span style={{ color: 'var(--fg-4)' }}>—</span> },
+      { key: 'tier', label: kind === 'partner' ? 'Type' : 'Tier', sortable: true, width: '160px', render: (r) => <span style={{ color: r.tier ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.tier || '—'}</span> },
+      ...(showEdition ? [edition] : []),
       { key: 'status', label: 'Stage', sortable: true, width: '170px', render: stageCell },
       { key: 'valueAmount', label: 'Value', sortable: true, width: '110px', render: (r) => <span className="tabular font-medium" style={{ color: r.valueAmount ? 'var(--fg)' : 'var(--fg-4)' }}>{formatMoney(r.valueAmount, r.valueCurrency || 'GBP')}</span> },
       { key: 'contactEmail', label: 'Email', width: '200px', render: (r) => <span className="truncate block max-w-[200px]" style={{ color: 'var(--fg-3)' }}>{r.contactEmail || '—'}</span> },
@@ -87,13 +92,15 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, bus
     { key: 'lastName', label: 'Delegate', sortable: true, render: nameCell },
     { key: 'status', label: 'Status', sortable: true, width: '160px', render: stageCell },
     { key: 'subType', label: 'Type', sortable: true, width: '130px', render: (r) => <span style={{ color: r.subType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.subType || '—'}</span> },
-    { key: 'ticketType', label: 'Ticket', width: '120px', render: (r) => r.ticketType ? <StatusBadge value={r.ticketType} variant="ticket_type" /> : <span style={{ color: 'var(--fg-4)' }}>—</span> },
+    { key: 'ticketType', label: 'Ticket', width: '120px', render: (r) => <span style={{ color: r.ticketType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.ticketType || '—'}</span> },
     { key: 'email', label: 'Email', width: '200px', render: (r) => <span className="truncate block max-w-[200px]" style={{ color: 'var(--fg-3)' }}>{r.email || '—'}</span> },
     added,
   ]
 }
 
 export function RecordsTable({ kind }: { kind: RecordKind }) {
+  // Companies are not tied to a year; people are.
+  const allEditions = kind === 'sponsor' || kind === 'partner'
   const ws = useWorkspace()
   const def = KINDS[kind]
   const queryClient = useQueryClient()
@@ -118,12 +125,12 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   const { data, isLoading, isFetching, refetch } = useQuery<{ data: Row[]; total: number; totalPages: number }>({
     queryKey: ['ws-list', kind, labels, query, status, page, pageSize, sortBy, sortDir],
     queryFn: async () => {
-      const p = listParams(kind, labels, { query, statuses: status ? [status] : undefined, page: String(page), pageSize: String(pageSize), sortBy, sortDir })
+      const p = listParams(kind, allEditions ? [] : labels, { query, statuses: status ? [status] : undefined, page: String(page), pageSize: String(pageSize), sortBy, sortDir })
       const r = await fetch(`${def.api}?${p}`)
       if (!r.ok) throw new Error('list')
       return r.json()
     },
-    enabled: labels.length > 0,
+    enabled: allEditions || labels.length > 0,
     placeholderData: (prev) => prev,
   })
 
@@ -155,23 +162,23 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
     const p = new URLSearchParams()
     // The sponsor/partner exports read `event`, the others `events`.
     const key = kind === 'sponsor' || kind === 'partner' ? 'event' : 'events'
-    labels.forEach((l) => p.append(key, l))
+    if (!allEditions) labels.forEach((l) => p.append(key, l))
     if (kind === 'sponsor') KINDS.sponsor.fixedParams.excludeTiers.forEach((t) => p.append('excludeTiers', t))
     if (status) p.append(kind === 'sponsor' || kind === 'partner' ? 'status' : 'statuses', status)
     const a = document.createElement('a')
     a.href = `${def.api}/export?${p}`
-    a.download = `${def.plural.toLowerCase().replace(/[^a-z]+/g, '-')}-${year}.csv`
+    a.download = `${def.plural.toLowerCase().replace(/[^a-z]+/g, '-')}-${allEditions ? 'all' : year}.csv`
     a.click()
   }
 
-  const columns = columnsFor(kind, onStage, busyId)
+  const columns = columnsFor(kind, onStage, busyId, allEditions)
   const preset = category && year ? { event: editionLabel(category.name, year) } : {}
   const saved = () => { setAdding(false); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }) }
 
   return (
     <WorkspacePage
       title={def.plural}
-      description={`${def.plural} for this edition${kind === 'partner' ? ' — media and association partners' : ''}.`}
+      description={allEditions ? `Every ${kind === 'partner' ? 'partner and media' : 'sponsor'} company, across all editions. The year-by-year work lives in the pipeline.` : `${def.plural} for this edition.`}
       actions={
         <>
           <button onClick={exportCsv} className="ws-btn" title="Download this list as CSV"><Download className="w-4 h-4" /> Export</button>
@@ -203,8 +210,8 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
         {!isLoading && rows.length === 0 ? (
           <EmptyState
             icon={SearchX}
-            title={query || status ? 'No matches' : `No ${def.plural.toLowerCase()} in the ${year} edition yet`}
-            body={query || status ? 'Try a different search or clear the stage filter.' : `Add the first ${def.label.toLowerCase()}, or pick another edition above.`}
+            title={query || status ? 'No matches' : allEditions ? `No ${def.plural.toLowerCase()} yet` : `No ${def.plural.toLowerCase()} in the ${year} edition yet`}
+            body={query || status ? 'Try a different search or clear the stage filter.' : allEditions ? `Add the first ${def.label.toLowerCase()}, or start them in the pipeline.` : `Add the first ${def.label.toLowerCase()}, or pick another edition above.`}
             action={query || status ? <button onClick={() => { setKeyword(''); setQuery(''); setStatus('') }} className="ws-btn">Clear filters</button> : <button onClick={() => setAdding(true)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add {def.label.toLowerCase()}</button>}
           />
         ) : (

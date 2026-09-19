@@ -1,37 +1,37 @@
 'use client'
 
-// Small building blocks shared by the workspace screens.
+// Small building blocks shared by the workspace screens. Deliberately quiet:
+// one accent, grey for everything that isn't a decision, colour only where
+// it carries meaning (a stage that is won or lost).
 
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-// A stable, pleasant colour for a name — so the same company always gets
-// the same avatar tint.
-const HUES = [199, 262, 152, 24, 340, 214, 44, 174]
-export function hueFor(name: string): number {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return HUES[h % HUES.length]
-}
+import { KINDS, type RecordKind } from '@/lib/recordKinds'
 
 export function Initials({ name, size = 36, className = '' }: { name: string; size?: number; className?: string }) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   const text = (parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? '?').slice(0, 2)).toUpperCase()
-  const hue = hueFor(name)
   return (
     <span
       className={cn('inline-flex items-center justify-center rounded-lg shrink-0 font-semibold select-none', className)}
-      style={{
-        width: size,
-        height: size,
-        fontSize: Math.round(size * 0.36),
-        background: `hsl(${hue} 70% 93%)`,
-        color: `hsl(${hue} 55% 32%)`,
-      }}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.34), background: 'var(--surface-3)', color: 'var(--fg-2)' }}
     >
       {text}
+    </span>
+  )
+}
+
+// A stage, shown the same way everywhere: a dot that is green when won, red
+// when lost, grey while it is still in play — and the stage's name.
+export function StagePill({ kind, status, className = '' }: { kind: RecordKind; status: string; className?: string }) {
+  const def = KINDS[kind]
+  const stage = def.stages.find((s) => s.status === status)
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[12px] font-medium whitespace-nowrap', className)} style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
+      <StageDot hex={stage?.hex ?? 'var(--line-3)'} />
+      {stage?.label ?? def.statusLabel(status)}
     </span>
   )
 }
@@ -41,7 +41,7 @@ export function EmptyState({
 }: { icon: LucideIcon; title: string; body?: string; action?: React.ReactNode; className?: string }) {
   return (
     <div className={cn('flex flex-col items-center justify-center text-center px-6 py-14', className)}>
-      <span className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--accent-soft)', color: 'var(--accent-ink)' }}>
+      <span className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: 'var(--surface-2)', color: 'var(--fg-3)', border: '1px solid var(--line)' }}>
         <Icon className="w-5 h-5" />
       </span>
       <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>{title}</p>
@@ -51,17 +51,14 @@ export function EmptyState({
   )
 }
 
-export function Stat({
-  label, value, hint, tone = 'default', loading,
-}: { label: string; value: React.ReactNode; hint?: React.ReactNode; tone?: 'default' | 'accent' | 'ok' | 'warn'; loading?: boolean }) {
-  const color = tone === 'accent' ? 'var(--accent-ink)' : tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : 'var(--fg)'
+export function Stat({ label, value, hint, loading }: { label: string; value: React.ReactNode; hint?: React.ReactNode; loading?: boolean }) {
   return (
     <div className="ws-card px-5 py-4 min-w-0">
-      <p className="text-[11.5px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-3)' }}>{label}</p>
+      <p className="text-[12.5px] font-medium" style={{ color: 'var(--fg-3)' }}>{label}</p>
       {loading ? (
-        <div className="h-8 w-20 rounded-md mt-2 animate-pulse" style={{ background: 'var(--surface-3)' }} />
+        <div className="h-8 w-16 rounded-md mt-2 animate-pulse" style={{ background: 'var(--surface-3)' }} />
       ) : (
-        <p className="display text-[28px] leading-none mt-2 tabular" style={{ color, fontWeight: 600 }}>{value}</p>
+        <p className="text-[28px] leading-none mt-2 tabular font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>{value}</p>
       )}
       {hint && <p className="text-[12px] mt-2 truncate" style={{ color: 'var(--fg-4)' }}>{hint}</p>}
     </div>
@@ -82,11 +79,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             title={o.hint}
             className={cn('rounded-md font-medium transition-all whitespace-nowrap', size === 'sm' ? 'h-7 px-2.5 text-[12px]' : 'h-8 px-3 text-[13px]')}
-            style={
-              active
-                ? { background: 'var(--surface)', color: 'var(--fg)', boxShadow: 'var(--shadow-sm)' }
-                : { color: 'var(--fg-3)' }
-            }
+            style={active ? { background: 'var(--surface)', color: 'var(--fg)', boxShadow: 'var(--shadow-sm)' } : { color: 'var(--fg-3)' }}
           >
             {o.label}
           </button>
@@ -113,10 +106,10 @@ export function Modal({
         // must not close it.
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
       />
-      <div className={cn('relative w-full anim-scale-in flex flex-col max-h-[90vh] rounded-2xl overflow-hidden', width)} style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-lg)' }}>
+      <div className={cn('relative w-full anim-scale-in flex flex-col max-h-[90vh] rounded-xl overflow-hidden', width)} style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-lg)' }}>
         <div className="flex items-start justify-between gap-4 px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
           <div>
-            <p className="text-[15px] font-semibold display" style={{ color: 'var(--fg)' }}>{title}</p>
+            <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>{title}</p>
             {subtitle && <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--fg-3)' }}>{subtitle}</p>}
           </div>
           <button onClick={onClose} className="ws-btn ws-btn-ghost ws-btn-sm -mr-1" aria-label="Close"><X className="w-4 h-4" /></button>
