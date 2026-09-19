@@ -9,6 +9,7 @@ import {
   MapPin, Inbox, Trash2, Calendar, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { teamNoteFromStaged } from '@/lib/inboxNote'
 
 async function fetchUnassigned(page: number, query: string, batch: string) {
   const params = new URLSearchParams({ status: 'pending', page: String(page), pageSize: '20' })
@@ -507,6 +508,11 @@ export default function UnassignedPage() {
 
                           {contact.notes && (
                             <p className="text-xs text-slate-500 mt-2 line-clamp-2">{contact.notes}</p>
+                          )}
+                          {teamNoteFromStaged(contact) && (
+                            <p className="text-xs mt-2 px-2.5 py-1.5 rounded-md" style={{ background: 'var(--warn-soft, var(--surface-2))', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
+                              <span className="font-semibold" style={{ color: 'var(--fg)' }}>Team note: </span>{teamNoteFromStaged(contact)}
+                            </p>
                           )}
                         </div>
 

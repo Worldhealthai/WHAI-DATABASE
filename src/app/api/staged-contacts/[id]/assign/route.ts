@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { canonicalEventLabel } from '@/types'
+import { isEnquiry, teamNoteFromStaged, teamNoteSource } from '@/lib/inboxNote'
+import { upsertInboxNoteActivity } from '@/lib/inboxNoteActivity'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // submission) have already been replied to before being added — they
     // arrive mid-conversation, not cold. Imports and other batches still
     // start at the top of the pipeline.
-    const fromEnquiry = /enquir/i.test(contact.importBatch ?? '')
+    const fromEnquiry = isEnquiry(contact)
 
     // Build the record for the target table
     const base = {
@@ -113,6 +115,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .from('staged_contacts')
       .update({ status: 'assigned', assignedAs: assignAs, assignedId: created.id })
       .eq('id', params.id)
+
+    // The team's note from the admin panel's inbox goes onto the new
+    // record's timeline, alongside its status changes. Best-effort.
+    const teamNote = teamNoteFromStaged(contact)
+    if (teamNote) {
+      await upsertInboxNoteActivity({
+        entityType: assignAs,
+        entityId: created.id,
+        note: teamNote,
+        source: teamNoteSource(contact),
+        email: contact.email,
+      })
+    }
 
     return NextResponse.json({ success: true, assignedAs: assignAs, assignedId: created.id, record: created })
   } catch (error) {
