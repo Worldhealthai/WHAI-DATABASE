@@ -26,6 +26,12 @@ export function consentLabel(v: boolean | null | undefined): { text: string; ton
   return { text: 'Not asked', tone: 'muted' }
 }
 
+// Welcome posts are for people actually on the line-up; the speakers list
+// also holds everyone still being invited.
+export const isConfirmedSpeaker = (s: Speaker) => s.status === 'Speaking Confirmed'
+// Sponsor posts are owed once the deal is done.
+export const isConfirmedSponsor = (s: Sponsor) => s.status === 'Confirmed'
+
 export function sponsorRemaining(s: Sponsor): number {
   return Math.max(0, Number(s.linkedinPostsDue ?? 0) - Number(s.linkedinPostsDone ?? 0))
 }

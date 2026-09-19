@@ -420,6 +420,8 @@
     color: var(--fg);
     vertical-align: middle;
   }
+  .ws-table-fixed { table-layout: fixed; width: 100%; }
+  .ws-table-fixed td, .ws-table-fixed th { overflow: hidden; }
   .ws-table tbody tr { transition: background 100ms ease; }
   .ws-table tbody tr:hover { background: var(--surface-2); }
   .ws-table tbody tr:last-child td { border-bottom: none; }
