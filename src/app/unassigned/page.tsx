@@ -9,6 +9,7 @@ import {
   MapPin, Inbox, Trash2, Calendar, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { teamNoteFromStaged } from '@/lib/inboxNote'
 
 async function fetchUnassigned(page: number, query: string, batch: string) {
   const params = new URLSearchParams({ status: 'pending', page: String(page), pageSize: '20' })
@@ -35,9 +36,9 @@ const ASSIGN_TYPES = [
     type: 'delegate' as const,
     label: 'Delegate',
     icon: Users,
-    color: 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/30 hover:bg-[#00B4D8]/25 hover:border-[#00B4D8]/60',
-    activeBg: 'bg-[#00B4D8]/20 border-[#00B4D8]/50',
-    bulkColor: 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40 hover:bg-[#00B4D8]/25',
+    color: 'bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-line)] hover:bg-[var(--teal-soft)] hover:border-[var(--teal)]',
+    activeBg: 'bg-[var(--teal-soft)] border-[var(--teal-line)]',
+    bulkColor: 'bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-line)] hover:bg-[var(--teal-soft)]',
   },
   {
     type: 'speaker' as const,
@@ -69,12 +70,12 @@ function Checkbox({ checked, indeterminate, onChange, disabled }: {
       className={cn(
         'w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0',
         checked || indeterminate
-          ? 'bg-[#00B4D8] border-[#00B4D8]'
+          ? 'bg-[var(--teal)] border-[var(--teal)]'
           : 'border-slate-600 hover:border-slate-400 bg-transparent'
       )}
     >
       {(checked || indeterminate) && (
-        <svg className="w-2.5 h-2.5 text-[#0A1628]" viewBox="0 0 10 10" fill="none">
+        <svg className="w-2.5 h-2.5 text-[var(--on-accent)]" viewBox="0 0 10 10" fill="none">
           {checked
             ? <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             : <path d="M2 5H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -230,20 +231,20 @@ export default function UnassignedPage() {
     <div className="flex flex-col h-[calc(100vh-56px)]">
 
       {/* ── Header ── */}
-      <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] z-20">
+      <div className="shrink-0 bg-[var(--bg)] border-b border-[var(--line)] z-20">
         <div className="max-w-[1100px] mx-auto px-4 sm:px-6">
 
           {/* Title row */}
           <div className="flex items-center justify-between pt-4 pb-3">
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-                <Inbox className="w-5 h-5 text-[#00B4D8]" />
+              <h1 className="text-lg sm:text-xl font-bold text-[var(--fg)] flex items-center gap-2">
+                <Inbox className="w-5 h-5 text-[var(--teal)]" />
                 Unassigned Contacts
               </h1>
               {!isLoading && (
                 <p className="text-xs text-slate-500 mt-0.5">
-                  <span className="text-white font-semibold">{total.toLocaleString()}</span> pending
-                  {activeEvent && <span className="text-[#00B4D8]"> · {activeEvent}</span>}
+                  <span className="text-[var(--fg)] font-semibold">{total.toLocaleString()}</span> pending
+                  {activeEvent && <span className="text-[var(--teal)]"> · {activeEvent}</span>}
                 </p>
               )}
             </div>
@@ -259,7 +260,7 @@ export default function UnassignedPage() {
               )}
               <Link
                 href="/import"
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] hover:border-slate-500 text-sm transition-colors"
               >
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Import CSV</span>
@@ -275,8 +276,8 @@ export default function UnassignedPage() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
                   activeEvent === ''
-                    ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
-                    : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+                    ? 'bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-line)]'
+                    : 'text-slate-400 hover:text-[var(--fg)] border-transparent hover:border-[var(--line)] hover:bg-[var(--surface-2)]'
                 )}
               >
                 All events
@@ -288,8 +289,8 @@ export default function UnassignedPage() {
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 border',
                     activeEvent === b
-                      ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
-                      : 'text-slate-400 hover:text-white border-transparent hover:border-[#1a3a5c] hover:bg-[#112850]/50'
+                      ? 'bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-line)]'
+                      : 'text-slate-400 hover:text-[var(--fg)] border-transparent hover:border-[var(--line)] hover:bg-[var(--surface-2)]'
                   )}
                 >
                   <Calendar className="w-3.5 h-3.5 shrink-0" />
@@ -308,7 +309,7 @@ export default function UnassignedPage() {
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { setQuery(searchInput); setPage(1) } }}
                 placeholder="Search by name, email, organisation..."
-                className="w-full pl-9 pr-4 py-2 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-[#00B4D8]/50 transition-colors"
+                className="w-full pl-9 pr-4 py-2 bg-[var(--surface-2)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-500 outline-none focus:border-[var(--teal-line)] transition-colors"
               />
             </div>
           </div>
@@ -317,9 +318,9 @@ export default function UnassignedPage() {
 
       {/* ── Bulk actions bar ── */}
       {selected.size > 0 && (
-        <div className="shrink-0 bg-[#0d2040] border-b border-[#00B4D8]/20 z-10">
+        <div className="shrink-0 bg-[var(--surface)] border-b border-[var(--teal-line)] z-10">
           <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-2 sm:gap-3 flex-wrap">
-            <span className="text-sm font-semibold text-[#00B4D8] shrink-0 mr-1">
+            <span className="text-sm font-semibold text-[var(--teal)] shrink-0 mr-1">
               {selected.size} selected
             </span>
             {ASSIGN_TYPES.map(({ type, label, icon: Icon, bulkColor }) => (
@@ -350,7 +351,7 @@ export default function UnassignedPage() {
             </button>
             <button
               onClick={() => setSelected(new Set())}
-              className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors"
+              className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-[var(--fg)] transition-colors"
             >
               <X className="w-3.5 h-3.5" /> Clear
             </button>
@@ -384,10 +385,10 @@ export default function UnassignedPage() {
 
           ) : contacts.length === 0 ? (
             <div className="py-16 text-center space-y-3">
-              <div className="w-14 h-14 rounded-full bg-[#112850] flex items-center justify-center mx-auto">
+              <div className="w-14 h-14 rounded-full bg-[var(--surface-2)] flex items-center justify-center mx-auto">
                 <Inbox className="w-6 h-6 text-slate-500" />
               </div>
-              <p className="text-white font-medium">
+              <p className="text-[var(--fg)] font-medium">
                 {activeEvent ? `No contacts in "${activeEvent}"` : 'Inbox is empty'}
               </p>
               <p className="text-slate-500 text-sm">
@@ -395,7 +396,7 @@ export default function UnassignedPage() {
               </p>
               <Link
                 href="/import"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#00B4D8] text-[#0A1628] text-sm font-semibold hover:bg-[#00B4D8]/90 transition-colors mt-2"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--teal)] text-[var(--on-accent)] text-sm font-semibold hover:bg-[var(--teal)] transition-colors mt-2"
               >
                 <Upload className="w-4 h-4" /> Import CSV
               </Link>
@@ -433,7 +434,7 @@ export default function UnassignedPage() {
                     className={cn(
                       'whai-card p-4 sm:p-5 transition-all duration-300',
                       done && 'opacity-40 scale-[0.99] pointer-events-none',
-                      isSelected && !done && 'border-[#00B4D8]/40 bg-[#00B4D8]/5'
+                      isSelected && !done && 'border-[var(--teal-line)] bg-[var(--teal-soft)]'
                     )}
                   >
                     <div className="flex items-start gap-3">
@@ -448,7 +449,7 @@ export default function UnassignedPage() {
                       </div>
 
                       {/* Avatar */}
-                      <div className="w-10 h-10 rounded-full bg-[#112850] text-slate-300 flex items-center justify-center text-sm font-bold shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] text-slate-300 flex items-center justify-center text-sm font-bold shrink-0">
                         {initials(contact)}
                       </div>
 
@@ -457,7 +458,7 @@ export default function UnassignedPage() {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-white">
+                            <span className="font-semibold text-[var(--fg)]">
                               {[contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Unknown'}
                             </span>
                             {suggestion && (
@@ -465,7 +466,7 @@ export default function UnassignedPage() {
                                 'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider',
                                 suggestion === 'speaker'
                                   ? 'bg-purple-500/20 text-purple-400'
-                                  : 'bg-[#00B4D8]/15 text-[#00B4D8]'
+                                  : 'bg-[var(--teal-soft)] text-[var(--teal)]'
                               )}>
                                 {suggestion}
                               </span>
@@ -498,7 +499,7 @@ export default function UnassignedPage() {
                           {tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {tags.map((t: string) => (
-                                <span key={t} className="px-1.5 py-0.5 rounded bg-[#112850] text-slate-400 text-[10px] border border-[#1a3a5c]">
+                                <span key={t} className="px-1.5 py-0.5 rounded bg-[var(--surface-2)] text-slate-400 text-[10px] border border-[var(--line)]">
                                   {t}
                                 </span>
                               ))}
@@ -507,6 +508,11 @@ export default function UnassignedPage() {
 
                           {contact.notes && (
                             <p className="text-xs text-slate-500 mt-2 line-clamp-2">{contact.notes}</p>
+                          )}
+                          {teamNoteFromStaged(contact) && (
+                            <p className="text-xs mt-2 px-2.5 py-1.5 rounded-md" style={{ background: 'var(--warn-soft, var(--surface-2))', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
+                              <span className="font-semibold" style={{ color: 'var(--fg)' }}>Team note: </span>{teamNoteFromStaged(contact)}
+                            </p>
                           )}
                         </div>
 
@@ -540,7 +546,7 @@ export default function UnassignedPage() {
                               <button
                                 onClick={() => handleSkip(contact.id)}
                                 disabled={!!busy}
-                                className="flex items-center gap-1 px-2 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 border border-transparent hover:border-[#1a3a5c] transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1 px-2 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 border border-transparent hover:border-[var(--line)] transition-colors disabled:opacity-50"
                               >
                                 <SkipForward className="w-3.5 h-3.5" />
                               </button>
@@ -557,20 +563,20 @@ export default function UnassignedPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2 border-t border-[#1a3a5c]">
+            <div className="flex items-center justify-between pt-2 border-t border-[var(--line)]">
               <span className="text-xs text-slate-500">Page {page} of {totalPages}</span>
               <div className="flex gap-1">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="p-1.5 rounded hover:bg-[#112850] disabled:opacity-30 transition-colors"
+                  className="p-1.5 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4 text-slate-400" />
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
-                  className="p-1.5 rounded hover:bg-[#112850] disabled:opacity-30 transition-colors"
+                  className="p-1.5 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 transition-colors"
                 >
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </button>

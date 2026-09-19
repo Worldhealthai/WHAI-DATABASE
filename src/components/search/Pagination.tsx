@@ -29,7 +29,7 @@ export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSi
           <select
             value={pageSize}
             onChange={(e) => onPageSize(parseInt(e.target.value))}
-            className="bg-[#112850] border border-[#1a3a5c] rounded px-1.5 py-0.5 text-white outline-none focus:border-[#00B4D8]"
+            className="bg-[var(--surface-2)] border border-[var(--line)] rounded px-1.5 py-0.5 text-[var(--fg)] outline-none focus:border-[var(--teal)]"
           >
             {[25, 50, 100].map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -42,7 +42,7 @@ export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSi
         <button
           onClick={() => onPage(page - 1)}
           disabled={page <= 1}
-          className="p-1.5 sm:p-1 rounded hover:bg-[#112850] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="p-1.5 sm:p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -64,8 +64,8 @@ export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSi
                 className={cn(
                   'w-7 h-7 rounded text-xs font-medium transition-colors',
                   page === p
-                    ? 'bg-[#00B4D8] text-[#0A1628]'
-                    : 'text-slate-400 hover:bg-[#112850] hover:text-white',
+                    ? 'bg-[var(--teal)] text-[var(--on-accent)]'
+                    : 'text-slate-400 hover:bg-[var(--surface-2)] hover:text-[var(--fg)]',
                 )}
               >
                 {p}
@@ -77,7 +77,7 @@ export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSi
         <button
           onClick={() => onPage(page + 1)}
           disabled={page >= totalPages}
-          className="p-1.5 sm:p-1 rounded hover:bg-[#112850] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="p-1.5 sm:p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>

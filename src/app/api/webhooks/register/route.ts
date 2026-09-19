@@ -18,6 +18,9 @@ export const dynamic = 'force-dynamic'
 //            (legacy "UK Forum" / "US Forum" still accepted — normalised on arrival),
 //   "subType": "End User" | "Solution Provider", "year": 2026,
 //   "linkedinUrl": "...", "notes": "...",
+//   // Marketing (speakers): consent to a LinkedIn welcome post, and the
+//   // headshot and bio the post needs
+//   "linkedinConsent": true | false | null, "headshotUrl": "...", "bio": "...",
 //   // Optional control fields used by the website's admin actions:
 //   "action": "delete",   // remove the matching contact (by email) from the CRM
 //   "status": "Cancelled" | "Rejected"  // set status on the matching contact,
@@ -102,10 +105,29 @@ export async function POST(req: NextRequest) {
       notes: body.notes ?? null,
     }
 
+    // Marketing fields, speakers only: sent by the sites on approval. Only
+    // what was actually provided is written, so a later sync without them
+    // never blanks a value already stored.
+    const marketing: Record<string, unknown> = {}
+    if (type === 'speaker') {
+      if (typeof body.linkedinConsent === 'boolean') marketing.linkedinConsent = body.linkedinConsent
+      if (typeof body.headshotUrl === 'string' && body.headshotUrl.trim()) marketing.headshotUrl = body.headshotUrl.trim()
+      if (typeof body.bio === 'string' && body.bio.trim()) marketing.bio = body.bio.trim()
+    }
+
     const table = type === 'speaker' ? 'speakers' : 'delegates'
     const record = type === 'speaker'
-      ? { ...common, status: 'Not Contacted', tags: 'Website Registration', year }
+      ? { ...common, ...marketing, status: 'Not Contacted', tags: 'Website Registration', year }
       : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration' }
+
+    // Before migration 005 the marketing columns do not exist: retry a write
+    // without them rather than losing the contact.
+    const isMissingMarketingColumn = (err: { message?: string } | null) =>
+      Boolean(err?.message && /linkedinConsent|headshotUrl|postStatus/.test(err.message))
+    const stripMarketing = (r: Record<string, unknown>) => {
+      const { linkedinConsent: _c, headshotUrl: _h, bio: _b, ...rest } = r
+      return rest
+    }
 
     // Literal-match helper for ilike: emails/names may contain the LIKE
     // wildcards _ and %.
@@ -159,14 +181,21 @@ export async function POST(req: NextRequest) {
           )
         }
       }
-      const { data: createdRow, error: insErr } = await supabase
+      let { data: createdRow, error: insErr } = await supabase
         .from(table)
         .insert({ ...record, status: statusOverride })
         .select('id')
         .single()
+      if (insErr && isMissingMarketingColumn(insErr)) {
+        ;({ data: createdRow, error: insErr } = await supabase
+          .from(table)
+          .insert({ ...stripMarketing(record), status: statusOverride })
+          .select('id')
+          .single())
+      }
       if (insErr) throw insErr
       return NextResponse.json(
-        { ok: true, created: true, id: createdRow.id, status: statusOverride },
+        { ok: true, created: true, id: createdRow?.id, status: statusOverride },
         { status: 201, headers: CORS_HEADERS },
       )
     }
@@ -180,6 +209,12 @@ export async function POST(req: NextRequest) {
         .ilike('email', escapeLike(email))
         .limit(1)
       if (existing?.length) {
+        // Already in the CRM: still take the marketing details (a consent
+        // ticked on a later registration, a headshot uploaded afterwards).
+        if (Object.keys(marketing).length) {
+          const { error: mErr } = await supabase.from(table).update(marketing).eq('id', existing[0].id)
+          if (mErr && !isMissingMarketingColumn(mErr)) console.warn('register: marketing update failed:', mErr.message)
+        }
         return NextResponse.json(
           { ok: true, duplicate: true, id: existing[0].id, message: 'Already registered — skipped.' },
           { status: 200, headers: CORS_HEADERS },
@@ -214,10 +249,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { data, error } = await supabase.from(table).insert(record).select('id').single()
+    let { data, error } = await supabase.from(table).insert(record).select('id').single()
+    if (error && isMissingMarketingColumn(error)) {
+      ;({ data, error } = await supabase.from(table).insert(stripMarketing(record)).select('id').single())
+    }
     if (error) throw error
 
-    return NextResponse.json({ ok: true, id: data.id }, { status: 201, headers: CORS_HEADERS })
+    return NextResponse.json({ ok: true, id: data?.id }, { status: 201, headers: CORS_HEADERS })
   } catch (error: any) {
     if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
       return NextResponse.json(

@@ -1,502 +1,333 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+// The entrance. Three questions, one after the other, each answered with a
+// single click: which portal, which event series, and — for a series with
+// more than one city — which city. Every event has its own colour (London
+// blue, Boston reddish pink, Pharma teal green); choosing one lets that
+// colour flood the page for a beat before the workspace takes over in it.
+
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Users, Mic, Award, Upload, Inbox, ArrowUpRight, ChevronRight, Network } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { ArrowRight, ChevronLeft, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { AIAssistant } from '@/components/crm/AIAssistant'
-import { useEventOptions } from '@/lib/useEventOptions'
+import { categoriseEvent, useEventCategories, type EventCategory } from '@/lib/eventCategories'
+import {
+  PORTALS, type EventLook, type EventSeries, type PortalKey,
+  defaultYear, editionYears, eventLook, eventSlug, groupSeries, isPortalKey, workspaceHref,
+} from '@/lib/portals'
+import { Logo } from '@/components/shell/Sidebar'
+import { ThemeToggle } from '@/components/shell/ThemeToggle'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+type Counts = Record<string, { sponsor: number; partner: number; speaker: number; delegate: number }>
 
-interface SectionStats {
-  total: number
-  byStatus: Record<string, number>
-  byEvent: Record<string, number>
-}
-interface AllStats {
-  delegates: SectionStats
-  speakers:  SectionStats
-  sponsors:  SectionStats
-  partners:  SectionStats
-}
-
-// ── Pipeline configs ──────────────────────────────────────────────────────────
-
-// 'Confirmed' is the stored value; it reads as "Invited" in the UI.
-const DELEGATE_PIPELINE = [
-  { status: 'Registered',  label: 'Registered', hex: '#3b82f6' },
-  { status: 'Confirmed',   label: 'Invited',    hex: '#06b6d4' },
-  { status: 'Cancelled',   label: 'Cancelled',  hex: '#facc15' },
-  { status: 'No-show',     label: 'No-show',    hex: '#64748b' },
-  { status: 'Rejected',    label: 'Rejected',   hex: '#f43f5e' },
-]
-const SPEAKER_PIPELINE = [
-  { status: 'Not Contacted',      hex: '#64748b' },
-  { status: 'Invited',            hex: '#3b82f6' },
-  { status: 'Discussing',         hex: '#a855f7' },
-  { status: 'Speaking Confirmed', hex: '#10b981' },
-  { status: 'Rejected',           hex: '#f43f5e' },
-]
-const SPONSOR_PIPELINE = [
-  { status: 'Not Contacted', hex: '#64748b' },
-  { status: 'Emailed',       hex: '#3b82f6' },
-  { status: 'In Discussion', hex: '#a855f7' },
-  { status: 'Confirmed',     hex: '#10b981' },
-  { status: 'Rejected',      hex: '#f43f5e' },
-]
-const PARTNER_PIPELINE = [
-  { status: 'Not Contacted', hex: '#64748b' },
-  { status: 'Emailed',       hex: '#3b82f6' },
-  { status: 'In Discussion', hex: '#a855f7' },
-  { status: 'Confirmed',     hex: '#10b981' },
-  { status: 'Rejected',      hex: '#f43f5e' },
-]
-
-// Colours cycle when there are more events than swatches.
-const EVENT_HEX = ['#00B4D8', '#a855f7', '#22C55E', '#F59E0B', '#F43F5E', '#6495ED']
-const eventHex = (i: number) => EVENT_HEX[i % EVENT_HEX.length]
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function keyMetric(
-  pipeline: { status: string; hex: string; label?: string }[],
-  byStatus: Record<string, number>,
-  total: number,
-  positiveKeys?: string[],
-) {
-  const keys = positiveKeys ?? ['Confirmed', 'Speaking Confirmed']
-  const n = pipeline
-    .filter(p => keys.includes(p.status))
-    .reduce((s, p) => s + (byStatus[p.status] ?? 0), 0)
-  return total > 0 ? Math.round((n / total) * 100) : 0
-}
-
-// ── Animated counter ──────────────────────────────────────────────────────────
-
-function Counter({ value, className }: { value: number; className?: string }) {
-  const [display, setDisplay] = useState(0)
+// Totals per event for the tiles ("18 sponsors · 6 partners"), from the four
+// small stats endpoints, summed across every raw label the event carries.
+function useCategoryCounts(categories: EventCategory[]): Counts | null {
+  const [counts, setCounts] = useState<Counts | null>(null)
   useEffect(() => {
-    if (!value) return
-    const start = performance.now()
-    const duration = 900
-    const raf = (now: number) => {
-      const t = Math.min((now - start) / duration, 1)
-      const ease = 1 - Math.pow(1 - t, 4)
-      setDisplay(Math.round(ease * value))
-      if (t < 1) requestAnimationFrame(raf)
-    }
-    requestAnimationFrame(raf)
-  }, [value])
-  return <span className={className}>{display.toLocaleString()}</span>
+    let alive = true
+    const get = (u: string) => fetch(u).then((r) => (r.ok ? r.json() : { byEvent: {} })).catch(() => ({ byEvent: {} }))
+    Promise.all([get('/api/sponsors/stats'), get('/api/partners/stats'), get('/api/speakers/stats'), get('/api/delegates/stats')]).then(
+      ([sp, pt, sk, dl]) => {
+        if (!alive) return
+        const out: Counts = {}
+        const add = (kind: keyof Counts[string], byEvent: Record<string, number>) => {
+          for (const [label, n] of Object.entries(byEvent ?? {})) {
+            const { category } = categoriseEvent(label)
+            out[category] = out[category] ?? { sponsor: 0, partner: 0, speaker: 0, delegate: 0 }
+            out[category][kind] += n
+          }
+        }
+        add('sponsor', sp.byEvent); add('partner', pt.byEvent); add('speaker', sk.byEvent); add('delegate', dl.byEvent)
+        setCounts(out)
+      }
+    )
+    return () => { alive = false }
+  }, [categories.length])
+  return counts
 }
 
-// ── SVG Ring chart ────────────────────────────────────────────────────────────
-
-function Ring({ pct, color, size = 88, stroke = 7, animate }: {
-  pct: number; color: string; size?: number; stroke?: number; animate: boolean
-}) {
-  const r = (size - stroke) / 2
-  const circ = 2 * Math.PI * r
-  const offset = circ - (pct / 100) * circ
-
-  return (
-    <svg width={size} height={size} className="shrink-0" style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1a3a5c" strokeWidth={stroke} />
-      <circle
-        cx={size / 2} cy={size / 2} r={r}
-        fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
-        strokeDasharray={circ}
-        strokeDashoffset={animate ? offset : circ}
-        style={{ transition: 'stroke-dashoffset 1.4s cubic-bezier(0.34,1.56,0.64,1)' }}
-      />
-    </svg>
-  )
+async function logout() {
+  try { await fetch('/api/auth/logout', { method: 'POST' }) } finally { window.location.assign('/login') }
 }
 
-// ── KPI card ──────────────────────────────────────────────────────────────────
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
 
-function KPICard({
-  label, icon: Icon, total, byStatus, byEvent, pipeline,
-  color, accentHex, href, animate, loading, positiveKeys, ringLabel,
-}: {
-  label: string; icon: React.ElementType; total: number
-  byStatus: Record<string, number>; byEvent: Record<string, number>
-  pipeline: { status: string; hex: string; label?: string }[]
-  color: string; accentHex: string; href: string
-  animate: boolean; loading: boolean
-  positiveKeys?: string[]
-  ringLabel?: string
-}) {
-  const EVENTS = useEventOptions()
-  const pct = keyMetric(pipeline, byStatus, total, positiveKeys)
-  const top4 = pipeline
-    .map(p => ({ ...p, count: byStatus[p.status] ?? 0 }))
-    .filter(p => p.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 4)
+// The colour variables a tile paints itself with.
+const tileVars = (look: EventLook) =>
+  ({ '--tile': look.accent, '--tile-soft': look.accentSoft, '--tile-line': look.accentLine }) as React.CSSProperties
 
+function Crumbs({ items }: { items: { label: string; onClick?: () => void }[] }) {
   return (
-    <Link href={href} className="group block relative overflow-hidden rounded-xl border border-[#1a3a5c] bg-[#0d2040] hover:border-opacity-60 transition-all hover:shadow-lg hover:shadow-black/40 hover:-translate-y-0.5">
-      <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${accentHex}80, ${accentHex}20)` }} />
-
-      <div className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg" style={{ background: `${accentHex}18` }}>
-              <Icon className="w-4 h-4" style={{ color: accentHex }} />
-            </div>
-            <span className="text-sm font-semibold text-slate-300">{label}</span>
-          </div>
-          <ArrowUpRight className="w-3.5 h-3.5 text-slate-700 group-hover:text-slate-400 transition-colors" />
-        </div>
-
-        <div className="flex items-end justify-between mb-5">
-          <div>
-            {loading ? (
-              <div className="h-10 w-20 bg-slate-700/40 rounded-lg animate-pulse" />
-            ) : (
-              <Counter value={total} className="text-4xl font-bold text-white tabular-nums" />
-            )}
-            <div className="text-xs text-slate-500 mt-0.5 font-medium">total records</div>
-          </div>
-          {!loading && total > 0 && (
-            <div className="relative shrink-0">
-              <Ring pct={pct} color={accentHex} animate={animate} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-white">{pct}%</span>
-              </div>
-            </div>
+    <div className="flex items-center justify-center gap-2.5 text-[13px]" style={{ color: 'var(--fg-3)' }}>
+      {items.map((c, i) => (
+        <span key={c.label} className="flex items-center gap-2.5">
+          {i > 0 && <span style={{ color: 'var(--line-3)' }}>/</span>}
+          {c.onClick ? (
+            <button onClick={c.onClick} className="inline-flex items-center gap-1 hover:underline underline-offset-4">
+              {i === 0 && <ChevronLeft className="w-3.5 h-3.5" />}{c.label}
+            </button>
+          ) : (
+            <span className="font-semibold" style={{ color: 'var(--fg)' }}>{c.label}</span>
           )}
-          {loading && <div className="w-[88px] h-[88px] rounded-full bg-slate-700/30 animate-pulse shrink-0" />}
-        </div>
-
-        {ringLabel && !loading && total > 0 && (
-          <div className="text-[10px] text-slate-600 -mt-3 mb-3 text-right">{ringLabel}</div>
-        )}
-
-        {!loading && (
-          <div className="space-y-1.5 mb-4">
-            {top4.map(p => (
-              <div key={p.status} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.hex }} />
-                  <span className="text-xs text-slate-500">{p.label ?? p.status}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-1 bg-[#1a3a5c] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{
-                        width: animate ? `${(p.count / total) * 100}%` : '0%',
-                        background: p.hex,
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs text-slate-600 tabular-nums w-6 text-right">{p.count}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {loading && (
-          <div className="space-y-2 mb-4">
-            {[1,2,3].map(i => <div key={i} className="h-3 bg-slate-700/30 rounded animate-pulse" />)}
-          </div>
-        )}
-
-        {!loading && (
-          <div className="pt-3 border-t border-[#1a3a5c]/60">
-            <div className="flex items-center gap-3">
-              {EVENTS.map((ev, i) => (
-                <div key={ev} className="flex items-center gap-1.5 flex-1">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: eventHex(i) }} />
-                  <span className="text-[10px] text-slate-600">{ev}</span>
-                  <span className="text-[10px] font-semibold text-slate-400 ml-auto">{byEvent[ev] ?? 0}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </Link>
-  )
-}
-
-// ── Pipeline rows ─────────────────────────────────────────────────────────────
-
-function PipelineSection({
-  label, pipeline, byStatus, total, accentHex, href, animate,
-}: {
-  label: string; pipeline: { status: string; hex: string; label?: string }[]
-  byStatus: Record<string, number>; total: number
-  accentHex: string; href: string; animate: boolean
-}) {
-  const entries = pipeline
-    .map(p => ({ ...p, count: byStatus[p.status] ?? 0 }))
-    .filter(p => p.count > 0)
-    .sort((a, b) => b.count - a.count)
-
-  if (!entries.length) return null
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-2">
-          <div className="w-0.5 h-4 rounded-full" style={{ background: accentHex }} />
-          <span className="text-xs font-semibold text-white uppercase tracking-wider">{label}</span>
-        </div>
-        <Link href={href} className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors flex items-center gap-0.5">
-          View all <ChevronRight className="w-3 h-3" />
-        </Link>
-      </div>
-      <div className="space-y-2">
-        {entries.map(e => {
-          const pct = total > 0 ? (e.count / total) * 100 : 0
-          return (
-            <div key={e.status} className="flex items-center gap-3 group/row">
-              <div className="w-[130px] shrink-0 flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: e.hex }} />
-                <span className="text-xs text-slate-400 truncate">{e.status}</span>
-              </div>
-              <div className="flex-1 h-1.5 bg-[#0A1628] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: animate ? `${pct}%` : '0%', background: e.hex }}
-                />
-              </div>
-              <span className="text-xs tabular-nums text-slate-500 w-7 text-right shrink-0">{e.count}</span>
-              <span className="text-[10px] tabular-nums text-slate-700 w-8 text-right shrink-0">{Math.round(pct)}%</span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ── Event comparison ──────────────────────────────────────────────────────────
-
-function EventComparison({ stats, animate }: { stats: AllStats; animate: boolean }) {
-  const EVENTS = useEventOptions()
-  const rows = [
-    { label: 'Delegates', data: stats.delegates, color: '#00B4D8' },
-    { label: 'Speakers',  data: stats.speakers,  color: '#a855f7' },
-    { label: 'Sponsors',  data: stats.sponsors,  color: '#f59e0b' },
-    { label: 'Partners',  data: stats.partners,  color: '#10b981' },
-  ]
-
-  const maxPerRow = rows.map(r =>
-    Math.max(...EVENTS.map(ev => r.data.byEvent[ev] ?? 0))
-  )
-  const globalMax = Math.max(...maxPerRow, 1)
-
-  return (
-    <div className="space-y-4">
-      {rows.map((row, ri) => (
-        <div key={row.label}>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: row.color }} />
-            <span className="text-xs font-medium text-slate-400">{row.label}</span>
-          </div>
-          <div className="space-y-1">
-            {EVENTS.map((ev, i) => {
-              const count = row.data.byEvent[ev] ?? 0
-              const pct = (count / globalMax) * 100
-              return (
-                <div key={ev} className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-600 w-14 shrink-0">{ev}</span>
-                  <div className="flex-1 h-1.5 bg-[#0A1628] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{ width: animate ? `${pct}%` : '0%', background: eventHex(i) }}
-                    />
-                  </div>
-                  <span className="text-[10px] tabular-nums text-slate-500 w-5 text-right">{count}</span>
-                </div>
-              )
-            })}
-          </div>
-          {ri < rows.length - 1 && <div className="mt-3 border-t border-[#1a3a5c]/40" />}
-        </div>
+        </span>
       ))}
     </div>
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+function Entrance() {
+  const router = useRouter()
+  const search = useSearchParams()
+  const categories = useEventCategories()
+  const counts = useCategoryCounts(categories)
+  const series = groupSeries(categories)
 
-export default function DashboardPage() {
-  const EVENTS = useEventOptions()
-  const [stats, setStats] = useState<AllStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [animate, setAnimate] = useState(false)
-  const [greeting, setGreeting] = useState('')
-  const [dateStr, setDateStr] = useState('')
+  const initialPortal = search.get('portal')
+  const [portal, setPortal] = useState<PortalKey | null>(isPortalKey(initialPortal) ? initialPortal : null)
+  const [seriesName, setSeriesName] = useState<string | null>(() => {
+    const s = search.get('series')
+    return s ? s : null
+  })
+  const [leaving, setLeaving] = useState(false)
+  const [picked, setPicked] = useState<string | null>(null)
+  const [wash, setWash] = useState<string | null>(null)
 
+  const step: 'portal' | 'series' | 'city' = !portal ? 'portal' : !seriesName ? 'series' : 'city'
+  const def = portal ? PORTALS[portal] : null
+  const current = series.find((s) => eventSlug(s.name) === seriesName) ?? null
+  const now = new Date().getFullYear()
+
+  // Keep the URL honest so a refresh lands on the same step.
   useEffect(() => {
-    const h = new Date().getHours()
-    setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
-    setDateStr(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
-  }, [])
+    const q = new URLSearchParams()
+    if (portal) q.set('portal', portal)
+    if (portal && seriesName) q.set('series', seriesName)
+    const url = q.toString() ? `/?${q}` : '/'
+    if (window.location.pathname + window.location.search !== url) window.history.replaceState(null, '', url)
+  }, [portal, seriesName])
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([
-      fetch('/api/delegates/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-      fetch('/api/speakers/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-      fetch('/api/sponsors/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-      fetch('/api/partners/stats').then(r => r.ok ? r.json() : { total: 0, byStatus: {}, byEvent: {} }),
-    ]).then(([d, sp, sn, pt]) => {
-      if (cancelled) return
-      setStats({ delegates: d, speakers: sp, sponsors: sn, partners: pt })
-      setLoading(false)
-      setTimeout(() => setAnimate(true), 100)
-    }).catch(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
+  // Leave the current step with a short exit animation, then show the next.
+  const transition = (apply: () => void) => {
+    setLeaving(true)
+    window.setTimeout(() => { apply(); setLeaving(false); setPicked(null) }, 220)
+  }
+
+  const openEvent = (c: EventCategory) => {
+    if (!portal) return
+    const look = eventLook(c.name)
+    const href = workspaceHref(portal, eventSlug(c.name), '', defaultYear(portal, c))
+    router.prefetch(href)
+    setPicked(c.name)
+    setWash(look.accentSoft)
+    window.setTimeout(() => router.push(href), 460)
+  }
+
+  const choosePortal = (key: PortalKey) => {
+    setPicked(key)
+    transition(() => setPortal(key))
+  }
+  const chooseSeries = (s: EventSeries) => {
+    setPicked(s.name)
+    // One city only: straight in.
+    if (s.events.length === 1) { openEvent(s.events[0]); return }
+    transition(() => setSeriesName(eventSlug(s.name)))
+  }
+  const backToPortals = () => transition(() => { setPortal(null); setSeriesName(null) })
+  const backToSeries = () => transition(() => setSeriesName(null))
+
+  const summaryFor = (c: EventCategory) => {
+    const n = counts?.[c.name]
+    if (!n) return ''
+    return portal === 'sales'
+      ? `${plural(n.sponsor, 'sponsor')} · ${plural(n.partner, 'partner')}`
+      : portal === 'marketing'
+        ? `${plural(n.speaker, 'speaker')} · ${plural(n.sponsor, 'sponsor')}`
+        : `${plural(n.speaker, 'speaker')} · ${plural(n.delegate, 'delegate')}`
+  }
+
+  const busy = picked !== null && wash !== null
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #0c1f3f 0%, #0A1628 60%)' }}>
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
+      {wash && <div className="ev-wash" style={{ '--wash': wash } as React.CSSProperties} aria-hidden />}
 
-        {/* ── Top bar ── */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
-                </span>
-                <span className="text-xs text-slate-500 font-medium tracking-wide">LIVE DATA</span>
-              </div>
-              <span className="text-slate-700">·</span>
-              <span className="text-xs text-slate-600">{dateStr}</span>
+      <header className="flex items-center justify-between px-6 lg:px-10 h-16">
+        <Logo />
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <button onClick={logout} className="ws-btn ws-btn-ghost ws-btn-sm" title="Log out"><LogOut className="w-4 h-4" /> Log out</button>
+        </div>
+      </header>
+
+      <main className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
+        {/* ── 1. Portal ─────────────────────────────────────────────────── */}
+        {step === 'portal' && (
+          <section className={cn('w-full max-w-5xl', leaving ? 'anim-zoom-away' : 'anim-rise')}>
+            <p className="text-center text-[12px] font-semibold tracking-[0.14em] uppercase" style={{ color: 'var(--fg-4)' }}>World Nexus Group</p>
+            <h1 className="text-center text-[34px] leading-tight mt-2 font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>Where are you working today?</h1>
+            <p className="text-center text-[14.5px] mt-2" style={{ color: 'var(--fg-3)' }}>Pick a portal. You can switch any time from the sidebar.</p>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-10">
+              {Object.values(PORTALS).map((p, i) => {
+                const vars = { '--tile': p.accent.fill, '--tile-soft': p.accent.soft, '--tile-line': p.accent.line } as React.CSSProperties
+                return (
+                  <button
+                    key={p.key}
+                    onClick={() => choosePortal(p.key)}
+                    disabled={picked !== null}
+                    data-picked={picked === p.key}
+                    data-dimmed={picked !== null && picked !== p.key}
+                    className="ev-tile p-7 anim-rise"
+                    style={{ ...vars, animationDelay: `${120 + i * 90}ms` }}
+                  >
+                    <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl text-[15px] font-bold" style={{ background: 'var(--tile-soft)', color: 'var(--tile)' }}>
+                      {p.short[0]}
+                    </span>
+                    <h2 className="text-[21px] font-semibold mt-5" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>{p.name}</h2>
+                    <p className="text-[14px] mt-0.5" style={{ color: 'var(--fg-3)' }}>{p.tagline}</p>
+                    <p className="text-[13.5px] mt-4 leading-relaxed" style={{ color: 'var(--fg-2)' }}>{p.description}</p>
+                    <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold mt-6" style={{ color: 'var(--tile)' }}>
+                      Open <ArrowRight className="ev-arrow w-4 h-4" />
+                    </span>
+                  </button>
+                )
+              })}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{greeting}</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Here's your WHAI Events overview</p>
-          </div>
-          <div className="flex items-center gap-2 mt-1">
-            <Link href="/import" className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0d2040] border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm font-medium transition-all">
-              <Upload className="w-3.5 h-3.5" /> Import
-            </Link>
-            <Link href="/unassigned" className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0d2040] border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm font-medium transition-all">
-              <Inbox className="w-3.5 h-3.5" /> Triage Inbox
-            </Link>
-          </div>
-        </div>
+          </section>
+        )}
 
-        {/* ── KPI tiles ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            label="Delegates" icon={Users}
-            total={stats?.delegates.total ?? 0}
-            byStatus={stats?.delegates.byStatus ?? {}}
-            byEvent={stats?.delegates.byEvent ?? {}}
-            pipeline={DELEGATE_PIPELINE}
-            color="text-[#00B4D8]" accentHex="#00B4D8"
-            href="/delegates" animate={animate} loading={loading}
-          />
-          <KPICard
-            label="Speaker Leads" icon={Mic}
-            total={stats?.speakers.total ?? 0}
-            byStatus={stats?.speakers.byStatus ?? {}}
-            byEvent={stats?.speakers.byEvent ?? {}}
-            pipeline={SPEAKER_PIPELINE}
-            color="text-purple-400" accentHex="#a855f7"
-            href="/speakers" animate={animate} loading={loading}
-          />
-          <KPICard
-            label="Sponsors" icon={Award}
-            total={stats?.sponsors.total ?? 0}
-            byStatus={stats?.sponsors.byStatus ?? {}}
-            byEvent={stats?.sponsors.byEvent ?? {}}
-            pipeline={SPONSOR_PIPELINE}
-            positiveKeys={['Emailed', 'In Discussion', 'Confirmed']}
-            ringLabel="contacted"
-            color="text-amber-400" accentHex="#f59e0b"
-            href="/sponsors" animate={animate} loading={loading}
-          />
-          <KPICard
-            label="Partners & Media" icon={Network}
-            total={stats?.partners.total ?? 0}
-            byStatus={stats?.partners.byStatus ?? {}}
-            byEvent={stats?.partners.byEvent ?? {}}
-            pipeline={PARTNER_PIPELINE}
-            positiveKeys={['Emailed', 'In Discussion', 'Confirmed']}
-            ringLabel="contacted"
-            color="text-emerald-400" accentHex="#10b981"
-            href="/partners" animate={animate} loading={loading}
-          />
-        </div>
+        {/* ── 2. Series ─────────────────────────────────────────────────── */}
+        {step === 'series' && def && (
+          <section className={cn('w-full max-w-3xl', leaving && !wash ? 'anim-zoom-away' : 'anim-rise')}>
+            <Crumbs items={[{ label: 'Portals', onClick: backToPortals }, { label: def.name }]} />
+            <h1 className="text-center text-[34px] leading-tight mt-3 font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>Which event?</h1>
+            <p className="text-center text-[14.5px] mt-2" style={{ color: 'var(--fg-3)' }}>Choose a series, then the city.</p>
 
-        {/* ── Pipeline + Event grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Pipeline detail — 2/3 width */}
-          <div className="lg:col-span-2 rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white">Pipeline Breakdown</h2>
-              <span className="text-[10px] text-slate-600 uppercase tracking-wider font-medium">Status distribution</span>
+            <div className="grid sm:grid-cols-2 gap-5 mt-10">
+              {series.map((s, i) => {
+                const isPicked = picked === s.name || (s.events.length === 1 && picked === s.events[0].name)
+                const total = s.events.reduce((acc, c) => {
+                  const n = counts?.[c.name]
+                  if (!n) return acc
+                  return acc + (portal === 'sales' ? n.sponsor + n.partner : portal === 'marketing' ? n.speaker + n.sponsor : n.speaker + n.delegate)
+                }, 0)
+                return (
+                  <button
+                    key={s.name}
+                    onClick={() => chooseSeries(s)}
+                    disabled={busy}
+                    data-picked={isPicked}
+                    data-dimmed={picked !== null && !isPicked}
+                    className="ev-tile p-7 anim-rise"
+                    style={{ ...tileVars(s.look), animationDelay: `${100 + i * 90}ms` }}
+                  >
+                    <span className="inline-flex items-center h-7 px-2.5 rounded-lg text-[12px] font-bold tracking-wide" style={{ background: 'var(--tile-soft)', color: 'var(--tile)' }}>
+                      {s.short}
+                    </span>
+                    <h2 className="text-[24px] font-semibold mt-5" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>{s.name}</h2>
+                    <p className="text-[14px] mt-1" style={{ color: 'var(--fg-3)' }}>{s.blurb}</p>
+
+                    {/* the cities inside, each in its own colour */}
+                    <div className="flex flex-wrap gap-2 mt-5">
+                      {s.events.map((c) => {
+                        const look = eventLook(c.name)
+                        return (
+                          <span key={c.name} className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12.5px] font-medium" style={{ background: look.accentSoft, color: look.accentInk }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: look.accent }} />
+                            {look.city}
+                          </span>
+                        )
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between mt-6">
+                      <span className="text-[13px]" style={{ color: 'var(--fg-3)' }}>
+                        {counts ? plural(total, portal === 'sales' ? 'company' : portal === 'marketing' ? 'record' : 'person').replace('companys', 'companies').replace('persons', 'people') : ''}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold" style={{ color: 'var(--tile)' }}>
+                        {s.events.length === 1 ? 'Open' : 'Choose city'} <ArrowRight className="ev-arrow w-4 h-4" />
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-            {loading ? (
-              <div className="space-y-3">
-                {[1,2,3,4,5,6,7,8].map(i => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="h-2.5 w-28 bg-slate-700/40 rounded animate-pulse" />
-                    <div className="h-1.5 flex-1 bg-slate-700/30 rounded animate-pulse" />
-                    <div className="h-2.5 w-6 bg-slate-700/30 rounded animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <PipelineSection label="Delegates" pipeline={DELEGATE_PIPELINE} byStatus={stats?.delegates.byStatus ?? {}} total={stats?.delegates.total ?? 0} accentHex="#00B4D8" href="/delegates" animate={animate} />
-                <div className="border-t border-[#1a3a5c]/40" />
-                <PipelineSection label="Speaker Leads" pipeline={SPEAKER_PIPELINE} byStatus={stats?.speakers.byStatus ?? {}} total={stats?.speakers.total ?? 0} accentHex="#a855f7" href="/speakers" animate={animate} />
-                <div className="border-t border-[#1a3a5c]/40" />
-                <PipelineSection label="Sponsors" pipeline={SPONSOR_PIPELINE} byStatus={stats?.sponsors.byStatus ?? {}} total={stats?.sponsors.total ?? 0} accentHex="#f59e0b" href="/sponsors" animate={animate} />
-                <div className="border-t border-[#1a3a5c]/40" />
-                <PipelineSection label="Partners & Media" pipeline={PARTNER_PIPELINE} byStatus={stats?.partners.byStatus ?? {}} total={stats?.partners.total ?? 0} accentHex="#10b981" href="/partners" animate={animate} />
-              </div>
-            )}
-          </div>
+          </section>
+        )}
 
-          {/* Event performance — 1/3 width */}
-          <div className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white">Event Performance</h2>
-              <div className="flex items-center gap-2">
-                {EVENTS.map((ev, i) => (
-                  <div key={ev} className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: eventHex(i) }} />
-                    <span className="text-[10px] text-slate-600">{ev.split(' ')[0]}</span>
-                  </div>
-                ))}
-              </div>
+        {/* ── 3. City ───────────────────────────────────────────────────── */}
+        {step === 'city' && def && current && (
+          <section className={cn('w-full max-w-3xl', leaving && !wash ? 'anim-zoom-away' : 'anim-rise')}>
+            <Crumbs items={[{ label: 'Portals', onClick: backToPortals }, { label: def.name, onClick: backToSeries }, { label: current.name }]} />
+            <h1 className="text-center text-[34px] leading-tight mt-3 font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>Which city?</h1>
+            <p className="text-center text-[14.5px] mt-2" style={{ color: 'var(--fg-3)' }}>{current.name} runs in {current.events.map((c) => eventLook(c.name).city).join(' and ')}.</p>
+
+            <div className="grid sm:grid-cols-2 gap-5 mt-10">
+              {current.events.map((c, i) => {
+                const look = eventLook(c.name)
+                const years = editionYears(c).slice().reverse()
+                const isPicked = picked === c.name
+                return (
+                  <button
+                    key={c.name}
+                    onClick={() => openEvent(c)}
+                    disabled={busy}
+                    data-picked={isPicked}
+                    data-dimmed={picked !== null && !isPicked}
+                    className="ev-tile p-7 anim-rise"
+                    style={{ ...tileVars(look), animationDelay: `${100 + i * 90}ms` }}
+                  >
+                    <span className="inline-flex items-center h-7 px-2.5 rounded-lg text-[12px] font-bold tracking-wide" style={{ background: 'var(--tile-soft)', color: 'var(--tile)' }}>
+                      {look.short} · {look.city.toUpperCase()}
+                    </span>
+                    <h2 className="text-[28px] font-semibold mt-5" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>{look.city}</h2>
+                    <p className="text-[14px]" style={{ color: 'var(--fg-3)' }}>{look.country}</p>
+                    <p className="text-[13.5px] mt-3 leading-relaxed" style={{ color: 'var(--fg-2)' }}>{look.blurb}</p>
+
+                    <div className="flex flex-wrap gap-1.5 mt-5">
+                      {years.map((y) => {
+                        const next = Number(y) === now + 1
+                        return (
+                          <span
+                            key={y}
+                            className="inline-flex items-center h-6 px-2 rounded-md text-[12px] font-medium tabular"
+                            style={next ? { background: 'var(--tile-soft)', color: 'var(--tile)' } : { background: 'var(--surface-2)', color: 'var(--fg-3)', border: '1px solid var(--line)' }}
+                          >
+                            {y}{next ? ' · next' : ''}
+                          </span>
+                        )
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between mt-6">
+                      <span className="text-[13px] min-h-[18px]" style={{ color: 'var(--fg-3)' }}>{summaryFor(c)}</span>
+                      <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold" style={{ color: 'var(--tile)' }}>
+                        Open <ArrowRight className="ev-arrow w-4 h-4" />
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-            {loading ? (
-              <div className="space-y-3">
-                {[1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-700/30 rounded animate-pulse" />)}
-              </div>
-            ) : stats ? (
-              <EventComparison stats={stats} animate={animate} />
-            ) : null}
-          </div>
-        </div>
+          </section>
+        )}
 
-        {/* ── Pulse AI — full width ── */}
-        <div style={{ height: 560 }}>
-          <AIAssistant inline />
-        </div>
-
-        {/* ── Footer strip ── */}
-        <div className="flex items-center justify-between pt-2 border-t border-[#1a3a5c]/30">
-          <span className="text-xs text-slate-700">WHAI Events CRM</span>
-          <span className="text-xs text-slate-700">All data is live from your Supabase database</span>
-        </div>
-      </div>
+        {step !== 'portal' && (
+          <p className="text-center text-[12.5px] mt-10" style={{ color: 'var(--fg-4)' }}>
+            <Link href={portal === 'sales' ? '/sponsors' : portal === 'marketing' ? '/speakers' : '/delegates'} className="hover:underline underline-offset-4">Browse every record instead</Link>
+          </p>
+        )}
+      </main>
     </div>
+  )
+}
+
+export default function EntrancePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" style={{ background: 'var(--bg)' }} />}>
+      <Entrance />
+    </Suspense>
   )
 }

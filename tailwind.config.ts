@@ -89,6 +89,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Lexend", "Inter", "system-ui", "sans-serif"],
       },
     },
   },

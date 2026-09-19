@@ -29,7 +29,7 @@ export function FilterChips({ chips, onRemove, onClearAll }: FilterChipsProps) {
           <span>{chip.displayValue}</span>
           <button
             onClick={() => onRemove(chip.key, chip.value)}
-            className="ml-0.5 hover:text-white transition-colors"
+            className="ml-0.5 hover:text-[var(--fg)] transition-colors"
           >
             <X className="w-3 h-3" />
           </button>
@@ -37,7 +37,7 @@ export function FilterChips({ chips, onRemove, onClearAll }: FilterChipsProps) {
       ))}
       <button
         onClick={onClearAll}
-        className="text-xs text-slate-400 hover:text-white transition-colors underline underline-offset-2"
+        className="text-xs text-slate-400 hover:text-[var(--fg)] transition-colors underline underline-offset-2"
       >
         Clear all
       </button>

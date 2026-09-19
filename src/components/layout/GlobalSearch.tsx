@@ -122,12 +122,12 @@ export function GlobalSearch() {
       {/* Search trigger button in navbar */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#112850] border border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors group"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 text-xs transition-colors group"
         title="Search (⌘K)"
       >
         <Search className="w-3.5 h-3.5" />
         <span className="hidden sm:inline text-slate-500">Search…</span>
-        <kbd className="hidden sm:inline ml-1 px-1 py-0.5 rounded text-[10px] bg-[#0A1628] border border-[#1a3a5c] text-slate-600">⌘K</kbd>
+        <kbd className="hidden sm:inline ml-1 px-1 py-0.5 rounded text-[10px] bg-[var(--bg)] border border-[var(--line)] text-slate-600">⌘K</kbd>
       </button>
 
       {/* Modal overlay */}
@@ -137,11 +137,11 @@ export function GlobalSearch() {
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-xl bg-[#0d2040] border border-[#1a3a5c] rounded-2xl shadow-2xl overflow-hidden"
+            className="w-full max-w-xl bg-[var(--surface)] border border-[var(--line)] rounded-2xl shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Input */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#1a3a5c]">
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--line)]">
               {loading
                 ? <Loader2 className="w-4 h-4 text-slate-500 animate-spin shrink-0" />
                 : <Search className="w-4 h-4 text-slate-500 shrink-0" />
@@ -152,14 +152,14 @@ export function GlobalSearch() {
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
                 placeholder="Search delegates, sponsors, speakers, partners…"
-                className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none"
+                className="flex-1 bg-transparent text-sm text-[var(--fg)] placeholder-slate-500 outline-none"
               />
               {query && (
-                <button onClick={() => setQuery('')} className="text-slate-500 hover:text-white transition-colors">
+                <button onClick={() => setQuery('')} className="text-slate-500 hover:text-[var(--fg)] transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               )}
-              <kbd className="hidden sm:inline px-1.5 py-0.5 rounded text-[10px] bg-[#0A1628] border border-[#1a3a5c] text-slate-600">Esc</kbd>
+              <kbd className="hidden sm:inline px-1.5 py-0.5 rounded text-[10px] bg-[var(--bg)] border border-[var(--line)] text-slate-600">Esc</kbd>
             </div>
 
             {/* Results */}
@@ -182,7 +182,7 @@ export function GlobalSearch() {
                 let globalIdx = results.indexOf(items[0])
                 return (
                   <div key={type}>
-                    <div className="px-4 py-2 flex items-center gap-2 border-t border-[#1a3a5c]/50 first:border-t-0">
+                    <div className="px-4 py-2 flex items-center gap-2 border-t border-[var(--line)] first:border-t-0">
                       <Icon className="w-3 h-3" style={{ color: meta.color }} />
                       <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{meta.label}</span>
                     </div>
@@ -196,18 +196,18 @@ export function GlobalSearch() {
                           onClick={() => navigate(r.href)}
                           className={cn(
                             'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                            isHighlighted ? 'bg-[#112850]' : 'hover:bg-[#0d1f3a]'
+                            isHighlighted ? 'bg-[var(--surface-2)]' : 'hover:bg-[var(--surface-2)]'
                           )}
                         >
                           <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0', meta.bg, meta.border, 'border')} style={{ color: meta.color }}>
                             {r.label.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-white truncate">{r.label}</div>
+                            <div className="text-sm font-medium text-[var(--fg)] truncate">{r.label}</div>
                             {r.sub && <div className="text-xs text-slate-500 truncate">{r.sub}</div>}
                           </div>
                           {isHighlighted && (
-                            <kbd className="shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-[#0A1628] border border-[#1a3a5c] text-slate-500">↵</kbd>
+                            <kbd className="shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-[var(--bg)] border border-[var(--line)] text-slate-500">↵</kbd>
                           )}
                         </button>
                       )
@@ -218,10 +218,10 @@ export function GlobalSearch() {
             </div>
 
             {results.length > 0 && (
-              <div className="px-4 py-2 border-t border-[#1a3a5c]/50 flex items-center gap-3 text-[10px] text-slate-600">
-                <span><kbd className="px-1 border border-[#1a3a5c] rounded bg-[#0A1628]">↑↓</kbd> navigate</span>
-                <span><kbd className="px-1 border border-[#1a3a5c] rounded bg-[#0A1628]">↵</kbd> open</span>
-                <span><kbd className="px-1 border border-[#1a3a5c] rounded bg-[#0A1628]">Esc</kbd> close</span>
+              <div className="px-4 py-2 border-t border-[var(--line)] flex items-center gap-3 text-[10px] text-slate-600">
+                <span><kbd className="px-1 border border-[var(--line)] rounded bg-[var(--bg)]">↑↓</kbd> navigate</span>
+                <span><kbd className="px-1 border border-[var(--line)] rounded bg-[var(--bg)]">↵</kbd> open</span>
+                <span><kbd className="px-1 border border-[var(--line)] rounded bg-[var(--bg)]">Esc</kbd> close</span>
               </div>
             )}
           </div>

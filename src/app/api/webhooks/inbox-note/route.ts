@@ -1,26 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { companySimilarity } from '@/lib/companyMatch'
+import { upsertInboxNoteActivity, type NoteEntity } from '@/lib/inboxNoteActivity'
 
 export const dynamic = 'force-dynamic'
 
 // Inbox-note webhook.
 // The worldhealth.ai and worldnexusgroup.com admin panels post here when a
-// team note is saved on a contact enquiry. If the enquiry's business already
-// exists in the CRM (a sponsor or partner record), the note is copied onto
-// that record's notes; if not, nothing happens — this never creates records.
+// team note is saved on a contact enquiry. If the enquirer is already in the
+// CRM, the note is written onto that record's timeline as a note activity,
+// next to its status changes: their company (sponsor or partner, fuzzy on
+// the company name or exact on the contact email) and the person themselves
+// (delegate or speaker, exact on email). Re-saving an edited note replaces
+// the earlier entry instead of stacking a new one.
+//
+// If the enquiry is still waiting in the triage inbox, the note is kept on
+// the staged contact so it follows them when they are assigned. This never
+// creates CRM records.
 //
 // POST /api/webhooks/inbox-note
 // Headers: x-webhook-secret: <WEBHOOK_SECRET env var>
 // Body: {
 //   "company": "Acme Health",         // enquiry's company (fuzzy-matched)
-//   "email": "jane@acmehealth.com",   // enquiry's email (fallback exact match)
+//   "email": "jane@acmehealth.com",   // enquiry's email
 //   "note": "Spoke on the phone…",    // the team note as saved in the inbox
 //   "source": "worldhealth.ai contact inbox"
 // }
-//
-// Re-saving an edited note replaces the previously copied block (matched by
-// its source + email marker) instead of stacking duplicates.
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,23 +39,8 @@ export async function OPTIONS() {
 
 const MATCH_THRESHOLD = 0.9
 
-type CompanyRow = {
-  id: string
-  companyName: string | null
-  contactEmail: string | null
-  notes: string | null
-}
-
-// Replace the block introduced by `marker` if present, else append it.
-function upsertNoteBlock(existing: string | null, marker: string, content: string): string {
-  const block = `${marker}\n${content.trim()}`
-  const base = (existing || '').trim()
-  if (!base) return block
-  const esc = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp(`(^|\\n\\n)${esc}\\n[\\s\\S]*?(?=\\n\\n\\[|$)`)
-  if (re.test(base)) return base.replace(re, `$1${block}`)
-  return `${base}\n\n${block}`
-}
+type CompanyRow = { id: string; companyName: string | null; contactEmail: string | null }
+type PersonRow = { id: string; email: string | null }
 
 export async function POST(req: NextRequest) {
   try {
@@ -72,15 +62,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'company or email is required' }, { status: 400, headers: CORS_HEADERS })
     }
 
-    // Search both company pipelines for the best match: fuzzy on the company
-    // name first, exact contact-email as the fallback.
-    let best: { table: 'sponsors' | 'partners'; row: CompanyRow; score: number } | null = null
-    for (const table of ['sponsors', 'partners'] as const) {
-      const { data, error } = await supabase
-        .from(table)
-        .select('id, companyName, contactEmail, notes')
+    const targets: { entityType: NoteEntity; id: string }[] = []
+
+    // The company: best match across sponsors and partners.
+    let best: { entityType: 'sponsor' | 'partner'; row: CompanyRow; score: number } | null = null
+    for (const [table, entityType] of [['sponsors', 'sponsor'], ['partners', 'partner']] as const) {
+      const { data, error } = await supabase.from(table).select('id, companyName, contactEmail')
       if (error) {
-        // A missing partners table shouldn't stop the sponsors match.
         console.warn(`inbox-note: could not read ${table}:`, error.message)
         continue
       }
@@ -88,34 +76,51 @@ export async function POST(req: NextRequest) {
         let score = 0
         if (company && row.companyName) score = companySimilarity(company, row.companyName)
         if (email && (row.contactEmail || '').trim().toLowerCase() === email) score = Math.max(score, 1)
-        if (score >= MATCH_THRESHOLD && (!best || score > best.score)) {
-          best = { table, row, score }
+        if (score >= MATCH_THRESHOLD && (!best || score > best.score)) best = { entityType, row, score }
+      }
+    }
+    if (best) targets.push({ entityType: best.entityType, id: best.row.id })
+
+    // The person: exact email among delegates and speakers.
+    if (email) {
+      for (const [table, entityType] of [['delegates', 'delegate'], ['speakers', 'speaker']] as const) {
+        const { data, error } = await supabase.from(table).select('id, email').ilike('email', email)
+        if (error) {
+          console.warn(`inbox-note: could not read ${table}:`, error.message)
+          continue
         }
+        for (const row of (data || []) as PersonRow[]) targets.push({ entityType, id: row.id })
       }
     }
 
-    if (!best) {
-      return NextResponse.json({ matched: false }, { headers: CORS_HEADERS })
+    const written: { entityType: NoteEntity; id: string; result: string }[] = []
+    for (const t of targets) {
+      const result = await upsertInboxNoteActivity({ entityType: t.entityType, entityId: t.id, note, source, email })
+      written.push({ ...t, result })
     }
 
-    const marker = `[Inbox note · ${source} · ${email || company}]`
-    const saved = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    const notes = upsertNoteBlock(best.row.notes, marker, `${note}\n(saved ${saved})`)
-
-    if (notes !== (best.row.notes || '').trim()) {
-      const { error } = await supabase
-        .from(best.table)
-        .update({ notes, updatedAt: new Date().toISOString() })
-        .eq('id', best.row.id)
-      if (error) {
-        console.error('inbox-note: update failed:', error.message)
-        return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS })
+    // Still in triage: keep the latest note with the staged contact so the
+    // assign step carries it onto the new record.
+    let staged = 0
+    if (email) {
+      const { data } = await supabase
+        .from('staged_contacts')
+        .select('id, rawData')
+        .eq('status', 'pending')
+        .ilike('email', email)
+      for (const row of data || []) {
+        let raw: Record<string, unknown> = {}
+        try { raw = JSON.parse(row.rawData ?? '{}') || {} } catch { raw = {} }
+        raw.team_note = note
+        raw.team_note_source = source
+        const { error } = await supabase.from('staged_contacts').update({ rawData: JSON.stringify(raw) }).eq('id', row.id)
+        if (!error) staged++
       }
     }
 
     return NextResponse.json(
-      { matched: true, table: best.table, company: best.row.companyName },
-      { headers: CORS_HEADERS },
+      { matched: written.length > 0, written, staged, table: best ? `${best.entityType}s` : null, id: best?.row.id ?? null },
+      { headers: CORS_HEADERS }
     )
   } catch (error) {
     console.error('inbox-note webhook error:', error)

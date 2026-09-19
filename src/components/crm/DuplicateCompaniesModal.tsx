@@ -124,11 +124,11 @@ export function DuplicateCompaniesModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-4xl max-h-[88vh] flex flex-col rounded-xl bg-[#0A1628] border border-[#1a3a5c] shadow-2xl">
+      <div className="w-full max-w-4xl max-h-[88vh] flex flex-col rounded-xl bg-[var(--bg)] border border-[var(--line)] shadow-2xl">
         {/* Header */}
-        <div className="shrink-0 flex items-start justify-between px-5 py-4 border-b border-[#1a3a5c]">
+        <div className="shrink-0 flex items-start justify-between px-5 py-4 border-b border-[var(--line)]">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <h2 className="text-base font-bold text-[var(--fg)] flex items-center gap-2">
               <Merge className={cn('w-4 h-4', accentText)} /> Duplicate companies
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -136,7 +136,7 @@ export function DuplicateCompaniesModal({
               missing details are taken from the others before they are removed.
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-slate-500 hover:text-[var(--fg)] transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -157,7 +157,7 @@ export function DuplicateCompaniesModal({
           ) : groups.length === 0 ? (
             <div className="py-16 text-center">
               <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-3" />
-              <p className="text-sm text-white font-medium">No duplicates found</p>
+              <p className="text-sm text-[var(--fg)] font-medium">No duplicates found</p>
               <p className="text-xs text-slate-500 mt-1">Every company in your {entityLabel} list is unique.</p>
             </div>
           ) : (
@@ -176,13 +176,13 @@ export function DuplicateCompaniesModal({
                     key={group.key}
                     className={cn(
                       'rounded-lg border overflow-hidden',
-                      finished ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-[#1a3a5c] bg-[#0d2040]'
+                      finished ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-[var(--line)] bg-[var(--surface)]'
                     )}
                   >
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1a3a5c]">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--line)]">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-semibold text-white truncate">{group.name}</span>
-                        <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-[#112850] text-slate-400">
+                        <span className="text-sm font-semibold text-[var(--fg)] truncate">{group.name}</span>
+                        <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-[var(--surface-2)] text-slate-400">
                           {group.records.length} records
                         </span>
                       </div>
@@ -195,7 +195,7 @@ export function DuplicateCompaniesModal({
                           onClick={() => mergeGroup(group)}
                           disabled={merging === group.key || !keepId}
                           className={cn(
-                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#0A1628] transition-colors disabled:opacity-50',
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[var(--on-accent)] transition-colors disabled:opacity-50',
                             accentBg
                           )}
                         >
@@ -209,7 +209,7 @@ export function DuplicateCompaniesModal({
                     </div>
 
                     {!finished && (
-                      <div className="divide-y divide-[#1a3a5c]/60">
+                      <div className="divide-y divide-[var(--line)]">
                         {group.records.map((r, i) => {
                           const keeping = keepId === r.id
                           // The API returns the most-progressed record first.
@@ -220,7 +220,7 @@ export function DuplicateCompaniesModal({
                               key={r.id}
                               className={cn(
                                 'flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors',
-                                keeping ? accentSoft : 'hover:bg-[#112850]/60'
+                                keeping ? accentSoft : 'hover:bg-[var(--surface-2)]'
                               )}
                             >
                               <input
@@ -232,7 +232,7 @@ export function DuplicateCompaniesModal({
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-medium text-white">
+                                  <span className="text-sm font-medium text-[var(--fg)]">
                                     {fullName(r) ?? <span className="text-slate-500 italic">No contact name</span>}
                                   </span>
                                   {r.contactJobTitle && (
@@ -304,13 +304,13 @@ export function DuplicateCompaniesModal({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 flex items-center justify-between px-5 py-3 border-t border-[#1a3a5c]">
+        <div className="shrink-0 flex items-center justify-between px-5 py-3 border-t border-[var(--line)]">
           <p className="text-[11px] text-slate-500">
             Nothing is lost: contacts, notes, tags and activity history all move to the record you keep.
           </p>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white border border-[#1a3a5c] hover:border-slate-500 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-[var(--fg)] border border-[var(--line)] hover:border-slate-500 transition-colors"
           >
             Done
           </button>

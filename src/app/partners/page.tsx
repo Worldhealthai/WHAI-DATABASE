@@ -66,7 +66,7 @@ function PartnerCard({ partner, onAdvance, onEdit, advancing, onDragStart, onDra
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        'group block rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-3.5 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-900/10 transition-all cursor-grab active:cursor-grabbing select-none',
+        'group block rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3.5 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-900/10 transition-all cursor-grab active:cursor-grabbing select-none',
         isDragging && 'opacity-30 scale-95'
       )}
     >
@@ -84,7 +84,7 @@ function PartnerCard({ partner, onAdvance, onEdit, advancing, onDragStart, onDra
           <Pencil className="w-3 h-3" />
         </button>
       </div>
-      <div className="font-semibold text-sm text-white mb-0.5 truncate">{partner.companyName}</div>
+      <div className="font-semibold text-sm text-[var(--fg)] mb-0.5 truncate">{partner.companyName}</div>
       {(partner.contactFirstName || partner.contactLastName) && (
         <div className="text-xs text-slate-500 truncate mb-1">
           {[partner.contactFirstName, partner.contactLastName].filter(Boolean).join(' ')}
@@ -175,7 +175,7 @@ function KanbanBoard({ partners, onAdvance, onEdit, advancingId }: {
     <>
       {draggingId && (
         <div className="fixed top-16 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
-          <div className="flex gap-2 bg-[#0A1628]/95 backdrop-blur-sm border border-[#1a3a5c] rounded-2xl p-2 shadow-2xl pointer-events-auto">
+          <div className="flex gap-2 bg-[var(--bg)] backdrop-blur-sm border border-[var(--line)] rounded-2xl p-2 shadow-2xl pointer-events-auto">
             <span className="flex items-center px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Drop in</span>
             {BOARD_COLS.map((col) => {
               const isTarget = dragOverCol === col.status
@@ -211,7 +211,7 @@ function KanbanBoard({ partners, onAdvance, onEdit, advancingId }: {
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ background: col.hex }} />
                   <span className="text-xs font-semibold text-slate-300">{col.label}</span>
                 </div>
-                <span className="text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-[#0d2040] border border-[#1a3a5c] text-slate-500">
+                <span className="text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-[var(--surface)] border border-[var(--line)] text-slate-500">
                   {cards.length}
                 </span>
               </div>
@@ -221,7 +221,7 @@ function KanbanBoard({ partners, onAdvance, onEdit, advancingId }: {
                 onDrop={(e) => handleDrop(e, col.status)}
                 className={cn(
                   'rounded-xl border p-2 space-y-2 min-h-[120px] transition-all duration-150',
-                  isOver ? 'border-dashed scale-[1.02] shadow-lg' : 'border-[#1a3a5c]/60'
+                  isOver ? 'border-dashed scale-[1.02] shadow-lg' : 'border-[var(--line)]'
                 )}
                 style={{
                   background: isOver ? `${col.hex}14` : `${col.hex}06`,
@@ -245,7 +245,7 @@ function KanbanBoard({ partners, onAdvance, onEdit, advancingId }: {
                   <div
                     className={cn(
                       'py-6 text-center text-xs border border-dashed rounded-lg transition-colors',
-                      isOver ? 'border-current text-slate-400' : 'border-[#1a3a5c]/40 text-slate-700'
+                      isOver ? 'border-current text-slate-400' : 'border-[var(--line)] text-slate-700'
                     )}
                     style={isOver ? { borderColor: col.hex, color: col.hex } : {}}
                   >
@@ -285,7 +285,7 @@ function Checkbox({ checked, indeterminate, onChange }: {
       )}
     >
       {(checked || indeterminate) && (
-        <svg className="w-2.5 h-2.5 text-[#0A1628]" viewBox="0 0 10 10" fill="none">
+        <svg className="w-2.5 h-2.5 text-[var(--on-accent)]" viewBox="0 0 10 10" fill="none">
           {checked
             ? <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             : <path d="M2 5H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -413,14 +413,14 @@ export default function PartnersPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
       {/* ── Header ── */}
-      <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] z-30">
+      <div className="shrink-0 bg-[var(--bg)] border-b border-[var(--line)] z-30">
         <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #10b98180 0%, #10b98130 50%, transparent 100%)' }} />
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between pt-4 pb-3">
             <div>
               <div className="flex items-center gap-2">
                 <Network className="w-5 h-5 text-emerald-400" />
-                <h1 className="text-lg sm:text-xl font-bold text-white">Partners & Media</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-[var(--fg)]">Partners & Media</h1>
               </div>
               {data && (
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -431,22 +431,22 @@ export default function PartnersPage() {
             </div>
             <div className="flex items-center gap-2">
               {/* View toggle */}
-              <div className="flex items-center rounded-lg border border-[#1a3a5c] overflow-hidden">
+              <div className="flex items-center rounded-lg border border-[var(--line)] overflow-hidden">
                 <button
                   onClick={() => setViewMode('table')}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
-                    viewMode === 'table' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-white'
+                    viewMode === 'table' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-[var(--fg)]'
                   )}
                 >
                   <LayoutList className="w-3.5 h-3.5" /> List
                 </button>
-                <div className="w-px h-5 bg-[#1a3a5c]" />
+                <div className="w-px h-5 bg-[var(--surface-3)]" />
                 <button
                   onClick={() => setViewMode('board')}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
-                    viewMode === 'board' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-white'
+                    viewMode === 'board' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-[var(--fg)]'
                   )}
                 >
                   <LayoutGrid className="w-3.5 h-3.5" /> Board
@@ -455,13 +455,13 @@ export default function PartnersPage() {
               <button
                 onClick={() => setShowDuplicates(true)}
                 title="Find and merge duplicate companies"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 text-sm font-medium hover:text-white hover:border-slate-500 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 text-sm font-medium hover:text-[var(--fg)] hover:border-slate-500 transition-colors"
               >
                 <Merge className="w-4 h-4" /> <span className="hidden sm:inline">Duplicates</span>
               </button>
               <button
                 onClick={() => setShowModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-[#0A1628] text-sm font-semibold hover:bg-emerald-500/90 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-[var(--on-accent)] text-sm font-semibold hover:bg-emerald-500/90 transition-colors"
               >
                 <Plus className="w-4 h-4" /> Add Partner
               </button>
@@ -476,10 +476,10 @@ export default function PartnersPage() {
                 value={keyword}
                 onChange={(e) => handleKeywordChange(e.target.value)}
                 placeholder="Search by company name, contact, email…"
-                className="w-full pl-10 pr-10 py-2.5 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500/50 transition-colors"
+                className="w-full pl-10 pr-10 py-2.5 bg-[var(--surface-2)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-500 outline-none focus:border-emerald-500/50 transition-colors"
               />
               {keyword && (
-                <button onClick={() => handleKeywordChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                <button onClick={() => handleKeywordChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[var(--fg)] transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -490,10 +490,10 @@ export default function PartnersPage() {
 
       {/* ── Bulk actions bar ── */}
       {selected.size > 0 && viewMode === 'table' && (
-        <div className="shrink-0 bg-[#0d2040] border-b border-emerald-500/20 z-20">
+        <div className="shrink-0 bg-[var(--surface)] border-b border-emerald-500/20 z-20">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 flex-wrap">
             <span className="text-sm font-semibold text-emerald-400 shrink-0">{selected.size} selected</span>
-            <button onClick={() => exportCSV(selected)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:text-white hover:border-slate-400 transition-all">
+            <button onClick={() => exportCSV(selected)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:text-[var(--fg)] hover:border-slate-400 transition-all">
               <Download className="w-3.5 h-3.5" /> Export selected
             </button>
             <button
@@ -504,7 +504,7 @@ export default function PartnersPage() {
               <Trash2 className="w-3.5 h-3.5" />
               {bulkDeleting ? 'Deleting…' : 'Delete selected'}
             </button>
-            <button onClick={() => setSelected(new Set())} className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors">
+            <button onClick={() => setSelected(new Set())} className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-[var(--fg)] transition-colors">
               <X className="w-3.5 h-3.5" /> Clear
             </button>
           </div>
@@ -523,10 +523,10 @@ export default function PartnersPage() {
                 {BOARD_COLS.map((col) => {
                   const cards = boardPartners.filter((p) => p.status === col.status)
                   return (
-                    <div key={col.status} className="flex items-center gap-2 shrink-0 px-3 py-2 rounded-lg bg-[#0d2040] border border-[#1a3a5c]">
+                    <div key={col.status} className="flex items-center gap-2 shrink-0 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--line)]">
                       <div className="w-2 h-2 rounded-full" style={{ background: col.hex }} />
                       <span className="text-xs text-slate-400">{col.label}</span>
-                      <span className="text-sm font-bold text-white tabular-nums">{cards.length}</span>
+                      <span className="text-sm font-bold text-[var(--fg)] tabular-nums">{cards.length}</span>
                     </div>
                   )
                 })}
@@ -560,10 +560,10 @@ export default function PartnersPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">
                   {isLoading ? 'Loading…' : (
-                    <><span className={cn('font-bold text-white', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>
+                    <><span className={cn('font-bold text-[var(--fg)]', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>
                   )}
                 </span>
-                <button onClick={() => exportCSV()} disabled={!data?.data?.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 disabled:opacity-40 transition-colors">
+                <button onClick={() => exportCSV()} disabled={!data?.data?.length} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--surface-2)] text-slate-300 hover:text-[var(--fg)] text-xs font-medium border border-[var(--line)] hover:border-slate-500 disabled:opacity-40 transition-colors">
                   <Download className="w-3.5 h-3.5" /> Export CSV
                 </button>
               </div>
@@ -572,7 +572,7 @@ export default function PartnersPage() {
                 {isLoading ? (
                   <div>
                     {Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[#1a3a5c]/50">
+                      <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[var(--line)]">
                         <div className="w-4 h-4 rounded bg-slate-700/50 animate-pulse shrink-0" />
                         <div className="w-8 h-8 rounded-lg bg-slate-700/50 animate-pulse shrink-0" />
                         <div className="flex-1 space-y-1.5">
@@ -598,7 +598,7 @@ export default function PartnersPage() {
                     <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-[#1a3a5c] bg-[#0d2040]">
+                          <tr className="border-b border-[var(--line)] bg-[var(--surface)]">
                             <th className="pl-4 pr-2 py-2.5 w-8">
                               <Checkbox checked={allPageSelected} indeterminate={somePageSelected && !allPageSelected} onChange={toggleSelectAll} />
                             </th>
@@ -606,7 +606,7 @@ export default function PartnersPage() {
                               <th
                                 key={col.key}
                                 onClick={() => handleSort(col.key)}
-                                className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white select-none whitespace-nowrap"
+                                className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-[var(--fg)] select-none whitespace-nowrap"
                               >
                                 <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} sortBy={sortBy} sortDir={sortDir} /></div>
                               </th>
@@ -620,7 +620,7 @@ export default function PartnersPage() {
                             return (
                               <tr
                                 key={s.id}
-                                className={cn('group/row border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors', selected.has(s.id) && 'bg-emerald-500/5 border-emerald-500/20')}
+                                className={cn('group/row border-b border-[var(--line)] hover:bg-[var(--surface-2)] transition-colors', selected.has(s.id) && 'bg-emerald-500/5 border-emerald-500/20')}
                               >
                                 <td className="pl-4 pr-2 py-3">
                                   <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
@@ -631,7 +631,7 @@ export default function PartnersPage() {
                                       {companyInitials(s.companyName)}
                                     </div>
                                     <div className="min-w-0">
-                                      <div className="font-medium text-white group-hover:text-emerald-400 transition-colors">{s.companyName}</div>
+                                      <div className="font-medium text-[var(--fg)] group-hover:text-emerald-400 transition-colors">{s.companyName}</div>
                                       {(s.contactFirstName || s.contactLastName) && (
                                         <div className="text-xs text-slate-500">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
                                       )}
@@ -688,16 +688,16 @@ export default function PartnersPage() {
                     </div>
 
                     {/* Mobile cards */}
-                    <div className="md:hidden divide-y divide-[#1a3a5c]/40">
+                    <div className="md:hidden divide-y divide-[var(--line)]">
                       {rows.map((s) => (
-                        <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-emerald-500/5' : 'hover:bg-[#112850]/60')}>
+                        <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-emerald-500/5' : 'hover:bg-[var(--surface-2)]')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
                           <Link href={`/partners/${s.id}`} className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                               {companyInitials(s.companyName)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-white">{s.companyName}</div>
+                              <div className="font-medium text-[var(--fg)]">{s.companyName}</div>
                               {(s.contactFirstName || s.contactLastName) && (
                                 <div className="text-xs text-slate-400">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
                               )}

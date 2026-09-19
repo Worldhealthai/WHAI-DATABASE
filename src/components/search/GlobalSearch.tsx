@@ -42,7 +42,7 @@ export function GlobalSearch() {
 
   return (
     <div ref={containerRef} className="relative">
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#112850] border border-[#1a3a5c] focus-within:border-[#00B4D8] transition-colors">
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] focus-within:border-[var(--teal)] transition-colors">
         <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
         <input
           ref={inputRef}
@@ -53,7 +53,7 @@ export function GlobalSearch() {
           }}
           onFocus={() => query.length >= 2 && setOpen(true)}
           placeholder="Search contacts, companies, deals..."
-          className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none min-w-0"
+          className="flex-1 bg-transparent text-sm text-[var(--fg)] placeholder-slate-500 outline-none min-w-0"
         />
         {query && (
           <kbd className="text-[10px] text-slate-500 hidden sm:block">ESC</kbd>
@@ -61,7 +61,7 @@ export function GlobalSearch() {
       </div>
 
       {open && hasResults && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-[#0D1F3C] border border-[#1a3a5c] rounded-lg shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">
           {data.contacts?.length > 0 && (
             <SearchSection
               title="Contacts"
@@ -130,17 +130,17 @@ function SearchSection({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[#1a3a5c]">
-        <span className="text-[#00B4D8]">{icon}</span>
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--line)]">
+        <span className="text-[var(--teal)]">{icon}</span>
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{title}</span>
       </div>
       {items.map((item) => (
         <button
           key={item.id}
           onClick={() => onSelect(item.href)}
-          className="w-full text-left px-3 py-2 hover:bg-[#112850] transition-colors"
+          className="w-full text-left px-3 py-2 hover:bg-[var(--surface-2)] transition-colors"
         >
-          <div className="text-sm text-white font-medium truncate">{item.label}</div>
+          <div className="text-sm text-[var(--fg)] font-medium truncate">{item.label}</div>
           <div className="text-xs text-slate-400 truncate">{item.sub}</div>
         </button>
       ))}

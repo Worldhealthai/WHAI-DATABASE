@@ -81,7 +81,7 @@ function SponsorCard({ sponsor, onAdvance, onEdit, advancing, onDragStart, onDra
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        'group block rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-3.5 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-900/10 transition-all cursor-grab active:cursor-grabbing select-none',
+        'group block rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3.5 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-900/10 transition-all cursor-grab active:cursor-grabbing select-none',
         isDragging && 'opacity-30 scale-95'
       )}
     >
@@ -99,7 +99,7 @@ function SponsorCard({ sponsor, onAdvance, onEdit, advancing, onDragStart, onDra
           <Pencil className="w-3 h-3" />
         </button>
       </div>
-      <div className="font-semibold text-sm text-white mb-0.5 truncate">{sponsor.companyName}</div>
+      <div className="font-semibold text-sm text-[var(--fg)] mb-0.5 truncate">{sponsor.companyName}</div>
       {(sponsor.contactFirstName || sponsor.contactLastName) && (
         <div className="text-xs text-slate-500 truncate mb-1">
           {[sponsor.contactFirstName, sponsor.contactLastName].filter(Boolean).join(' ')}
@@ -193,7 +193,7 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
     <>
     {draggingId && (
       <div className="fixed top-16 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
-        <div className="flex gap-2 bg-[#0A1628]/95 backdrop-blur-sm border border-[#1a3a5c] rounded-2xl p-2 shadow-2xl pointer-events-auto">
+        <div className="flex gap-2 bg-[var(--bg)] backdrop-blur-sm border border-[var(--line)] rounded-2xl p-2 shadow-2xl pointer-events-auto">
           <span className="flex items-center px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Drop in</span>
           {BOARD_COLS.map((col) => {
             const isTarget = dragOverCol === col.status
@@ -230,7 +230,7 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ background: col.hex }} />
                 <span className="text-xs font-semibold text-slate-300">{col.label}</span>
               </div>
-              <span className="text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-[#0d2040] border border-[#1a3a5c] text-slate-500">
+              <span className="text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-[var(--surface)] border border-[var(--line)] text-slate-500">
                 {cards.length}
               </span>
             </div>
@@ -249,7 +249,7 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
               onDrop={(e) => handleDrop(e, col.status)}
               className={cn(
                 'rounded-xl border p-2 space-y-2 min-h-[120px] transition-all duration-150',
-                isOver ? 'border-dashed scale-[1.02] shadow-lg' : 'border-[#1a3a5c]/60'
+                isOver ? 'border-dashed scale-[1.02] shadow-lg' : 'border-[var(--line)]'
               )}
               style={{
                 background: isOver ? `${col.hex}14` : `${col.hex}06`,
@@ -273,7 +273,7 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
                 <div
                   className={cn(
                     'py-6 text-center text-xs border border-dashed rounded-lg transition-colors',
-                    isOver ? 'border-current text-slate-400' : 'border-[#1a3a5c]/40 text-slate-700'
+                    isOver ? 'border-current text-slate-400' : 'border-[var(--line)] text-slate-700'
                   )}
                   style={isOver ? { borderColor: col.hex, color: col.hex } : {}}
                 >
@@ -313,7 +313,7 @@ function Checkbox({ checked, indeterminate, onChange }: {
       )}
     >
       {(checked || indeterminate) && (
-        <svg className="w-2.5 h-2.5 text-[#0A1628]" viewBox="0 0 10 10" fill="none">
+        <svg className="w-2.5 h-2.5 text-[var(--on-accent)]" viewBox="0 0 10 10" fill="none">
           {checked
             ? <path d="M1.5 5L3.8 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             : <path d="M2 5H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -545,12 +545,12 @@ export default function SponsorsPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">
       {/* ── Header ── */}
-      <div className="shrink-0 bg-[#0A1628] border-b border-[#1a3a5c] z-30">
+      <div className="shrink-0 bg-[var(--bg)] border-b border-[var(--line)] z-30">
         <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #f59e0b80 0%, #f59e0b30 50%, transparent 100%)' }} />
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between pt-4 pb-3">
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-white">Sponsors</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-[var(--fg)]">Sponsors</h1>
               {data && (
                 <p className="text-xs text-slate-500 mt-0.5">
                   {data.total.toLocaleString()} {data.total === 1 ? 'record' : 'records'}
@@ -560,32 +560,32 @@ export default function SponsorsPage() {
             </div>
             <div className="flex items-center gap-2">
               {/* View toggle */}
-              <div className="flex items-center rounded-lg border border-[#1a3a5c] overflow-hidden">
+              <div className="flex items-center rounded-lg border border-[var(--line)] overflow-hidden">
                 <button
                   onClick={() => setViewMode('table')}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
-                    viewMode === 'table' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-white'
+                    viewMode === 'table' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-[var(--fg)]'
                   )}
                 >
                   <LayoutList className="w-3.5 h-3.5" /> List
                 </button>
-                <div className="w-px h-5 bg-[#1a3a5c]" />
+                <div className="w-px h-5 bg-[var(--surface-3)]" />
                 <button
                   onClick={() => setViewMode('board')}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
-                    viewMode === 'board' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-white'
+                    viewMode === 'board' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-[var(--fg)]'
                   )}
                 >
                   <LayoutGrid className="w-3.5 h-3.5" /> Board
                 </button>
-                <div className="w-px h-5 bg-[#1a3a5c]" />
+                <div className="w-px h-5 bg-[var(--surface-3)]" />
                 <button
                   onClick={() => setViewMode('grid')}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
-                    viewMode === 'grid' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-white'
+                    viewMode === 'grid' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-[var(--fg)]'
                   )}
                 >
                   <Grid3X3 className="w-3.5 h-3.5" /> Grid
@@ -594,13 +594,13 @@ export default function SponsorsPage() {
               <button
                 onClick={() => setShowDuplicates(true)}
                 title="Find and merge duplicate companies"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 text-sm font-medium hover:text-white hover:border-slate-500 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 text-sm font-medium hover:text-[var(--fg)] hover:border-slate-500 transition-colors"
               >
                 <Merge className="w-4 h-4" /> <span className="hidden sm:inline">Duplicates</span>
               </button>
               <button
                 onClick={() => setShowModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-[var(--on-accent)] text-sm font-semibold hover:bg-amber-500/90 transition-colors"
               >
                 <Plus className="w-4 h-4" /> Add Sponsor
               </button>
@@ -622,10 +622,10 @@ export default function SponsorsPage() {
                 value={keyword}
                 onChange={(e) => handleKeywordChange(e.target.value)}
                 placeholder="Search by company, contact name, email…"
-                className="w-full pl-10 pr-10 py-2.5 bg-[#112850] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-amber-500/50 transition-colors"
+                className="w-full pl-10 pr-10 py-2.5 bg-[var(--surface-2)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-500 outline-none focus:border-amber-500/50 transition-colors"
               />
               {keyword && (
-                <button onClick={() => handleKeywordChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                <button onClick={() => handleKeywordChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[var(--fg)] transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -645,10 +645,10 @@ export default function SponsorsPage() {
 
       {/* ── Bulk actions bar ── */}
       {selected.size > 0 && viewMode !== 'board' && (
-        <div className="shrink-0 bg-[#0d2040] border-b border-amber-500/20 z-20">
+        <div className="shrink-0 bg-[var(--surface)] border-b border-amber-500/20 z-20">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3 flex-wrap">
             <span className="text-sm font-semibold text-amber-400 shrink-0">{selected.size} selected</span>
-            <button onClick={() => exportCSV(selected)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:text-white hover:border-slate-400 transition-all">
+            <button onClick={() => exportCSV(selected)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-600 text-slate-300 hover:text-[var(--fg)] hover:border-slate-400 transition-all">
               <Download className="w-3.5 h-3.5" /> Export selected
             </button>
             <button
@@ -659,7 +659,7 @@ export default function SponsorsPage() {
               <Trash2 className="w-3.5 h-3.5" />
               {bulkDeleting ? 'Deleting…' : 'Delete selected'}
             </button>
-            <button onClick={() => setSelected(new Set())} className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-white transition-colors">
+            <button onClick={() => setSelected(new Set())} className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-[var(--fg)] transition-colors">
               <X className="w-3.5 h-3.5" /> Clear
             </button>
           </div>
@@ -679,10 +679,10 @@ export default function SponsorsPage() {
                   const cards = boardSponsors.filter((s) => s.status === col.status)
                   const colValue = cards.reduce((sum, s) => sum + (Number(s.valueAmount) || 0), 0)
                   return (
-                    <div key={col.status} className="flex items-center gap-2 shrink-0 px-3 py-2 rounded-lg bg-[#0d2040] border border-[#1a3a5c]">
+                    <div key={col.status} className="flex items-center gap-2 shrink-0 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--line)]">
                       <div className="w-2 h-2 rounded-full" style={{ background: col.hex }} />
                       <span className="text-xs text-slate-400">{col.label}</span>
-                      <span className="text-sm font-bold text-white tabular-nums">{cards.length}</span>
+                      <span className="text-sm font-bold text-[var(--fg)] tabular-nums">{cards.length}</span>
                       {colValue > 0 && (
                         <span className="text-xs text-amber-400/70 font-semibold ml-1">
                           · £{colValue.toLocaleString()}
@@ -736,16 +736,16 @@ export default function SponsorsPage() {
             <>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">
-                  {isLoading ? 'Loading…' : (<><span className="font-bold text-white">{(data?.total ?? 0).toLocaleString()}</span> results</>)}
+                  {isLoading ? 'Loading…' : (<><span className="font-bold text-[var(--fg)]">{(data?.total ?? 0).toLocaleString()}</span> results</>)}
                 </span>
-                <button onClick={() => exportCSV()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors">
+                <button onClick={() => exportCSV()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--surface-2)] text-slate-300 hover:text-[var(--fg)] text-xs font-medium border border-[var(--line)] hover:border-slate-500 transition-colors">
                   <Download className="w-3.5 h-3.5" /> Export all
                 </button>
               </div>
               {isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="rounded-xl border border-[#1a3a5c] bg-[#0d2040] p-4 space-y-3">
+                    <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-3">
                       <div className="w-14 h-14 rounded-2xl bg-slate-700/50 animate-pulse mx-auto" />
                       <div className="h-3.5 w-32 rounded bg-slate-700/50 animate-pulse mx-auto" />
                       <div className="h-2.5 w-24 rounded bg-slate-700/30 animate-pulse mx-auto" />
@@ -764,8 +764,8 @@ export default function SponsorsPage() {
                         key={s.id}
                         onClick={() => setSidePanelId(s.id)}
                         className={cn(
-                          'group/card relative rounded-xl border bg-[#0d2040] hover:bg-[#112850] transition-all cursor-pointer p-4 flex flex-col gap-3',
-                          selected.has(s.id) ? 'border-amber-500/40 bg-amber-500/5' : 'border-[#1a3a5c] hover:border-amber-500/30',
+                          'group/card relative rounded-xl border bg-[var(--surface)] hover:bg-[var(--surface-2)] transition-all cursor-pointer p-4 flex flex-col gap-3',
+                          selected.has(s.id) ? 'border-amber-500/40 bg-amber-500/5' : 'border-[var(--line)] hover:border-amber-500/30',
                         )}
                       >
                         {/* Top row: checkbox + actions */}
@@ -799,7 +799,7 @@ export default function SponsorsPage() {
                           </div>
                           <div>
                             <span onClick={(e) => e.stopPropagation()}>
-                              <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="font-semibold text-white hover:text-amber-400 transition-colors text-sm leading-snug">
+                              <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="font-semibold text-[var(--fg)] hover:text-amber-400 transition-colors text-sm leading-snug">
                                 {s.companyName}
                               </Link>
                             </span>
@@ -841,9 +841,9 @@ export default function SponsorsPage() {
             <>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">
-                  {isLoading ? 'Loading…' : (<><span className={cn('font-bold text-white', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>)}
+                  {isLoading ? 'Loading…' : (<><span className={cn('font-bold text-[var(--fg)]', isFetching && 'opacity-50')}>{(data?.total ?? 0).toLocaleString()}</span> results</>)}
                 </span>
-                <button onClick={() => exportCSV()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#112850] text-slate-300 hover:text-white text-xs font-medium border border-[#1a3a5c] hover:border-slate-500 transition-colors">
+                <button onClick={() => exportCSV()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--surface-2)] text-slate-300 hover:text-[var(--fg)] text-xs font-medium border border-[var(--line)] hover:border-slate-500 transition-colors">
                   <Download className="w-3.5 h-3.5" /> Export all
                 </button>
               </div>
@@ -852,7 +852,7 @@ export default function SponsorsPage() {
                 {isLoading ? (
                   <div>
                     {Array.from({ length: 10 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[#1a3a5c]/50">
+                      <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-[var(--line)]">
                         <div className="w-4 h-4 rounded bg-slate-700/50 animate-pulse shrink-0" />
                         <div className="w-8 h-8 rounded-lg bg-slate-700/50 animate-pulse shrink-0" />
                         <div className="flex-1 space-y-1.5">
@@ -874,12 +874,12 @@ export default function SponsorsPage() {
                     <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-[#1a3a5c] bg-[#0d2040]">
+                          <tr className="border-b border-[var(--line)] bg-[var(--surface)]">
                             <th className="pl-4 pr-2 py-2.5 w-8">
                               <Checkbox checked={allPageSelected} indeterminate={somePageSelected && !allPageSelected} onChange={toggleSelectAll} />
                             </th>
                             {COLS.map((col) => (
-                              <th key={col.key} onClick={() => handleSort(col.key)} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white select-none whitespace-nowrap">
+                              <th key={col.key} onClick={() => handleSort(col.key)} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-[var(--fg)] select-none whitespace-nowrap">
                                 <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} sortBy={sortBy} sortDir={sortDir} /></div>
                               </th>
                             ))}
@@ -893,7 +893,7 @@ export default function SponsorsPage() {
                               <tr
                                 key={s.id}
                                 onClick={() => setSidePanelId(s.id)}
-                                className={cn('group/row border-b border-[#1a3a5c]/40 hover:bg-[#112850]/60 transition-colors cursor-pointer', selected.has(s.id) && 'bg-amber-500/5 border-amber-500/20')}
+                                className={cn('group/row border-b border-[var(--line)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer', selected.has(s.id) && 'bg-amber-500/5 border-amber-500/20')}
                               >
                                 <td className="pl-4 pr-2 py-3" onClick={(e) => e.stopPropagation()}>
                                   <Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} />
@@ -905,7 +905,7 @@ export default function SponsorsPage() {
                                         {companyInitials(s)}
                                       </div>
                                       <div className="min-w-0">
-                                        <div className="font-medium text-white group-hover:text-amber-400 transition-colors">{s.companyName}</div>
+                                        <div className="font-medium text-[var(--fg)] group-hover:text-amber-400 transition-colors">{s.companyName}</div>
                                         {(s.contactFirstName || s.contactLastName) && (
                                           <div className="text-xs text-slate-500">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
                                         )}
@@ -961,16 +961,16 @@ export default function SponsorsPage() {
                       </table>
                     </div>
 
-                    <div className="md:hidden divide-y divide-[#1a3a5c]/40">
+                    <div className="md:hidden divide-y divide-[var(--line)]">
                       {rows.map((s) => (
-                        <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-amber-500/5' : 'hover:bg-[#112850]/60')}>
+                        <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-amber-500/5' : 'hover:bg-[var(--surface-2)]')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
                           <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="flex items-start gap-3 flex-1 min-w-0">
                             <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                               {companyInitials(s)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-white">{s.companyName}</div>
+                              <div className="font-medium text-[var(--fg)]">{s.companyName}</div>
                               {(s.contactFirstName || s.contactLastName) && (
                                 <div className="text-xs text-slate-400">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
                               )}
@@ -1022,11 +1022,11 @@ export default function SponsorsPage() {
           {/* backdrop */}
           <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setSidePanelId(null)} />
           {/* panel */}
-          <div className="fixed right-0 top-0 h-full w-full max-w-sm z-50 bg-[#0d2040] border-l border-[#1a3a5c] shadow-2xl flex flex-col overflow-hidden">
+          <div className="fixed right-0 top-0 h-full w-full max-w-sm z-50 bg-[var(--surface)] border-l border-[var(--line)] shadow-2xl flex flex-col overflow-hidden">
             {/* header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a3a5c] shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)] shrink-0">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick View</span>
-              <button onClick={() => setSidePanelId(null)} className="text-slate-500 hover:text-white transition-colors">
+              <button onClick={() => setSidePanelId(null)} className="text-slate-500 hover:text-[var(--fg)] transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1045,7 +1045,7 @@ export default function SponsorsPage() {
                     <Link
                       href={`/sponsors/${sidePanelId}`}
                       onClick={() => { saveListState(); setSidePanelId(null) }}
-                      className="font-semibold text-white hover:text-amber-400 transition-colors block truncate"
+                      className="font-semibold text-[var(--fg)] hover:text-amber-400 transition-colors block truncate"
                     >
                       {panelData.companyName}
                     </Link>
@@ -1068,9 +1068,9 @@ export default function SponsorsPage() {
                 {(panelData.contactFirstName || panelData.contactLastName || panelData.contactEmail) && (
                   <div>
                     <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Primary Contact</p>
-                    <div className="bg-[#112850] rounded-lg p-3 space-y-1">
+                    <div className="bg-[var(--surface-2)] rounded-lg p-3 space-y-1">
                       {(panelData.contactFirstName || panelData.contactLastName) && (
-                        <p className="text-sm font-medium text-white">{[panelData.contactFirstName, panelData.contactLastName].filter(Boolean).join(' ')}</p>
+                        <p className="text-sm font-medium text-[var(--fg)]">{[panelData.contactFirstName, panelData.contactLastName].filter(Boolean).join(' ')}</p>
                       )}
                       {panelData.contactJobTitle && <p className="text-xs text-slate-400">{panelData.contactJobTitle}</p>}
                       {panelData.contactEmail && <p className="text-xs text-slate-500">{panelData.contactEmail}</p>}
@@ -1082,7 +1082,7 @@ export default function SponsorsPage() {
                 <div>
                   <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Last Activity</p>
                   {panelData.activities && panelData.activities.length > 0 ? (
-                    <div className="bg-[#112850] rounded-lg p-3 space-y-1">
+                    <div className="bg-[var(--surface-2)] rounded-lg p-3 space-y-1">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700 font-medium">{panelData.activities[0].type}</span>
                         <span className="text-[10px] text-slate-600">{new Date(panelData.activities[0].createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -1100,7 +1100,7 @@ export default function SponsorsPage() {
                     <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Recent Activity</p>
                     <div className="space-y-2">
                       {panelData.activities.slice(1, 5).map((a: any) => (
-                        <div key={a.id} className="border-l-2 border-[#1a3a5c] pl-3 space-y-0.5">
+                        <div key={a.id} className="border-l-2 border-[var(--line)] pl-3 space-y-0.5">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] text-slate-500 font-medium">{a.type}</span>
                             <span className="text-[10px] text-slate-700">{new Date(a.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
@@ -1115,11 +1115,11 @@ export default function SponsorsPage() {
             )}
 
             {/* footer */}
-            <div className="shrink-0 px-5 py-4 border-t border-[#1a3a5c]">
+            <div className="shrink-0 px-5 py-4 border-t border-[var(--line)]">
               <Link
                 href={`/sponsors/${sidePanelId}`}
                 onClick={() => { saveListState(); setSidePanelId(null) }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-[#0A1628] font-semibold text-sm transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-[var(--on-accent)] font-semibold text-sm transition-colors"
               >
                 Open Full Profile <ArrowRight className="w-4 h-4" />
               </Link>

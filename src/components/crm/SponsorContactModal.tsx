@@ -89,13 +89,13 @@ export function SponsorContactModal({ companyId, companyName, contact, basePath 
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-sm overflow-y-auto">
-      <div className="w-full max-w-lg bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-2xl my-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a3a5c]">
+      <div className="w-full max-w-lg bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl my-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
           <div>
-            <h2 className="text-base font-semibold text-white">{isEdit ? 'Edit Contact' : 'Add Contact'}</h2>
+            <h2 className="text-base font-semibold text-[var(--fg)]">{isEdit ? 'Edit Contact' : 'Add Contact'}</h2>
             <p className="text-xs text-slate-500 mt-0.5">{companyName}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-[var(--fg)] transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
@@ -131,7 +131,7 @@ export function SponsorContactModal({ companyId, companyName, contact, basePath 
             <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Any notes about this contact..." className={`${inputCls} resize-none`} />
           </Field>
 
-          <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#1a3a5c]">
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--line)]">
             <div>
               {isEdit && contact?.id !== companyId && (
                 <button
@@ -145,8 +145,8 @@ export function SponsorContactModal({ companyId, companyName, contact, basePath 
               )}
             </div>
             <div className="flex items-center gap-3">
-              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition-colors">Cancel</button>
-              <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-[var(--fg)] transition-colors">Cancel</button>
+              <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[var(--on-accent)] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
                 {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Contact'}
               </button>
             </div>
@@ -157,7 +157,7 @@ export function SponsorContactModal({ companyId, companyName, contact, basePath 
   )
 }
 
-const inputCls = 'w-full px-3 py-2 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-amber-500/60 transition-colors'
+const inputCls = 'w-full px-3 py-2 bg-[var(--bg)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-500 outline-none focus:border-amber-500/60 transition-colors'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
