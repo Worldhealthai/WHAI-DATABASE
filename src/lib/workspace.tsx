@@ -12,7 +12,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEventCategories, type EventCategory } from '@/lib/eventCategories'
 import {
   PORTALS, type LastWorkspace, type PortalDef, type PortalKey,
-  categoryFromSlug, defaultYear, editionYears, labelsForEdition, portalForPath,
+  categoryFromSlug, defaultYear, editionYears, eventLook, labelsForEdition, portalForPath,
   readLastWorkspace, writeLastWorkspace, workspaceHref,
 } from '@/lib/portals'
 
@@ -92,6 +92,14 @@ const WorkspaceContext = createContext<WorkspaceView | null>(null)
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const view = useWorkspaceFromUrl()
+  // The event's own colour (London blue, Boston pink, Pharma green) becomes
+  // the accent while inside its workspace — see [data-event] in globals.css.
+  useEffect(() => {
+    const key = view.category ? eventLook(view.category.name).key : null
+    if (key && key !== 'other') document.documentElement.setAttribute('data-event', key)
+    else document.documentElement.removeAttribute('data-event')
+    return () => document.documentElement.removeAttribute('data-event')
+  }, [view.category?.name])
   return <WorkspaceContext.Provider value={view}>{children}</WorkspaceContext.Provider>
 }
 

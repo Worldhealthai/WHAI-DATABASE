@@ -134,14 +134,30 @@ export function defaultYear(portal: PortalKey, category: EventCategory): string 
   return String(now)
 }
 
-// Presentation for the event tiles on the entrance.
+// Presentation for an event: its series, city, and the colour that is its
+// own everywhere in the CRM — London blue, Boston reddish pink, Pharma teal
+// green. The colours live in globals.css as --ev-* tokens.
+export type EventKey = 'london' | 'boston' | 'pharma' | 'other'
+
 export interface EventLook {
+  key: EventKey
   series: 'World Health AI' | 'World Pharma AI' | string
   short: string
   city: string
   country: string
-  gradient: string
+  /** CSS colour values (var(--ev-…)) */
+  accent: string
+  accentInk: string
+  accentSoft: string
+  accentLine: string
   blurb: string
+}
+
+const EVENT_COLOURS: Record<EventKey, Pick<EventLook, 'accent' | 'accentInk' | 'accentSoft' | 'accentLine'>> = {
+  london: { accent: 'var(--ev-london)', accentInk: 'var(--ev-london-ink)', accentSoft: 'var(--ev-london-soft)', accentLine: 'var(--ev-london-line)' },
+  boston: { accent: 'var(--ev-boston)', accentInk: 'var(--ev-boston-ink)', accentSoft: 'var(--ev-boston-soft)', accentLine: 'var(--ev-boston-line)' },
+  pharma: { accent: 'var(--ev-pharma)', accentInk: 'var(--ev-pharma-ink)', accentSoft: 'var(--ev-pharma-soft)', accentLine: 'var(--ev-pharma-line)' },
+  other: { accent: 'var(--fg-3)', accentInk: 'var(--fg-2)', accentSoft: 'var(--surface-2)', accentLine: 'var(--line-3)' },
 }
 
 export function eventLook(categoryName: string): EventLook {
@@ -150,19 +166,55 @@ export function eventLook(categoryName: string): EventLook {
   const short = series === 'World Pharma AI' ? 'WPAI' : series === 'World Health AI' ? 'WHAI' : series.split(' ').map((w) => w[0]).join('').toUpperCase()
   const city = n.includes('boston') ? 'Boston' : n.includes('london') ? 'London' : categoryName.replace(series, '').trim() || '—'
   const country = city === 'Boston' ? 'United States' : city === 'London' ? 'United Kingdom' : ''
-  const gradient =
-    series === 'World Pharma AI'
-      ? 'linear-gradient(135deg, #0f766e 0%, #14b8a6 55%, #5eead4 100%)'
-      : city === 'Boston'
-        ? 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #93c5fd 100%)'
-        : 'linear-gradient(135deg, #0b3b5c 0%, #0b7a96 55%, #67d5ee 100%)'
+  const key: EventKey = series === 'World Pharma AI' ? 'pharma' : city === 'Boston' ? 'boston' : city === 'London' ? 'london' : 'other'
   const blurb =
     series === 'World Pharma AI'
       ? 'AI across pharma R&D, manufacturing and commercial.'
       : city === 'Boston'
         ? 'The US edition: health systems, payers and health-tech.'
         : 'The flagship: clinical leaders, NHS and health-tech.'
-  return { series, short, city, country, gradient, blurb }
+  return { key, series, short, city, country, ...EVENT_COLOURS[key], blurb }
+}
+
+// The event series on the entrance ("World Health AI" with London and
+// Boston inside it; "World Pharma AI" with London), each carrying the colour
+// of its lead city so the series tile already hints at what is inside.
+export interface EventSeries {
+  name: string
+  short: string
+  look: EventLook
+  events: EventCategory[]
+  blurb: string
+}
+
+export function groupSeries(categories: EventCategory[]): EventSeries[] {
+  const map = new Map<string, EventSeries>()
+  for (const c of categories) {
+    if (c.name === 'Other events') continue
+    const look = eventLook(c.name)
+    const existing = map.get(look.series)
+    if (existing) existing.events.push(c)
+    else
+      map.set(look.series, {
+        name: look.series,
+        short: look.short,
+        look,
+        events: [c],
+        blurb:
+          look.series === 'World Pharma AI'
+            ? 'The pharma series: R&D, manufacturing and commercial AI.'
+            : look.series === 'World Health AI'
+              ? 'The health series: London and Boston.'
+              : '',
+      })
+  }
+  // A series takes its colour from its first city (London for World Health AI).
+  const list = Array.from(map.values())
+  for (const s of list) {
+    const lead = s.events.find((c: EventCategory) => eventLook(c.name).key === 'london') ?? s.events[0]
+    s.look = eventLook(lead.name)
+  }
+  return list
 }
 
 // A record's kind → the portal that owns it, for the sidebar when someone

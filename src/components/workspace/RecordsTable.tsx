@@ -8,10 +8,9 @@
 // row, and the existing forms for adding and editing.
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Plus, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Pencil, Plus, Search, SearchX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, STATUS_OPTIONS, changeStage, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
@@ -33,7 +32,68 @@ interface Column {
   render: (r: Row) => React.ReactNode
 }
 
-function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, busyId: string | null, showEdition: boolean): Column[] {
+// The value, editable in place: click it, type the number, Enter (or click
+// away) saves; Escape puts it back.
+function ValueCell({ row, onSave }: { row: Row; onSave: (r: Row, amount: number | null) => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
+  const currency = row.valueCurrency || 'GBP'
+  const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '£'
+
+  const start = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setText(row.valueAmount ? String(Number(row.valueAmount)) : '')
+    setEditing(true)
+  }
+  const commit = async () => {
+    if (!editing) return
+    setEditing(false)
+    const cleaned = text.replace(/[^0-9.]/g, '')
+    const amount = cleaned === '' ? null : Number(cleaned)
+    if (amount !== null && !Number.isFinite(amount)) return
+    if ((amount ?? 0) === Number(row.valueAmount ?? 0)) return
+    setSaving(true)
+    try { await onSave(row, amount) } finally { setSaving(false) }
+  }
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1 h-7 px-2 rounded-md" style={{ background: 'var(--surface)', border: '1px solid var(--accent-line)', boxShadow: '0 0 0 3px var(--accent-soft)' }} onClick={(e) => e.stopPropagation()}>
+        <span className="text-[13px]" style={{ color: 'var(--fg-3)' }}>{symbol}</span>
+        <input
+          autoFocus
+          inputMode="decimal"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); void commit() }
+            if (e.key === 'Escape') { e.preventDefault(); setEditing(false) }
+          }}
+          className="w-[72px] bg-transparent outline-none text-[13.5px] tabular font-medium"
+          style={{ color: 'var(--fg)' }}
+          placeholder="0"
+          aria-label="Value"
+        />
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={start}
+      title="Click to edit the value"
+      className={cn('group/val inline-flex items-center gap-1.5 h-7 -ml-2 px-2 rounded-md tabular font-medium transition-colors hover:bg-[var(--surface-3)]', saving && 'opacity-50')}
+      style={{ color: row.valueAmount ? 'var(--fg)' : 'var(--fg-4)' }}
+    >
+      {formatMoney(row.valueAmount, currency)}
+      <Pencil className="w-3 h-3 opacity-0 group-hover/val:opacity-100 transition-opacity" style={{ color: 'var(--fg-4)' }} />
+    </button>
+  )
+}
+
+function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onValue: (r: Row, amount: number | null) => Promise<void>, onEdit: (r: Row) => void, busyId: string | null, showEdition: boolean): Column[] {
   const def = KINDS[kind]
   const stageCell = (r: Row) => (
     <span className="relative inline-flex items-center">
@@ -51,16 +111,23 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, bus
       <ChevronDown className="w-3 h-3 ml-1 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
     </span>
   )
+  // The name opens the record's form to edit it in place; the rest of the
+  // row still goes to the full profile.
   const nameCell = (r: Row) => {
     const name = recordName(kind, r)
     return (
-      <span className="flex items-center gap-3 min-w-0">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onEdit(r) }}
+        title={`Edit ${name || def.label.toLowerCase()}`}
+        className="group/name flex items-center gap-3 min-w-0 text-left -ml-1 pl-1 pr-2 py-0.5 rounded-lg transition-colors hover:bg-[var(--surface-3)]"
+      >
         <Initials name={name || '?'} size={34} />
         <span className="min-w-0">
-          <span className="block font-medium truncate" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
+          <span className="block font-medium truncate group-hover/name:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
           <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{recordSubtitle(kind, r) || (r.email ?? r.contactEmail ?? '—')}</span>
         </span>
-      </span>
+      </button>
     )
   }
   const added: Column = { key: 'createdAt', label: 'Added', sortable: true, width: '90px', render: (r) => <span className="tabular" style={{ color: 'var(--fg-3)' }}>{timeAgo(r.createdAt)}</span> }
@@ -73,7 +140,7 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, bus
       { key: 'tier', label: kind === 'partner' ? 'Type' : 'Tier', sortable: true, width: '160px', render: (r) => <span style={{ color: r.tier ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.tier || '—'}</span> },
       ...(showEdition ? [edition] : []),
       { key: 'status', label: 'Stage', sortable: true, width: '170px', render: stageCell },
-      { key: 'valueAmount', label: 'Value', sortable: true, width: '110px', render: (r) => <span className="tabular font-medium" style={{ color: r.valueAmount ? 'var(--fg)' : 'var(--fg-4)' }}>{formatMoney(r.valueAmount, r.valueCurrency || 'GBP')}</span> },
+      { key: 'valueAmount', label: 'Value', sortable: true, width: '120px', render: (r) => <ValueCell row={r} onSave={onValue} /> },
       { key: 'contactEmail', label: 'Email', width: '200px', render: (r) => <span className="truncate block max-w-[200px]" style={{ color: 'var(--fg-3)' }}>{r.contactEmail || '—'}</span> },
       added,
     ]
@@ -115,6 +182,7 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Row | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const debounce = useRef<ReturnType<typeof setTimeout>>()
 
@@ -158,6 +226,18 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
     queryClient.invalidateQueries({ queryKey: ['ws-board'] })
     setBusyId(null)
   }
+  const onValue = async (r: Row, amount: number | null) => {
+    queryClient.setQueriesData<{ data: Row[] }>({ queryKey: ['ws-list', kind] }, (old) =>
+      old ? { ...old, data: old.data.map((x) => (x.id === r.id ? { ...x, valueAmount: amount } : x)) } : old)
+    const res = await fetch(`${def.api}/${r.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valueAmount: amount, valueCurrency: r.valueCurrency || 'GBP' }),
+    })
+    if (!res.ok) await refetch()
+    queryClient.invalidateQueries({ queryKey: ['ws-stats'] })
+    queryClient.invalidateQueries({ queryKey: ['ws-board'] })
+  }
   const exportCsv = () => {
     const p = new URLSearchParams()
     // The sponsor/partner exports read `event`, the others `events`.
@@ -171,9 +251,9 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
     a.click()
   }
 
-  const columns = columnsFor(kind, onStage, busyId, allEditions)
+  const columns = columnsFor(kind, onStage, onValue, setEditing, busyId, allEditions)
   const preset = category && year ? { event: editionLabel(category.name, year) } : {}
-  const saved = () => { setAdding(false); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }) }
+  const saved = () => { setAdding(false); setEditing(null); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }); queryClient.invalidateQueries({ queryKey: ['ws-board'] }) }
 
   return (
     <WorkspacePage
@@ -238,9 +318,9 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
                     ))
                   : rows.map((r) => (
                       <tr key={r.id} className="cursor-pointer" onClick={() => router.push(`${def.detailPath}/${r.id}`)}>
-                        {columns.map((c, i) => (
-                          <td key={c.key} onClick={c.key === 'status' ? (e) => e.stopPropagation() : undefined}>
-                            {i === 0 ? <Link href={`${def.detailPath}/${r.id}`} onClick={(e) => e.stopPropagation()} className="block">{c.render(r)}</Link> : c.render(r)}
+                        {columns.map((c) => (
+                          <td key={c.key} onClick={c.key === 'status' || c.key === 'valueAmount' ? (e) => e.stopPropagation() : undefined}>
+                            {c.render(r)}
                           </td>
                         ))}
                       </tr>
@@ -262,6 +342,12 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
       )}
       {adding && kind === 'speaker' && <SpeakerFormModal speaker={{ ...preset, year: year ? Number(year) : undefined }} onClose={() => setAdding(false)} onSaved={saved} />}
       {adding && kind === 'delegate' && <DelegateFormModal delegate={preset} onClose={() => setAdding(false)} onSaved={saved} />}
+
+      {editing && (kind === 'sponsor' || kind === 'partner') && (
+        <SponsorFormModal sponsor={editing} partnerMode={kind === 'partner'} entityLabel={def.label} onClose={() => setEditing(null)} onSaved={saved} />
+      )}
+      {editing && kind === 'speaker' && <SpeakerFormModal speaker={editing} onClose={() => setEditing(null)} onSaved={saved} />}
+      {editing && kind === 'delegate' && <DelegateFormModal delegate={editing} onClose={() => setEditing(null)} onSaved={saved} />}
     </WorkspacePage>
   )
 }

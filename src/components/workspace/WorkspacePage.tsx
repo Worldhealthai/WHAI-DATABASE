@@ -35,8 +35,10 @@ export function WorkspacePage({
     <div className={wide ? 'px-4 lg:px-6 py-5' : 'max-w-[1400px] mx-auto px-4 lg:px-6 py-5'}>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
         <div className="min-w-0">
-          <p className="text-[12px] font-medium" style={{ color: 'var(--fg-3)' }}>
-            {look.series} {look.city} · {year}{Number(year) === now + 1 ? ' · next edition' : ''}
+          <p className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: look.accentInk }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: look.accent }} />
+            {look.series} {look.city}
+            <span className="font-medium" style={{ color: 'var(--fg-3)' }}>· {year}{Number(year) === now + 1 ? ' · next edition' : ''}</span>
           </p>
           <h1 className="display text-[26px] leading-tight mt-1" style={{ color: 'var(--fg)', fontWeight: 600 }}>{title}</h1>
           {description && <p className="text-[13.5px] mt-1" style={{ color: 'var(--fg-3)' }}>{description}</p>}

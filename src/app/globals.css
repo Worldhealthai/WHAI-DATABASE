@@ -50,6 +50,20 @@
     --prod-soft: #e0f2f7;
     --prod-line: #9fd6e5;
 
+    /* Event accents: London blue, Boston reddish pink, Pharma teal green */
+    --ev-london: #2563eb;
+    --ev-london-ink: #1d4ed8;
+    --ev-london-soft: #e8efff;
+    --ev-london-line: #b6c9f7;
+    --ev-boston: #e0365f;
+    --ev-boston-ink: #c22550;
+    --ev-boston-soft: #fde8ee;
+    --ev-boston-line: #f5b3c4;
+    --ev-pharma: #0f9d8a;
+    --ev-pharma-ink: #0b7f70;
+    --ev-pharma-soft: #dff5f0;
+    --ev-pharma-line: #a5dfd4;
+
     /* The active portal's accent — set by the workspace wrapper */
     --accent: var(--teal);
     --accent-ink: var(--teal);
@@ -121,6 +135,19 @@
     --prod-ink: #4cd3ee;
     --prod-soft: rgba(34, 199, 232, 0.14);
     --prod-line: rgba(34, 199, 232, 0.4);
+
+    --ev-london: #5b8def;
+    --ev-london-ink: #8db0f7;
+    --ev-london-soft: rgba(91, 141, 239, 0.16);
+    --ev-london-line: rgba(91, 141, 239, 0.45);
+    --ev-boston: #f0527a;
+    --ev-boston-ink: #f78aa6;
+    --ev-boston-soft: rgba(240, 82, 122, 0.16);
+    --ev-boston-line: rgba(240, 82, 122, 0.45);
+    --ev-pharma: #2ec4ad;
+    --ev-pharma-ink: #6fdcc9;
+    --ev-pharma-soft: rgba(46, 196, 173, 0.16);
+    --ev-pharma-line: rgba(46, 196, 173, 0.45);
 
     --ok: #34d399;
     --ok-soft: rgba(52, 211, 153, 0.14);
@@ -421,6 +448,93 @@
 .anim-zoom-away { animation: ws-zoom-away 260ms ease-in both; }
 .anim-slide-out-left { animation: ws-slide-out-left 260ms ease-in both; }
 
+/* Inside a workspace the event's colour becomes the accent: the primary
+   button, the active edition, the header mark. Set on <html> by the
+   workspace provider. */
+[data-event='london'] { --accent: var(--ev-london); --accent-ink: var(--ev-london-ink); --accent-soft: var(--ev-london-soft); --accent-line: var(--ev-london-line); }
+[data-event='boston'] { --accent: var(--ev-boston); --accent-ink: var(--ev-boston-ink); --accent-soft: var(--ev-boston-soft); --accent-line: var(--ev-boston-line); }
+[data-event='pharma'] { --accent: var(--ev-pharma); --accent-ink: var(--ev-pharma-ink); --accent-soft: var(--ev-pharma-soft); --accent-line: var(--ev-pharma-line); }
+
+/* ── Entrance tiles ──────────────────────────────────────────────────────── */
+.ev-tile {
+  --tile: var(--fg-3);
+  --tile-soft: var(--surface-2);
+  --tile-line: var(--line-3);
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease, border-color 220ms ease, opacity 260ms ease;
+  will-change: transform;
+}
+.ev-tile::before {
+  /* the colour bar along the top */
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--tile);
+  transition: height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ev-tile::after {
+  /* a soft glow that breathes in on hover */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 100% 0%, var(--tile-soft) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 260ms ease;
+  pointer-events: none;
+}
+.ev-tile:hover:not(:disabled), .ev-tile:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--tile-line);
+  box-shadow: var(--shadow-md), 0 0 0 4px var(--tile-soft);
+  outline: none;
+}
+.ev-tile:hover:not(:disabled)::before, .ev-tile:focus-visible::before { height: 6px; }
+.ev-tile:hover:not(:disabled)::after, .ev-tile:focus-visible::after { opacity: 1; }
+.ev-tile[data-picked='true'] {
+  animation: ws-pick 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  border-color: var(--tile);
+  box-shadow: var(--shadow-lg), 0 0 0 6px var(--tile-soft);
+}
+.ev-tile[data-picked='true']::after { opacity: 1; }
+.ev-tile[data-dimmed='true'] { opacity: 0.25; transform: scale(0.97); }
+.ev-tile .ev-arrow { transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1); }
+.ev-tile:hover .ev-arrow, .ev-tile[data-picked='true'] .ev-arrow { transform: translateX(4px); }
+
+/* The wash: the chosen event's colour floods the page for a beat before
+   the workspace takes over. */
+.ev-wash {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: radial-gradient(60% 60% at 50% 55%, var(--wash) 0%, transparent 100%);
+  animation: ws-wash 520ms ease-out both;
+}
+@keyframes ws-pick {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.045) translateY(-4px); }
+  100% { transform: scale(1.03) translateY(-3px); }
+}
+@keyframes ws-wash {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1.4); }
+}
+@keyframes ws-rise {
+  from { opacity: 0; transform: translateY(22px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.anim-rise { animation: ws-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
-  .anim-fade-up, .anim-fade-in, .anim-scale-in, .anim-zoom-away, .anim-slide-out-left { animation: none !important; }
+  .anim-fade-up, .anim-fade-in, .anim-scale-in, .anim-zoom-away, .anim-slide-out-left, .anim-rise, .ev-wash, .ev-tile[data-picked='true'] { animation: none !important; }
+  .ev-tile { transition: none; }
 }

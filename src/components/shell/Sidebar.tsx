@@ -53,9 +53,10 @@ export function Sidebar({ view, onClose }: { view: WorkspaceView; onClose?: () =
           <div className="px-2">
             <p className="text-[11px] font-medium" style={{ color: 'var(--fg-4)' }}>{portal.name}</p>
             {look ? (
-              <p className="text-[14px] font-semibold mt-0.5 leading-snug" style={{ color: 'var(--fg)' }}>
+              <p className="text-[14px] font-semibold mt-1 leading-snug pl-3 relative" style={{ color: 'var(--fg)' }}>
+                <span className="absolute left-0 top-0.5 bottom-0.5 w-[3px] rounded-full" style={{ background: look.accent }} />
                 {look.series}
-                <span className="block text-[12.5px] font-normal" style={{ color: 'var(--fg-3)' }}>{look.city}</span>
+                <span className="block text-[12.5px] font-medium" style={{ color: look.accentInk }}>{look.city}</span>
               </p>
             ) : (
               <p className="text-[13px] mt-0.5" style={{ color: 'var(--fg-3)' }}>No event chosen</p>
