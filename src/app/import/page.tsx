@@ -95,7 +95,7 @@ const TYPE_CONFIG: Record<ImportType, {
 }> = {
   delegates: {
     label: 'Delegates', shortLabel: 'Delegates', icon: Users,
-    hex: '#00B4D8', activeBg: 'bg-[#00B4D8]/15', activeBorder: 'border-[#00B4D8]/40', activeText: 'text-[#00B4D8]', spinBorder: 'border-[#00B4D8]',
+    hex: 'var(--teal)', activeBg: 'bg-[var(--teal-soft)]', activeBorder: 'border-[var(--teal-line)]', activeText: 'text-[var(--teal)]', spinBorder: 'border-[var(--teal)]',
     isCompany: false,
   },
   speakers: {
@@ -537,12 +537,12 @@ export default function ImportPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Import</h1>
+        <h1 className="text-xl font-bold text-[var(--fg)]">Import</h1>
         <p className="text-sm text-slate-400 mt-1">Upload a CSV to import contacts into the CRM.</p>
       </div>
 
       {/* Import type tabs */}
-      <div className="flex items-center gap-1.5 p-1 bg-[#0d2040] border border-[#1a3a5c] rounded-xl w-fit">
+      <div className="flex items-center gap-1.5 p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl w-fit">
         {(Object.entries(TYPE_CONFIG) as [ImportType, typeof TYPE_CONFIG[ImportType]][]).map(([type, c]) => {
           const active = importType === type
           const Icon = c.icon
@@ -578,19 +578,19 @@ export default function ImportPage() {
             <div className={cn(
               'w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px]',
               step === s
-                ? `text-[#0A1628]`
+                ? `text-[var(--on-accent)]`
                 : ['map','preview','importing','done'].indexOf(step) > ['upload','map','preview'].indexOf(s)
                   ? 'bg-green-500/20 text-green-400'
-                  : 'bg-[#112850] text-slate-500'
+                  : 'bg-[var(--surface-2)] text-slate-500'
             )}
               style={step === s ? { background: cfg.hex } : {}}
             >
               {i + 1}
             </div>
-            <span className={step === s ? 'text-white' : 'text-slate-500'}>
+            <span className={step === s ? 'text-[var(--fg)]' : 'text-slate-500'}>
               {s === 'upload' ? 'Upload' : s === 'map' ? 'Map columns' : 'Preview & import'}
             </span>
-            {i < 2 && <div className="w-6 h-px bg-[#1a3a5c]" />}
+            {i < 2 && <div className="w-6 h-px bg-[var(--surface-3)]" />}
           </div>
         ))}
       </div>
@@ -610,7 +610,7 @@ export default function ImportPage() {
           onClick={() => fileRef.current?.click()}
           className={cn(
             'border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all',
-            isDragging ? 'bg-opacity-5' : 'border-[#1a3a5c] hover:bg-[#112850]/30'
+            isDragging ? 'bg-opacity-5' : 'border-[var(--line)] hover:bg-[var(--surface-2)]'
           )}
           style={isDragging
             ? { borderColor: cfg.hex, backgroundColor: `${cfg.hex}08` }
@@ -619,7 +619,7 @@ export default function ImportPage() {
           onMouseLeave={(e) => { if (!isDragging) (e.currentTarget as HTMLElement).style.borderColor = '' }}
         >
           <Upload className="w-10 h-10 text-slate-500 mx-auto mb-4" />
-          <p className="text-white font-medium mb-1">Drop your file here</p>
+          <p className="text-[var(--fg)] font-medium mb-1">Drop your file here</p>
           <p className="text-slate-500 text-sm">or click to browse · CSV or Excel (.xlsx)</p>
           <p className="text-slate-600 text-xs mt-3">
             {isCompany
@@ -635,12 +635,12 @@ export default function ImportPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-white font-medium flex items-center gap-2">
+              <p className="text-sm text-[var(--fg)] font-medium flex items-center gap-2">
                 <FileText className="w-4 h-4" style={{ color: cfg.hex }} /> {fileName}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">{totalRows.toLocaleString()} rows · {headers.length} columns · importing as <span style={{ color: cfg.hex }}>{cfg.label}</span></p>
             </div>
-            <button onClick={() => setStep('upload')} className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
+            <button onClick={() => setStep('upload')} className="text-xs text-slate-500 hover:text-[var(--fg)] flex items-center gap-1 transition-colors">
               <X className="w-3.5 h-3.5" /> Change file
             </button>
           </div>
@@ -648,7 +648,7 @@ export default function ImportPage() {
           {/* Event assignment */}
           <div className="whai-card p-5 space-y-3" style={{ borderColor: `${cfg.hex}30` }}>
             <div>
-              <p className="text-sm font-semibold text-white">Which event is this import for?</p>
+              <p className="text-sm font-semibold text-[var(--fg)]">Which event is this import for?</p>
               <p className="text-xs text-slate-500 mt-0.5">
                 {isCompany ? 'All companies in this batch will be assigned to the selected event.' : 'All contacts in this batch will be assigned to the selected event.'}
               </p>
@@ -657,7 +657,7 @@ export default function ImportPage() {
               {eventOptions.map((ev) => (
                 <button key={ev} type="button" onClick={() => setImportEvent(ev)}
                   className={cn('px-5 py-2.5 rounded-lg text-sm font-semibold border transition-all',
-                    importEvent === ev ? 'text-white border-white/30 bg-white/10' : 'text-slate-300 border-[#1a3a5c] hover:text-white hover:border-slate-500 hover:bg-[#112850]/50'
+                    importEvent === ev ? 'text-[var(--fg)] border-[var(--line-2)] bg-[var(--surface-2)]' : 'text-slate-300 border-[var(--line)] hover:text-[var(--fg)] hover:border-slate-500 hover:bg-[var(--surface-2)]'
                   )}
                   style={importEvent === ev ? { borderColor: `${cfg.hex}50`, background: `${cfg.hex}15`, color: cfg.hex } : {}}
                 >
@@ -666,7 +666,7 @@ export default function ImportPage() {
               ))}
               <button type="button" onClick={() => setImportEvent('')}
                 className={cn('px-5 py-2.5 rounded-lg text-sm font-medium border transition-all',
-                  importEvent === '' ? 'bg-slate-500/15 text-slate-300 border-slate-500/40' : 'text-slate-500 border-[#1a3a5c] hover:text-slate-300 hover:border-slate-600'
+                  importEvent === '' ? 'bg-slate-500/15 text-slate-300 border-slate-500/40' : 'text-slate-500 border-[var(--line)] hover:text-slate-300 hover:border-slate-600'
                 )}
               >
                 No assignment
@@ -675,21 +675,21 @@ export default function ImportPage() {
           </div>
 
           <div className="whai-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#1a3a5c] bg-[#0d2040]">
+            <div className="px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)]">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Map CSV columns to CRM fields</p>
             </div>
-            <div className="divide-y divide-[#1a3a5c]/50">
+            <div className="divide-y divide-[var(--line)]">
               {headers.map((h) => (
                 <div key={h} className="flex items-center gap-4 px-4 py-3">
                   <div className="w-48 shrink-0">
-                    <span className="text-sm text-white font-medium">{h}</span>
+                    <span className="text-sm text-[var(--fg)] font-medium">{h}</span>
                     {rows[0]?.[h] && <div className="text-xs text-slate-500 truncate mt-0.5">{rows[0][h]}</div>}
                   </div>
                   <div className="text-slate-600 text-xs shrink-0">→</div>
                   <select
                     value={mapping[h] ?? '_skip'}
                     onChange={(e) => setMapping((prev) => ({ ...prev, [h]: e.target.value }))}
-                    className="flex-1 px-3 py-1.5 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white outline-none focus:border-[#00B4D8]/50"
+                    className="flex-1 px-3 py-1.5 bg-[var(--bg)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] outline-none focus:border-[var(--teal-line)]"
                   >
                     {crmFields.map((f) => (
                       <option key={f.value} value={f.value}>{f.label}</option>
@@ -750,7 +750,7 @@ export default function ImportPage() {
                 setStep('preview')
               }}
               disabled={checkingDupes}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-60 transition-colors text-[#0A1628] hover:opacity-90"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-60 transition-colors text-[var(--on-accent)] hover:opacity-90"
               style={{ background: cfg.hex }}
             >
               {checkingDupes ? 'Checking…' : <> Preview <ArrowRight className="w-4 h-4" /></>}
@@ -764,15 +764,15 @@ export default function ImportPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-white font-medium">{fileName}</p>
+              <p className="text-sm text-[var(--fg)] font-medium">{fileName}</p>
               <p className="text-xs text-slate-500 mt-0.5">
                 {isCompany
-                  ? <><span className="text-white font-semibold">{companyGroups?.size ?? 0}</span> companies · <span className="text-white font-semibold">{totalRows.toLocaleString()}</span> contacts</>
-                  : <>Previewing first 5 of <span className="text-white font-semibold">{totalRows.toLocaleString()}</span> contacts</>
+                  ? <><span className="text-[var(--fg)] font-semibold">{companyGroups?.size ?? 0}</span> companies · <span className="text-[var(--fg)] font-semibold">{totalRows.toLocaleString()}</span> contacts</>
+                  : <>Previewing first 5 of <span className="text-[var(--fg)] font-semibold">{totalRows.toLocaleString()}</span> contacts</>
                 }
               </p>
             </div>
-            <button onClick={() => setStep('map')} className="text-xs text-slate-500 hover:text-white flex items-center gap-1 transition-colors">
+            <button onClick={() => setStep('map')} className="text-xs text-slate-500 hover:text-[var(--fg)] flex items-center gap-1 transition-colors">
               <RefreshCw className="w-3.5 h-3.5" /> Edit mapping
             </button>
           </div>
@@ -806,13 +806,13 @@ export default function ImportPage() {
           {/* Company preview */}
           {isCompany && companyGroups && (
             <div className="whai-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#1a3a5c] bg-[#0d2040]">
+              <div className="px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)]">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                   {companyGroups.size} {companyGroups.size === 1 ? 'Company' : 'Companies'} detected
                   {importType === 'partners' && <span className="ml-2 normal-case font-normal text-emerald-400/70">· will be tagged as Media Partner</span>}
                 </p>
               </div>
-              <div className="divide-y divide-[#1a3a5c]/50">
+              <div className="divide-y divide-[var(--line)]">
                 {[...companyGroups.entries()].slice(0, 20).map(([company, contacts]) => {
                   const dupKey = company.toLowerCase().trim()
                   const match = dupMatches.get(dupKey)
@@ -826,9 +826,9 @@ export default function ImportPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0">
                           {isDupe && <span className="text-amber-400 text-[10px] font-bold shrink-0">⚠</span>}
-                          <span className={cn('text-sm font-medium truncate', isDupe ? 'text-amber-300' : 'text-white')}>{company}</span>
+                          <span className={cn('text-sm font-medium truncate', isDupe ? 'text-amber-300' : 'text-[var(--fg)]')}>{company}</span>
                         </div>
-                        <span className="text-xs text-slate-400 bg-[#112850] px-2 py-0.5 rounded-full shrink-0">
+                        <span className="text-xs text-slate-400 bg-[var(--surface-2)] px-2 py-0.5 rounded-full shrink-0">
                           {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'}
                         </span>
                       </div>
@@ -843,7 +843,7 @@ export default function ImportPage() {
                               <button
                                 onClick={() => setAction('merge')}
                                 className={cn('text-[10px] px-2 py-0.5 rounded border transition-colors',
-                                  action === 'merge' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'border-[#1a3a5c] text-slate-400 hover:text-white')}
+                                  action === 'merge' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)]')}
                               >
                                 Merge into existing
                               </button>
@@ -851,14 +851,14 @@ export default function ImportPage() {
                             <button
                               onClick={() => setAction('create')}
                               className={cn('text-[10px] px-2 py-0.5 rounded border transition-colors',
-                                action === 'create' ? 'bg-blue-500/20 border-blue-500/40 text-blue-300' : 'border-[#1a3a5c] text-slate-400 hover:text-white')}
+                                action === 'create' ? 'bg-blue-500/20 border-blue-500/40 text-blue-300' : 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)]')}
                             >
                               Create new
                             </button>
                             <button
                               onClick={() => setAction('skip')}
                               className={cn('text-[10px] px-2 py-0.5 rounded border transition-colors',
-                                action === 'skip' ? 'bg-red-500/20 border-red-500/40 text-red-300' : 'border-[#1a3a5c] text-slate-400 hover:text-white')}
+                                action === 'skip' ? 'bg-red-500/20 border-red-500/40 text-red-300' : 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)]')}
                             >
                               Skip
                             </button>
@@ -867,7 +867,7 @@ export default function ImportPage() {
                       )}
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {contacts.map((c, i) => (
-                          <span key={i} className="text-[11px] text-slate-500 bg-[#112850]/60 px-2 py-0.5 rounded">
+                          <span key={i} className="text-[11px] text-slate-500 bg-[var(--surface-2)] px-2 py-0.5 rounded">
                             {[c.contactFirstName, c.contactLastName].filter(Boolean).join(' ') || c.contactEmail || 'Unnamed'}
                             {c.contactJobTitle && <span className="text-slate-600"> · {c.contactJobTitle}</span>}
                           </span>
@@ -889,7 +889,7 @@ export default function ImportPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-[#1a3a5c] bg-[#0d2040]">
+                    <tr className="border-b border-[var(--line)] bg-[var(--surface)]">
                       {['', 'Name', 'Email', 'Organisation', 'Job Title', 'Type', 'Status', 'Event', 'Notes'].map((h) => (
                         <th key={h} className="text-left px-3 py-2.5 font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
@@ -902,12 +902,12 @@ export default function ImportPage() {
                       const nameKey = `${t.firstName ?? ''} ${t.lastName ?? ''}`.toLowerCase().trim()
                       const isDupe = (emailKey && duplicateKeys.has(emailKey)) || (nameKey && duplicateKeys.has(nameKey))
                       return (
-                        <tr key={i} className={cn('border-b border-[#1a3a5c]/40', isDupe && 'bg-amber-500/5')}>
+                        <tr key={i} className={cn('border-b border-[var(--line)]', isDupe && 'bg-amber-500/5')}>
                           <td className="px-3 py-2.5 w-6">
                             {isDupe && <span title="Possible duplicate" className="text-amber-400 text-[10px] font-bold cursor-default">⚠</span>}
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
-                            <span className={isDupe ? 'text-amber-300' : 'text-white'}>{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</span>
+                            <span className={isDupe ? 'text-amber-300' : 'text-[var(--fg)]'}>{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</span>
                             {isDupe && <div className="text-[10px] text-amber-500/80 mt-0.5">Possible duplicate</div>}
                           </td>
                           <td className="px-3 py-2.5 text-slate-400 truncate max-w-[140px]">{t.email || '—'}</td>
@@ -936,7 +936,7 @@ export default function ImportPage() {
                 </table>
               </div>
               {totalRows > 5 && (
-                <div className="px-4 py-3 border-t border-[#1a3a5c] text-xs text-slate-500 bg-[#0d2040]">
+                <div className="px-4 py-3 border-t border-[var(--line)] text-xs text-slate-500 bg-[var(--surface)]">
                   + {(totalRows - 5).toLocaleString()} more contacts will be imported
                 </div>
               )}
@@ -946,7 +946,7 @@ export default function ImportPage() {
           {/* Event split summary (people only) */}
           {!isCompany && primaryEventMapped && eventGroups && (
             <div className="whai-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#1a3a5c] bg-[#0d2040] flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-[var(--line)] bg-[var(--surface)] flex items-center justify-between">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                   Events detected — {eventGroups.size} {eventGroups.size === 1 ? 'batch' : 'batches'}
                 </p>
@@ -960,11 +960,11 @@ export default function ImportPage() {
                   </div>
                 </label>
               </div>
-              <div className="divide-y divide-[#1a3a5c]/50">
+              <div className="divide-y divide-[var(--line)]">
                 {[...eventGroups.entries()].map(([name, contacts]) => (
                   <div key={name} className="flex items-center justify-between px-4 py-2.5">
-                    <span className="text-sm text-white">{name}</span>
-                    <span className="text-xs text-slate-400 bg-[#112850] px-2 py-0.5 rounded-full">{contacts.length.toLocaleString()} contacts</span>
+                    <span className="text-sm text-[var(--fg)]">{name}</span>
+                    <span className="text-xs text-slate-400 bg-[var(--surface-2)] px-2 py-0.5 rounded-full">{contacts.length.toLocaleString()} contacts</span>
                   </div>
                 ))}
               </div>
@@ -978,7 +978,7 @@ export default function ImportPage() {
             <div className="flex-1">
               {isCompany ? (
                 <>
-                  <p className="text-sm text-white font-medium">
+                  <p className="text-sm text-[var(--fg)] font-medium">
                     Ready to import {companyGroups?.size ?? 0} {(companyGroups?.size ?? 0) === 1 ? 'company' : 'companies'} · {totalRows.toLocaleString()} contacts
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -987,7 +987,7 @@ export default function ImportPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-white font-medium">Ready to import {totalRows.toLocaleString()} {cfg.label.toLowerCase()}</p>
+                  <p className="text-sm text-[var(--fg)] font-medium">Ready to import {totalRows.toLocaleString()} {cfg.label.toLowerCase()}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {primaryEventMapped && splitByEvent && eventGroups && eventGroups.size > 1
                       ? `Will create ${eventGroups.size} batches — one per event.`
@@ -999,7 +999,7 @@ export default function ImportPage() {
             </div>
             <button
               onClick={handleImport}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors shrink-0 text-[#0A1628] hover:opacity-90"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors shrink-0 text-[var(--on-accent)] hover:opacity-90"
               style={{ background: cfg.hex }}
             >
               Import <ArrowRight className="w-4 h-4" />
@@ -1012,7 +1012,7 @@ export default function ImportPage() {
       {step === 'importing' && (
         <div className="whai-card p-12 text-center space-y-4">
           <div className={cn('w-12 h-12 rounded-full border-2 border-t-transparent animate-spin mx-auto', cfg.spinBorder)} />
-          <p className="text-white font-medium">
+          <p className="text-[var(--fg)] font-medium">
             {isCompany ? `Importing ${companyGroups?.size ?? 0} companies…` : `Importing ${totalRows.toLocaleString()} ${cfg.label.toLowerCase()}…`}
           </p>
           <p className="text-slate-500 text-sm">This will only take a moment.</p>
@@ -1028,7 +1028,7 @@ export default function ImportPage() {
           <div>
             {isCompany ? (
               <>
-                <p className="text-xl font-bold text-white">
+                <p className="text-xl font-bold text-[var(--fg)]">
                   {importResult.companies} {importResult.companies === 1 ? 'company' : 'companies'} · {importResult.contacts} {importResult.contacts === 1 ? 'contact' : 'contacts'} imported
                 </p>
                 <p className="text-slate-400 text-sm mt-2">
@@ -1039,7 +1039,7 @@ export default function ImportPage() {
               </>
             ) : (
               <>
-                <p className="text-xl font-bold text-white">{importResult.inserted.toLocaleString()} {cfg.label.toLowerCase()} imported</p>
+                <p className="text-xl font-bold text-[var(--fg)]">{importResult.inserted.toLocaleString()} {cfg.label.toLowerCase()} imported</p>
                 {importResult.batches.length > 1 ? (
                   <div className="mt-3 text-left max-w-sm mx-auto space-y-1.5">
                     {importResult.batches.map((b) => (
@@ -1061,14 +1061,14 @@ export default function ImportPage() {
           <div className="flex items-center justify-center gap-3 pt-2">
             {isCompany ? (
               <button onClick={() => router.push('/sponsors')}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-[#0A1628] hover:opacity-90 transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-[var(--on-accent)] hover:opacity-90 transition-colors"
                 style={{ background: cfg.hex }}
               >
                 Go to Sponsors <ArrowRight className="w-4 h-4" />
               </button>
             ) : (
               <button onClick={() => router.push('/unassigned')}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-[#0A1628] hover:opacity-90 transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-[var(--on-accent)] hover:opacity-90 transition-colors"
                 style={{ background: cfg.hex }}
               >
                 Go to Triage Inbox <ArrowRight className="w-4 h-4" />
@@ -1076,7 +1076,7 @@ export default function ImportPage() {
             )}
             <button
               onClick={() => { setStep('upload'); setFileName(''); setHeaders([]); setRows([]); setImportResult(null); setDuplicateKeys(new Set()); setDupMatches(new Map()); setDupActions({}) }}
-              className="px-4 py-2.5 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white text-sm transition-colors"
+              className="px-4 py-2.5 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] text-sm transition-colors"
             >
               Import another file
             </button>

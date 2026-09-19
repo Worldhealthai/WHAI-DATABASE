@@ -71,7 +71,7 @@ function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }) {
           </div>
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-lg font-bold text-white tracking-tight">Pulse</span>
+              <span className="text-lg font-bold text-[var(--fg)] tracking-tight">Pulse</span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/70 bg-cyan-400/10 px-1.5 py-0.5 rounded-full border border-cyan-400/20">by WHAI</span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5 leading-snug">Live CRM data meets live web search</p>
@@ -90,7 +90,7 @@ function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }) {
       <div className="space-y-1.5">
         {SUGGESTIONS.map(s => (
           <button key={s.label} onClick={() => onSuggest(s.label)}
-            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[#1a3a5c] hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all text-left">
+            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[var(--line)] hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all text-left">
             <span className="text-sm leading-none shrink-0">{s.icon}</span>
             <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors flex-1">{s.label}</span>
             <span className="text-slate-700 group-hover:text-cyan-500 transition-colors text-xs">↗</span>
@@ -119,19 +119,19 @@ interface PanelProps {
 function ChatPanel({ messages, loading, input, setInput, onSubmit, onSuggest, inputRef, scrollRef, bottomRef, onScroll, inline, onClose }: PanelProps) {
   return (
     <div className={cn(
-      'flex flex-col bg-[#0a1c38] border border-[#1a3a5c]',
+      'flex flex-col bg-[var(--surface-2)] border border-[var(--line)]',
       inline ? 'rounded-2xl h-full' : 'rounded-2xl h-full w-full',
     )}
       style={{ boxShadow: '0 0 0 1px #1a3a5c, 0 24px 60px -12px rgba(0,0,0,0.7)' }}>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a3a5c]/80 shrink-0"
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)] shrink-0"
         style={{ background: 'linear-gradient(90deg, #071e3d 0%, #0c2540 100%)' }}>
         <div className="flex items-center gap-2.5">
           <PulseLogo size={26} />
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-white tracking-tight">Pulse</span>
+              <span className="text-sm font-bold text-[var(--fg)] tracking-tight">Pulse</span>
               <span className="text-[9px] font-semibold uppercase tracking-widest text-cyan-400/60 bg-cyan-400/10 px-1.5 py-0.5 rounded-full border border-cyan-400/15">by WHAI</span>
             </div>
             <div className="flex items-center gap-1 mt-0.5">
@@ -141,7 +141,7 @@ function ChatPanel({ messages, loading, input, setInput, onSubmit, onSuggest, in
           </div>
         </div>
         {!inline && onClose && (
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#1a3a5c] text-slate-600 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--surface-3)] text-slate-600 hover:text-[var(--fg)] transition-colors">
             <X className="w-4 h-4" />
           </button>
         )}
@@ -164,7 +164,7 @@ function ChatPanel({ messages, loading, input, setInput, onSubmit, onSuggest, in
                 'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
                 msg.role === 'user'
                   ? 'bg-gradient-to-br from-cyan-600 to-teal-600 text-white rounded-br-sm shadow-lg shadow-cyan-900/30'
-                  : 'bg-[#0f2545] border border-[#1a3a5c] text-slate-200 rounded-bl-sm',
+                  : 'bg-[var(--surface-2)] border border-[var(--line)] text-slate-200 rounded-bl-sm',
               )}>
                 {msg.role === 'assistant' && msg.searching && !msg.content && (
                   <div className="flex items-center gap-2 text-xs">
@@ -184,24 +184,24 @@ function ChatPanel({ messages, loading, input, setInput, onSubmit, onSuggest, in
       </div>
 
       {/* Input */}
-      <div className="px-3 pb-3 pt-2 border-t border-[#1a3a5c]/60 shrink-0">
+      <div className="px-3 pb-3 pt-2 border-t border-[var(--line)] shrink-0">
         <form onSubmit={onSubmit}>
-          <div className="flex items-center gap-2 rounded-xl border border-[#1e3f6a] focus-within:border-cyan-500/40 transition-colors px-3.5 py-2.5"
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--line-2)] focus-within:border-cyan-500/40 transition-colors px-3.5 py-2.5"
             style={{ background: 'linear-gradient(135deg, #061525, #071e3d)' }}>
             <input
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Ask Pulse anything…"
-              className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-700 outline-none"
+              className="flex-1 bg-transparent text-sm text-[var(--fg)] placeholder:text-slate-700 outline-none"
               disabled={loading}
             />
             <button type="submit" disabled={!input.trim() || loading}
               className="p-1.5 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all shrink-0"
               style={{ background: 'linear-gradient(135deg, #0891b2, #0d9488)' }}>
               {loading
-                ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
-                : <Send className="w-3.5 h-3.5 text-white" />
+                ? <Loader2 className="w-3.5 h-3.5 text-[var(--fg)] animate-spin" />
+                : <Send className="w-3.5 h-3.5 text-[var(--fg)]" />
               }
             </button>
           </div>
@@ -332,7 +332,7 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
         className={cn(
           'fixed bottom-20 right-5 md:bottom-6 md:right-6 z-50',
           'w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-all duration-200',
-          open ? 'bg-[#1a3a5c] text-slate-400' : 'text-white shadow-lg shadow-cyan-900/40',
+          open ? 'bg-[var(--surface-3)] text-slate-400' : 'text-[var(--fg)] shadow-lg shadow-cyan-900/40',
         )}
         style={open ? {} : { background: 'linear-gradient(135deg, #0891b2, #0d9488)' }}
       >

@@ -98,8 +98,8 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
                 className={cn(
                   'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
                   type === t
-                    ? 'bg-[#00B4D8]/15 text-[#00B4D8] border-[#00B4D8]/40'
-                    : 'border-[#1a3a5c] text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                    ? 'bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-line)]'
+                    : 'border-[var(--line)] text-slate-500 hover:text-slate-300 hover:border-slate-600'
                 )}
               >
                 <Icon className="w-3 h-3" />
@@ -115,14 +115,14 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
           onChange={(e) => setContent(e.target.value)}
           placeholder={`Log a ${ACTIVITY_TYPE_LABELS[type]?.toLowerCase()}…`}
           rows={3}
-          className="w-full px-3 py-2.5 bg-[#071428] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-600 outline-none focus:border-[#00B4D8]/40 resize-none transition-colors"
+          className="w-full px-3 py-2.5 bg-[var(--surface-2)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-600 outline-none focus:border-[var(--teal-line)] resize-none transition-colors"
         />
 
         <div className="flex justify-end">
           <button
             type="submit"
             disabled={!content.trim() || saving}
-            className="px-4 py-1.5 rounded-lg bg-[#00B4D8] text-[#0A1628] text-xs font-semibold hover:bg-[#00B4D8]/90 disabled:opacity-40 transition-colors"
+            className="px-4 py-1.5 rounded-lg bg-[var(--teal)] text-[var(--on-accent)] text-xs font-semibold hover:bg-[var(--teal)] disabled:opacity-40 transition-colors"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
@@ -130,7 +130,7 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
       </form>
 
       {/* Divider */}
-      <div className="border-t border-[#1a3a5c]" />
+      <div className="border-t border-[var(--line)]" />
 
       {/* Timeline */}
       {activities.length === 0 ? (
@@ -139,7 +139,7 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
         </div>
       ) : (
         <div className="relative space-y-0">
-          <div className="absolute left-[15px] top-5 bottom-1 w-px bg-[#1a3a5c]" />
+          <div className="absolute left-[15px] top-5 bottom-1 w-px bg-[var(--surface-3)]" />
           {activities.map((activity) => {
             const Icon = ACTIVITY_ICONS[activity.type] ?? MessageSquare
             const colorClass = ACTIVITY_COLORS[activity.type] ?? ACTIVITY_COLORS.note

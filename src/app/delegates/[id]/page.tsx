@@ -119,7 +119,7 @@ export default function DelegateDetailPage() {
     return (
       <div className="max-w-5xl mx-auto px-4 py-16 text-center">
         <div className="text-red-400 mb-4">Delegate not found.</div>
-        <Link href="/delegates" className="text-[#00B4D8] text-sm hover:underline">← Back to Delegates</Link>
+        <Link href="/delegates" className="text-[var(--teal)] text-sm hover:underline">← Back to Delegates</Link>
       </div>
     )
   }
@@ -128,7 +128,7 @@ export default function DelegateDetailPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-slate-500">
-        <Link href="/delegates" className="hover:text-white transition-colors flex items-center gap-1">
+        <Link href="/delegates" className="hover:text-[var(--fg)] transition-colors flex items-center gap-1">
           <ArrowLeft className="w-3.5 h-3.5" /> Delegates
         </Link>
         <ChevronRight className="w-3.5 h-3.5" />
@@ -139,12 +139,12 @@ export default function DelegateDetailPage() {
       <div className="whai-card overflow-hidden">
         <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #00B4D880 0%, #00B4D820 60%, transparent 100%)' }} />
         <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-[#00B4D8]/20 text-[#00B4D8] flex items-center justify-center text-xl font-bold shrink-0">
+          <div className="w-14 h-14 rounded-full bg-[var(--teal-soft)] text-[var(--teal)] flex items-center justify-center text-xl font-bold shrink-0">
             {delegate.firstName?.[0]}{delegate.lastName?.[0]}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start flex-wrap gap-2 mb-1">
-              <h1 className="text-xl font-bold text-white">{delegate.firstName} {delegate.lastName}</h1>
+              <h1 className="text-xl font-bold text-[var(--fg)]">{delegate.firstName} {delegate.lastName}</h1>
               <StatusBadge value={delegate.status} variant="delegate_status" />
               {delegate.ticketType && <StatusBadge value={delegate.ticketType} variant="ticket_type" />}
             </div>
@@ -152,7 +152,7 @@ export default function DelegateDetailPage() {
             {delegate.organization && <div className="text-sm text-slate-500">{delegate.organization}</div>}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {delegate.email && (
-                <a href={`mailto:${delegate.email}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#00B4D8]/10 border border-[#00B4D8]/20 text-[#00B4D8] text-xs hover:bg-[#00B4D8]/20 transition-colors">
+                <a href={`mailto:${delegate.email}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--teal-soft)] border border-[var(--teal-line)] text-[var(--teal)] text-xs hover:bg-[var(--teal-soft)] transition-colors">
                   <Mail className="w-3 h-3" /> {delegate.email}
                 </a>
               )}
@@ -162,7 +162,7 @@ export default function DelegateDetailPage() {
                 </a>
               )}
               {delegate.event && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#00B4D8]/8 border border-[#00B4D8]/15 text-[#00B4D8]/80 text-xs">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--teal-soft)] border border-[var(--teal-line)] text-[var(--teal)] text-xs">
                   {delegate.event}
                 </span>
               )}
@@ -171,7 +171,7 @@ export default function DelegateDetailPage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setEditOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] hover:border-slate-500 text-sm transition-colors"
             >
               <Edit2 className="w-3.5 h-3.5" /> Edit
             </button>
@@ -192,11 +192,11 @@ export default function DelegateDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           {/* Contact info */}
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Contact Information</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Contact Information</h2>
             <div className="space-y-3">
               {delegate.email && (
                 <InfoRow icon={Mail} label="Email">
-                  <a href={`mailto:${delegate.email}`} className="text-[#00B4D8] hover:underline">{delegate.email}</a>
+                  <a href={`mailto:${delegate.email}`} className="text-[var(--teal)] hover:underline">{delegate.email}</a>
                 </InfoRow>
               )}
               {delegate.phone && <InfoRow icon={Phone} label="Phone"><span>{delegate.phone}</span></InfoRow>}
@@ -229,30 +229,30 @@ export default function DelegateDetailPage() {
                             else if (e.key === 'Escape') { setOrgEditing(false); setSuggestions([]) }
                           }}
                           placeholder="Type or select a company…"
-                          className="flex-1 bg-[#0d2040] border border-[#00B4D8]/40 rounded-lg px-2.5 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#00B4D8] focus:ring-1 focus:ring-[#00B4D8]/30"
+                          className="flex-1 bg-[var(--surface)] border border-[var(--teal-line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder-slate-600 focus:outline-none focus:border-[var(--teal)] focus:ring-1 focus:ring-[var(--teal-line)]"
                         />
                         <button
                           onClick={() => saveOrg(highlightedIdx >= 0 ? suggestions[highlightedIdx] : orgValue)}
                           disabled={orgSaving}
-                          className="p-1.5 rounded-lg bg-[#00B4D8]/20 text-[#00B4D8] hover:bg-[#00B4D8]/30 transition-colors disabled:opacity-40"
+                          className="p-1.5 rounded-lg bg-[var(--teal-soft)] text-[var(--teal)] hover:bg-[var(--teal-soft)] transition-colors disabled:opacity-40"
                         >
                           <Check className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => { setOrgEditing(false); setSuggestions([]) }}
-                          className="p-1.5 rounded-lg hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-colors"
+                          className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-slate-500 hover:text-slate-300 transition-colors"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                       {suggestions.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 z-40 bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
+                        <div className="absolute top-full left-0 right-0 mt-1 z-40 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
                           {suggestions.map((company, idx) => (
                             <button
                               key={company}
                               onMouseDown={(e) => { e.preventDefault(); saveOrg(company) }}
                               onMouseEnter={() => setHighlightedIdx(idx)}
-                              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${idx === highlightedIdx ? 'bg-[#00B4D8]/15 text-white' : 'text-slate-300 hover:bg-white/5'}`}
+                              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${idx === highlightedIdx ? 'bg-[var(--teal-soft)] text-[var(--fg)]' : 'text-slate-300 hover:bg-[var(--surface-2)]'}`}
                             >
                               <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                               {company}
@@ -266,7 +266,7 @@ export default function DelegateDetailPage() {
                       <span className="text-sm text-slate-200">{delegate.organization ?? <span className="text-slate-600 italic">No company set</span>}</span>
                       <button
                         onClick={startOrgEdit}
-                        className="opacity-0 group-hover/org:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10 text-slate-500 hover:text-slate-300"
+                        className="opacity-0 group-hover/org:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--surface-2)] text-slate-500 hover:text-slate-300"
                         title="Change company"
                       >
                         <Pencil className="w-3 h-3" />
@@ -279,7 +279,7 @@ export default function DelegateDetailPage() {
               {delegate.jobTitle && <InfoRow icon={Briefcase} label="Job Title"><span>{delegate.jobTitle}</span></InfoRow>}
               {delegate.linkedinUrl && (
                 <InfoRow icon={Linkedin} label="LinkedIn">
-                  <a href={delegate.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-[#00B4D8] hover:underline truncate">View Profile</a>
+                  <a href={delegate.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--teal)] hover:underline truncate">View Profile</a>
                 </InfoRow>
               )}
             </div>
@@ -287,7 +287,7 @@ export default function DelegateDetailPage() {
 
           {/* Event details */}
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Event Details</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Event Details</h2>
             <div className="grid grid-cols-2 gap-4">
               <DetailField label="Status" value={<StatusBadge value={delegate.status} variant="delegate_status" />} />
               <DetailField label="Ticket Type" value={delegate.ticketType ? <StatusBadge value={delegate.ticketType} variant="ticket_type" /> : '—'} />
@@ -303,7 +303,7 @@ export default function DelegateDetailPage() {
           {/* Bio */}
           {delegate.bio && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Bio</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Bio</h2>
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{delegate.bio}</p>
             </div>
           )}
@@ -311,7 +311,7 @@ export default function DelegateDetailPage() {
           {/* Notes */}
           {delegate.notes && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Notes</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Notes</h2>
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{delegate.notes}</p>
             </div>
           )}
@@ -321,7 +321,7 @@ export default function DelegateDetailPage() {
         {/* Right: Activity feed */}
         <div className="space-y-4">
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Activity</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Activity</h2>
             <ActivityFeed
               activities={delegate.activities ?? []}
               entityType="delegate"

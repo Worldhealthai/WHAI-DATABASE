@@ -44,12 +44,12 @@ function PipelineProgress({ currentStatus, accentHex, onStageChange, saving }: {
                 disabled={saving}
                 className={cn(
                   'flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all w-full text-center disabled:cursor-not-allowed',
-                  isCurrent ? 'bg-[#112850]' : 'hover:bg-[#0d2040]'
+                  isCurrent ? 'bg-[var(--surface-2)]' : 'hover:bg-[var(--surface)]'
                 )}
               >
                 <div className={cn(
                   'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all',
-                  isDone ? 'border-transparent text-[#0A1628]' : isCurrent ? 'border-current' : 'border-slate-700 text-slate-700'
+                  isDone ? 'border-transparent text-[var(--on-accent)]' : isCurrent ? 'border-current' : 'border-slate-700 text-slate-700'
                 )}
                   style={isDone ? { background: accentHex } : isCurrent ? { borderColor: accentHex, color: accentHex } : {}}
                 >
@@ -57,7 +57,7 @@ function PipelineProgress({ currentStatus, accentHex, onStageChange, saving }: {
                 </div>
                 <span className={cn(
                   'text-[10px] font-medium leading-tight whitespace-nowrap',
-                  isCurrent ? 'text-white' : isDone ? 'text-slate-400' : 'text-slate-600'
+                  isCurrent ? 'text-[var(--fg)]' : isDone ? 'text-slate-400' : 'text-slate-600'
                 )}>
                   {stage.replace('Speaking ', '')}
                 </span>
@@ -65,7 +65,7 @@ function PipelineProgress({ currentStatus, accentHex, onStageChange, saving }: {
               {i < SPEAKER_STAGES.length - 1 && (
                 <div
                   className="h-0.5 flex-1 shrink-0 transition-all duration-500 mx-1"
-                  style={{ background: isDone ? accentHex : '#1a3a5c' }}
+                  style={{ background: isDone ? accentHex : 'var(--line)' }}
                 />
               )}
             </div>
@@ -194,7 +194,7 @@ export default function SpeakerDetailPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
       <nav className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-sm text-slate-500">
-          <Link href="/speakers" className="hover:text-white transition-colors flex items-center gap-1">
+          <Link href="/speakers" className="hover:text-[var(--fg)] transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Speakers
           </Link>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -211,8 +211,8 @@ export default function SpeakerDetailPage() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
               prevItem
-                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
-                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+                ? 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 hover:bg-[var(--surface-2)]'
+                : 'border-[var(--line)] text-slate-700 pointer-events-none'
             )}
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -226,8 +226,8 @@ export default function SpeakerDetailPage() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
               nextItem
-                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
-                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+                ? 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 hover:bg-[var(--surface-2)]'
+                : 'border-[var(--line)] text-slate-700 pointer-events-none'
             )}
           >
             <span className="hidden sm:inline">{nextItem ? `${nextItem.firstName} ${nextItem.lastName}` : 'Next'}</span>
@@ -248,7 +248,7 @@ export default function SpeakerDetailPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start flex-wrap gap-2 mb-1">
-              <h1 className="text-xl font-bold text-white">{speaker.firstName} {speaker.lastName}</h1>
+              <h1 className="text-xl font-bold text-[var(--fg)]">{speaker.firstName} {speaker.lastName}</h1>
               <StatusBadge value={speaker.status} variant="speaker_status" />
               {speaker.sessionType && <StatusBadge value={speaker.sessionType} variant="contract_status" />}
             </div>
@@ -279,7 +279,7 @@ export default function SpeakerDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors">
+            <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] hover:border-slate-500 text-sm transition-colors">
               <Edit2 className="w-3.5 h-3.5" /> Edit
             </button>
             <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
@@ -300,7 +300,7 @@ export default function SpeakerDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           {/* Contact */}
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Contact Information</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Contact Information</h2>
             <div className="space-y-3">
               {speaker.email && <InfoRow icon={Mail} label="Email"><a href={`mailto:${speaker.email}`} className="text-purple-400 hover:underline">{speaker.email}</a></InfoRow>}
               {speaker.phone && <InfoRow icon={Phone} label="Phone"><span>{speaker.phone}</span></InfoRow>}
@@ -313,7 +313,7 @@ export default function SpeakerDetailPage() {
 
           {/* Session */}
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Session & Contract</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Session & Contract</h2>
             <div className="grid grid-cols-2 gap-4">
               <DetailField label="Status" value={<StatusBadge value={speaker.status} variant="speaker_status" />} />
               <DetailField label="Session Type" value={speaker.sessionType ?? '—'} />
@@ -324,7 +324,7 @@ export default function SpeakerDetailPage() {
               <DetailField label="Speaking Fee" value={speaker.fee ? `${speaker.feeCurrency ?? 'GBP'} ${Number(speaker.fee).toLocaleString()}` : 'Not set'} />
               <DetailField label="Added" value={new Date(speaker.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
             </div>
-            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[#1a3a5c]">
+            <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[var(--line)]">
               <div className={`flex items-center gap-1.5 text-xs ${speaker.travelRequired ? 'text-amber-400' : 'text-slate-600'}`}>
                 <Plane className="w-3.5 h-3.5" />
                 {speaker.travelRequired ? 'Travel required' : 'No travel'}
@@ -339,7 +339,7 @@ export default function SpeakerDetailPage() {
           {/* Session description */}
           {speaker.sessionDescription && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Session Description</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Session Description</h2>
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{speaker.sessionDescription}</p>
             </div>
           )}
@@ -347,7 +347,7 @@ export default function SpeakerDetailPage() {
           {/* Bio */}
           {speaker.bio && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Bio</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Bio</h2>
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{speaker.bio}</p>
             </div>
           )}
@@ -355,7 +355,7 @@ export default function SpeakerDetailPage() {
           {/* Expertise */}
           {expertiseList.length > 0 && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Expertise Areas</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Expertise Areas</h2>
               <div className="flex flex-wrap gap-2">
                 {expertiseList.map((e) => (
                   <span key={e} className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 text-xs border border-purple-500/20">{e}</span>
@@ -368,7 +368,7 @@ export default function SpeakerDetailPage() {
           {/* Notes */}
           {speaker.notes && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Notes</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Notes</h2>
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{speaker.notes}</p>
             </div>
           )}
@@ -376,7 +376,7 @@ export default function SpeakerDetailPage() {
 
         <div className="space-y-4">
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Activity</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Activity</h2>
             <ActivityFeed activities={speaker.activities ?? []} entityType="speaker" entityId={id} onActivityAdded={refetch} />
           </div>
         </div>

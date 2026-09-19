@@ -125,10 +125,10 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-sm overflow-y-auto">
-      <div className="w-full max-w-2xl bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-2xl my-4">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a3a5c]">
-          <h2 className="text-base font-semibold text-white">{isEdit ? `Edit ${entityLabel}` : `Add ${entityLabel}`}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+      <div className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl my-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
+          <h2 className="text-base font-semibold text-[var(--fg)]">{isEdit ? `Edit ${entityLabel}` : `Add ${entityLabel}`}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-[var(--fg)] transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
@@ -177,14 +177,14 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
           </div>
 
           {/* Sponsorship */}
-          <div className="pt-2 border-t border-[#1a3a5c]">
+          <div className="pt-2 border-t border-[var(--line)]">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Sponsorship</p>
 
             <div className="grid grid-cols-2 gap-4">
               <Field label="Event">
                 <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
                   <option value="">Select event</option>
-                  {eventOptions.map((e) => <option key={e} value={e}>{e}</option>)}
+                  {(form.event && !eventOptions.includes(form.event) ? [form.event, ...eventOptions] : eventOptions).map((e) => <option key={e} value={e}>{e}</option>)}
                 </select>
               </Field>
               <Field label="Status">
@@ -246,7 +246,7 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
           </div>
 
           {/* Primary Contact */}
-          <div className="pt-2 border-t border-[#1a3a5c]">
+          <div className="pt-2 border-t border-[var(--line)]">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Primary Contact</p>
             <div className="grid grid-cols-2 gap-4">
               <Field label="First Name">
@@ -275,15 +275,15 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
           </div>
 
           {/* Notes */}
-          <div className="pt-2 border-t border-[#1a3a5c]">
+          <div className="pt-2 border-t border-[var(--line)]">
             <Field label="Notes">
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
             </Field>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1a3a5c]">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition-colors">Cancel</button>
-            <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[#0A1628] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--line)]">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-[var(--fg)] transition-colors">Cancel</button>
+            <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-amber-500 text-[var(--on-accent)] text-sm font-semibold hover:bg-amber-500/90 disabled:opacity-50 transition-colors">
               {saving ? 'Saving…' : isEdit ? 'Save Changes' : `Add ${entityLabel}`}
             </button>
           </div>
@@ -293,7 +293,7 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
   )
 }
 
-const inputCls = 'w-full px-3 py-2 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-amber-500/60 transition-colors'
+const inputCls = 'w-full px-3 py-2 bg-[var(--bg)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-500 outline-none focus:border-amber-500/60 transition-colors'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

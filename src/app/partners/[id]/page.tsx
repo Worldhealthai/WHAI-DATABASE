@@ -139,7 +139,7 @@ export default function PartnerDetailPage() {
       {/* Breadcrumb + nav */}
       <nav className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-sm text-slate-500">
-          <Link href="/partners" className="hover:text-white transition-colors flex items-center gap-1">
+          <Link href="/partners" className="hover:text-[var(--fg)] transition-colors flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Partners & Media
           </Link>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -156,8 +156,8 @@ export default function PartnerDetailPage() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
               prevItem
-                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
-                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+                ? 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 hover:bg-[var(--surface-2)]'
+                : 'border-[var(--line)] text-slate-700 pointer-events-none'
             )}
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -171,8 +171,8 @@ export default function PartnerDetailPage() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
               nextItem
-                ? 'border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 hover:bg-[#112850]'
-                : 'border-[#1a3a5c]/30 text-slate-700 pointer-events-none'
+                ? 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 hover:bg-[var(--surface-2)]'
+                : 'border-[var(--line)] text-slate-700 pointer-events-none'
             )}
           >
             <span className="hidden sm:inline">{nextItem ? nextItem.companyName : 'Next'}</span>
@@ -191,7 +191,7 @@ export default function PartnerDetailPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start flex-wrap gap-2 mb-1">
-              <h1 className="text-xl font-bold text-white">{partner.companyName}</h1>
+              <h1 className="text-xl font-bold text-[var(--fg)]">{partner.companyName}</h1>
               {partner.tier && <StatusBadge value={partner.tier} variant="sponsor_tier" />}
               <StatusBadge value={partner.status} variant="sponsor_status" />
             </div>
@@ -214,7 +214,7 @@ export default function PartnerDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#1a3a5c] text-slate-300 hover:text-white hover:border-slate-500 text-sm transition-colors">
+            <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] hover:border-slate-500 text-sm transition-colors">
               <Edit2 className="w-3.5 h-3.5" /> Edit
             </button>
             <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
@@ -229,7 +229,7 @@ export default function PartnerDetailPage() {
         <div className="lg:col-span-2 space-y-4">
           {/* Partner details */}
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Partner Details</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Partner Details</h2>
             <div className="grid grid-cols-2 gap-4">
               <DetailField label="Status" value={<StatusBadge value={partner.status} variant="sponsor_status" />} />
               {partner.tier && <DetailField label="Type" value={<StatusBadge value={partner.tier} variant="sponsor_tier" />} />}
@@ -238,7 +238,7 @@ export default function PartnerDetailPage() {
             </div>
 
             {partner.packageDetails && (
-              <div className="mt-4 pt-4 border-t border-[#1a3a5c]">
+              <div className="mt-4 pt-4 border-t border-[var(--line)]">
                 <div className="text-xs text-slate-500 mb-2">Package Details</div>
                 <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{partner.packageDetails}</p>
               </div>
@@ -248,7 +248,7 @@ export default function PartnerDetailPage() {
           {/* Primary contact */}
           {(partner.contactFirstName || partner.contactLastName || partner.contactEmail) && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-4">Primary Contact</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Primary Contact</h2>
               <div className="space-y-3">
                 {(partner.contactFirstName || partner.contactLastName) && (
                   <InfoRow icon={Building2} label="Name">
@@ -274,7 +274,7 @@ export default function PartnerDetailPage() {
           {/* Contacts */}
           <div className="whai-card p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-white">
+              <h2 className="text-sm font-semibold text-[var(--fg)]">
                 Contacts
                 {partner.contacts && partner.contacts.length > 0 && (
                   <span className="ml-2 text-xs font-normal text-slate-500">({partner.contacts.length + (partner.contactFirstName || partner.contactLastName ? 1 : 0)})</span>
@@ -282,7 +282,7 @@ export default function PartnerDetailPage() {
               </h2>
               <button
                 onClick={() => setAddContactOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1a3a5c] text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 text-xs transition-colors"
               >
                 <UserPlus className="w-3.5 h-3.5" /> Add Contact
               </button>
@@ -352,7 +352,7 @@ export default function PartnerDetailPage() {
           {/* Notes */}
           {partner.notes && (
             <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-white mb-3">Notes</h2>
+              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Notes</h2>
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{partner.notes}</p>
             </div>
           )}
@@ -361,7 +361,7 @@ export default function PartnerDetailPage() {
         {/* Activity feed */}
         <div className="space-y-4">
           <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-white mb-4">Activity</h2>
+            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Activity</h2>
             <ActivityFeed activities={partner.activities ?? []} entityType="partner" entityId={id} onActivityAdded={refetch} />
           </div>
         </div>
@@ -419,8 +419,8 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onC
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-3 rounded-lg bg-[#0A1628] border border-[#1a3a5c] transition-colors group/card',
-        onClick && 'cursor-pointer hover:border-emerald-500/30 hover:bg-[#0d1f3a]'
+        'flex items-start gap-3 p-3 rounded-lg bg-[var(--bg)] border border-[var(--line)] transition-colors group/card',
+        onClick && 'cursor-pointer hover:border-emerald-500/30 hover:bg-[var(--surface-2)]'
       )}
       onClick={onClick}
     >
@@ -429,7 +429,7 @@ function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onC
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-white">{name || '—'}</span>
+          <span className="text-sm font-medium text-[var(--fg)]">{name || '—'}</span>
           {isPrimary && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400/80 border border-emerald-500/20">Primary</span>}
         </div>
         {jobTitle && <div className="text-xs text-slate-500 mt-0.5">{jobTitle}</div>}
@@ -482,18 +482,18 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md bg-[#0d2040] border border-[#1a3a5c] rounded-xl shadow-2xl mt-16" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a3a5c]">
+      <div className="w-full max-w-md bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl mt-16" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--line)]">
           <div>
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-[var(--fg)] flex items-center gap-2">
               <ArrowRightLeft className="w-4 h-4 text-emerald-400" /> Move Contact
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">Moving <span className="text-slate-300">{contactName}</span> to a new company</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-[var(--fg)] transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="p-4 border-b border-[#1a3a5c]">
+        <div className="p-4 border-b border-[var(--line)]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
             <input
@@ -502,7 +502,7 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search companies…"
-              className="w-full pl-8 pr-3 py-2 bg-[#0A1628] border border-[#1a3a5c] rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500/60 transition-colors"
+              className="w-full pl-8 pr-3 py-2 bg-[var(--bg)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-500 outline-none focus:border-emerald-500/60 transition-colors"
             />
           </div>
         </div>
@@ -522,9 +522,9 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
                 {s.companyName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white truncate">{s.companyName}</div>
+                <div className="text-sm font-medium text-[var(--fg)] truncate">{s.companyName}</div>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {s.event && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#112850] text-slate-400 border border-[#1a3a5c] truncate max-w-[120px]">{s.event}</span>}
+                  {s.event && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-2)] text-slate-400 border border-[var(--line)] truncate max-w-[120px]">{s.event}</span>}
                   {s.status && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{s.status}</span>}
                   {typeof s.contactCount === 'number' && <span className="text-[10px] text-slate-500">{s.contactCount} contact{s.contactCount !== 1 ? 's' : ''}</span>}
                   {(s.city || s.country) && <span className="text-[10px] text-slate-500 truncate">{[s.city, s.country].filter(Boolean).join(', ')}</span>}
@@ -536,7 +536,7 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
         </div>
 
         {loading && (
-          <div className="px-5 py-3 border-t border-[#1a3a5c] text-xs text-slate-400 text-center">Moving contact…</div>
+          <div className="px-5 py-3 border-t border-[var(--line)] text-xs text-slate-400 text-center">Moving contact…</div>
         )}
       </div>
     </div>
