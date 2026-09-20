@@ -54,7 +54,13 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) {
-      return NextResponse.json({ error: `The admin panel answered ${res.status}. Check that CRM_WEBHOOK_SECRET there matches WEBHOOK_SECRET here.` }, { status: 502 })
+      const why =
+        res.status === 404 || res.status === 405
+          ? 'The admin panel does not have the line-up endpoint yet — redeploy worldnexusgroup.com from the latest code, then try again.'
+          : res.status === 401
+            ? 'The admin panel refused the shared secret. Check that CRM_WEBHOOK_SECRET there matches WEBHOOK_SECRET here.'
+            : `The admin panel answered ${res.status}.`
+      return NextResponse.json({ error: why }, { status: 502 })
     }
     const j = await res.json()
     const all = (j?.speakers ?? []) as AdminSpeaker[]
