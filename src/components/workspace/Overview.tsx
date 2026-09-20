@@ -10,6 +10,7 @@ import { KINDS, listParams, recordName, recordSubtitle, type RecordKind } from '
 import { workspaceHref } from '@/lib/portals'
 import { Initials, Stat, StageDot, StagePill, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
+import { AgendaSummary } from '@/components/agenda/AgendaSummary'
 
 interface Stats {
   total: number
@@ -165,6 +166,8 @@ export function Overview() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {tiles.map((t) => <Stat key={t.label} {...t} loading={loading} />)}
       </div>
+
+      <div className="mt-4"><AgendaSummary /></div>
 
       {empty && portal && ws.slug && (
         <div className="ws-card mt-4 p-5 flex flex-wrap items-center justify-between gap-4">

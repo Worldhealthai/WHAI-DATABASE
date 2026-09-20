@@ -12,20 +12,17 @@ import {
   AlignmentType, BorderStyle, Document, HeadingLevel, LevelFormat, Packer, Paragraph, ShadingType, Table, TableCell, TableRow,
   TextRun, VerticalAlign, WidthType,
 } from 'docx'
-import { type Agenda, type Session, type SpeakerSlot, SESSION_TYPES, houseTime } from './model'
+import { type Agenda, type Session, type SpeakerSlot, SESSION_TYPES, agendaStats, houseTime, needsLabel, sessionNeeds } from './model'
 
 const CALIBRI = 'Calibri'
 
-const slotLabel = (s: SpeakerSlot) => {
-  const status = s.status === 'confirmed' ? '' : s.status === 'tbc' ? ' (TBC)' : s.status === 'invited' ? ' (invited)' : ' (declined)'
-  return status
-}
+const slotLabel = (s: SpeakerSlot) => (s.status === 'confirmed' ? '' : ' (TBC)')
 
 // ── Classic ─────────────────────────────────────────────────────────────────
 
 function classicSpeakerRuns(s: SpeakerSlot): TextRun[] {
   const runs: TextRun[] = []
-  const lead = [s.name || 'Speaker TBC', s.role].filter(Boolean).join(' – ')
+  const lead = [s.name, s.role].filter(Boolean).join(' – ')
   runs.push(new TextRun({ text: s.org ? `${lead} – ` : lead, font: CALIBRI, size: 20 }))
   if (s.org) runs.push(new TextRun({ text: s.org, font: CALIBRI, size: 20, bold: true }))
   if (s.moderator) runs.push(new TextRun({ text: ' (Moderator)', font: CALIBRI, size: 20, bold: true }))
@@ -52,11 +49,14 @@ function classicSession(s: Session): Paragraph[] {
   for (const q of s.points) {
     out.push(new Paragraph({ numbering: { reference: 'questions', level: 0 }, children: [new TextRun({ text: q, font: CALIBRI, size: 22 })] }))
   }
-  for (const sp of s.speakers) {
+  // Only named people are written; empty seats become the TBC line below.
+  for (const sp of s.speakers.filter((x) => x.name.trim())) {
     out.push(new Paragraph({ numbering: { reference: 'speakers', level: 0 }, children: classicSpeakerRuns(sp) }))
   }
-  if (!s.speakers.length) {
-    out.push(new Paragraph({ numbering: { reference: 'speakers', level: 0 }, children: [new TextRun({ text: 'Speakers TBC', font: CALIBRI, size: 20, color: 'B45309' })] }))
+  const need = sessionNeeds(s)
+  const due = needsLabel(need)
+  if (due) {
+    out.push(new Paragraph({ numbering: { reference: 'speakers', level: 0 }, children: [new TextRun({ text: `${due.charAt(0).toUpperCase()}${due.slice(1)} TBC`, font: CALIBRI, size: 20, color: 'B45309' })] }))
   }
   return out
 }
@@ -100,7 +100,7 @@ function designedSpeaker(s: SpeakerSlot): Paragraph {
   if (rest) runs.push(new TextRun({ text: `  ${rest}`, font: CALIBRI, size: 19, color: MUTED }))
   if (s.moderator) runs.push(new TextRun({ text: '  Moderator', font: CALIBRI, size: 17, bold: true, color: ACCENT }))
   const tail = slotLabel(s).trim()
-  if (tail) runs.push(new TextRun({ text: `  ${tail.replace(/[()]/g, '').toUpperCase()}`, font: CALIBRI, size: 17, bold: true, color: s.status === 'declined' ? 'C0392B' : WARN }))
+  if (tail) runs.push(new TextRun({ text: `  ${tail.replace(/[()]/g, '').toUpperCase()}`, font: CALIBRI, size: 17, bold: true, color: WARN }))
   return new Paragraph({ spacing: { before: 40, after: 40 }, children: runs })
 }
 
@@ -131,10 +131,10 @@ function designedSession(s: Session): TableRow {
     for (const q of s.points) body.push(new Paragraph({ numbering: { reference: 'designed-points', level: 0 }, spacing: { after: 20 }, children: [new TextRun({ text: q, font: CALIBRI, size: 19, color: MUTED })] }))
     if (s.speakers.length) {
       body.push(new Paragraph({ spacing: { before: 100, after: 20 }, children: [new TextRun({ text: 'SPEAKERS', font: CALIBRI, size: 15, bold: true, color: MUTED })] }))
-      for (const sp of s.speakers) body.push(designedSpeaker(sp))
-    } else {
-      body.push(new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: 'Speakers to be confirmed', font: CALIBRI, size: 19, bold: true, color: WARN })] }))
+      for (const sp of s.speakers.filter((x) => x.name.trim())) body.push(designedSpeaker(sp))
     }
+    const due = needsLabel(sessionNeeds(s))
+    if (due) body.push(new Paragraph({ spacing: { before: 60 }, children: [new TextRun({ text: `Still needed: ${due}`, font: CALIBRI, size: 18, bold: true, color: WARN })] }))
   } else if (s.notes) {
     body.push(new Paragraph({ children: [new TextRun({ text: s.notes, font: CALIBRI, size: 19, color: MUTED })] }))
   }
@@ -150,9 +150,10 @@ function designedSession(s: Session): TableRow {
 }
 
 function designedDocument(a: Agenda): Document {
-  const slots = a.sessions.flatMap((s) => s.speakers)
-  const confirmed = slots.filter((s) => s.status === 'confirmed').length
-  const tbc = slots.length - confirmed
+  const st = agendaStats(a)
+  const confirmed = st.confirmed
+  const tbc = st.tbc
+  const due = needsLabel({ moderators: st.needModerators, speakers: st.needSpeakers })
   const header: Paragraph[] = [
     new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: 'AGENDA', font: CALIBRI, size: 17, bold: true, color: ACCENT })] }),
     new Paragraph({ heading: HeadingLevel.TITLE, spacing: { after: 60 }, children: [new TextRun({ text: a.title, font: CALIBRI, size: 40, bold: true, color: INK })] }),
@@ -161,9 +162,10 @@ function designedDocument(a: Agenda): Document {
       spacing: { after: 240 },
       border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: LINE, space: 8 } },
       children: [
-        new TextRun({ text: `${a.sessions.filter((s) => s.type !== 'break').length} sessions  ·  ${slots.length} speaker slots  ·  `, font: CALIBRI, size: 18, color: MUTED }),
+        new TextRun({ text: `${st.sessions} sessions  ·  ${st.filled} of ${st.seats} seats filled  ·  `, font: CALIBRI, size: 18, color: MUTED }),
         new TextRun({ text: `${confirmed} confirmed`, font: CALIBRI, size: 18, bold: true, color: OK }),
         ...(tbc ? [new TextRun({ text: `  ·  ${tbc} to confirm`, font: CALIBRI, size: 18, bold: true, color: WARN })] : []),
+        ...(due ? [new TextRun({ text: `  ·  still needed: ${due}`, font: CALIBRI, size: 18, bold: true, color: WARN })] : []),
       ],
     }),
   ]

@@ -3,11 +3,11 @@
 //   PUT /api/agenda  { edition, agenda }                          → saves it
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import type { Agenda } from '@/lib/agenda/model'
+import { normaliseAgenda, type Agenda } from '@/lib/agenda/model'
 
 export const dynamic = 'force-dynamic'
 
-export const AGENDA_HINT = 'The agendas table is missing — run supabase/migrations/008_agendas.sql in the Supabase SQL editor.'
+const AGENDA_HINT = 'The agendas table is missing — run supabase/migrations/008_agendas.sql in the Supabase SQL editor.'
 const missing = (err: { message?: string } | null | undefined) => Boolean(err?.message && /agendas/.test(err.message))
 
 export async function GET(req: NextRequest) {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   if (!data) return NextResponse.json({ agenda: null })
-  return NextResponse.json({ agenda: { ...(data.data as Agenda), sourceFile: data.sourceFile, updatedAt: data.updatedAt } })
+  return NextResponse.json({ agenda: { ...normaliseAgenda(data.data as Agenda), sourceFile: data.sourceFile, updatedAt: data.updatedAt } })
 }
 
 export async function PUT(req: NextRequest) {
