@@ -12,7 +12,9 @@
 import { Suspense, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { AIAssistant } from '@/components/crm/AIAssistant'
+import { useRouter } from 'next/navigation'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
+import { defaultYear, eventSlug, readLastWorkspace, workspaceHref, type PortalKey } from '@/lib/portals'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
@@ -32,11 +34,33 @@ const TITLES: [RegExp, string][] = [
   [/^\/delegates/, 'All delegates'],
 ]
 
+// The old flat lists live on under these paths (a profile's "back" link,
+// the import tool, an old bookmark). They now land in the workspace for the
+// event the admin was last in, so the old list never reappears.
+const OLD_LISTS: Record<string, { portal: PortalKey; section: string }> = {
+  '/sponsors': { portal: 'sales', section: 'sponsors' },
+  '/partners': { portal: 'sales', section: 'partners' },
+  '/speakers': { portal: 'production', section: 'speakers' },
+  '/delegates': { portal: 'production', section: 'delegates' },
+}
+
 function Frame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const view = useWorkspaceFromUrl()
   const [menuOpen, setMenuOpen] = useState(false)
   const title = TITLES.find(([rx]) => rx.test(pathname))?.[1]
+
+  const oldList = OLD_LISTS[pathname.replace(/\/$/, '')]
+  useEffect(() => {
+    if (!oldList) return
+    const last = readLastWorkspace()
+    const category = last ? view.categories.find((c) => eventSlug(c.name) === last.event) : undefined
+    const target = category ?? view.categories.find((c) => c.name !== 'Other events')
+    if (!target) return
+    const year = last && category ? last.year : defaultYear(oldList.portal, target)
+    router.replace(workspaceHref(oldList.portal, eventSlug(target.name), oldList.section, year))
+  }, [oldList, view.categories, router])
 
   // Close the mobile drawer on navigation.
   useEffect(() => {
