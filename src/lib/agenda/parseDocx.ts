@@ -62,13 +62,11 @@ function parseSpeaker(line: string): SpeakerSlot {
   const tbc = /\b(tbc|tba|to be confirmed)\b/i.test(s)
   // A status written in brackets is state, not part of the organisation.
   s = s.replace(/\s*\((tbc|tba|to be confirmed|invited|declined)\)\s*/gi, ' ').trim()
-  const declined = /\(declined\)/i.test(line)
-  const invited = /\(invited\)/i.test(line)
   const parts = s.split(/\s+[–—-]\s+/).map((x) => x.trim()).filter(Boolean)
   const name = parts[0] ?? s
   const role = parts.length > 2 ? parts.slice(1, -1).join(' – ') : parts[1] ?? ''
   const org = parts.length > 2 ? parts[parts.length - 1] : ''
-  return { id: newId(), name, role, org, moderator, status: declined ? 'declined' : invited ? 'invited' : tbc ? 'tbc' : 'confirmed' }
+  return { id: newId(), name, role, org, moderator, status: tbc ? 'tbc' : 'confirmed' }
 }
 
 const looksLikeQuestion = (t: string) => /\?$/.test(t) || /^(how|what|why|where|when|which|who|can|should|is|are|do|does|will)\b/i.test(t)
@@ -106,6 +104,8 @@ export async function parseAgendaDocx(file: Buffer | ArrayBuffer | Uint8Array, f
     }
     if (!current) continue
     const t = p.text
+    // Placeholder lines the export writes for empty seats are state, not people.
+    if (/^(\d+ (moderators?|speakers?)( and \d+ (moderators?|speakers?))? TBC|speakers? TBC|speakers? to be confirmed|still needed:.*)$/i.test(t)) continue
     if (current.type === 'break') {
       current.notes = [current.notes, t].filter(Boolean).join('\n')
       continue
