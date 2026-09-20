@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import {
   type Agenda, type Session, type SessionType, type SlotStatus, type SpeakerSlot,
-  SESSION_TYPES, agendaStats, emptyAgenda, emptySession, emptySlot, inferType, needsLabel, normaliseAgenda, seatsFor, sessionNeeds, sessionSeats,
+  SESSION_TYPES, agendaStats, emptyAgenda, emptySession, emptySlot, inferType, needsLabel, normaliseAgenda, seatsFor, sessionNeeds, sessionSeats, templateAgenda,
 } from '@/lib/agenda/model'
 import { EmptyState, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
@@ -311,6 +311,12 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     const last = base.sessions[base.sessions.length - 1]
     update({ ...base, sessions: [...base.sessions, emptySession(last?.end ?? '', '')] })
   }
+  // Start from scratch: lay out the house running order with the times and
+  // formats already in place, so only the titles, questions and names are left.
+  const startFromTemplate = () => {
+    const base = agenda ?? emptyAgenda(edition ?? '', '', '')
+    update({ ...base, sessions: templateAgenda().sessions })
+  }
 
   const save = async () => {
     if (!agenda || !edition) return
@@ -416,11 +422,11 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
           <EmptyState
             icon={FileUp}
             title={`No ${year} agenda yet`}
-            body={mode === 'edit' ? 'Upload the team’s Word agenda and it becomes a running order you can manage here, or start one from scratch.' : 'Production has not uploaded an agenda for this edition yet.'}
+            body={mode === 'edit' ? 'Upload the team’s Word agenda and it becomes a running order you can manage here — or start from scratch and get the usual day laid out, ready to fill in.' : 'Production has not uploaded an agenda for this edition yet.'}
             action={mode === 'edit' ? (
               <span className="flex gap-2">
                 <button className="ws-btn ws-btn-primary" onClick={() => fileRef.current?.click()}><FileUp className="w-4 h-4" /> Upload Word agenda</button>
-                <button className="ws-btn" onClick={addSession}><Plus className="w-4 h-4" /> Start from scratch</button>
+                <button className="ws-btn" onClick={startFromTemplate}><Plus className="w-4 h-4" /> Start from scratch</button>
               </span>
             ) : undefined}
           />

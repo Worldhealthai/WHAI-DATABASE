@@ -174,3 +174,36 @@ export function agendaStats(a: Agenda) {
     sessionsShort: talks.filter((s) => { const n = sessionNeeds(s); return n.moderators + n.speakers > 0 }).length,
   }
 }
+
+// The house running order: the shape every edition follows — registration,
+// an opening keynote, panels either side of the breaks, two spotlights, a
+// fireside, a closing keynote and the reception. "Start from scratch"
+// lays this out with the times and formats in place and everything else
+// (panel titles, questions, seats) left empty to fill in.
+const DAY_TEMPLATE: { start: string; end: string; title: string; type: SessionType }[] = [
+  { start: '08:30', end: '09:40', title: 'Registration & Morning Breakfast', type: 'break' },
+  { start: '09:40', end: '10:05', title: 'Opening Keynote', type: 'keynote' },
+  { start: '10:05', end: '10:45', title: '', type: 'panel' },
+  { start: '10:45', end: '11:25', title: '', type: 'panel' },
+  { start: '11:25', end: '11:40', title: 'Morning Networking Break', type: 'break' },
+  { start: '11:40', end: '12:20', title: '', type: 'panel' },
+  { start: '12:20', end: '12:40', title: 'Spotlight Presentation', type: 'spotlight' },
+  { start: '12:40', end: '13:40', title: 'Networking Lunch', type: 'break' },
+  { start: '13:40', end: '14:20', title: '', type: 'panel' },
+  { start: '14:20', end: '14:40', title: 'Spotlight Presentation', type: 'spotlight' },
+  { start: '14:40', end: '15:20', title: '', type: 'panel' },
+  { start: '15:20', end: '15:35', title: 'Afternoon Networking Break', type: 'break' },
+  { start: '15:35', end: '16:05', title: 'Fireside Chat', type: 'fireside' },
+  { start: '16:05', end: '16:45', title: '', type: 'panel' },
+  { start: '16:45', end: '17:00', title: 'Closing Keynote', type: 'keynote' },
+  { start: '17:00', end: '18:00', title: 'Drinks Reception', type: 'break' },
+]
+
+export function templateSessions(): Session[] {
+  return DAY_TEMPLATE.map((s) => ({ id: newId(), start: s.start, end: s.end, title: s.title, type: s.type, points: [], speakers: [] }))
+}
+
+// A whole day ready to fill in, for an edition with no agenda yet.
+export function templateAgenda(title = '', dateLabel = '', venue = ''): Agenda {
+  return { title, dateLabel, venue, sessions: templateSessions() }
+}
