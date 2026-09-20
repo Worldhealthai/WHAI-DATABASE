@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 const PARTNER_TIERS = ['Media Partner', 'Association Partner']
 
 const MIGRATION_HINT =
-  'The marketing columns are missing — run supabase/migrations/005_marketing.sql in the Supabase SQL editor.'
+  'The marketing columns are missing — run supabase/migrations/005_marketing.sql and 006_admin_lineup.sql in the Supabase SQL editor.'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (kind === 'speaker') {
       const { data, error } = await supabase
         .from('speakers')
-        .select('id, firstName, lastName, email, organization, jobTitle, headshotUrl, bio, linkedinUrl, status, event, year, linkedinConsent, postStatus, postUrl, postedAt, updatedAt')
+        .select('id, firstName, lastName, email, organization, jobTitle, headshotUrl, bio, linkedinUrl, status, event, year, adminLineup, linkedinConsent, postStatus, postUrl, postedAt, updatedAt')
         .in('event', events)
         .order('lastName', { ascending: true })
       if (error) throw error
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: data ?? [] })
   } catch (error: any) {
     const msg = String(error?.message || error)
-    if (/linkedinConsent|postStatus|linkedinPostsDue|logoUrl|onboardedAt/.test(msg)) {
+    if (/linkedinConsent|postStatus|linkedinPostsDue|logoUrl|onboardedAt|adminLineup/.test(msg)) {
       return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 400 })
     }
     console.error('Marketing API error:', error)

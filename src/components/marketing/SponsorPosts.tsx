@@ -6,15 +6,16 @@
 // "Log post" records one on the company's timeline.
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { Megaphone, Search, SearchX } from 'lucide-react'
+import { ExternalLink, Megaphone, Search, SearchX } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import type { Sponsor } from '@/types'
-import { EmptyState, Stat, StagePill, timeAgo } from '@/components/workspace/ui'
+import { EmptyState, Segmented, Stat, StagePill, timeAgo } from '@/components/workspace/ui'
+import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
-import { Avatar, LogPostModal, MigrationNotice, Tone, sponsorRemaining, useMarketing, useMarketingActions } from './shared'
+import { Avatar, LogPostModal, MigrationNotice, Tone, isConfirmedSponsor, sponsorRemaining, useMarketing, useMarketingActions } from './shared'
 
 type Filter = 'all' | 'outstanding' | 'complete' | 'none'
+type Scope = 'confirmed' | 'everyone'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -50,12 +51,16 @@ function Count({ value, onSave, placeholder = '0' }: { value: number | null | un
 export function SponsorPosts() {
   const { labels, year } = useWorkspace()
   const { data, isLoading } = useMarketing<Sponsor>('sponsor', labels)
-  const { patch, logPost } = useMarketingActions('sponsor')
+  const { patch, logPost, refresh } = useMarketingActions('sponsor')
+  const [scope, setScope] = useState<Scope>('confirmed')
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [logging, setLogging] = useState<Sponsor | null>(null)
+  const [editing, setEditing] = useState<Sponsor | null>(null)
 
-  const rows = data?.data ?? []
+  const everyone = data?.data ?? []
+  const rows = useMemo(() => (scope === 'confirmed' ? everyone.filter(isConfirmedSponsor) : everyone), [everyone, scope])
+  const unconfirmed = everyone.length - everyone.filter(isConfirmedSponsor).length
   const counts = useMemo(() => {
     const c = { companies: rows.length, due: 0, done: 0, owed: 0, owedCompanies: 0, unset: 0 }
     for (const s of rows) {
@@ -84,13 +89,27 @@ export function SponsorPosts() {
   })
 
   return (
-    <WorkspacePage title="Sponsor posts" description={`LinkedIn posts each ${year} sponsor package includes, and how many have gone out. Allowances arrive with the onboarding form; edit them here any time.`}>
+    <WorkspacePage
+      title="Sponsor posts"
+      description={`LinkedIn posts each ${year} sponsor package includes, and how many have gone out. Allowances arrive with the onboarding form; edit them here any time.`}
+      actions={
+        <Segmented
+          size="sm"
+          value={scope}
+          onChange={setScope}
+          options={[
+            { value: 'confirmed', label: 'Confirmed sponsors', hint: 'Deals that are done' },
+            { value: 'everyone', label: `Every stage${unconfirmed ? ` (+${unconfirmed})` : ''}`, hint: 'Including companies still in the pipeline' },
+          ]}
+        />
+      }
+    >
       {data?.error ? (
         <MigrationNotice message={data.error} />
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <Stat label="Sponsors" value={counts.companies} loading={isLoading} hint={counts.unset ? `${counts.unset} without an allowance yet` : 'All have an allowance'} />
+            <Stat label={scope === 'confirmed' ? 'Confirmed sponsors' : 'Sponsors'} value={counts.companies} loading={isLoading} hint={counts.unset ? `${counts.unset} without an allowance yet` : 'All have an allowance'} />
             <Stat label="Posts included" value={counts.due} loading={isLoading} hint="Across every package" />
             <Stat label="Posts made" value={counts.done} loading={isLoading} hint={counts.due ? `${Math.round((Math.min(counts.done, counts.due) / counts.due) * 100)}% of what is included` : ''} />
             <Stat label="Still owed" value={counts.owed} loading={isLoading} hint={`${counts.owedCompanies} ${counts.owedCompanies === 1 ? 'company' : 'companies'} waiting`} />
@@ -98,11 +117,11 @@ export function SponsorPosts() {
 
           <div className="ws-card overflow-hidden">
             <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--line)' }}>
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <div className="relative flex-1 min-w-[180px] max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search sponsors…" className="ws-input pl-9" />
               </div>
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {FILTERS.map((f) => (
                   <button key={f.key} className="ws-chip" data-active={filter === f.key} onClick={() => setFilter(f.key)}>{f.label}</button>
                 ))}
@@ -113,21 +132,30 @@ export function SponsorPosts() {
             {!isLoading && shown.length === 0 ? (
               <EmptyState
                 icon={SearchX}
-                title={rows.length === 0 ? `No sponsors in the ${year} edition yet` : 'No matches'}
-                body={rows.length === 0 ? 'Sponsors arrive here when their onboarding form is approved in the admin panel, or from the Sales pipeline.' : 'Try another filter.'}
+                title={rows.length === 0 ? (scope === 'confirmed' ? `No confirmed sponsors in the ${year} edition yet` : `No sponsors in the ${year} edition yet`) : 'No matches'}
+                body={rows.length === 0 ? (scope === 'confirmed' && unconfirmed ? `${unconfirmed} ${unconfirmed === 1 ? 'company is' : 'companies are'} still in the pipeline — switch to Every stage to see them.` : 'Sponsors arrive here when their onboarding form is approved in the admin panel, or from the Sales pipeline.') : 'Try another filter.'}
               />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="ws-table w-full">
+              <div>
+                <table className="ws-table ws-table-fixed w-full">
+                  <colgroup>
+                    <col />
+                    <col style={{ width: 140 }} />
+                    <col style={{ width: 84 }} />
+                    <col style={{ width: 76 }} />
+                    <col style={{ width: 190 }} />
+                    <col style={{ width: 100 }} />
+                    <col style={{ width: 112 }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Company</th>
-                      <th style={{ width: 150 }}>Stage</th>
-                      <th style={{ width: 100 }} className="text-center">Included</th>
-                      <th style={{ width: 100 }} className="text-center">Made</th>
-                      <th style={{ width: 200 }}>Progress</th>
-                      <th style={{ width: 110 }}>Onboarded</th>
-                      <th style={{ width: 120 }} />
+                      <th>Stage</th>
+                      <th className="text-center">Included</th>
+                      <th className="text-center">Made</th>
+                      <th>Progress</th>
+                      <th>Onboarded</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
@@ -146,8 +174,11 @@ export function SponsorPosts() {
                               <td>
                                 <span className="flex items-center gap-3 min-w-0">
                                   <Avatar src={s.logoUrl} name={s.companyName || '?'} />
-                                  <span className="min-w-0">
-                                    <Link href={`/sponsors/${s.id}`} className="block font-medium truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{s.companyName}</Link>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-1.5 min-w-0">
+                                      <button type="button" onClick={() => setEditing(s)} title="Edit this sponsor" className="font-medium truncate text-left hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{s.companyName}</button>
+                                      <a href={`/sponsors/${s.id}`} target="_blank" rel="noreferrer" title="Open the full profile in a new tab" className="shrink-0 opacity-50 hover:opacity-100" style={{ color: 'var(--fg-3)' }}><ExternalLink className="w-3 h-3" /></a>
+                                    </span>
                                     <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[s.tier, contact].filter(Boolean).join(' · ') || s.contactEmail || '—'}</span>
                                   </span>
                                 </span>
@@ -192,6 +223,7 @@ export function SponsorPosts() {
           onSave={(url, note) => logPost(logging.id, url, note)}
         />
       )}
+      {editing && <SponsorFormModal sponsor={editing} entityLabel="Sponsor" onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
     </WorkspacePage>
   )
 }

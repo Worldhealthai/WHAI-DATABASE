@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic'
 //   // Marketing (speakers): consent to a LinkedIn welcome post, and the
 //   // headshot and bio the post needs
 //   "linkedinConsent": true | false | null, "headshotUrl": "...", "bio": "...",
+//   "lineup": true   // an approved speaker in the admin panel: confirmed, on the line-up
 //   // Optional control fields used by the website's admin actions:
 //   "action": "delete",   // remove the matching contact (by email) from the CRM
 //   "status": "Cancelled" | "Rejected"  // set status on the matching contact,
@@ -109,23 +110,27 @@ export async function POST(req: NextRequest) {
     // what was actually provided is written, so a later sync without them
     // never blanks a value already stored.
     const marketing: Record<string, unknown> = {}
+    const lineup = type === 'speaker' && body.lineup === true
     if (type === 'speaker') {
       if (typeof body.linkedinConsent === 'boolean') marketing.linkedinConsent = body.linkedinConsent
       if (typeof body.headshotUrl === 'string' && body.headshotUrl.trim()) marketing.headshotUrl = body.headshotUrl.trim()
       if (typeof body.bio === 'string' && body.bio.trim()) marketing.bio = body.bio.trim()
+      // The admin panel approved them: they are speaking, whatever stage the
+      // outreach here had reached.
+      if (lineup) { marketing.adminLineup = true; marketing.status = 'Speaking Confirmed' }
     }
 
     const table = type === 'speaker' ? 'speakers' : 'delegates'
     const record = type === 'speaker'
-      ? { ...common, ...marketing, status: 'Not Contacted', tags: 'Website Registration', year }
+      ? { ...common, status: 'Not Contacted', tags: lineup ? 'Admin panel' : 'Website Registration', year, ...marketing }
       : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration' }
 
     // Before migration 005 the marketing columns do not exist: retry a write
     // without them rather than losing the contact.
     const isMissingMarketingColumn = (err: { message?: string } | null) =>
-      Boolean(err?.message && /linkedinConsent|headshotUrl|postStatus/.test(err.message))
+      Boolean(err?.message && /linkedinConsent|headshotUrl|postStatus|adminLineup/.test(err.message))
     const stripMarketing = (r: Record<string, unknown>) => {
-      const { linkedinConsent: _c, headshotUrl: _h, bio: _b, ...rest } = r
+      const { linkedinConsent: _c, headshotUrl: _h, bio: _b, adminLineup: _l, ...rest } = r
       return rest
     }
 
@@ -170,10 +175,13 @@ export async function POST(req: NextRequest) {
           .ilike('email', escapeLike(email))
           .limit(1)
         if (existing?.length) {
-          const { error: updErr } = await supabase
+          let { error: updErr } = await supabase
             .from(table)
-            .update({ status: statusOverride })
+            .update(type === 'speaker' && /cancel|reject/i.test(statusOverride) ? { status: statusOverride, adminLineup: false } : { status: statusOverride })
             .eq('id', existing[0].id)
+          if (updErr && isMissingMarketingColumn(updErr)) {
+            ;({ error: updErr } = await supabase.from(table).update({ status: statusOverride }).eq('id', existing[0].id))
+          }
           if (updErr) throw updErr
           return NextResponse.json(
             { ok: true, updated: true, id: existing[0].id, status: statusOverride },
