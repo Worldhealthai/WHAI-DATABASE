@@ -1,6 +1,7 @@
 // The digital agenda for one edition.
 //   GET /api/agenda?edition=World%20Health%20AI%20London%202026  → { agenda } (or agenda: null)
 //   PUT /api/agenda  { edition, agenda }                          → saves it
+//   DELETE /api/agenda?edition=…                                  → removes it
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { normaliseAgenda, type Agenda } from '@/lib/agenda/model'
@@ -36,6 +37,17 @@ export async function PUT(req: NextRequest) {
   const { error } = await supabase
     .from('agendas')
     .upsert({ edition, data: clean, sourceFile: agenda.sourceFile ?? null, updatedAt: new Date().toISOString() }, { onConflict: 'edition' })
+  if (error) {
+    if (missing(error)) return NextResponse.json({ error: AGENDA_HINT, migration: true }, { status: 400 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(req: NextRequest) {
+  const edition = (req.nextUrl.searchParams.get('edition') || '').trim()
+  if (!edition) return NextResponse.json({ error: 'edition is required' }, { status: 400 })
+  const { error } = await supabase.from('agendas').delete().eq('edition', edition)
   if (error) {
     if (missing(error)) return NextResponse.json({ error: AGENDA_HINT, migration: true }, { status: 400 })
     return NextResponse.json({ error: error.message }, { status: 500 })
