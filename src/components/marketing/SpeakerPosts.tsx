@@ -113,7 +113,11 @@ export function SpeakerPosts() {
     setSyncNote('')
     const r = await syncLineup(labels)
     setSyncing(false)
-    setSyncNote(r.ok ? `Admin panel line-up: ${r.lineup} speaker${r.lineup === 1 ? '' : 's'} · ${r.created} added · ${r.updated} updated${r.unflagged ? ` · ${r.unflagged} no longer on it` : ''}` : r.error)
+    setSyncNote(
+      r.ok
+        ? `Admin panel line-up: ${r.lineup} speaker${r.lineup === 1 ? '' : 's'} · ${r.created} added · ${r.updated} updated${r.unflagged ? ` · ${r.unflagged} no longer on it` : ''} · ${r.flaggedNow} on the line-up here now${r.lineup > 0 && r.flaggedNow === 0 ? ' — the writes did not stick; check the CRM logs for the sync-lineup route' : ''}`
+        : r.error
+    )
   }
 
   return (

@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
     const matched = new Set<string>()
     let created = 0
     let updated = 0
+    let unchanged = 0
     for (const r of lineup) {
       const email = (r.email || '').trim().toLowerCase()
       const first = (r.first_name || '').trim()
@@ -112,9 +113,12 @@ export async function POST(req: NextRequest) {
 
       if (hit) {
         matched.add(hit.id)
-        const { error } = await supabase.from('speakers').update(fields).eq('id', hit.id)
+        // Ask for the row back so a write that changed nothing is not
+        // counted as a success.
+        const { data: rows, error } = await supabase.from('speakers').update(fields).eq('id', hit.id).select('id')
         if (error) throw error
-        updated++
+        if (rows?.length) updated++
+        else unchanged++
       } else {
         const { error } = await supabase.from('speakers').insert({
           firstName: first || (email || 'Speaker'),
@@ -135,7 +139,25 @@ export async function POST(req: NextRequest) {
       if (error) throw error
     }
 
-    return NextResponse.json({ ok: true, lineup: lineup.length, created, updated, unflagged: stale.length, adminTotal: all.length })
+    // What the Marketing page will now see for this edition.
+    const { count: flaggedNow } = await supabase
+      .from('speakers')
+      .select('id', { count: 'exact', head: true })
+      .in('event', events)
+      .eq('adminLineup', true)
+
+    return NextResponse.json({
+      ok: true,
+      lineup: lineup.length,
+      created,
+      updated,
+      unchanged,
+      unflagged: stale.length,
+      adminTotal: all.length,
+      flaggedNow: flaggedNow ?? 0,
+      events,
+      sample: lineup.slice(0, 3).map((r) => ({ name: `${r.first_name} ${r.last_name}`.trim(), event: edition(r.event_label, r.event_date) })),
+    })
   } catch (error: any) {
     const msg = String(error?.message || error)
     if (/adminLineup|linkedinConsent/.test(msg)) {
