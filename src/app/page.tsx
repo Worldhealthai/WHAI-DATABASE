@@ -7,7 +7,6 @@
 // colour flood the page for a beat before the workspace takes over in it.
 
 import { Suspense, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, ChevronLeft, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -314,11 +313,6 @@ function Entrance() {
           </section>
         )}
 
-        {step !== 'portal' && (
-          <p className="text-center text-[12.5px] mt-10" style={{ color: 'var(--fg-4)' }}>
-            <Link href={portal === 'sales' ? '/sponsors' : portal === 'marketing' ? '/speakers' : '/delegates'} className="hover:underline underline-offset-4">Browse every record instead</Link>
-          </p>
-        )}
       </main>
     </div>
   )
