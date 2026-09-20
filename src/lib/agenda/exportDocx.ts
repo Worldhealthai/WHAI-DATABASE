@@ -16,6 +16,11 @@ import { type Agenda, type Session, type SpeakerSlot, SESSION_TYPES, agendaStats
 
 const CALIBRI = 'Calibri'
 
+// A session with no title yet still has to say what it is, or the format is
+// lost the moment the document is read back in (everything would return a
+// panel). The type's own label is what `inferType` reads back correctly.
+const sessionHeading = (s: Session) => s.title.trim() || SESSION_TYPES.find((t) => t.value === s.type)?.label || 'Session'
+
 const slotLabel = (s: SpeakerSlot) => (s.status === 'confirmed' ? '' : ' (TBC)')
 
 // ── Classic ─────────────────────────────────────────────────────────────────
@@ -36,7 +41,7 @@ function classicSession(s: Session): Paragraph[] {
   out.push(
     new Paragraph({
       spacing: { before: 200, after: 60 },
-      children: [new TextRun({ text: `${houseTime(s.start)} – ${houseTime(s.end)} | ${s.title}`, font: CALIBRI, size: 22, bold: true })],
+      children: [new TextRun({ text: `${houseTime(s.start)} – ${houseTime(s.end)} | ${sessionHeading(s)}`, font: CALIBRI, size: 22, bold: true })],
     })
   )
   if (s.type === 'break') {
@@ -121,7 +126,7 @@ function designedSession(s: Session): TableRow {
     new Paragraph({
       spacing: { after: 40 },
       children: [
-        new TextRun({ text: s.title, font: CALIBRI, size: isBreak ? 21 : 24, bold: !isBreak, color: isBreak ? MUTED : INK }),
+        new TextRun({ text: sessionHeading(s), font: CALIBRI, size: isBreak ? 21 : 24, bold: !isBreak, color: isBreak ? MUTED : INK }),
         ...(isBreak ? [] : [new TextRun({ text: `   ${typeLabel.toUpperCase()}`, font: CALIBRI, size: 15, bold: true, color: ACCENT })]),
       ],
     }),

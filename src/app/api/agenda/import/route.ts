@@ -22,14 +22,16 @@ export async function POST(req: NextRequest) {
     const buf = Buffer.from(await file.arrayBuffer())
     const agenda = await parseAgendaDocx(buf, file.name)
 
+    // The editor saves against this stamp, so hand it back on the agenda.
+    const updatedAt = new Date().toISOString()
     const { error } = await supabase
       .from('agendas')
-      .upsert({ edition, data: { title: agenda.title, dateLabel: agenda.dateLabel, venue: agenda.venue, sessions: agenda.sessions }, sourceFile: file.name, updatedAt: new Date().toISOString() }, { onConflict: 'edition' })
+      .upsert({ edition, data: { title: agenda.title, dateLabel: agenda.dateLabel, venue: agenda.venue, sessions: agenda.sessions }, sourceFile: file.name, updatedAt }, { onConflict: 'edition' })
     if (error) {
       if (/agendas/.test(error.message || '')) return NextResponse.json({ error: 'The agendas table is missing — run supabase/migrations/008_agendas.sql first.', migration: true }, { status: 400 })
       throw error
     }
-    return NextResponse.json({ ok: true, agenda, stats: agendaStats(agenda) })
+    return NextResponse.json({ ok: true, agenda: { ...agenda, updatedAt }, stats: agendaStats(agenda) })
   } catch (error: any) {
     console.error('agenda import error:', error)
     return NextResponse.json({ error: String(error?.message || 'Could not read that document.').slice(0, 300) }, { status: 400 })

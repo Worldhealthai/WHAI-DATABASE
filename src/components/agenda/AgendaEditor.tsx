@@ -284,26 +284,54 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState('')
   const [note, setNote] = useState('')
+  const [conflict, setConflict] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Each edition is its own agenda: switching year drops any unsaved draft
-  // and shows that year's saved agenda (or nothing).
+  // What a request that is already in flight needs to know when it lands:
+  // which edition is on screen now, and whether the draft has moved on.
+  const editionRef = useRef(edition)
+  const draftRef = useRef<Agenda | null>(null)
+  const dirtyRef = useRef(false)
+  // The server payload already copied into the draft, so clearing `dirty`
+  // can never re-copy a snapshot taken before the save.
+  const appliedRef = useRef<unknown>(null)
+  useEffect(() => { draftRef.current = draft }, [draft])
+  useEffect(() => { dirtyRef.current = dirty }, [dirty])
+
+  // Each edition is its own agenda: switching year shows that year's saved
+  // agenda (or nothing). Unsaved work is saved on the way out rather than
+  // dropped — the same rule as leaving Edit.
   useEffect(() => {
+    editionRef.current = edition
+    appliedRef.current = null
     setDraft(null)
     setDirty(false)
     setNote('')
+    setConflict(false)
     setEditing(false)
+    return () => {
+      if (dirtyRef.current && draftRef.current && edition) void persistRef.current(edition, draftRef.current, true)
+    }
   }, [edition])
   useEffect(() => {
-    if (!data || dirty) return
+    if (!data || dirty || appliedRef.current === data) return
+    appliedRef.current = data
     setDraft(data.agenda ?? null)
   }, [data, dirty])
+
+  // Closing the tab mid-edit asks first.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   const agenda = draft
   const st = useMemo(() => (agenda ? agendaStats(agenda) : null), [agenda])
   const due = st ? needsLabel({ moderators: st.needModerators, speakers: st.needSpeakers }) : ''
-  const update = (next: Agenda) => { setDraft(next); setDirty(true) }
+  const update = (next: Agenda) => { setDraft(next); setDirty(true); setNote((n) => (n === 'Saved.' ? '' : n)) }
   const setSession = (i: number, s: Session) => agenda && update({ ...agenda, sessions: agenda.sessions.map((x, k) => (k === i ? s : x)) })
   const moveSession = (i: number, dir: -1 | 1) => {
     if (!agenda) return
@@ -326,17 +354,49 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     setEditing(true)
   }
 
-  const save = async () => {
-    if (!agenda || !edition) return false
+  // Write one edition's agenda. Everything the user can trigger goes through
+  // here so the same rules hold: the save is refused if someone else saved
+  // first, and a response that lands after the admin has moved to another
+  // edition never touches what is on screen.
+  const persist = async (target: string, a: Agenda, leaving = false): Promise<boolean> => {
+    const here = () => editionRef.current === target
     setSaving(true)
-    setNote('')
-    const r = await fetch('/api/agenda', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ edition, agenda }) })
-    const j = await r.json().catch(() => ({}))
-    setSaving(false)
-    if (r.ok) { setDirty(false); qc.invalidateQueries({ queryKey: ['agenda', edition] }); setNote('Saved.'); return true }
-    setNote(j?.error || 'Could not save.')
-    return false
+    if (here()) setNote('')
+    try {
+      const r = await fetch('/api/agenda', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ edition: target, agenda: a, baseUpdatedAt: a.updatedAt ?? null }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        if (here()) { setConflict(Boolean(j?.conflict)); setNote(j?.error || 'Could not save.') }
+        return false
+      }
+      const saved: Agenda = { ...a, updatedAt: j?.updatedAt ?? a.updatedAt }
+      // Seed the cache with what was just written, so the refetch below can
+      // never briefly hand the editor back the pre-save agenda.
+      qc.setQueryData(['agenda', target], { agenda: saved })
+      qc.invalidateQueries({ queryKey: ['agenda', target] })
+      if (!here()) return true
+      setConflict(false)
+      // Only settle the editor if the draft is still the one that was sent.
+      if (draftRef.current === a) { setDraft(saved); setDirty(false) }
+      setNote(leaving ? `Your ${target} changes were saved.` : 'Saved.')
+      return true
+    } catch {
+      if (here()) setNote('Could not save — check your connection and try again.')
+      return false
+    } finally {
+      setSaving(false)
+    }
   }
+  // The edition-change cleanup runs with an older closure, so it calls the
+  // current persist through a ref rather than a stale copy.
+  const persistRef = useRef(persist)
+  persistRef.current = persist
+
+  const save = async () => (agenda && edition ? persist(edition, agenda) : false)
 
   // Leaving edit saves first, so the finished view never shows a stale day.
   // If the save fails the note says so and the editor stays open.
@@ -344,6 +404,16 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     if (next === 'edit') { setEditing(true); return }
     if (dirty && agenda && !(await save())) return
     setEditing(false)
+  }
+
+  // Take the version someone else saved, dropping the local draft.
+  const takeSaved = async () => {
+    if (!edition) return
+    setConflict(false)
+    setNote('')
+    setDirty(false)
+    appliedRef.current = null
+    await qc.invalidateQueries({ queryKey: ['agenda', edition] })
   }
 
   const upload = async (file: File) => {
@@ -367,20 +437,46 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
 
   const remove = async () => {
     if (!edition) return
-    if (!confirm(`Remove the ${year} agenda completely? Every session and status for ${year} goes with it. Other years are not affected.`)) return
+    if (!confirm(`Remove the ${year} agenda completely? Every session and status for ${year} goes with it — for everyone, in both Sales and Production. Other years are not affected.`)) return
+    const target = edition
     setBusy('Removing…')
-    const r = await fetch(`/api/agenda?edition=${encodeURIComponent(edition)}`, { method: 'DELETE' })
-    const j = await r.json().catch(() => ({}))
-    setBusy('')
-    if (!r.ok) { setNote(j?.error || 'Could not remove the agenda.'); return }
-    setDraft(null)
-    setDirty(false)
-    qc.invalidateQueries({ queryKey: ['agenda', edition] })
-    setEditing(false)
-    setNote(`The ${year} agenda has been removed. Upload a new one or start from scratch.`)
+    try {
+      const r = await fetch(`/api/agenda?edition=${encodeURIComponent(target)}`, { method: 'DELETE' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { if (editionRef.current === target) setNote(j?.error || 'Could not remove the agenda.'); return }
+      qc.setQueryData(['agenda', target], { agenda: null })
+      qc.invalidateQueries({ queryKey: ['agenda', target] })
+      if (editionRef.current !== target) return
+      appliedRef.current = null
+      setDraft(null)
+      setDirty(false)
+      setConflict(false)
+      setEditing(false)
+      setNote(`The ${year} agenda has been removed. Upload a new one or start from scratch.`)
+    } catch {
+      if (editionRef.current === target) setNote('Could not remove the agenda — check your connection and try again.')
+    } finally {
+      setBusy('')
+    }
   }
 
   const exportHref = (style: 'classic' | 'designed') => `/api/agenda/export?edition=${encodeURIComponent(edition ?? '')}&style=${style}`
+  // The document is written from the saved agenda, so anything unsaved is
+  // saved first — otherwise the download would quietly be the previous
+  // version, or, for an agenda started here, nothing at all.
+  const exportNow = async (style: 'classic' | 'designed') => {
+    setExportOpen(false)
+    if (!agenda || !edition) return
+    if ((dirty || !agenda.updatedAt) && !(await persist(edition, agenda))) return
+    const a = document.createElement('a')
+    a.href = exportHref(style)
+    // Keeps a failed request a download rather than a page navigation, which
+    // would unmount the editor and take the draft with it.
+    a.setAttribute('download', '')
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
   const saveButton = view === 'edit' && (
     <button className="ws-btn ws-btn-primary" onClick={save} disabled={!dirty || saving || !agenda}>
       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
@@ -414,14 +510,14 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
           </button>
           {exportOpen && (
             <span className="absolute right-0 top-full mt-1 z-20 w-[240px] rounded-lg overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-md)' }}>
-              <a href={exportHref('classic')} className="block px-3 py-2.5 text-[13px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--fg)' }} onMouseDown={(e) => e.preventDefault()}>
+              <button type="button" onClick={() => exportNow('classic')} className="block w-full text-left px-3 py-2.5 text-[13px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--fg)' }} onMouseDown={(e) => e.preventDefault()}>
                 <span className="block font-medium">Word — classic layout</span>
                 <span className="block text-[11.5px]" style={{ color: 'var(--fg-4)' }}>The same format as the agenda you upload</span>
-              </a>
-              <a href={exportHref('designed')} className="block px-3 py-2.5 text-[13px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--fg)', borderTop: '1px solid var(--line)' }} onMouseDown={(e) => e.preventDefault()}>
+              </button>
+              <button type="button" onClick={() => exportNow('designed')} className="block w-full text-left px-3 py-2.5 text-[13px] hover:bg-[var(--surface-2)]" style={{ color: 'var(--fg)', borderTop: '1px solid var(--line)' }} onMouseDown={(e) => e.preventDefault()}>
                 <span className="block font-medium">Word — designed layout</span>
                 <span className="block text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Time column, session tags, TBC marked</span>
-              </a>
+              </button>
             </span>
           )}
         </span>
@@ -441,7 +537,14 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
       description={view === 'edit' ? `Editing the ${year} running order: every session, its questions, and who is in each seat — confirmed or TBC.` : canEdit ? `The ${year} running order as it stands. Switch to Edit to change it.` : `The ${year} running order as Production has it.`}
       actions={actions}
     >
-      {note && <p className="text-[13px] mb-3" style={{ color: note.startsWith('Could') || note.includes('missing') ? 'var(--bad)' : 'var(--fg-2)' }}>{note}</p>}
+      {note && (
+        <p className="text-[13px] mb-3 flex flex-wrap items-center gap-2" style={{ color: note.startsWith('Could') || note.startsWith('Someone else') || note.includes('missing') ? 'var(--bad)' : 'var(--fg-2)' }}>
+          {note}
+          {conflict && (
+            <button type="button" className="ws-btn ws-btn-sm" onClick={takeSaved}>Load their version</button>
+          )}
+        </p>
+      )}
       {data?.error ? (
         <Notice message={data.error} tone={data.migration ? 'warn' : 'bad'} />
       ) : isLoading ? (
@@ -454,8 +557,10 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
             body={canEdit ? 'Upload the team’s Word agenda and it becomes a running order you can manage here — or start from scratch and get the usual day laid out, ready to fill in.' : 'Production has not uploaded an agenda for this edition yet.'}
             action={canEdit ? (
               <span className="flex gap-2">
-                <button className="ws-btn ws-btn-primary" onClick={() => fileRef.current?.click()}><FileUp className="w-4 h-4" /> Upload Word agenda</button>
-                <button className="ws-btn" onClick={startFromTemplate}><Plus className="w-4 h-4" /> Start from scratch</button>
+                <button className="ws-btn ws-btn-primary" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)}>
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />} {busy || 'Upload Word agenda'}
+                </button>
+                <button className="ws-btn" onClick={startFromTemplate} disabled={Boolean(busy)}><Plus className="w-4 h-4" /> Start from scratch</button>
               </span>
             ) : undefined}
           />
