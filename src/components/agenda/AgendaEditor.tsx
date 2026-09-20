@@ -1,11 +1,12 @@
 'use client'
 
-// The digital agenda for one edition. Production opens on the finished
-// running order — the same clean read Sales gets — and switches to Edit to
-// upload the team's Word agenda or manage every session and seat in place
-// (who is confirmed, who is TBC, which seats are still empty). Either way it
-// exports back to Word in the classic layout or a designed one. Sales sees
-// the finished view only. Breaks are listed but never counted.
+// The digital agenda for one edition, shared by Sales and Production —
+// one agenda per edition, whichever portal it is opened from. Both open on
+// the finished running order and switch to Edit to upload the team's Word
+// agenda or manage every session and seat in place (who is confirmed, who is
+// TBC, which seats are still empty), and export it back to Word in the
+// classic layout or a designed one. `mode="view"` keeps a surface read-only.
+// Breaks are listed but never counted.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
