@@ -35,7 +35,7 @@ export function AgendaSummary() {
         <Link href={href('agenda')} className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>Open agenda <ArrowRight className="w-3.5 h-3.5" /></Link>
       </div>
       {!agenda || !st ? (
-        <p className="px-5 py-6 text-[13px]" style={{ color: 'var(--fg-3)' }}>{q.isLoading ? 'Loading…' : `No ${year} agenda yet. Upload the Word agenda in Production → Agenda.`}</p>
+        <p className="px-5 py-6 text-[13px]" style={{ color: 'var(--fg-3)' }}>{q.isLoading ? 'Loading…' : `No ${year} agenda yet. Open Agenda to upload the Word agenda or start one from scratch.`}</p>
       ) : (
         <div className="px-5 py-4">
           <div className="grid grid-cols-3 gap-3">

@@ -1,23 +1,25 @@
 'use client'
 
-// The digital agenda for one edition. Production edits it: upload the
-// team's Word agenda, then manage every session and seat in place (who is
-// confirmed, who is TBC, which seats are still empty), and export it back
-// to Word in the classic layout or a designed one. Sales sees the same
-// agenda read-only. Breaks are listed but never counted.
+// The digital agenda for one edition, shared by Sales and Production —
+// one agenda per edition, whichever portal it is opened from. Both open on
+// the finished running order and switch to Edit to upload the team's Word
+// agenda or manage every session and seat in place (who is confirmed, who is
+// TBC, which seats are still empty), and export it back to Word in the
+// classic layout or a designed one. `mode="view"` keeps a surface read-only.
+// Breaks are listed but never counted.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowDown, ArrowUp, Check, ChevronDown, Download, FileUp, Loader2, Plus, Trash2, UserPlus, X,
+  ArrowDown, ArrowUp, Check, ChevronDown, Download, Eye, FileUp, Loader2, Pencil, Plus, Trash2, UserPlus, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import {
   type Agenda, type Session, type SessionType, type SlotStatus, type SpeakerSlot,
-  SESSION_TYPES, agendaStats, emptyAgenda, emptySession, emptySlot, inferType, needsLabel, normaliseAgenda, seatsFor, sessionNeeds, sessionSeats,
+  SESSION_TYPES, agendaStats, emptyAgenda, emptySession, emptySlot, inferType, needsLabel, normaliseAgenda, seatsFor, sessionNeeds, sessionSeats, templateAgenda,
 } from '@/lib/agenda/model'
-import { EmptyState, Stat } from '@/components/workspace/ui'
+import { EmptyState, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { Notice, useEdition, useMarketing, type SpeakerRow } from '@/components/marketing/shared'
 
@@ -265,6 +267,10 @@ function SessionEdit({
 // ── The page ────────────────────────────────────────────────────────────────
 
 export function AgendaEditor({ mode }: { mode: Mode }) {
+  // Production can edit; it still opens on the finished view and switches in.
+  const canEdit = mode === 'edit'
+  const [editing, setEditing] = useState(false)
+  const view: Mode = canEdit && editing ? 'edit' : 'view'
   const { year } = useWorkspace()
   const ed = useEdition()
   const edition = ed?.label ?? null
@@ -287,6 +293,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     setDraft(null)
     setDirty(false)
     setNote('')
+    setEditing(false)
   }, [edition])
   useEffect(() => {
     if (!data || dirty) return
@@ -311,16 +318,32 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     const last = base.sessions[base.sessions.length - 1]
     update({ ...base, sessions: [...base.sessions, emptySession(last?.end ?? '', '')] })
   }
+  // Start from scratch: lay out the house running order with the times and
+  // formats already in place, so only the titles, questions and names are left.
+  const startFromTemplate = () => {
+    const base = agenda ?? emptyAgenda(edition ?? '', '', '')
+    update({ ...base, sessions: templateAgenda().sessions })
+    setEditing(true)
+  }
 
   const save = async () => {
-    if (!agenda || !edition) return
+    if (!agenda || !edition) return false
     setSaving(true)
     setNote('')
     const r = await fetch('/api/agenda', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ edition, agenda }) })
     const j = await r.json().catch(() => ({}))
     setSaving(false)
-    if (r.ok) { setDirty(false); qc.invalidateQueries({ queryKey: ['agenda', edition] }); setNote('Saved.') }
-    else setNote(j?.error || 'Could not save.')
+    if (r.ok) { setDirty(false); qc.invalidateQueries({ queryKey: ['agenda', edition] }); setNote('Saved.'); return true }
+    setNote(j?.error || 'Could not save.')
+    return false
+  }
+
+  // Leaving edit saves first, so the finished view never shows a stale day.
+  // If the save fails the note says so and the editor stays open.
+  const setView = async (next: Mode) => {
+    if (next === 'edit') { setEditing(true); return }
+    if (dirty && agenda && !(await save())) return
+    setEditing(false)
   }
 
   const upload = async (file: File) => {
@@ -338,6 +361,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     setDirty(false)
     setDraft(normaliseAgenda(j.agenda))
     qc.invalidateQueries({ queryKey: ['agenda', edition] })
+    setEditing(true)
     setNote(`Imported ${j.stats.sessions} sessions from ${file.name}.`)
   }
 
@@ -352,27 +376,38 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     setDraft(null)
     setDirty(false)
     qc.invalidateQueries({ queryKey: ['agenda', edition] })
+    setEditing(false)
     setNote(`The ${year} agenda has been removed. Upload a new one or start from scratch.`)
   }
 
   const exportHref = (style: 'classic' | 'designed') => `/api/agenda/export?edition=${encodeURIComponent(edition ?? '')}&style=${style}`
-  const saveButton = mode === 'edit' && (
+  const saveButton = view === 'edit' && (
     <button className="ws-btn ws-btn-primary" onClick={save} disabled={!dirty || saving || !agenda}>
       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
     </button>
   )
 
+  const hasAgenda = Boolean(agenda && agenda.sessions.length > 0)
   const actions = (
     <>
-      {mode === 'edit' && (
-        <>
-          <input ref={fileRef} type="file" accept=".docx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
-          <button className="ws-btn" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)} title="Read the team's Word agenda into the CRM">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />} {busy || 'Upload Word agenda'}
-          </button>
-        </>
+      {canEdit && <input ref={fileRef} type="file" accept=".docx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />}
+      {canEdit && hasAgenda && (
+        <Segmented
+          options={[
+            { value: 'view', label: <span className="inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> Finished</span>, hint: 'The agenda as everyone else sees it' },
+            { value: 'edit', label: <span className="inline-flex items-center gap-1.5"><Pencil className="w-3.5 h-3.5" /> Edit</span>, hint: 'Change sessions, questions and seats' },
+          ]}
+          value={view}
+          onChange={(v) => setView(v as Mode)}
+          size="sm"
+        />
       )}
-      {agenda && agenda.sessions.length > 0 && (
+      {view === 'edit' && (
+        <button className="ws-btn" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)} title="Read the team's Word agenda into the CRM">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />} {busy || 'Upload Word agenda'}
+        </button>
+      )}
+      {hasAgenda && (
         <span className="relative">
           <button className="ws-btn" onClick={() => setExportOpen((o) => !o)} onBlur={() => setTimeout(() => setExportOpen(false), 150)}>
             <Download className="w-4 h-4" /> Export <ChevronDown className="w-3.5 h-3.5" />
@@ -392,7 +427,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
         </span>
       )}
       {saveButton}
-      {mode === 'edit' && agenda && agenda.sessions.length > 0 && (
+      {view === 'edit' && hasAgenda && (
         <button className="ws-btn ws-btn-ghost" onClick={remove} disabled={Boolean(busy)} title={`Remove the ${year} agenda`} style={{ color: 'var(--bad)' }}>
           <Trash2 className="w-4 h-4" /> Remove
         </button>
@@ -403,7 +438,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
   return (
     <WorkspacePage
       title="Agenda"
-      description={mode === 'edit' ? `The ${year} running order: every session, its questions, and who is in each seat — confirmed or TBC.` : `The ${year} running order as Production has it.`}
+      description={view === 'edit' ? `Editing the ${year} running order: every session, its questions, and who is in each seat — confirmed or TBC.` : canEdit ? `The ${year} running order as it stands. Switch to Edit to change it.` : `The ${year} running order as Production has it.`}
       actions={actions}
     >
       {note && <p className="text-[13px] mb-3" style={{ color: note.startsWith('Could') || note.includes('missing') ? 'var(--bad)' : 'var(--fg-2)' }}>{note}</p>}
@@ -416,11 +451,11 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
           <EmptyState
             icon={FileUp}
             title={`No ${year} agenda yet`}
-            body={mode === 'edit' ? 'Upload the team’s Word agenda and it becomes a running order you can manage here, or start one from scratch.' : 'Production has not uploaded an agenda for this edition yet.'}
-            action={mode === 'edit' ? (
+            body={canEdit ? 'Upload the team’s Word agenda and it becomes a running order you can manage here — or start from scratch and get the usual day laid out, ready to fill in.' : 'Production has not uploaded an agenda for this edition yet.'}
+            action={canEdit ? (
               <span className="flex gap-2">
                 <button className="ws-btn ws-btn-primary" onClick={() => fileRef.current?.click()}><FileUp className="w-4 h-4" /> Upload Word agenda</button>
-                <button className="ws-btn" onClick={addSession}><Plus className="w-4 h-4" /> Start from scratch</button>
+                <button className="ws-btn" onClick={startFromTemplate}><Plus className="w-4 h-4" /> Start from scratch</button>
               </span>
             ) : undefined}
           />
@@ -438,7 +473,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
           </div>
 
           <div className="ws-card px-5 py-4 mb-4">
-            {mode === 'edit' ? (
+            {view === 'edit' ? (
               <div className="grid sm:grid-cols-3 gap-3">
                 <label className="block"><span className="ws-label">Title</span><input className="ws-input" value={agenda.title} onChange={(e) => update({ ...agenda, title: e.target.value })} /></label>
                 <label className="block"><span className="ws-label">Date</span><input className="ws-input" value={agenda.dateLabel} onChange={(e) => update({ ...agenda, dateLabel: e.target.value })} /></label>
@@ -455,7 +490,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
 
           <div className="flex flex-col gap-3">
             {agenda.sessions.map((s, i) =>
-              mode === 'view' ? (
+              view === 'view' ? (
                 <SessionView key={s.id} session={s} />
               ) : (
                 <SessionEdit
@@ -472,7 +507,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
             )}
           </div>
 
-          {mode === 'edit' && (
+          {view === 'edit' && (
             <div className="flex items-center justify-between mt-4">
               <button className="ws-btn" onClick={addSession}><Plus className="w-4 h-4" /> Add session</button>
               {saveButton}
