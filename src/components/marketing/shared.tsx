@@ -1,22 +1,30 @@
 'use client'
 
-// Shared pieces of the Marketing portal: the edition's data, the "log a
-// post" dialog, and the small bits every marketing screen shows.
+// Shared pieces of the Marketing portal. The people and companies come
+// live from the Nexus admin panel (the event's Speakers section, the
+// sponsor onboarding forms and manually added sponsors); this CRM only
+// keeps what the marketing team records against them.
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
-import type { Speaker, Sponsor } from '@/types'
+import { eventLook } from '@/lib/portals'
+import { useWorkspace } from '@/lib/workspace'
 import { Field, Modal } from '@/components/workspace/ui'
+import type { LineupSpeaker, LineupSponsor, Tracking } from '@/lib/marketingSource'
 
 export type PostStatus = 'To do' | 'Posted' | 'Not needed'
 export const POST_STATUSES: PostStatus[] = ['To do', 'Posted', 'Not needed']
 
+export type SpeakerRow = LineupSpeaker & { tracking: Tracking }
+export type SponsorRow = LineupSponsor & { tracking: Tracking }
+
 // A speaker's welcome-post state: what was set, else what their consent
-// implies (no consent → nothing to do).
-export function speakerPostStatus(s: Speaker): PostStatus {
-  if (s.postStatus === 'Posted' || s.postStatus === 'Not needed' || s.postStatus === 'To do') return s.postStatus
-  if (s.linkedinConsent === false) return 'Not needed'
+// implies (declined → nothing to do).
+export function speakerPostStatus(s: SpeakerRow): PostStatus {
+  const t = s.tracking.postStatus
+  if (t === 'Posted' || t === 'Not needed' || t === 'To do') return t
+  if (s.linkedin_consent === false) return 'Not needed'
   return 'To do'
 }
 
@@ -26,74 +34,71 @@ export function consentLabel(v: boolean | null | undefined): { text: string; ton
   return { text: 'Not asked', tone: 'muted' }
 }
 
-// Welcome posts are for people actually on the line-up — the admin panel's
-// approved speakers, flagged here on approval and by "Sync from admin
-// panel". The speakers list also holds everyone still being invited.
-export const isLineupSpeaker = (s: Speaker) => s.adminLineup === true
-// Sponsor posts are owed once the deal is done.
-export const isConfirmedSponsor = (s: Sponsor) => s.status === 'Confirmed'
-
-export function sponsorRemaining(s: Sponsor): number {
-  return Math.max(0, Number(s.linkedinPostsDue ?? 0) - Number(s.linkedinPostsDone ?? 0))
+// Posts a sponsor is owed: the package allowance unless overridden here.
+export function sponsorDue(s: SponsorRow): number | null {
+  if (s.tracking.postsDue != null) return s.tracking.postsDue
+  return s.linkedin_posts_included
+}
+export function sponsorRemaining(s: SponsorRow): number {
+  return Math.max(0, Number(sponsorDue(s) ?? 0) - Number(s.tracking.postsDone ?? 0))
 }
 
-export function useMarketing<T>(kind: 'speaker' | 'sponsor', labels: string[]) {
-  return useQuery<{ data: T[]; error?: string; migration?: boolean }>({
-    queryKey: ['marketing', kind, labels],
+// The edition the workspace is on, in the terms the admin panel uses.
+export function useEdition() {
+  const { category, year } = useWorkspace()
+  if (!category || !year) return null
+  const look = eventLook(category.name)
+  return { series: look.series, city: look.city === '—' ? '' : look.city, year, label: `${category.name} ${year}` }
+}
+
+export function useMarketing<T>(kind: 'speaker' | 'sponsor') {
+  const ed = useEdition()
+  return useQuery<{ data: T[]; event?: unknown; error?: string; migration?: boolean }>({
+    queryKey: ['marketing', kind, ed?.label ?? ''],
     queryFn: async () => {
-      const p = new URLSearchParams()
-      labels.forEach((l) => p.append('events', l))
-      p.set('kind', kind)
+      const p = new URLSearchParams({ kind, series: ed!.series, city: ed!.city, year: ed!.year, label: ed!.label })
       const r = await fetch(`/api/marketing?${p}`, { cache: 'no-store' })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) return { data: [], error: j?.error || 'Could not load', migration: Boolean(j?.migration) }
       return j
     },
-    enabled: labels.length > 0,
+    enabled: Boolean(ed),
     placeholderData: (prev) => prev,
   })
 }
 
 export function useMarketingActions(kind: 'speaker' | 'sponsor') {
   const qc = useQueryClient()
+  const ed = useEdition()
   const refresh = () => qc.invalidateQueries({ queryKey: ['marketing', kind] })
-  const patch = async (id: string, body: Record<string, unknown>) => {
-    // Show it at once; reload from the server either way.
-    qc.setQueriesData<{ data: Record<string, unknown>[] }>({ queryKey: ['marketing', kind] }, (old) =>
-      old ? { ...old, data: old.data.map((x) => (x.id === id ? { ...x, ...body } : x)) } : old)
-    const r = await fetch(`/api/${kind === 'speaker' ? 'speakers' : 'sponsors'}/${id}`, {
+  const applyLocal = (ref: string, patch: Partial<Tracking>) =>
+    qc.setQueriesData<{ data: { id: string; tracking: Tracking }[] }>({ queryKey: ['marketing', kind] }, (old) =>
+      old ? { ...old, data: old.data.map((x) => (x.id === ref ? { ...x, tracking: { ...x.tracking, ...patch } } : x)) } : old)
+  const track = async (ref: string, fields: Partial<Tracking>) => {
+    if (!ed) return false
+    applyLocal(ref, fields)
+    const r = await fetch('/api/marketing/track', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ kind, ref, edition: ed.label, ...fields }),
     })
     if (!r.ok) refresh()
     return r.ok
   }
-  const logPost = async (id: string, url: string, note: string) => {
+  const logPost = async (ref: string, url: string, note: string) => {
+    if (!ed) return false
     const r = await fetch('/api/marketing/log-post', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, id, url, note }),
+      body: JSON.stringify({ kind, ref, edition: ed.label, url, note }),
     })
-    refresh()
+    await qc.refetchQueries({ queryKey: ['marketing', kind] })
     return r.ok
   }
-  // Pull the admin panel's approved speakers for these editions.
-  const syncLineup = async (labels: string[]) => {
-    const r = await fetch('/api/marketing/sync-lineup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ events: labels }),
-    })
-    const j = await r.json().catch(() => ({}))
-    // Wait for the fresh list before reporting, so the note and the table agree.
-    await qc.refetchQueries({ queryKey: ['marketing', kind] })
-    return r.ok ? { ok: true as const, ...j } : { ok: false as const, error: j?.error || 'Sync failed' }
-  }
-  return { patch, logPost, refresh, syncLineup }
+  return { track, logPost, refresh }
 }
 
-// "Log a post": the link and a line about it. Goes on the record's timeline.
+// "Log a post": the link and a line about it.
 export function LogPostModal({
   title, subtitle, onClose, onSave,
 }: { title: string; subtitle?: string; onClose: () => void; onSave: (url: string, note: string) => Promise<boolean> }) {
@@ -146,10 +151,11 @@ export function Tone({ tone, children }: { tone: 'ok' | 'bad' | 'muted' | 'accen
   return <span className="inline-flex items-center h-6 px-2 rounded-md text-[12px] font-medium whitespace-nowrap" style={style}>{children}</span>
 }
 
-export function MigrationNotice({ message }: { message: string }) {
+export function Notice({ message, tone = 'warn' }: { message: string; tone?: 'warn' | 'bad' }) {
+  const colour = tone === 'bad' ? 'var(--bad)' : 'var(--warn)'
   return (
-    <div className="ws-card px-5 py-4 text-[13.5px]" style={{ borderColor: 'var(--warn)', color: 'var(--fg-2)' }}>
-      <p className="font-semibold" style={{ color: 'var(--warn)' }}>One-time setup needed</p>
+    <div className="ws-card px-5 py-4 text-[13.5px]" style={{ borderColor: colour, color: 'var(--fg-2)' }}>
+      <p className="font-semibold" style={{ color: colour }}>{tone === 'bad' ? 'Could not load the line-up' : 'One-time setup needed'}</p>
       <p className="mt-1">{message}</p>
     </div>
   )
@@ -168,3 +174,6 @@ export function Avatar({ src, name, size = 36 }: { src?: string | null; name: st
     </span>
   )
 }
+
+// Where to change the underlying record: the admin panel owns it.
+export const ADMIN_URL = 'https://www.worldnexusgroup.com/admin'
