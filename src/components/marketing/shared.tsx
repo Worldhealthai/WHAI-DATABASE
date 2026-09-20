@@ -44,7 +44,7 @@ export function useMarketing<T>(kind: 'speaker' | 'sponsor', labels: string[]) {
       const p = new URLSearchParams()
       labels.forEach((l) => p.append('events', l))
       p.set('kind', kind)
-      const r = await fetch(`/api/marketing?${p}`)
+      const r = await fetch(`/api/marketing?${p}`, { cache: 'no-store' })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) return { data: [], error: j?.error || 'Could not load', migration: Boolean(j?.migration) }
       return j
@@ -86,7 +86,8 @@ export function useMarketingActions(kind: 'speaker' | 'sponsor') {
       body: JSON.stringify({ events: labels }),
     })
     const j = await r.json().catch(() => ({}))
-    refresh()
+    // Wait for the fresh list before reporting, so the note and the table agree.
+    await qc.refetchQueries({ queryKey: ['marketing', kind] })
     return r.ok ? { ok: true as const, ...j } : { ok: false as const, error: j?.error || 'Sync failed' }
   }
   return { patch, logPost, refresh, syncLineup }
