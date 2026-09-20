@@ -1,54 +1,38 @@
-// GET /api/marketing?kind=speaker|sponsor&events=World%20Health%20AI%20London%202026…
+// GET /api/marketing?kind=speaker|sponsor&series=World%20Health%20AI&city=London&year=2026&label=World%20Health%20AI%20London%202026
 //
-// Everything the Marketing portal needs for one edition, in one call: every
-// speaker (with consent and welcome-post state) or every sponsor company
-// (with the LinkedIn posts its package includes and how many are done). The
-// list endpoints page at 100; an edition is read whole here.
+// The Marketing portal's list for one edition: the admin panel's line-up
+// (speakers from the event's Speakers section; sponsors from onboarding
+// forms and manual additions) with this CRM's post tracking laid over it.
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { LineupError, TRACKING_HINT, fetchLineup, isMissingTrackingTable, readTracking, type Tracking } from '@/lib/marketingSource'
 
 export const dynamic = 'force-dynamic'
 
-const PARTNER_TIERS = ['Media Partner', 'Association Partner']
-
-const MIGRATION_HINT =
-  'The marketing columns are missing — run supabase/migrations/005_marketing.sql and 006_admin_lineup.sql in the Supabase SQL editor.'
+const blank = (kind: 'speaker' | 'sponsor', ref: string, edition: string): Tracking => ({
+  id: '', kind, ref, edition, postStatus: null, postUrl: null, postedAt: null, postsDue: null, postsDone: 0, log: [], notes: null, updatedAt: '',
+})
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = req.nextUrl
-  const kind = searchParams.get('kind')
-  const events = searchParams.getAll('events').filter(Boolean)
-  if (kind !== 'speaker' && kind !== 'sponsor') {
-    return NextResponse.json({ error: 'kind must be speaker or sponsor' }, { status: 400 })
-  }
-  if (events.length === 0) return NextResponse.json({ data: [] })
+  const p = req.nextUrl.searchParams
+  const kind = p.get('kind')
+  const series = (p.get('series') || '').trim()
+  const city = (p.get('city') || '').trim()
+  const year = (p.get('year') || '').trim()
+  const label = (p.get('label') || `${series} ${city} ${year}`).trim()
+  if (kind !== 'speaker' && kind !== 'sponsor') return NextResponse.json({ error: 'kind must be speaker or sponsor' }, { status: 400 })
+  if (!series || !year) return NextResponse.json({ error: 'series and year are required' }, { status: 400 })
 
   try {
+    const [lineup, tracking] = await Promise.all([fetchLineup({ series, city, year, label }), readTracking(kind, label)])
     if (kind === 'speaker') {
-      const { data, error } = await supabase
-        .from('speakers')
-        .select('id, firstName, lastName, email, organization, jobTitle, headshotUrl, bio, linkedinUrl, status, event, year, adminLineup, linkedinConsent, postStatus, postUrl, postedAt, updatedAt')
-        .in('event', events)
-        .order('lastName', { ascending: true })
-      if (error) throw error
-      return NextResponse.json({ data: data ?? [] })
+      const data = lineup.speakers.map((s) => ({ ...s, tracking: tracking.get(s.id) ?? blank('speaker', s.id, label) }))
+      return NextResponse.json({ event: lineup.event, edition: label, data })
     }
-
-    const andParts = PARTNER_TIERS.map((t) => `tier.neq.${JSON.stringify(t)}`).join(',')
-    const { data, error } = await supabase
-      .from('sponsors')
-      .select('id, companyName, tier, status, event, contactFirstName, contactLastName, contactEmail, contactJobTitle, logoUrl, linkedinPostsDue, linkedinPostsDone, onboardedAt, notes, updatedAt')
-      .is('companyId', null)
-      .in('event', events)
-      .or(`tier.is.null,and(${andParts})`)
-      .order('companyName', { ascending: true })
-    if (error) throw error
-    return NextResponse.json({ data: data ?? [] })
+    const data = lineup.sponsors.map((s) => ({ ...s, tracking: tracking.get(s.id) ?? blank('sponsor', s.id, label) }))
+    return NextResponse.json({ event: lineup.event, edition: label, data })
   } catch (error: any) {
-    const msg = String(error?.message || error)
-    if (/linkedinConsent|postStatus|linkedinPostsDue|logoUrl|onboardedAt|adminLineup/.test(msg)) {
-      return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 400 })
-    }
+    if (error instanceof LineupError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (isMissingTrackingTable(error)) return NextResponse.json({ error: TRACKING_HINT, migration: true }, { status: 400 })
     console.error('Marketing API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

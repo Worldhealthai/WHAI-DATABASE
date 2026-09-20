@@ -1,25 +1,20 @@
 'use client'
 
-// Speaker welcome posts for one edition: the confirmed speakers (everyone
-// else in the speakers list is still being lined up), whether they agreed
-// to a post on the registration form, and whether the post has been made.
-// Status and link are edited in the row; the name opens the speaker's form
-// in place; "Log post" records the post on the speaker's timeline.
+// Speaker welcome posts for one edition. The speakers are the event's
+// Speakers section in the Nexus admin panel, read live; consent comes
+// from their registration form. Status and link are edited in the row;
+// "Log post" records the post.
 
 import { useMemo, useState } from 'react'
-import { ExternalLink, Megaphone, RefreshCw, Search, SearchX } from 'lucide-react'
+import { ExternalLink, Megaphone, Search, SearchX } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useWorkspace } from '@/lib/workspace'
-import type { Speaker } from '@/types'
-import { EmptyState, Segmented, Stat, timeAgo } from '@/components/workspace/ui'
+import { EmptyState, Stat, timeAgo } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
-import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import {
-  Avatar, LogPostModal, MigrationNotice, POST_STATUSES, Tone, consentLabel, isLineupSpeaker, speakerPostStatus, useMarketing, useMarketingActions, type PostStatus,
+  ADMIN_URL, Avatar, LogPostModal, Notice, POST_STATUSES, Tone, consentLabel, speakerPostStatus, useEdition, useMarketing, useMarketingActions, type PostStatus, type SpeakerRow,
 } from './shared'
 
 type Filter = 'all' | 'todo' | 'posted' | 'notneeded' | 'noconsent' | 'missing'
-type Scope = 'lineup' | 'everyone'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -31,9 +26,10 @@ const FILTERS: { key: Filter; label: string }[] = [
 ]
 
 // The post's link and when it went out, edited in place.
-function PostCell({ s, onSave }: { s: Speaker; onSave: (url: string) => void }) {
+function PostCell({ s, onSave }: { s: SpeakerRow; onSave: (url: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState('')
+  const url = s.tracking.postUrl
   if (editing) {
     return (
       <input
@@ -41,7 +37,7 @@ function PostCell({ s, onSave }: { s: Speaker; onSave: (url: string) => void }) 
         className="ws-input h-7 text-[12.5px] w-full"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        onBlur={() => { setEditing(false); if (text.trim() !== (s.postUrl || '')) onSave(text.trim()) }}
+        onBlur={() => { setEditing(false); if (text.trim() !== (url || '')) onSave(text.trim()) }}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditing(false) }}
         placeholder="https://www.linkedin.com/posts/…"
       />
@@ -50,44 +46,40 @@ function PostCell({ s, onSave }: { s: Speaker; onSave: (url: string) => void }) 
   return (
     <span className="block min-w-0">
       <span className="flex items-center gap-1.5 min-w-0">
-        {s.postUrl ? (
-          <a href={s.postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] hover:underline underline-offset-4 truncate min-w-0" style={{ color: 'var(--accent-ink)' }}>
-            <ExternalLink className="w-3 h-3 shrink-0" /> <span className="truncate">{s.postUrl.replace(/^https?:\/\/(www\.)?/, '')}</span>
+        {url ? (
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12.5px] hover:underline underline-offset-4 truncate min-w-0" style={{ color: 'var(--accent-ink)' }}>
+            <ExternalLink className="w-3 h-3 shrink-0" /> <span className="truncate">{url.replace(/^https?:\/\/(www\.)?/, '')}</span>
           </a>
         ) : null}
-        <button type="button" className="text-[12px] shrink-0 hover:underline underline-offset-4" style={{ color: 'var(--fg-4)' }} onClick={() => { setText(s.postUrl || ''); setEditing(true) }}>
-          {s.postUrl ? 'edit' : 'add link'}
+        <button type="button" className="text-[12px] shrink-0 hover:underline underline-offset-4" style={{ color: 'var(--fg-4)' }} onClick={() => { setText(url || ''); setEditing(true) }}>
+          {url ? 'edit' : 'add link'}
         </button>
       </span>
-      {s.postedAt && <span className="block text-[11.5px] tabular" style={{ color: 'var(--fg-4)' }}>posted {timeAgo(s.postedAt)}</span>}
+      {s.tracking.postedAt && <span className="block text-[11.5px] tabular" style={{ color: 'var(--fg-4)' }}>posted {timeAgo(s.tracking.postedAt)}</span>}
     </span>
   )
 }
 
 export function SpeakerPosts() {
-  const { labels, year } = useWorkspace()
-  const { data, isLoading } = useMarketing<Speaker>('speaker', labels)
-  const { patch, logPost, refresh, syncLineup } = useMarketingActions('speaker')
-  const [scope, setScope] = useState<Scope>('lineup')
-  const [syncing, setSyncing] = useState(false)
-  const [syncNote, setSyncNote] = useState('')
+  const ed = useEdition()
+  const year = ed?.year ?? ''
+  const { data, isLoading } = useMarketing<SpeakerRow>('speaker')
+  const { track, logPost } = useMarketingActions('speaker')
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
-  const [logging, setLogging] = useState<Speaker | null>(null)
-  const [editing, setEditing] = useState<Speaker | null>(null)
+  const [logging, setLogging] = useState<SpeakerRow | null>(null)
 
-  const everyone = data?.data ?? []
-  const rows = useMemo(() => (scope === 'lineup' ? everyone.filter(isLineupSpeaker) : everyone), [everyone, scope])
+  const rows = data?.data ?? []
   const counts = useMemo(() => {
     const c = { total: rows.length, consented: 0, posted: 0, todo: 0, notneeded: 0, noconsent: 0, missing: 0 }
     for (const s of rows) {
       const st = speakerPostStatus(s)
-      if (s.linkedinConsent === true) c.consented++
-      if (s.linkedinConsent === false) c.noconsent++
+      if (s.linkedin_consent === true) c.consented++
+      if (s.linkedin_consent === false) c.noconsent++
       if (st === 'Posted') c.posted++
       else if (st === 'To do') c.todo++
       else c.notneeded++
-      if (!s.headshotUrl || !s.bio) c.missing++
+      if (!s.image || !s.bio) c.missing++
     }
     return c
   }, [rows])
@@ -97,60 +89,34 @@ export function SpeakerPosts() {
     if (filter === 'todo' && st !== 'To do') return false
     if (filter === 'posted' && st !== 'Posted') return false
     if (filter === 'notneeded' && st !== 'Not needed') return false
-    if (filter === 'noconsent' && s.linkedinConsent !== false) return false
-    if (filter === 'missing' && s.headshotUrl && s.bio) return false
+    if (filter === 'noconsent' && s.linkedin_consent !== false) return false
+    if (filter === 'missing' && s.image && s.bio) return false
     if (q.trim()) {
-      const hay = `${s.firstName} ${s.lastName} ${s.organization ?? ''} ${s.jobTitle ?? ''} ${s.email ?? ''}`.toLowerCase()
+      const hay = `${s.name} ${s.org ?? ''} ${s.role ?? ''} ${s.email ?? ''}`.toLowerCase()
       if (!hay.includes(q.trim().toLowerCase())) return false
     }
     return true
   })
 
-  const unconfirmed = everyone.length - everyone.filter(isLineupSpeaker).length
-
-  const sync = async () => {
-    setSyncing(true)
-    setSyncNote('')
-    const r = await syncLineup(labels)
-    setSyncing(false)
-    setSyncNote(
-      r.ok
-        ? `Admin panel line-up: ${r.lineup} speaker${r.lineup === 1 ? '' : 's'} · ${r.created} added · ${r.updated} updated${r.unflagged ? ` · ${r.unflagged} no longer on it` : ''} · ${r.flaggedNow} on the line-up here now${r.lineup > 0 && r.flaggedNow === 0 ? ' — the writes did not stick; check the CRM logs for the sync-lineup route' : ''}`
-        : r.error
-    )
-  }
-
   return (
     <WorkspacePage
       title="Speaker posts"
-      description={`Welcome posts on our LinkedIn page for the ${year} speakers. Consent comes from the registration form.`}
+      description={`Welcome posts on our LinkedIn page for the ${year} speakers — the line-up as the admin panel holds it. Consent comes from the registration form.`}
       actions={
-        <>
-          <Segmented
-            size="sm"
-            value={scope}
-            onChange={setScope}
-            options={[
-              { value: 'lineup', label: 'Admin panel line-up', hint: 'Approved speakers, as the admin panel holds them' },
-              { value: 'everyone', label: `Everyone${unconfirmed ? ` (+${unconfirmed})` : ''}`, hint: 'Including speakers still being lined up in the CRM' },
-            ]}
-          />
-          <button className="ws-btn ws-btn-primary" onClick={sync} disabled={syncing} title="Pull the approved speakers from the admin panel">
-            <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} /> {syncing ? 'Syncing…' : 'Sync from admin panel'}
-          </button>
-        </>
+        <a href={ADMIN_URL} target="_blank" rel="noreferrer" className="ws-btn" title="Speakers are managed in the Nexus admin panel">
+          Manage line-up in admin panel <ExternalLink className="w-3.5 h-3.5" />
+        </a>
       }
     >
-      {syncNote && <p className="text-[13px] mb-3" style={{ color: 'var(--fg-2)' }}>{syncNote}</p>}
       {data?.error ? (
-        <MigrationNotice message={data.error} />
+        <Notice message={data.error} tone={data.migration ? 'warn' : 'bad'} />
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <Stat label={scope === 'lineup' ? 'On the line-up' : 'Speakers'} value={counts.total} loading={isLoading} hint={`${counts.consented} consented`} />
+            <Stat label="Speakers on the line-up" value={counts.total} loading={isLoading} hint={`${counts.consented} consented`} />
             <Stat label="To do" value={counts.todo} loading={isLoading} hint="No post yet" />
             <Stat label="Posted" value={counts.posted} loading={isLoading} hint={counts.total ? `${Math.round((counts.posted / counts.total) * 100)}% of speakers` : ''} />
-            <Stat label="Missing photo or bio" value={counts.missing} loading={isLoading} hint="A post needs both" />
+            <Stat label="Missing photo or bio" value={counts.missing} loading={isLoading} hint="A post needs both — add them in the admin panel" />
           </div>
 
           <div className="ws-card overflow-hidden">
@@ -170,9 +136,8 @@ export function SpeakerPosts() {
             {!isLoading && shown.length === 0 ? (
               <EmptyState
                 icon={SearchX}
-                title={rows.length === 0 ? (scope === 'lineup' ? `No line-up for ${year} here yet` : `No speakers in the ${year} edition yet`) : 'No matches'}
-                body={rows.length === 0 ? (scope === 'lineup' ? 'Use Sync from admin panel to pull the approved speakers. New approvals arrive on their own from now on.' : 'Speakers arrive here when their registration is approved in the admin panel.') : 'Try another filter.'}
-                action={rows.length === 0 && scope === 'lineup' ? <button className="ws-btn ws-btn-primary" onClick={sync} disabled={syncing}><RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} /> Sync from admin panel</button> : undefined}
+                title={rows.length === 0 ? `No speakers on the ${year} line-up yet` : 'No matches'}
+                body={rows.length === 0 ? 'Speakers appear here as soon as they are in the event’s Speakers section in the admin panel.' : 'Try another filter.'}
               />
             ) : (
               <table className="ws-table ws-table-fixed w-full">
@@ -199,21 +164,17 @@ export function SpeakerPosts() {
                       ))
                     : shown.map((s) => {
                         const st = speakerPostStatus(s)
-                        const consent = consentLabel(s.linkedinConsent)
-                        const name = `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim()
-                        const missing = !s.headshotUrl && !s.bio ? 'no photo or bio' : !s.headshotUrl ? 'no photo' : !s.bio ? 'no bio' : ''
+                        const consent = consentLabel(s.linkedin_consent)
+                        const missing = !s.image && !s.bio ? 'no photo or bio' : !s.image ? 'no photo' : !s.bio ? 'no bio' : ''
                         return (
                           <tr key={s.id}>
                             <td>
                               <span className="flex items-center gap-3 min-w-0">
-                                <Avatar src={s.headshotUrl} name={name || '?'} />
+                                <Avatar src={s.image} name={s.name || '?'} />
                                 <span className="min-w-0 flex-1">
-                                  <span className="flex items-center gap-1.5 min-w-0">
-                                    <button type="button" onClick={() => setEditing(s)} title="Edit this speaker" className="font-medium truncate text-left hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</button>
-                                    <a href={`/speakers/${s.id}`} target="_blank" rel="noreferrer" title="Open the full profile in a new tab" className="shrink-0 opacity-50 hover:opacity-100" style={{ color: 'var(--fg-3)' }}><ExternalLink className="w-3 h-3" /></a>
-                                  </span>
+                                  <span className="block font-medium truncate" style={{ color: 'var(--fg)' }}>{s.name}</span>
                                   <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>
-                                    {[s.jobTitle, s.organization].filter(Boolean).join(' · ') || s.email || '—'}
+                                    {[s.role, s.org].filter(Boolean).join(' · ') || s.email || '—'}
                                     {missing && <span style={{ color: 'var(--warn)' }}> · {missing}</span>}
                                   </span>
                                 </span>
@@ -223,7 +184,7 @@ export function SpeakerPosts() {
                             <td>
                               <select
                                 value={st}
-                                onChange={(e) => patch(s.id, { postStatus: e.target.value as PostStatus, ...(e.target.value === 'Posted' && !s.postedAt ? { postedAt: new Date().toISOString() } : {}) })}
+                                onChange={(e) => track(s.id, { postStatus: e.target.value as PostStatus })}
                                 className={cn('ws-input h-7 text-[12.5px] py-0 pr-7 w-full')}
                                 style={st === 'Posted' ? { color: 'var(--ok)', fontWeight: 600 } : st === 'Not needed' ? { color: 'var(--fg-4)' } : { color: 'var(--fg)' }}
                                 aria-label="Welcome post status"
@@ -231,10 +192,10 @@ export function SpeakerPosts() {
                                 {POST_STATUSES.map((o) => <option key={o} value={o}>{o}</option>)}
                               </select>
                             </td>
-                            <td><PostCell s={s} onSave={(url) => patch(s.id, { postUrl: url || null })} /></td>
+                            <td><PostCell s={s} onSave={(url) => track(s.id, { postUrl: url || null })} /></td>
                             <td className="text-right">
                               {st !== 'Posted' && (
-                                <button className="ws-btn ws-btn-sm" onClick={() => setLogging(s)} title="Record the post as done and put it on the timeline">
+                                <button className="ws-btn ws-btn-sm" onClick={() => setLogging(s)} title="Record the post as done">
                                   <Megaphone className="w-3.5 h-3.5" /> Log post
                                 </button>
                               )}
@@ -251,13 +212,12 @@ export function SpeakerPosts() {
 
       {logging && (
         <LogPostModal
-          title={`Welcome post · ${logging.firstName} ${logging.lastName}`}
-          subtitle="Marks the post as done and adds it to the speaker's timeline."
+          title={`Welcome post · ${logging.name}`}
+          subtitle="Marks the post as done and keeps the link."
           onClose={() => setLogging(null)}
           onSave={(url, note) => logPost(logging.id, url, note)}
         />
       )}
-      {editing && <SpeakerFormModal speaker={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh() }} />}
     </WorkspacePage>
   )
 }
