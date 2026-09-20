@@ -281,6 +281,13 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
   const [exportOpen, setExportOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Each edition is its own agenda: switching year drops any unsaved draft
+  // and shows that year's saved agenda (or nothing).
+  useEffect(() => {
+    setDraft(null)
+    setDirty(false)
+    setNote('')
+  }, [edition])
   useEffect(() => {
     if (!data || dirty) return
     setDraft(data.agenda ?? null)
@@ -318,7 +325,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
 
   const upload = async (file: File) => {
     if (!edition) return
-    if (agenda && agenda.sessions.length && !confirm(`Replace the current ${year} agenda with "${file.name}"? Statuses set here will be reset to what the document says.`)) return
+    if (agenda && agenda.sessions.length && !confirm(`Replace the ${year} agenda with "${file.name}"? Statuses set here for ${year} will be reset to what the document says. Other years are not affected.`)) return
     setBusy('Reading the document…')
     setNote('')
     const fd = new FormData()
@@ -332,6 +339,20 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
     setDraft(normaliseAgenda(j.agenda))
     qc.invalidateQueries({ queryKey: ['agenda', edition] })
     setNote(`Imported ${j.stats.sessions} sessions from ${file.name}.`)
+  }
+
+  const remove = async () => {
+    if (!edition) return
+    if (!confirm(`Remove the ${year} agenda completely? Every session and status for ${year} goes with it. Other years are not affected.`)) return
+    setBusy('Removing…')
+    const r = await fetch(`/api/agenda?edition=${encodeURIComponent(edition)}`, { method: 'DELETE' })
+    const j = await r.json().catch(() => ({}))
+    setBusy('')
+    if (!r.ok) { setNote(j?.error || 'Could not remove the agenda.'); return }
+    setDraft(null)
+    setDirty(false)
+    qc.invalidateQueries({ queryKey: ['agenda', edition] })
+    setNote(`The ${year} agenda has been removed. Upload a new one or start from scratch.`)
   }
 
   const exportHref = (style: 'classic' | 'designed') => `/api/agenda/export?edition=${encodeURIComponent(edition ?? '')}&style=${style}`
@@ -371,6 +392,11 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
         </span>
       )}
       {saveButton}
+      {mode === 'edit' && agenda && agenda.sessions.length > 0 && (
+        <button className="ws-btn ws-btn-ghost" onClick={remove} disabled={Boolean(busy)} title={`Remove the ${year} agenda`} style={{ color: 'var(--bad)' }}>
+          <Trash2 className="w-4 h-4" /> Remove
+        </button>
+      )}
     </>
   )
 
