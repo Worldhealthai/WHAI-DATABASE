@@ -15,6 +15,8 @@ interface Para {
   centred: boolean
   bold: boolean
   listed: boolean
+  /** Which numbered list the paragraph belongs to, when it is in one */
+  numId: string | null
   size: number | null
 }
 
@@ -45,6 +47,7 @@ function paragraphs(xml: string): Para[] {
       centred: /<w:jc w:val="center"/.test(ppr),
       bold: text.trim().length > 0 && boldChars >= text.trim().length * 0.6,
       listed: /<w:numPr>/.test(ppr) || /<w:pStyle w:val="ListParagraph"/.test(ppr),
+      numId: ppr.match(/<w:numId w:val="(\d+)"/)?.[1] ?? null,
       size,
     })
   }
@@ -69,6 +72,9 @@ function parseSpeaker(line: string): SpeakerSlot {
   return { id: newId(), name, role, org, moderator, status: tbc ? 'tbc' : 'confirmed' }
 }
 
+// Lines the export writes where a seat is still empty.
+const PLACEHOLDER_RX = /^(\d+ (moderators?|speakers?)( and \d+ (moderators?|speakers?))? TBC|speakers? TBC|speakers? to be confirmed|still needed:.*)$/i
+
 const looksLikeQuestion = (t: string) => /\?$/.test(t) || /^(how|what|why|where|when|which|who|can|should|is|are|do|does|will)\b/i.test(t)
 const looksLikeSpeaker = (t: string) => /\s[–—-]\s/.test(t) && !/\?$/.test(t) && t.length < 220
 const looksLikeTalkTitle = (t: string) => /^[“"']/.test(t) || (/:/.test(t) && !/\s[–—-]\s/.test(t) && !looksLikeQuestion(t))
@@ -83,6 +89,26 @@ export async function parseAgendaDocx(file: Buffer | ArrayBuffer | Uint8Array, f
   const agenda: Agenda = { title: '', dateLabel: '', venue: '', sessions: [], sourceFile: fileName ?? null }
   let current: Session | null = null
   let sawSession = false
+  // This app's own classic export puts the questions and the people in two
+  // separate Word lists. When a document is built that way, believe the
+  // lists rather than guessing from punctuation — that is what lets a
+  // speaker with no role ("Dr Alec Prices-Forbes") survive the round trip,
+  // and keeps a question that happens to contain a dash out of the line-up.
+  // A document with one list (or none) falls back to the heuristics below.
+  const speakerLists = new Set<string>()
+  const questionLists = new Set<string>()
+  {
+    const ids = new Set(paras.filter((p) => p.numId).map((p) => p.numId as string))
+    if (ids.size >= 2) {
+      for (const p of paras) {
+        if (!p.numId) continue
+        if (PLACEHOLDER_RX.test(p.text) || looksLikeSpeaker(p.text)) speakerLists.add(p.numId)
+      }
+      for (const id of Array.from(ids)) if (!speakerLists.has(id)) questionLists.add(id)
+      // Only trust it when it actually separates the two.
+      if (!speakerLists.size || !questionLists.size) { speakerLists.clear(); questionLists.clear() }
+    }
+  }
 
   for (const p of paras) {
     const m = p.text.match(SESSION_RX)
@@ -105,12 +131,16 @@ export async function parseAgendaDocx(file: Buffer | ArrayBuffer | Uint8Array, f
     if (!current) continue
     const t = p.text
     // Placeholder lines the export writes for empty seats are state, not people.
-    if (/^(\d+ (moderators?|speakers?)( and \d+ (moderators?|speakers?))? TBC|speakers? TBC|speakers? to be confirmed|still needed:.*)$/i.test(t)) continue
+    if (PLACEHOLDER_RX.test(t)) continue
     if (current.type === 'break') {
       current.notes = [current.notes, t].filter(Boolean).join('\n')
       continue
     }
-    if (/^[“"']/.test(t) && !current.talkTitle) {
+    if (p.numId && speakerLists.has(p.numId)) {
+      current.speakers.push(parseSpeaker(t))
+    } else if (p.numId && questionLists.has(p.numId)) {
+      current.points.push(t)
+    } else if (/^[“"']/.test(t) && !current.talkTitle) {
       // A quoted line is the talk's title, dashes and all.
       current.talkTitle = t.replace(/^[“"']|[”"']$/g, '').trim()
     } else if (looksLikeQuestion(t) && !looksLikeSpeaker(t)) {
