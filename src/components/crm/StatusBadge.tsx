@@ -72,7 +72,7 @@ const TICKET_TYPE_COLORS: Record<string, string> = {
   'Virtual':       'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
 }
 
-type BadgeVariant = 'delegate_status' | 'speaker_status' | 'sponsor_status' | 'sponsor_tier' | 'contract_status' | 'fee_status' | 'ticket_type'
+type BadgeVariant = 'delegate_status' | 'speaker_status' | 'sponsor_status' | 'sponsor_tier' | 'contract_status' | 'fee_status' | 'ticket_type' | 'delegate_type'
 
 const COLOR_MAPS: Record<BadgeVariant, Record<string, string>> = {
   delegate_status: DELEGATE_STATUS_COLORS,
@@ -82,6 +82,8 @@ const COLOR_MAPS: Record<BadgeVariant, Record<string, string>> = {
   contract_status: CONTRACT_STATUS_COLORS,
   fee_status:      FEE_STATUS_COLORS,
   ticket_type:     TICKET_TYPE_COLORS,
+  // No palette for delegate sub-types: every value uses the neutral fallback.
+  delegate_type:   {},
 }
 
 interface StatusBadgeProps {

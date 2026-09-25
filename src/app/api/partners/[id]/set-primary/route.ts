@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic'
 // body: { contactId: string }
 // Promotes a linked contact to primary on the company record.
 // The old primary (if any) is preserved as a new linked contact.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   try {
     const { contactId } = await req.json()
     if (!contactId) return NextResponse.json({ error: 'contactId required' }, { status: 400 })

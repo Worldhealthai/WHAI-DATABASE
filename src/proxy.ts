@@ -5,7 +5,7 @@ import { AUTH_COOKIE, getPassword, tokenFor } from '@/lib/auth'
 // Gate the entire app (pages AND data APIs) behind the shared password.
 // Everything except the login page, the auth endpoints, and static assets
 // requires a valid session cookie.
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const cookie = req.cookies.get(AUTH_COOKIE)?.value
   const expected = await tokenFor(getPassword())
 

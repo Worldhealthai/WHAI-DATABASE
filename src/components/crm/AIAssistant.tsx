@@ -108,9 +108,9 @@ interface PanelProps {
   setInput: (v: string) => void
   onSubmit: (e: React.FormEvent) => void
   onSuggest: (s: string) => void
-  inputRef: React.RefObject<HTMLInputElement>
-  scrollRef: React.RefObject<HTMLDivElement>
-  bottomRef: React.RefObject<HTMLDivElement>
+  inputRef: React.RefObject<HTMLInputElement | null>
+  scrollRef: React.RefObject<HTMLDivElement | null>
+  bottomRef: React.RefObject<HTMLDivElement | null>
   onScroll: () => void
   inline: boolean
   onClose?: () => void

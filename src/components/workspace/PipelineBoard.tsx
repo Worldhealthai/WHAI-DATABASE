@@ -64,7 +64,7 @@ function QuickAddLead({
   // The known company's people, carried onto the new row when it is saved.
   const [contacts, setContacts] = useState<KnownContact[]>([])
   const [open, setOpen] = useState(false)
-  const lookup = useRef<ReturnType<typeof setTimeout>>()
+  const lookup = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Every company the CRM already knows, whatever year it was worked in —
   // so the 2027 pipeline starts from last year's contacts, not a blank form.

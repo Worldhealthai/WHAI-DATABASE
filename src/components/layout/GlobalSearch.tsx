@@ -27,7 +27,7 @@ export function GlobalSearch() {
   const [loading, setLoading] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const router = useRouter()
 
   // Cmd+K / Ctrl+K to open
@@ -172,7 +172,7 @@ export function GlobalSearch() {
 
               {query.trim() && !loading && results.length === 0 && (
                 <div className="px-4 py-8 text-center text-sm text-slate-500">
-                  No results for <span className="text-slate-300">"{query}"</span>
+                  No results for <span className="text-slate-300">&quot;{query}&quot;</span>
                 </div>
               )}
 
