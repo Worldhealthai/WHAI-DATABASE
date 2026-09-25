@@ -184,7 +184,7 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Row | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const debounce = useRef<ReturnType<typeof setTimeout>>()
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Edition changes reset the paging; a filter that made sense for one year
   // rarely does for another.

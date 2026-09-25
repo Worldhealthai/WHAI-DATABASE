@@ -132,7 +132,7 @@ function KanbanBoard({ partners, onAdvance, onEdit, advancingId }: {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const mousePos = useRef({ x: 0, y: 0 })
-  const rafRef = useRef<number>()
+  const rafRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     if (!draggingId) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return }
@@ -321,7 +321,7 @@ export default function PartnersPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'board'>('table')
   const [advancingId, setAdvancingId] = useState<string | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['partners', keyword, page, pageSize, sortBy, sortDir],
@@ -635,7 +635,7 @@ export default function PartnersPage() {
                                       {(s.contactFirstName || s.contactLastName) && (
                                         <div className="text-xs text-slate-500">{[s.contactFirstName, s.contactLastName].filter(Boolean).join(' ')}</div>
                                       )}
-                                      {s.contactCount > 0 && (
+                                      {(s.contactCount ?? 0) > 0 && (
                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700 mt-0.5 inline-block">
                                           {s.contactCount} contact{s.contactCount === 1 ? '' : 's'}
                                         </span>
