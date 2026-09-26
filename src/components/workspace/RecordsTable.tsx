@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, STATUS_OPTIONS, changeStage, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
 import { editionLabel } from '@/lib/portals'
+import { partnerConsentLabel } from '@/types'
 import { Pagination } from '@/components/search/Pagination'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
@@ -160,6 +161,7 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
     { key: 'status', label: 'Status', sortable: true, width: '160px', render: stageCell },
     { key: 'subType', label: 'Type', sortable: true, width: '130px', render: (r) => <span style={{ color: r.subType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.subType || '—'}</span> },
     { key: 'ticketType', label: 'Ticket', width: '120px', render: (r) => <span style={{ color: r.ticketType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.ticketType || '—'}</span> },
+    { key: 'partnerConsent', label: 'Shares with sponsors', width: '160px', render: (r) => <span style={{ color: partnerConsentLabel(r.partnerConsent) ? 'var(--fg-2)' : 'var(--fg-4)' }}>{partnerConsentLabel(r.partnerConsent) || '—'}</span> },
     { key: 'email', label: 'Email', width: '200px', render: (r) => <span className="truncate block max-w-[200px]" style={{ color: 'var(--fg-3)' }}>{r.email || '—'}</span> },
     added,
   ]

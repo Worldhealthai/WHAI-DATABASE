@@ -69,6 +69,12 @@ export const DELEGATE_STATUS_LABELS: Record<string, string> = {
 export const delegateStatusLabel = (s: string | null | undefined): string =>
   (s && DELEGATE_STATUS_LABELS[s]) || s || ''
 
+// Consent to share name, job title and organisation with the event's
+// sponsors and partners: "Yes", "No", or blank when the registration form
+// never asked (null).
+export const partnerConsentLabel = (v: boolean | null | undefined): string =>
+  v === true ? 'Yes' : v === false ? 'No' : ''
+
 export const DELEGATE_TICKET_OPTIONS = [
   'Standard',
   'VIP',
@@ -275,6 +281,9 @@ export interface Delegate {
   bio?: string | null
   tags?: string | null
   notes?: string | null
+  // Shares name, job title and organisation with sponsors and partners
+  // (null = not asked)
+  partnerConsent?: boolean | null
   createdAt: string
   updatedAt: string
   activities?: Activity[]
@@ -316,6 +325,9 @@ export interface Speaker {
   postStatus?: 'To do' | 'Posted' | 'Not needed' | null
   postUrl?: string | null
   postedAt?: string | null
+  // Shares name, job title and organisation with sponsors and partners
+  // (null = not asked)
+  partnerConsent?: boolean | null
   createdAt: string
   updatedAt: string
   activities?: Activity[]

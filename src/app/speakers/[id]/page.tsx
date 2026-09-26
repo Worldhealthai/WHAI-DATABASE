@@ -11,7 +11,7 @@ import {
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
-import type { Speaker } from '@/types'
+import { partnerConsentLabel, type Speaker } from '@/types'
 import { cn } from '@/lib/utils'
 
 const SPEAKER_STAGES = ['Not Contacted', 'Invited', 'Discussing', 'Speaking Confirmed']
@@ -322,6 +322,7 @@ export default function SpeakerDetailPage() {
               <DetailField label="Contract Status" value={<StatusBadge value={speaker.contractStatus ?? 'Not Started'} variant="contract_status" />} />
               <DetailField label="Fee Status" value={<StatusBadge value={speaker.feeStatus ?? 'Not Set'} variant="fee_status" />} />
               <DetailField label="Speaking Fee" value={speaker.fee ? `${speaker.feeCurrency ?? 'GBP'} ${Number(speaker.fee).toLocaleString()}` : 'Not set'} />
+              <DetailField label="Shares with sponsors" value={partnerConsentLabel(speaker.partnerConsent) || '—'} />
               <DetailField label="Added" value={new Date(speaker.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
             </div>
             <div className="flex items-center gap-4 mt-4 pt-4 border-t border-[var(--line)]">
