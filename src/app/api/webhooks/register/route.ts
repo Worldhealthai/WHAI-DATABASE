@@ -26,6 +26,8 @@ export const dynamic = 'force-dynamic'
 //   // and organisation with the event's sponsors and partners. Only a
 //   // true/false answer is stored; null (the form never asked, e.g.
 //   // worldhealth.ai) or leaving it out keeps whatever is already stored.
+//   // On a contact already in the CRM, true is stored only when "event" is
+//   // the edition the contact is filed under; false always is.
 //   "partnerConsent": true | false | null,
 //   // Optional control fields used by the website's admin actions:
 //   "action": "delete",   // remove the matching contact (by email) from the CRM
@@ -130,6 +132,18 @@ export async function POST(req: NextRequest) {
     // the site sent a real answer, so a later sync without it never blanks it.
     const consent: Record<string, unknown> =
       typeof body.partnerConsent === 'boolean' ? { partnerConsent: body.partnerConsent } : {}
+    // The answer is given for one edition, but the CRM keeps one row per
+    // contact, filed under the edition in its `event`. On an existing row a
+    // "yes" is taken only when it is for that same edition, so a later
+    // edition's "yes" never shows against an earlier one the person declined.
+    // A "no" is always taken: a refusal must never be lost.
+    const consentFor = (rowEvent: unknown): Record<string, unknown> => {
+      if (consent.partnerConsent === false) return consent
+      const sameEdition =
+        typeof rowEvent === 'string' && common.event !== null &&
+        rowEvent.trim().toLowerCase() === common.event.toLowerCase()
+      return sameEdition ? consent : {}
+    }
 
     const table = type === 'speaker' ? 'speakers' : 'delegates'
     const record = type === 'speaker'
@@ -209,14 +223,14 @@ export async function POST(req: NextRequest) {
       if (email) {
         const { data: existing } = await supabase
           .from(table)
-          .select('id')
+          .select('id, event')
           .ilike('email', escapeLike(email))
           .limit(1)
         if (existing?.length) {
           const { error: updErr } = await writeWithFallback(
             {
               ...(type === 'speaker' && /cancel|reject/i.test(statusOverride) ? { status: statusOverride, adminLineup: false } : { status: statusOverride }),
-              ...consent,
+              ...consentFor(existing[0].event),
             },
             (r) => supabase.from(table).update(r).eq('id', existing[0].id),
           )
@@ -243,13 +257,14 @@ export async function POST(req: NextRequest) {
     if (email) {
       const { data: existing } = await supabase
         .from(table)
-        .select('id')
+        .select('id, event')
         .ilike('email', escapeLike(email))
         .limit(1)
       if (existing?.length) {
-        // Already in the CRM: still take the marketing details and consent (a
-        // box ticked on a later registration, a headshot uploaded afterwards).
-        const updates = { ...marketing, ...consent }
+        // Already in the CRM: still take the marketing details (a headshot
+        // uploaded afterwards) and the consent answer, as far as it applies
+        // to the edition this row is filed under.
+        const updates = { ...marketing, ...consentFor(existing[0].event) }
         if (Object.keys(updates).length) {
           const { error: mErr } = await writeWithFallback(updates, (r) => supabase.from(table).update(r).eq('id', existing[0].id))
           if (mErr && !isMissingMarketingColumn(mErr) && !isMissingConsentColumn(mErr)) console.warn('register: marketing/consent update failed:', mErr.message)
@@ -267,13 +282,13 @@ export async function POST(req: NextRequest) {
     if (firstName && lastName) {
       const { data: sameName } = await supabase
         .from(table)
-        .select('id, email')
+        .select('id, email, event')
         .ilike('firstName', escapeLike(firstName))
         .ilike('lastName', escapeLike(lastName))
         .limit(10)
-      const emailless = sameName?.find((r: { id: string; email: string | null }) => !r.email?.trim())
+      const emailless = sameName?.find((r: { id: string; email: string | null; event: string | null }) => !r.email?.trim())
       if (emailless) {
-        const fill = { ...(email ? { email } : {}), ...consent }
+        const fill = { ...(email ? { email } : {}), ...consentFor(emailless.event) }
         if (Object.keys(fill).length) {
           await writeWithFallback(fill, (r) => supabase.from(table).update(r).eq('id', emailless.id))
         }
