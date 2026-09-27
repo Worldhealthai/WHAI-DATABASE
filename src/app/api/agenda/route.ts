@@ -8,6 +8,19 @@ import { normaliseAgenda, type Agenda } from '@/lib/agenda/model'
 
 export const dynamic = 'force-dynamic'
 
+// Whether two updatedAt stamps are the same moment. A save hands back the
+// stamp in JavaScript's form (…T10:00:00.123Z) while the database reads it
+// back as …T10:00:00.123+00:00, so the strings alone would call a save made
+// on the returned stamp a conflict. Compared down to the microsecond, as
+// Postgres stores them.
+function sameInstant(a: string | null, b: string | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  const t = Date.parse(a)
+  const fraction = (s: string) => (s.match(/:\d{2}\.(\d+)/)?.[1] ?? '').padEnd(6, '0').slice(0, 6)
+  return Number.isFinite(t) && t === Date.parse(b) && fraction(a) === fraction(b)
+}
+
 export async function GET(req: NextRequest) {
   const edition = (req.nextUrl.searchParams.get('edition') || '').trim()
   if (!edition) return NextResponse.json({ error: 'edition is required' }, { status: 400 })
@@ -64,7 +77,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true, updatedAt })
   }
 
-  if (base !== current.updatedAt) return conflict()
+  if (!sameInstant(base, current.updatedAt)) return conflict()
   const { data: saved, error } = await supabase
     .from('agendas')
     .update(row)

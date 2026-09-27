@@ -48,8 +48,9 @@ export async function OPTIONS() {
 // Health check — open this URL in a browser to verify the deployment is live
 // and the env vars are configured. Reports presence only, never values.
 // `database` says which project (host only) and schema the CRM reads, and
-// whether every CRM table answers — the Nexus admin's Move CRM page reads it
-// to tell whether the CRM has been switched to the Nexus project.
+// whether every CRM table answers, so whoever switches the CRM to the Nexus
+// project can check it landed there (README, "Check the switch"). The
+// switch itself is confirmed by hand on the Nexus admin's Move CRM page.
 export async function GET() {
   const database = await checkDatabase()
   return NextResponse.json(

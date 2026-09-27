@@ -89,6 +89,9 @@ export function missingTableHint(table: (typeof CRM_TABLES)[number]): string {
 export function setupHint(table: (typeof CRM_TABLES)[number], err: DbError): string | null {
   const setup = describeDbError(err)
   if (setup) return setup
+  // A duplicate key names the table's constraint (agendas_pkey) but proves
+  // the table is there: leave it to the caller's conflict handling.
+  if (err?.code === '23505') return null
   return err?.message && err.message.includes(table) ? missingTableHint(table) : null
 }
 

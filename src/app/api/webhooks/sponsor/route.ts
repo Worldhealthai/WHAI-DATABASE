@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic'
 // and published to an event. The company lands in this edition's sponsors
 // (the row the Marketing portal reads), with the LinkedIn posts its package
 // includes. An existing row for the same company and edition is updated,
-// otherwise one is created as Confirmed.
+// otherwise one is created as Confirmed. The onboarding contact never
+// overwrites a different person's details: when the company already has
+// another primary contact, it is filed as one of the company's contacts.
 //
 // POST /api/webhooks/sponsor
 // Headers: x-webhook-secret: <WEBHOOK_SECRET env var>
@@ -35,7 +37,34 @@ export async function OPTIONS() {
 
 const MATCH_THRESHOLD = 0.9
 
-type Row = { id: string; companyName: string | null; contactEmail: string | null; event: string | null; notes: string | null; linkedinPostsDue?: number | null }
+type Row = {
+  id: string
+  companyName: string | null
+  contactFirstName: string | null
+  contactLastName: string | null
+  contactEmail: string | null
+  event: string | null
+  notes: string | null
+  linkedinPostsDue?: number | null
+}
+
+// One person's contact fields, as on a sponsors row.
+type Person = { contactFirstName?: unknown; contactLastName?: unknown; contactEmail?: unknown }
+const emailKey = (p: Person) => String(p.contactEmail ?? '').trim().toLowerCase()
+const nameKey = (p: Person) => {
+  const k = `${String(p.contactFirstName ?? '').trim().toLowerCase()}|${String(p.contactLastName ?? '').trim().toLowerCase()}`
+  return k === '|' ? '' : k
+}
+const hasPerson = (p: Person) => Boolean(emailKey(p) || nameKey(p))
+// The same person: by email when both have one, otherwise by first and last
+// name (the rule the bulk import uses for a company's contacts).
+function samePerson(a: Person, b: Person): boolean {
+  const e1 = emailKey(a)
+  const e2 = emailKey(b)
+  if (e1 && e2) return e1 === e2
+  const n1 = nameKey(a)
+  return Boolean(n1) && n1 === nameKey(b)
+}
 
 // Nexus writes editions as "World Health AI · London · 2026"; the CRM stores
 // "World Health AI London 2026".
@@ -67,7 +96,7 @@ export async function POST(req: NextRequest) {
     // contact email. Company rows only — contact rows carry a companyId.
     const { data: rows, error: readErr } = await supabase
       .from('sponsors')
-      .select('id, companyName, contactEmail, event, notes')
+      .select('id, companyName, contactFirstName, contactLastName, contactEmail, event, notes')
       .is('companyId', null)
       .eq('event', event)
     if (readErr) throw readErr
@@ -95,12 +124,50 @@ export async function POST(req: NextRequest) {
     const missingColumn = (err: { message?: string } | null) => Boolean(err?.message && /linkedinPostsDue|onboardedAt|logoUrl/.test(err.message))
 
     if (best) {
-      const notes = (best.row.notes || '').includes('[Onboarded ·') ? best.row.notes : [best.row.notes, onboardingNote].filter(Boolean).join('\n\n')
-      const update = { ...contact, tier: body?.tier || undefined, status: 'Confirmed', notes, updatedAt: new Date().toISOString() }
-      let { error } = await supabase.from('sponsors').update({ ...update, ...marketing }).eq('id', best.row.id)
-      if (error && missingColumn(error)) ({ error } = await supabase.from('sponsors').update(update).eq('id', best.row.id))
+      const company = best.row
+      // Where the onboarding contact goes. The company row's contact fields
+      // are one person, so they are written there only when that is the same
+      // person, or the row has no contact yet. Otherwise the primary contact
+      // chosen in the CRM stays, and the onboarding contact is filled in on
+      // the company's matching contact, or added as a new one.
+      let onCompany: Record<string, unknown> = {}
+      let linked: { id: string | null; fields: Record<string, unknown> } | null = null
+      if (hasPerson(contact)) {
+        if (samePerson(company, contact)) onCompany = contact
+        else {
+          const { data: contacts, error: contactsErr } = await supabase
+            .from('sponsors')
+            .select('id, contactFirstName, contactLastName, contactEmail')
+            .eq('companyId', company.id)
+          if (contactsErr) throw contactsErr
+          const match = ((contacts || []) as (Person & { id: string })[]).find((c) => samePerson(c, contact))
+          if (match) linked = { id: match.id, fields: contact }
+          else if (!hasPerson(company)) onCompany = contact
+          else linked = { id: null, fields: contact }
+        }
+      }
+
+      const notes = (company.notes || '').includes('[Onboarded ·') ? company.notes : [company.notes, onboardingNote].filter(Boolean).join('\n\n')
+      const update = { ...onCompany, tier: body?.tier || undefined, status: 'Confirmed', notes, updatedAt: new Date().toISOString() }
+      let { error } = await supabase.from('sponsors').update({ ...update, ...marketing }).eq('id', company.id)
+      if (error && missingColumn(error)) ({ error } = await supabase.from('sponsors').update(update).eq('id', company.id))
       if (error) throw error
-      return NextResponse.json({ ok: true, created: false, id: best.row.id, event }, { headers: CORS_HEADERS })
+
+      if (linked?.id) {
+        const { error: contactErr } = await supabase.from('sponsors').update(linked.fields).eq('id', linked.id)
+        if (contactErr) throw contactErr
+      } else if (linked) {
+        const { error: contactErr } = await supabase.from('sponsors').insert({
+          companyId: company.id,
+          companyName: company.companyName || companyName,
+          ...linked.fields,
+          status: 'Confirmed',
+          event: company.event || event,
+          tags: 'Sponsor onboarding',
+        })
+        if (contactErr) throw contactErr
+      }
+      return NextResponse.json({ ok: true, created: false, id: company.id, event }, { headers: CORS_HEADERS })
     }
 
     const record = {

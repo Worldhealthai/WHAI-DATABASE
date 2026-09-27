@@ -11,7 +11,7 @@ Copy `.env.example` to `.env.local` for local work; on Vercel set the same names
 | `NEXT_PUBLIC_SUPABASE_URL` | The Supabase project the CRM's data is in |
 | `SUPABASE_SERVICE_ROLE_KEY` | That project's `service_role` (secret) key. Server-side only |
 | `CRM_DB_SCHEMA` | Where the tables are in that project. Unset (or `public`): the CRM's own project, as it has always been. `crm`: the Nexus project, after the move below |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Only used when `CRM_DB_SCHEMA` is unset and there is no service key (the old behaviour). Never used with `CRM_DB_SCHEMA=crm` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Only used when `CRM_DB_SCHEMA` is unset and there is no service key (the old behaviour). Never used with `CRM_DB_SCHEMA=crm`; delete it at the switch (step 5 below) |
 | `WEBHOOK_SECRET` | Shared secret for the sites and the Nexus admin calling the CRM (same value as `CRM_WEBHOOK_SECRET` there) |
 | `CRM_ACCESS_PASSWORD` | The CRM's login password |
 | `NEXUS_SITE_URL`, `NEXUS_EVENTS_URL` | Where the Nexus admin is (defaults to worldnexusgroup.com) |
@@ -26,15 +26,17 @@ The CRM's data moves out of its own Supabase project into the Nexus project, int
 1. **Nexus: run migration `supabase/migrations/0060_crm_schema.sql`** in the Nexus project's SQL editor. It creates the `crm` schema with every CRM table, reachable only with the service role.
 2. **Nexus: expose the schema.** Supabase → the Nexus project → Project Settings → Data API (Settings → API on older dashboards) → Exposed schemas: add `crm`, save. While you are there, check that Max rows is at least what the CRM's own project uses (the CRM reads some tables whole).
 3. **Nexus: set `CRM_SUPABASE_URL` and `CRM_SUPABASE_SERVICE_ROLE_KEY`** on the Nexus admin's Vercel project to the CRM's own (old) project, and redeploy the Nexus admin.
-4. **Move CRM page: Compare**, then **Copy**, then **Records check**. Carry on only when the records check is green.
+4. **Move CRM page: Compare** (its step 4), then **Copy** (step 5), then **Records check** (step 6). Carry on only when the records check says it is safe to switch.
 5. **Switch the CRM** (this repository's Vercel project), under Settings → Environment Variables, for Production:
    - `NEXT_PUBLIC_SUPABASE_URL` = the **Nexus** project's URL
    - `SUPABASE_SERVICE_ROLE_KEY` = the **Nexus** project's `service_role` (secret) key
    - `CRM_DB_SCHEMA` = `crm`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: delete it. The CRM never uses it on Nexus, and a rollback uses the old project's service role key instead (see below).
 6. **Redeploy the CRM** (Deployments → the latest → Redeploy). Environment changes only take effect in a new deployment.
 7. **Check the switch.** Log in to the CRM and open `/api/webhooks/register`: `database.schema` should be `crm`, `database.project` the Nexus project's address and `database.ok` true. If anything is wrong, a red notice at the top of every CRM screen says what to fix.
-8. **Move CRM page: Copy again** (catches anything written to the old project while you were switching), then **Records check** again.
-9. **Keep the old CRM project paused for a few weeks**, then delete it. `NEXT_PUBLIC_SUPABASE_ANON_KEY` can be removed from the CRM's settings.
+8. **Move CRM page: confirm the switch.** Under the page's step 7, press **The CRM now runs on Nexus**. Do this before you run anything else on that page. Until it is confirmed, the page still treats Nexus as a copy of the old project, so the records the CRM now adds and changes in Nexus show up there as differences. Never remove or overwrite those: they are the CRM's new work.
+9. **Move CRM page: Copy again** (its step 8; catches anything written to the old project while you were switching), then **Records check again** (step 9).
+10. **Keep the old CRM project paused for a few weeks**, then delete it, and remove `CRM_SUPABASE_URL` and `CRM_SUPABASE_SERVICE_ROLE_KEY` from the Nexus admin (the page's step 10).
 
 What the CRM tells you when something is missing:
 
@@ -50,8 +52,13 @@ What the CRM tells you when something is missing:
 Until the old project is deleted you can go back:
 
 1. Restore the old CRM project in Supabase if it is paused.
-2. In the CRM's Vercel settings put `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` back to the old project's values and **delete** `CRM_DB_SCHEMA`.
+2. In the CRM's Vercel settings:
+   - `NEXT_PUBLIC_SUPABASE_URL` = the old project's URL (the value of `CRM_SUPABASE_URL` on the Nexus admin's Vercel project)
+   - `SUPABASE_SERVICE_ROLE_KEY` = the old project's service role key (the value of `CRM_SUPABASE_SERVICE_ROLE_KEY` there)
+   - **delete** `CRM_DB_SCHEMA`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` stays deleted: with the service role key set, the CRM does not use it.
 3. Redeploy the CRM.
+4. In the Nexus admin → Move CRM, press **Undo** under step 7, so the page and Nexus's "Add to CRM" fallback treat the old project as the CRM's again.
 
 The copy only runs from the old project into Nexus, so anything added or changed in the CRM after the switch is not in the old project. Note it down or re-enter it after rolling back.
 
