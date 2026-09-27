@@ -3,20 +3,31 @@
 //   PUT /api/agenda  { edition, agenda }                          → saves it
 //   DELETE /api/agenda?edition=…                                  → removes it
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { setupHint, supabase } from '@/lib/supabase'
 import { normaliseAgenda, type Agenda } from '@/lib/agenda/model'
 
 export const dynamic = 'force-dynamic'
 
-const AGENDA_HINT = 'The agendas table is missing — run supabase/migrations/008_agendas.sql in the Supabase SQL editor.'
-const missing = (err: { message?: string } | null | undefined) => Boolean(err?.message && /agendas/.test(err.message))
+// Whether two updatedAt stamps are the same moment. A save hands back the
+// stamp in JavaScript's form (…T10:00:00.123Z) while the database reads it
+// back as …T10:00:00.123+00:00, so the strings alone would call a save made
+// on the returned stamp a conflict. Compared down to the microsecond, as
+// Postgres stores them.
+function sameInstant(a: string | null, b: string | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  const t = Date.parse(a)
+  const fraction = (s: string) => (s.match(/:\d{2}\.(\d+)/)?.[1] ?? '').padEnd(6, '0').slice(0, 6)
+  return Number.isFinite(t) && t === Date.parse(b) && fraction(a) === fraction(b)
+}
 
 export async function GET(req: NextRequest) {
   const edition = (req.nextUrl.searchParams.get('edition') || '').trim()
   if (!edition) return NextResponse.json({ error: 'edition is required' }, { status: 400 })
   const { data, error } = await supabase.from('agendas').select('*').eq('edition', edition).maybeSingle()
   if (error) {
-    if (missing(error)) return NextResponse.json({ error: AGENDA_HINT, migration: true }, { status: 400 })
+    const hint = setupHint('agendas', error)
+    if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   if (!data) return NextResponse.json({ agenda: null })
@@ -49,14 +60,16 @@ export async function PUT(req: NextRequest) {
 
   const { data: current, error: readError } = await supabase.from('agendas').select('updatedAt').eq('edition', edition).maybeSingle()
   if (readError) {
-    if (missing(readError)) return NextResponse.json({ error: AGENDA_HINT, migration: true }, { status: 400 })
+    const hint = setupHint('agendas', readError)
+    if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
     return NextResponse.json({ error: readError.message }, { status: 500 })
   }
 
   if (!current) {
     const { error } = await supabase.from('agendas').insert(row)
     if (error) {
-      if (missing(error)) return NextResponse.json({ error: AGENDA_HINT, migration: true }, { status: 400 })
+      const hint = setupHint('agendas', error)
+      if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
       // Someone created this edition's agenda between the read and the write.
       if (/duplicate key|already exists|conflict/i.test(error.message || '')) return conflict()
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -64,7 +77,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true, updatedAt })
   }
 
-  if (base !== current.updatedAt) return conflict()
+  if (!sameInstant(base, current.updatedAt)) return conflict()
   const { data: saved, error } = await supabase
     .from('agendas')
     .update(row)
@@ -72,7 +85,8 @@ export async function PUT(req: NextRequest) {
     .eq('updatedAt', current.updatedAt)
     .select('edition')
   if (error) {
-    if (missing(error)) return NextResponse.json({ error: AGENDA_HINT, migration: true }, { status: 400 })
+    const hint = setupHint('agendas', error)
+    if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   // Nothing matched: the row moved on between the check and the write.
@@ -85,7 +99,8 @@ export async function DELETE(req: NextRequest) {
   if (!edition) return NextResponse.json({ error: 'edition is required' }, { status: 400 })
   const { error } = await supabase.from('agendas').delete().eq('edition', edition)
   if (error) {
-    if (missing(error)) return NextResponse.json({ error: AGENDA_HINT, migration: true }, { status: 400 })
+    const hint = setupHint('agendas', error)
+    if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   return NextResponse.json({ ok: true })

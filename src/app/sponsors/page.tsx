@@ -150,7 +150,7 @@ function KanbanBoard({ sponsors, onAdvance, onEdit, advancingId }: {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const mousePos = useRef({ x: 0, y: 0 })
-  const rafRef = useRef<number>()
+  const rafRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     if (!draggingId) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return }
@@ -353,7 +353,7 @@ export default function SponsorsPage() {
   const [viewMode, setViewMode] = useState<'table' | 'board' | 'grid'>('table')
   const [advancingId, setAdvancingId] = useState<string | null>(null)
   const [sidePanelId, setSidePanelId] = useState<string | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pendingScrollRef = useRef<number | null>(null)
 
   // Snapshot the list UI state (including scroll position) right before
@@ -809,7 +809,7 @@ export default function SponsorsPage() {
                                 {s.contactJobTitle && <span className="text-slate-600"> · {s.contactJobTitle}</span>}
                               </div>
                             )}
-                            {s.contactCount > 0 && (
+                            {(s.contactCount ?? 0) > 0 && (
                               <div className="text-[10px] text-slate-700 mt-0.5">{s.contactCount} contact{s.contactCount === 1 ? '' : 's'}</div>
                             )}
                           </div>
@@ -914,7 +914,7 @@ export default function SponsorsPage() {
                                             {s.event}
                                           </span>
                                         )}
-                                        {s.contactCount > 0 && (
+                                        {(s.contactCount ?? 0) > 0 && (
                                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 border border-slate-700 mt-0.5 inline-block ml-1">
                                             {s.contactCount} contact{s.contactCount === 1 ? '' : 's'}
                                           </span>

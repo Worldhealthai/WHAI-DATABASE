@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { checkDatabase, supabase } from '@/lib/supabase'
 import { canonicalEventLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +22,13 @@ export const dynamic = 'force-dynamic'
 //   // headshot and bio the post needs
 //   "linkedinConsent": true | false | null, "headshotUrl": "...", "bio": "...",
 //   "lineup": true   // an approved speaker in the admin panel: confirmed, on the line-up
+//   // Consent (delegates and speakers): agreed to share their name, job title
+//   // and organisation with the event's sponsors and partners. Only a
+//   // true/false answer is stored; null (the form never asked, e.g.
+//   // worldhealth.ai) or leaving it out keeps whatever is already stored.
+//   // On a contact already in the CRM, true is stored only when "event" is
+//   // the edition the contact is filed under; false always is.
+//   "partnerConsent": true | false | null,
 //   // Optional control fields used by the website's admin actions:
 //   "action": "delete",   // remove the matching contact (by email) from the CRM
 //   "status": "Cancelled" | "Rejected"  // set status on the matching contact,
@@ -40,16 +47,21 @@ export async function OPTIONS() {
 
 // Health check — open this URL in a browser to verify the deployment is live
 // and the env vars are configured. Reports presence only, never values.
+// `database` says which project (host only) and schema the CRM reads, and
+// whether every CRM table answers, so whoever switches the CRM to the Nexus
+// project can check it landed there (README, "Check the switch"). The
+// switch itself is confirmed by hand on the Nexus admin's Move CRM page.
 export async function GET() {
+  const database = await checkDatabase()
   return NextResponse.json(
     {
       ok: true,
       endpoint: 'POST /api/webhooks/register',
       secretConfigured: Boolean(process.env.WEBHOOK_SECRET?.trim()),
-      supabaseConfigured: Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL &&
-          (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-      ),
+      // With CRM_DB_SCHEMA=crm the anon key does not count: only the
+      // service role key is ever used there.
+      supabaseConfigured: database.configured,
+      database,
     },
     { headers: CORS_HEADERS },
   )
@@ -120,18 +132,63 @@ export async function POST(req: NextRequest) {
       if (lineup) { marketing.adminLineup = true; marketing.status = 'Speaking Confirmed' }
     }
 
+    // Consent to share name, job title and organisation with the event's
+    // sponsors and partners, delegates and speakers alike. Written only when
+    // the site sent a real answer, so a later sync without it never blanks it.
+    const consent: Record<string, unknown> =
+      typeof body.partnerConsent === 'boolean' ? { partnerConsent: body.partnerConsent } : {}
+    // The answer is given for one edition, but the CRM keeps one row per
+    // contact, filed under the edition in its `event`. On an existing row a
+    // "yes" is taken only when it is for that same edition, so a later
+    // edition's "yes" never shows against an earlier one the person declined.
+    // A "no" is always taken: a refusal must never be lost.
+    const consentFor = (rowEvent: unknown): Record<string, unknown> => {
+      if (consent.partnerConsent === false) return consent
+      const sameEdition =
+        typeof rowEvent === 'string' && common.event !== null &&
+        rowEvent.trim().toLowerCase() === common.event.toLowerCase()
+      return sameEdition ? consent : {}
+    }
+
     const table = type === 'speaker' ? 'speakers' : 'delegates'
     const record = type === 'speaker'
-      ? { ...common, status: 'Not Contacted', tags: lineup ? 'Admin panel' : 'Website Registration', year, ...marketing }
-      : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration' }
+      ? { ...common, status: 'Not Contacted', tags: lineup ? 'Admin panel' : 'Website Registration', year, ...marketing, ...consent }
+      : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration', ...consent }
 
-    // Before migration 005 the marketing columns do not exist: retry a write
-    // without them rather than losing the contact.
+    // Before migration 005 the marketing columns do not exist, and before 009
+    // the partnerConsent column: retry a write without whichever is missing
+    // rather than losing the contact.
     const isMissingMarketingColumn = (err: { message?: string } | null) =>
       Boolean(err?.message && /linkedinConsent|headshotUrl|postStatus|adminLineup/.test(err.message))
+    const isMissingConsentColumn = (err: { message?: string } | null) =>
+      Boolean(err?.message && /partnerConsent/.test(err.message))
     const stripMarketing = (r: Record<string, unknown>) => {
       const { linkedinConsent: _c, headshotUrl: _h, bio: _b, adminLineup: _l, ...rest } = r
       return rest
+    }
+    const stripConsent = (r: Record<string, unknown>) => {
+      const { partnerConsent: _p, ...rest } = r
+      return rest
+    }
+    const writeWithFallback = async <T>(
+      row: Record<string, unknown>,
+      write: (r: Record<string, unknown>) => PromiseLike<{ data: T | null; error: { message?: string } | null }>,
+    ): Promise<{ data: T | null; error: { message?: string } | null }> => {
+      let r = row
+      let res = await write(r)
+      // One retry per group of missing columns at most.
+      for (let i = 0; i < 2 && res.error; i++) {
+        const next =
+          isMissingConsentColumn(res.error) && 'partnerConsent' in r ? stripConsent(r)
+          : isMissingMarketingColumn(res.error) ? stripMarketing(r)
+          : null
+        if (!next) break
+        // Nothing left to write once the missing columns are dropped.
+        if (!Object.keys(next).length) return { data: null, error: null }
+        r = next
+        res = await write(r)
+      }
+      return res
     }
 
     // Literal-match helper for ilike: emails/names may contain the LIKE
@@ -171,17 +228,17 @@ export async function POST(req: NextRequest) {
       if (email) {
         const { data: existing } = await supabase
           .from(table)
-          .select('id')
+          .select('id, event')
           .ilike('email', escapeLike(email))
           .limit(1)
         if (existing?.length) {
-          let { error: updErr } = await supabase
-            .from(table)
-            .update(type === 'speaker' && /cancel|reject/i.test(statusOverride) ? { status: statusOverride, adminLineup: false } : { status: statusOverride })
-            .eq('id', existing[0].id)
-          if (updErr && isMissingMarketingColumn(updErr)) {
-            ;({ error: updErr } = await supabase.from(table).update({ status: statusOverride }).eq('id', existing[0].id))
-          }
+          const { error: updErr } = await writeWithFallback(
+            {
+              ...(type === 'speaker' && /cancel|reject/i.test(statusOverride) ? { status: statusOverride, adminLineup: false } : { status: statusOverride }),
+              ...consentFor(existing[0].event),
+            },
+            (r) => supabase.from(table).update(r).eq('id', existing[0].id),
+          )
           if (updErr) throw updErr
           return NextResponse.json(
             { ok: true, updated: true, id: existing[0].id, status: statusOverride },
@@ -189,18 +246,10 @@ export async function POST(req: NextRequest) {
           )
         }
       }
-      let { data: createdRow, error: insErr } = await supabase
-        .from(table)
-        .insert({ ...record, status: statusOverride })
-        .select('id')
-        .single()
-      if (insErr && isMissingMarketingColumn(insErr)) {
-        ;({ data: createdRow, error: insErr } = await supabase
-          .from(table)
-          .insert({ ...stripMarketing(record), status: statusOverride })
-          .select('id')
-          .single())
-      }
+      const { data: createdRow, error: insErr } = await writeWithFallback<{ id: string }>(
+        { ...record, status: statusOverride },
+        (r) => supabase.from(table).insert(r).select('id').single(),
+      )
       if (insErr) throw insErr
       return NextResponse.json(
         { ok: true, created: true, id: createdRow?.id, status: statusOverride },
@@ -213,15 +262,17 @@ export async function POST(req: NextRequest) {
     if (email) {
       const { data: existing } = await supabase
         .from(table)
-        .select('id')
+        .select('id, event')
         .ilike('email', escapeLike(email))
         .limit(1)
       if (existing?.length) {
-        // Already in the CRM: still take the marketing details (a consent
-        // ticked on a later registration, a headshot uploaded afterwards).
-        if (Object.keys(marketing).length) {
-          const { error: mErr } = await supabase.from(table).update(marketing).eq('id', existing[0].id)
-          if (mErr && !isMissingMarketingColumn(mErr)) console.warn('register: marketing update failed:', mErr.message)
+        // Already in the CRM: still take the marketing details (a headshot
+        // uploaded afterwards) and the consent answer, as far as it applies
+        // to the edition this row is filed under.
+        const updates = { ...marketing, ...consentFor(existing[0].event) }
+        if (Object.keys(updates).length) {
+          const { error: mErr } = await writeWithFallback(updates, (r) => supabase.from(table).update(r).eq('id', existing[0].id))
+          if (mErr && !isMissingMarketingColumn(mErr) && !isMissingConsentColumn(mErr)) console.warn('register: marketing/consent update failed:', mErr.message)
         }
         return NextResponse.json(
           { ok: true, duplicate: true, id: existing[0].id, message: 'Already registered — skipped.' },
@@ -236,14 +287,15 @@ export async function POST(req: NextRequest) {
     if (firstName && lastName) {
       const { data: sameName } = await supabase
         .from(table)
-        .select('id, email')
+        .select('id, email, event')
         .ilike('firstName', escapeLike(firstName))
         .ilike('lastName', escapeLike(lastName))
         .limit(10)
-      const emailless = sameName?.find((r: { id: string; email: string | null }) => !r.email?.trim())
+      const emailless = sameName?.find((r: { id: string; email: string | null; event: string | null }) => !r.email?.trim())
       if (emailless) {
-        if (email) {
-          await supabase.from(table).update({ email }).eq('id', emailless.id)
+        const fill = { ...(email ? { email } : {}), ...consentFor(emailless.event) }
+        if (Object.keys(fill).length) {
+          await writeWithFallback(fill, (r) => supabase.from(table).update(r).eq('id', emailless.id))
         }
         return NextResponse.json(
           {
@@ -257,10 +309,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let { data, error } = await supabase.from(table).insert(record).select('id').single()
-    if (error && isMissingMarketingColumn(error)) {
-      ;({ data, error } = await supabase.from(table).insert(stripMarketing(record)).select('id').single())
-    }
+    const { data, error } = await writeWithFallback<{ id: string }>(record, (r) => supabase.from(table).insert(r).select('id').single())
     if (error) throw error
 
     return NextResponse.json({ ok: true, id: data?.id }, { status: 201, headers: CORS_HEADERS })

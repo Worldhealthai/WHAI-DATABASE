@@ -15,6 +15,7 @@ import { AIAssistant } from '@/components/crm/AIAssistant'
 import { useRouter } from 'next/navigation'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
 import { defaultYear, eventSlug, readLastWorkspace, workspaceHref, type PortalKey } from '@/lib/portals'
+import { DatabaseNotice } from './DatabaseNotice'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
@@ -85,6 +86,7 @@ function Frame({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex-1 min-w-0 flex flex-col">
+        <DatabaseNotice />
         <Topbar view={view} title={title} onMenu={() => setMenuOpen(true)} />
         <main className="flex-1 min-w-0">{children}</main>
       </div>
@@ -96,7 +98,12 @@ function Frame({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   if (BARE.has(pathname)) {
-    return <main className="min-h-screen">{children}</main>
+    return (
+      <>
+        {pathname !== '/login' && <DatabaseNotice />}
+        <main className="min-h-screen">{children}</main>
+      </>
+    )
   }
   return (
     <Suspense fallback={<main className="min-h-screen">{children}</main>}>

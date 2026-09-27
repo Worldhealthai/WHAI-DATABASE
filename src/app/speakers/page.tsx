@@ -130,7 +130,7 @@ function KanbanBoard({ speakers, onAdvance, onEdit, advancingId }: {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const mousePos = useRef({ x: 0, y: 0 })
-  const rafRef = useRef<number>()
+  const rafRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     if (!draggingId) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return }
@@ -324,7 +324,7 @@ export default function SpeakersPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'board' | 'grid'>('table')
   const [advancingId, setAdvancingId] = useState<string | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['speakers', filters, page, pageSize, sortBy, sortDir],

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { partnerConsentLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,14 +37,14 @@ export async function GET(req: NextRequest) {
     const HEADER = [
       'First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title',
       'Country', 'City', 'Status', 'Event', 'Type', 'Ticket Type', 'Source',
-      'LinkedIn', 'Tags', 'Notes',
+      'Shares with sponsors', 'LinkedIn', 'Tags', 'Notes',
     ]
 
     const rows = (data ?? []).map((d: any) => [
       d.firstName ?? '', d.lastName ?? '', d.email ?? '', d.phone ?? '',
       d.organization ?? '', d.jobTitle ?? '', d.country ?? '', d.city ?? '',
       d.status ?? '', d.event ?? '', d.subType ?? '', d.ticketType ?? '',
-      d.source ?? '', d.linkedinUrl ?? '', d.tags ?? '', d.notes ?? '',
+      d.source ?? '', partnerConsentLabel(d.partnerConsent), d.linkedinUrl ?? '', d.tags ?? '', d.notes ?? '',
     ])
 
     const csv = [HEADER, ...rows]

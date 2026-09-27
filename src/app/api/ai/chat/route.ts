@@ -139,7 +139,9 @@ RULES:
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const response = await client.messages.create({
+          // `stream: true` makes this an async iterable of stream events at
+          // runtime; the `as any` on the params hides that from the overloads.
+          const response = (await client.messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 1200,
             system: [
@@ -152,7 +154,7 @@ RULES:
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             tools: [{ type: 'web_search_20260209' as any, name: 'web_search', max_uses: 2 }],
             stream: true,
-          } as any)
+          } as any)) as unknown as AsyncIterable<any>
 
           for await (const event of response) {
             if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {

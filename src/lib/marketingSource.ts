@@ -2,7 +2,7 @@
 // read live from worldnexusgroup.com, with this CRM's post tracking laid
 // over it. Server-side only.
 
-import { supabase } from '@/lib/supabase'
+import { setupHint, supabase } from '@/lib/supabase'
 
 export const NEXUS_URL = (process.env.NEXUS_SITE_URL || 'https://www.worldnexusgroup.com').replace(/\/+$/, '')
 
@@ -102,10 +102,10 @@ export async function fetchLineup(ed: Edition): Promise<Lineup> {
   }
 }
 
-export const isMissingTrackingTable = (err: { message?: string } | null | undefined) =>
-  Boolean(err?.message && /marketing_tracking/.test(err.message))
-
-export const TRACKING_HINT = 'The tracking table is missing — run supabase/migrations/007_marketing_tracking.sql in the Supabase SQL editor.'
+// The one-time set-up a tracking error calls for (the tracking table
+// missing, or the Nexus database not set up for the CRM), or null.
+export const trackingSetupHint = (err: unknown) =>
+  setupHint('marketing_tracking', err as { code?: string; message?: string } | null)
 
 export async function readTracking(kind: 'speaker' | 'sponsor', edition: string): Promise<Map<string, Tracking>> {
   const { data, error } = await supabase.from('marketing_tracking').select('*').eq('kind', kind).eq('edition', edition)

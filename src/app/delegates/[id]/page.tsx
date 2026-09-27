@@ -11,7 +11,7 @@ import {
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
 import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
-import type { Delegate } from '@/types'
+import { partnerConsentLabel, type Delegate } from '@/types'
 
 async function fetchDelegate(id: string) {
   const res = await fetch(`/api/delegates/${id}`)
@@ -294,6 +294,7 @@ export default function DelegateDetailPage() {
               <DetailField label="Event" value={delegate.event ?? '—'} />
               <DetailField label="Delegate Type" value={delegate.subType ?? '—'} />
               <DetailField label="Source" value={delegate.source ?? '—'} />
+              <DetailField label="Shares with sponsors" value={partnerConsentLabel(delegate.partnerConsent) || '—'} />
               <DetailField label="Dietary Requirements" value={delegate.dietaryRequirements ?? '—'} />
               <DetailField label="Accessibility Needs" value={delegate.accessibilityNeeds ?? '—'} />
               <DetailField label="Added" value={new Date(delegate.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />

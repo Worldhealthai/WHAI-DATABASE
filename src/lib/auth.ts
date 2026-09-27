@@ -1,4 +1,4 @@
-// Shared password-gate helpers. Used by both the edge middleware and the
+// Shared password-gate helpers. Used by both the proxy (src/proxy.ts) and the
 // Node route handlers, so this must rely only on Web Crypto (globalThis.crypto),
 // which is available in both runtimes.
 
@@ -12,7 +12,7 @@ export function getPassword(): string {
 }
 
 // Derive an opaque session token from the password. The cookie stores this
-// hash, never the plaintext password, and the middleware compares against it.
+// hash, never the plaintext password, and the proxy compares against it.
 export async function tokenFor(password: string): Promise<string> {
   const data = new TextEncoder().encode(`whai::${password}`)
   const digest = await crypto.subtle.digest('SHA-256', data)

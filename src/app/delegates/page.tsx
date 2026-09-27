@@ -95,7 +95,7 @@ export default function DelegatesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['delegates', filters, page, pageSize, sortBy, sortDir],

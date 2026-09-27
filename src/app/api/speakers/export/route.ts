@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { partnerConsentLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     const HEADER = [
       'First Name', 'Last Name', 'Email', 'Phone', 'Organisation', 'Job Title',
       'Country', 'City', 'Event', 'Year', 'Type', 'Status',
-      'Session Title', 'Session Type', 'Fee Status',
+      'Session Title', 'Session Type', 'Fee Status', 'Shares with sponsors',
       'LinkedIn', 'Bio', 'Tags', 'Notes',
     ]
 
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
       s.firstName ?? '', s.lastName ?? '', s.email ?? '', s.phone ?? '',
       s.organization ?? '', s.jobTitle ?? '', s.country ?? '', s.city ?? '',
       s.event ?? '', s.year ? String(s.year) : '', s.subType ?? '', s.status ?? '',
-      s.sessionTitle ?? '', s.sessionType ?? '', s.feeStatus ?? '',
+      s.sessionTitle ?? '', s.sessionType ?? '', s.feeStatus ?? '', partnerConsentLabel(s.partnerConsent),
       s.linkedinUrl ?? '', s.bio ?? '', s.tags ?? '', s.notes ?? '',
     ])
 

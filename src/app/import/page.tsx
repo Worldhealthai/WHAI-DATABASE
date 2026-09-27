@@ -1053,7 +1053,7 @@ export default function ImportPage() {
                   <p className="text-slate-400 text-sm mt-1">Batch: <span className="text-slate-300">{importResult.batches[0]?.name}</span></p>
                 )}
                 <p className="text-slate-400 text-sm mt-3">
-                  They're waiting in the Unassigned inbox. Go through them and assign each one as a Delegate, Speaker, or Sponsor.
+                  They&apos;re waiting in the Unassigned inbox. Go through them and assign each one as a Delegate, Speaker, or Sponsor.
                 </p>
               </>
             )}
