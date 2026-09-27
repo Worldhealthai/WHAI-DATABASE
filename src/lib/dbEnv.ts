@@ -12,7 +12,8 @@
 //                                  service role.
 //
 // Nothing is imported here so that next.config.ts can use the same rules and
-// stop a build whose settings could never work.
+// stop a build whose settings could never work, and ask the project itself
+// whether it takes the key (remoteProblem).
 
 export type DbSchema = 'public' | 'crm'
 export type KeyKind = 'service' | 'public' | 'unknown'
@@ -155,4 +156,80 @@ export function startupProblem(env: Env = process.env): string | null {
   } catch (e) {
     return e instanceof DbEnvError ? e.message : String(e)
   }
+}
+
+// ── What the database's answers mean ───────────────────────────────────────
+
+const MIGRATION_0060 = 'supabase/migrations/0060_crm_schema.sql'
+
+/** What to tell a person when the database is not set up for the CRM. */
+export const DB_MESSAGES = {
+  notExposed:
+    'The Nexus database is not letting its API see the crm schema yet. In the Nexus Supabase project open ' +
+    'Project Settings → Data API (Settings → API on older dashboards), add crm to Exposed schemas, save, then reload the CRM.',
+  noAccess:
+    'The Nexus database refused the CRM access to the crm schema. SUPABASE_SERVICE_ROLE_KEY must be the Nexus ' +
+    `project's service_role (secret) key, and Nexus migration ${MIGRATION_0060} must have been run.`,
+  run0060:
+    `The CRM's tables are not in the Nexus database yet. Run ${MIGRATION_0060} (from the Nexus repository) ` +
+    "in the Nexus project's SQL editor.",
+  badKey:
+    'The database did not accept the CRM\'s Supabase key. Check that SUPABASE_SERVICE_ROLE_KEY is the service_role ' +
+    'key of the same project as NEXT_PUBLIC_SUPABASE_URL.',
+}
+
+export type DbError = { code?: string | null; message?: string | null } | null | undefined
+
+/**
+ * A plain explanation for a database answer that means it is not set up for
+ * the CRM (schema not exposed, tables missing in Nexus, wrong key), or null
+ * for any other answer.
+ */
+export function explainDbError(err: DbError, schema: DbSchema): string | null {
+  if (!err) return null
+  const code = String(err.code ?? '')
+  const message = String(err.message ?? '')
+  if (code === 'PGRST106') {
+    return schema === 'crm' ? DB_MESSAGES.notExposed : `The Supabase project does not expose the ${schema} schema to its API.`
+  }
+  if (code === 'PGRST301' || code === 'PGRST302' || /invalid api key/i.test(message)) return DB_MESSAGES.badKey
+  if (schema === 'crm') {
+    if (code === '42501') return DB_MESSAGES.noAccess
+    if (code === '42P01' || code === 'PGRST205') return DB_MESSAGES.run0060
+  }
+  return null
+}
+
+/**
+ * For the build, with CRM_DB_SCHEMA=crm: reads one row of crm.speakers the
+ * way the CRM will, to learn whether the project takes the key and has the
+ * crm schema ready. The settings alone cannot always tell: a new sb_secret_
+ * key, or a legacy key without a ref, does not say which project it
+ * belongs to. Returns what to fix when the project clearly says no. Returns
+ * null when it answers, and also when it cannot be reached or gives any other
+ * answer, so that a network problem never stops a deployment.
+ */
+export async function remoteProblem(env: Env = process.env, timeoutMs = 10000): Promise<string | null> {
+  let db: DbEnv
+  try {
+    db = readDbEnv(env)
+  } catch {
+    return null // startupProblem reports these
+  }
+  if (db.schema !== 'crm') return null
+  let res: Response
+  try {
+    res = await fetch(new URL('rest/v1/speakers?select=id&limit=1', db.url.endsWith('/') ? db.url : `${db.url}/`), {
+      headers: { apikey: db.key, Authorization: `Bearer ${db.key}`, Accept: 'application/json', 'Accept-Profile': 'crm' },
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch (e) {
+    console.warn(`CRM database settings: could not reach ${db.url} to check the key (${e instanceof Error ? e.message : e}). Building anyway.`)
+    return null
+  }
+  if (res.ok) return null
+  const body = (await res.json().catch(() => null)) as DbError
+  const problem = explainDbError(body, 'crm') ?? (res.status === 401 || res.status === 403 ? DB_MESSAGES.badKey : null)
+  if (!problem) console.warn(`CRM database settings: ${db.url} answered ${res.status} when checking the key. Building anyway.`)
+  return problem
 }
