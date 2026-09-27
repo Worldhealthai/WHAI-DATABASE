@@ -4,7 +4,7 @@
 // Records the marketing team's state against one line-up entry from the
 // admin panel (identified by its Nexus id and the edition label).
 import { NextRequest, NextResponse } from 'next/server'
-import { TRACKING_HINT, isMissingTrackingTable, upsertTracking } from '@/lib/marketingSource'
+import { trackingSetupHint, upsertTracking } from '@/lib/marketingSource'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +34,8 @@ export async function PATCH(req: NextRequest) {
     const saved = await upsertTracking(kind, ref, edition, fields)
     return NextResponse.json({ ok: true, tracking: saved })
   } catch (error: any) {
-    if (isMissingTrackingTable(error)) return NextResponse.json({ error: TRACKING_HINT, migration: true }, { status: 400 })
+    const hint = trackingSetupHint(error)
+    if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
     console.error('track error:', error)
     return NextResponse.json({ error: 'Internal server error', detail: String(error?.message || error).slice(0, 200) }, { status: 500 })
   }

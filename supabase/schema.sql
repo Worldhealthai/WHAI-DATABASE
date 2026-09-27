@@ -1,5 +1,10 @@
 -- WHAI CRM — PostgreSQL Schema (Supabase)
 -- Run this in the Supabase SQL editor to create all tables.
+--
+-- This and supabase/migrations/* are for the CRM's own Supabase project
+-- only. Never run them in the Nexus project: they create tables in public.
+-- Once the CRM runs on Nexus (CRM_DB_SCHEMA=crm, see README.md) its tables
+-- are defined by the Nexus migrations (0060_crm_schema.sql and later).
 
 create extension if not exists "pgcrypto";
 

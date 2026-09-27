@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { checkDatabase, supabase } from '@/lib/supabase'
 import { canonicalEventLabel } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -47,16 +47,20 @@ export async function OPTIONS() {
 
 // Health check — open this URL in a browser to verify the deployment is live
 // and the env vars are configured. Reports presence only, never values.
+// `database` says which project (host only) and schema the CRM reads, and
+// whether every CRM table answers — the Nexus admin's Move CRM page reads it
+// to tell whether the CRM has been switched to the Nexus project.
 export async function GET() {
+  const database = await checkDatabase()
   return NextResponse.json(
     {
       ok: true,
       endpoint: 'POST /api/webhooks/register',
       secretConfigured: Boolean(process.env.WEBHOOK_SECRET?.trim()),
-      supabaseConfigured: Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL &&
-          (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-      ),
+      // With CRM_DB_SCHEMA=crm the anon key does not count: only the
+      // service role key is ever used there.
+      supabaseConfigured: database.configured,
+      database,
     },
     { headers: CORS_HEADERS },
   )

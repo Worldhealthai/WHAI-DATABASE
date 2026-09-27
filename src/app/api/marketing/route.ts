@@ -4,7 +4,7 @@
 // (speakers from the event's Speakers section; sponsors from onboarding
 // forms and manual additions) with this CRM's post tracking laid over it.
 import { NextRequest, NextResponse } from 'next/server'
-import { LineupError, TRACKING_HINT, fetchLineup, isMissingTrackingTable, readTracking, type Tracking } from '@/lib/marketingSource'
+import { LineupError, fetchLineup, readTracking, trackingSetupHint, type Tracking } from '@/lib/marketingSource'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ event: lineup.event, edition: label, data })
   } catch (error: any) {
     if (error instanceof LineupError) return NextResponse.json({ error: error.message }, { status: error.status })
-    if (isMissingTrackingTable(error)) return NextResponse.json({ error: TRACKING_HINT, migration: true }, { status: 400 })
+    const hint = trackingSetupHint(error)
+    if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
     console.error('Marketing API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

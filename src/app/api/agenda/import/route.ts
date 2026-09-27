@@ -3,7 +3,7 @@
 // Reads the team's Word agenda into the digital model and saves it for
 // the edition, replacing what was there. Returns the parsed agenda.
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { setupHint, supabase } from '@/lib/supabase'
 import { parseAgendaDocx } from '@/lib/agenda/parseDocx'
 import { agendaStats } from '@/lib/agenda/model'
 
@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
       .from('agendas')
       .upsert({ edition, data: { title: agenda.title, dateLabel: agenda.dateLabel, venue: agenda.venue, sessions: agenda.sessions }, sourceFile: file.name, updatedAt }, { onConflict: 'edition' })
     if (error) {
-      if (/agendas/.test(error.message || '')) return NextResponse.json({ error: 'The agendas table is missing — run supabase/migrations/008_agendas.sql first.', migration: true }, { status: 400 })
+      const hint = setupHint('agendas', error)
+      if (hint) return NextResponse.json({ error: hint, migration: true }, { status: 400 })
       throw error
     }
     return NextResponse.json({ ok: true, agenda: { ...agenda, updatedAt }, stats: agendaStats(agenda) })
