@@ -22,7 +22,7 @@ const serviceKeySetting = () => (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').tr
 
 /** Every table the CRM uses. */
 export const CRM_TABLES = [
-  'delegates', 'speakers', 'sponsors', 'partners', 'activities', 'staged_contacts', 'marketing_tracking', 'agendas',
+  'delegates', 'speakers', 'sponsors', 'partners', 'activities', 'staged_contacts', 'marketing_tracking', 'agendas', 'marketing_content',
 ] as const
 
 /**
@@ -31,7 +31,7 @@ export const CRM_TABLES = [
  * never have run them; the feature then explains the step on its own screen,
  * and the rest of the CRM works as usual.
  */
-const OPTIONAL_TABLES: ReadonlySet<string> = new Set(['marketing_tracking', 'agendas'])
+const OPTIONAL_TABLES: ReadonlySet<string> = new Set(['marketing_tracking', 'agendas', 'marketing_content'])
 
 /** Error code of the answers made up here when the database is not set up for the CRM. */
 export const SETUP_ERROR_CODE = 'CRM_DB_SETUP'
@@ -70,11 +70,17 @@ export function describeDbError(err: DbError, schema: DbSchema = currentSchema()
 const PUBLIC_MIGRATION_HINTS: Partial<Record<(typeof CRM_TABLES)[number], string>> = {
   agendas: 'The agendas table is missing — run supabase/migrations/008_agendas.sql in the Supabase SQL editor.',
   marketing_tracking: 'The tracking table is missing — run supabase/migrations/007_marketing_tracking.sql in the Supabase SQL editor.',
+  marketing_content: 'The content table is missing — run supabase/migrations/010_marketing_content.sql in the Supabase SQL editor.',
+}
+
+// Tables added after the move into Nexus (0060) have a migration of their own there.
+const CRM_SCHEMA_HINTS: Partial<Record<(typeof CRM_TABLES)[number], string>> = {
+  marketing_content: 'The content table is missing — run supabase/migrations/0063_crm_marketing_content.sql from the Nexus repository in the Supabase SQL editor.',
 }
 
 /** What to run when one of the CRM's tables is missing, for the database in use. */
 export function missingTableHint(table: (typeof CRM_TABLES)[number]): string {
-  if (currentSchema() === 'crm') return MESSAGES.run0060
+  if (currentSchema() === 'crm') return CRM_SCHEMA_HINTS[table] ?? MESSAGES.run0060
   return PUBLIC_MIGRATION_HINTS[table] ?? `The ${table} table is missing — see supabase/schema.sql.`
 }
 
