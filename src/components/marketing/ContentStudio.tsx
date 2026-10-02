@@ -13,20 +13,29 @@ import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { LogPostModal, Notice, Tone, useEdition } from './shared'
+import { CARD_LAYOUTS, type CardLayout } from '@/lib/contentBrand'
 
-type Kind = 'insight' | 'session' | 'speaker' | 'theme' | 'countdown' | 'sponsor'
+type Kind = 'insight' | 'session' | 'speaker' | 'theme' | 'countdown' | 'sponsor' | 'platform' | 'signal' | 'event'
 type Pick = 'auto' | Kind
+type Track = 'event' | 'nexus'
 
 // As lib/contentStudio.ts has them; listed here so the page needs nothing server-side.
-const KINDS: { value: Kind; label: string; hint: string }[] = [
-  { value: 'insight', label: 'Insight', hint: 'A published Insights briefing' },
-  { value: 'session', label: 'Session', hint: 'A session on the agenda and its questions' },
-  { value: 'speaker', label: 'Speaker', hint: 'A confirmed speaker who agreed to a post' },
-  { value: 'theme', label: 'Theme', hint: 'A topic the agenda raises' },
-  { value: 'countdown', label: 'Countdown', hint: 'Days to go, and booking' },
-  { value: 'sponsor', label: 'Sponsor', hint: 'A sponsor on the line-up' },
+const KINDS: { value: Kind; label: string; hint: string; track: Track }[] = [
+  { value: 'insight', label: 'Insight', hint: 'A published Insights briefing', track: 'event' },
+  { value: 'session', label: 'Session', hint: 'A session on the agenda and its questions', track: 'event' },
+  { value: 'speaker', label: 'Speaker', hint: 'A confirmed speaker who agreed to a post', track: 'event' },
+  { value: 'theme', label: 'Theme', hint: 'A topic the agenda raises', track: 'event' },
+  { value: 'countdown', label: 'Countdown', hint: 'Days to go, and booking', track: 'event' },
+  { value: 'sponsor', label: 'Sponsor', hint: 'A sponsor on the line-up', track: 'event' },
+  { value: 'insight', label: 'Insight', hint: 'A published Insights briefing, any series', track: 'nexus' },
+  { value: 'platform', label: 'Platform', hint: 'What the intelligence platform tracks, in its own figures', track: 'nexus' },
+  { value: 'signal', label: 'Signal', hint: 'A kind of market movement it watches: funding, deployments, hiring, M&A', track: 'nexus' },
+  { value: 'event', label: 'Event', hint: 'The next summit across the group', track: 'nexus' },
 ]
 const kindLabel = (k: string) => KINDS.find((x) => x.value === k)?.label ?? k
+
+// The group's own page, filed as an edition of its own.
+const NEXUS = { series: 'World Nexus Group', city: '', year: '', label: 'World Nexus Group' }
 
 export interface Post {
   id: string
@@ -41,6 +50,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
+  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string }
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -53,7 +63,11 @@ const fmtDay = (iso: string | null) =>
   iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : 'No day set'
 
 export function ContentStudio() {
-  const ed = useEdition()
+  const edition = useEdition()
+  // Which page the posts are for: this edition, or World Nexus Group (the
+  // parent, whose page is about the intelligence platform).
+  const [track, setTrack] = useState<Track>('event')
+  const ed = track === 'nexus' ? NEXUS : edition
   const qc = useQueryClient()
   const key = ['marketing', 'content', ed?.label ?? '']
   const q = useQuery<{ data: Post[]; error?: string; migration?: boolean }>({
@@ -76,6 +90,7 @@ export function ContentStudio() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [view, setView] = useState<'all' | 'draft' | 'posted'>('all')
+  const kinds = KINDS.filter((k) => k.track === track)
 
   async function generate(opts: { kind?: Pick; brief?: string; forDate?: string } = {}) {
     if (!ed) return
@@ -107,7 +122,20 @@ export function ContentStudio() {
   return (
     <WorkspacePage
       title="Content"
-      description="A LinkedIn post a day for this edition: an image in the event's own look and a caption in its voice, drawn from the Insights desk, the agenda, the line-up and the countdown."
+      description={track === 'nexus'
+        ? 'A LinkedIn post a day for World Nexus Group: the intelligence platform, the market signals it watches, the Insights desk and the next summit, in the group\u2019s own look.'
+        : 'A LinkedIn post a day for this edition: an image in the event\u2019s own look and a caption in its voice, drawn from the Insights desk, the agenda, the line-up and the countdown.'}
+      actions={
+        <Segmented
+          size="sm"
+          value={track}
+          onChange={(t) => { setTrack(t); setPick('auto'); setError('') }}
+          options={[
+            { value: 'event', label: edition ? `${edition.series} ${edition.city} ${edition.year}`.replace(/\s+/g, ' ').trim() : 'This edition', hint: 'Posts for the event\u2019s own page' },
+            { value: 'nexus', label: 'World Nexus Group', hint: 'Posts for the group\u2019s page: the intelligence platform' },
+          ]}
+        />
+      }
     >
       {q.data?.error ? (
         <Notice message={q.data.error} tone={migration ? 'warn' : 'bad'} />
@@ -130,14 +158,14 @@ export function ContentStudio() {
               <Field label="What it is about" hint="Choose for me rotates through the kinds, skipping what the last posts used.">
                 <select className="ws-input" value={pick} onChange={(e) => setPick(e.target.value as Pick)}>
                   <option value="auto">Choose for me</option>
-                  {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}: {k.hint}</option>)}
+                  {kinds.map((k) => <option key={k.value} value={k.value}>{k.label}: {k.hint}</option>)}
                 </select>
               </Field>
               <Field label="Planned for" hint="Left blank, the next day with nothing planned.">
                 <input className="ws-input" type="date" value={forDate} onChange={(e) => setForDate(e.target.value)} />
               </Field>
               <Field label="Any steer (optional)" span hint="A line for the writer: an angle, a person to mention, something to leave out.">
-                <input className="ws-input" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="e.g. Lead with the NHS angle; mention the early-bird rate ends Friday" />
+                <input className="ws-input" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={track === 'nexus' ? 'e.g. Aim it at investors; keep it to deployments' : 'e.g. Lead with the NHS angle; mention the early-bird rate ends Friday'} />
               </Field>
             </div>
             <div className="flex flex-wrap items-center gap-3 mt-3">
@@ -189,6 +217,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   const [copied, setCopied] = useState(false)
   const [logging, setLogging] = useState(false)
   const [v, setV] = useState(0)
+  const [layout, setLayout] = useState<CardLayout>(post.source?.layout ?? 'headline')
   const dirty = caption !== post.caption || headline !== post.headline || subline !== post.subline || kicker !== post.kicker
   const text = `${caption.trim()}\n\n${post.hashtags.join(' ')}`.trim()
   const image = `/api/marketing/content/${post.id}/image?v=${encodeURIComponent(post.updatedAt)}-${v}`
@@ -224,8 +253,17 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image} alt="" width={1080} height={1080} className="w-full h-auto block" style={{ aspectRatio: '1 / 1', background: '#0A0F1D' }} />
           <div className="flex items-center gap-2 mt-3">
-            <a href={`${image}&download=1`} className="ws-btn ws-btn-sm"><Download className="w-3.5 h-3.5" /> Save image</a>
-            <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>1080 × 1080</span>
+            <select
+              className="ws-input"
+              style={{ height: 32, padding: '0 8px', fontSize: 12.5, flex: 1 }}
+              value={layout}
+              onChange={async (e) => { const l = e.target.value as CardLayout; setLayout(l); await patch({ layout: l }) }}
+              aria-label="Card layout"
+              title="How the card is set"
+            >
+              {CARD_LAYOUTS.map((l) => <option key={l.value} value={l.value}>{l.label}: {l.hint}</option>)}
+            </select>
+            <a href={`${image}&download=1`} className="ws-btn ws-btn-sm" title="1080 × 1080 PNG"><Download className="w-3.5 h-3.5" /> Save</a>
           </div>
         </div>
 

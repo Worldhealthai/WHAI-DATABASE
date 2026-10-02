@@ -1,39 +1,37 @@
-// The Content tab's drafts: one LinkedIn post at a time for an edition, in
-// the brand's voice, from what the group already holds about it. Server
-// side only.
+// The Content tab's drafts: one LinkedIn post at a time, in the brand's
+// voice, from what the group already holds. Server side only.
 //
-// Where a post's idea comes from (its `kind`):
-//   insight   — a published Insights briefing on worldnexusgroup.com
-//   speaker   — a confirmed speaker on the line-up who agreed to a post
-//   session   — a session in the digital agenda and its questions
-//   sponsor   — a sponsor on the line-up
-//   countdown — the days to go, and booking
-//   theme     — a topic drawn from the agenda's questions
+// Two tracks share the tab:
+//   · An event's edition (World Health AI London 2027, …): the kinds are
+//     insight, session, speaker, sponsor, countdown and theme, drawn from
+//     the Insights desk, the digital agenda, the line-up and the date.
+//   · World Nexus Group itself, the parent, whose page is about the
+//     intelligence platform: the kinds are insight (every briefing),
+//     platform (what it tracks, in its own figures), signal (the kinds of
+//     market movement it watches) and event (the next summit).
 // A kind that is not asked for is chosen in turn, skipping the kinds and
-// the people or articles the last posts used, so a run of days does not
+// the articles or people the last posts used, so a run of days does not
 // repeat itself.
 //
 // Claude writes the words (the card's kicker, headline and subline, the
-// caption and the hashtags) against a voice guide drawn from the event
-// sites; the card itself is drawn here (lib/contentCard.tsx), so it is
-// always in the brand's own look.
+// caption and the hashtags) against a voice guide drawn from the sites;
+// the card is drawn here (lib/contentCard.tsx) in one of several layouts,
+// so it is always in the brand's own look.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
-import { NEXUS_URL, fetchLineup, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
+import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
 import { eventLook } from '@/lib/portals'
+import { BRANDS, brandFor, type BrandKey, type CardLayout } from '@/lib/contentBrand'
 
-export type ContentKind = 'insight' | 'speaker' | 'session' | 'sponsor' | 'countdown' | 'theme'
-export const CONTENT_KINDS: { value: ContentKind; label: string; hint: string }[] = [
-  { value: 'insight', label: 'Insight', hint: 'A published Insights briefing' },
-  { value: 'session', label: 'Session', hint: 'A session on the agenda and its questions' },
-  { value: 'speaker', label: 'Speaker', hint: 'A confirmed speaker who agreed to a post' },
-  { value: 'theme', label: 'Theme', hint: 'A topic the agenda raises' },
-  { value: 'countdown', label: 'Countdown', hint: 'Days to go, and booking' },
-  { value: 'sponsor', label: 'Sponsor', hint: 'A sponsor on the line-up' },
-]
-const ROTATION: ContentKind[] = ['insight', 'session', 'speaker', 'theme', 'countdown', 'sponsor']
+export type ContentKind = 'insight' | 'speaker' | 'session' | 'sponsor' | 'countdown' | 'theme' | 'platform' | 'signal' | 'event'
+export const EVENT_KINDS: ContentKind[] = ['insight', 'session', 'speaker', 'theme', 'countdown', 'sponsor']
+export const NEXUS_KINDS: ContentKind[] = ['insight', 'platform', 'signal', 'event']
+
+// The group's own page: the edition the tab files its posts under.
+export const NEXUS_EDITION: Edition = { series: 'World Nexus Group', city: '', year: '', label: 'World Nexus Group' }
+export const isNexus = (ed: Edition) => brandFor(ed.series) === 'nexus'
 
 export interface ContentPost {
   id: string
@@ -57,15 +55,11 @@ export interface ContentPost {
   updatedAt: string
 }
 
-// The brand site each series posts for.
-export function brandSite(series: string): string {
-  return /pharma/i.test(series) ? 'https://worldpharma.ai' : 'https://worldhealth.ai'
-}
-
-// ── What the group holds about the edition ──────────────────────────────────
+// ── What the group holds ────────────────────────────────────────────────────
 
 interface PublicEvent { slug: string; series: string; label: string; city: string | null; country: string | null; date: string | null; status: string }
-interface PublicInsight { slug: string; title: string; dek: string | null; category: string | null; published_at: string | null }
+interface PublicInsight { slug: string; title: string; dek: string | null; category: string | null; published_at: string | null; cover_image?: string | null }
+interface GalleryPhoto { image_url: string; title: string | null }
 
 async function readJson<T>(url: string, fallback: T): Promise<T> {
   try {
@@ -83,83 +77,163 @@ async function readAgenda(edition: string): Promise<Agenda | null> {
   return normaliseAgenda(data.data as Agenda)
 }
 
+// What the group's own site says about the intelligence platform
+// (worldnexusgroup.com/intelligence). Figures as published there; the
+// writer may use these and nothing else.
+const PLATFORM = {
+  name: 'The Nexus intelligence platform',
+  what: 'A live intelligence system for the AI economy in healthcare and pharma: every AI-first vendor, the capital behind them, the operators running them, and the health systems deploying them, reconciled against the public record and refreshed continuously.',
+  stats: [
+    { n: '290+', label: 'AI vendors tracked' },
+    { n: '1,280+', label: 'named operators' },
+    { n: '2,900+', label: 'live market signals' },
+    { n: '45+', label: 'deployments mapped' },
+    { n: '15', label: 'coverage categories' },
+  ],
+  signals: [
+    { kind: 'Funding', watches: 'rounds closed by AI-first vendors in healthcare and pharma, and the investors behind them' },
+    { kind: 'Deployment', watches: 'AI going live inside health systems and pharma companies, and at what scale' },
+    { kind: 'Hiring', watches: 'clinical and technical AI teams growing or shrinking at vendors and operators' },
+    { kind: 'M&A', watches: 'vendors acquired, merged or folded into larger platforms' },
+    { kind: 'Partnership', watches: 'vendors and health systems or pharma companies announcing work together' },
+  ],
+  link: 'https://www.worldnexusgroup.com/intelligence',
+}
+
 export interface EditionContext {
   ed: Edition
-  look: ReturnType<typeof eventLook>
+  brand: BrandKey
   site: string
   event: PublicEvent | null
+  upcoming: PublicEvent[]
   daysToGo: number | null
   insights: PublicInsight[]
   speakers: LineupSpeaker[]
   sponsors: LineupSponsor[]
   sessions: Session[]
+  photos: string[]
   recent: Pick<ContentPost, 'kind' | 'ref' | 'headline'>[]
 }
 
+const parseDay = (date: string | null | undefined) => {
+  const t = date ? Date.parse(date.replace(/^[A-Za-z]+,?\s+/, '')) : NaN
+  return Number.isFinite(t) ? t : null
+}
+
 export async function gatherContext(ed: Edition): Promise<EditionContext> {
-  const look = eventLook(`${ed.series} ${ed.city}`.trim())
-  const [events, insightsRes, lineup, agenda, recentRes] = await Promise.all([
+  const brand = brandFor(ed.series)
+  const nexus = brand === 'nexus'
+  const [events, insightsRes, lineup, agenda, gallery, recentRes] = await Promise.all([
     readJson<{ events: PublicEvent[] }>(`${NEXUS_URL}/api/public-events`, { events: [] }),
     readJson<{ articles?: PublicInsight[] }>(`${NEXUS_URL}/api/public/insights?series=${encodeURIComponent(ed.series)}`, { articles: [] }),
-    fetchLineup(ed).catch(() => ({ event: null, speakers: [], sponsors: [] })),
-    readAgenda(ed.label),
+    nexus ? Promise.resolve({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] }) : fetchLineup(ed).catch(() => ({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] })),
+    nexus ? Promise.resolve(null) : readAgenda(ed.label),
+    readJson<{ photos: GalleryPhoto[] }>(`${NEXUS_URL}/api/public/gallery?site=${brand === 'nexus' ? 'all' : brand}`, { photos: [] }),
     supabase.from('marketing_content').select('kind, ref, headline').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(30),
   ])
-  const event =
-    events.events.find((e) => e.series === ed.series && (e.city || '') === ed.city && e.label.endsWith(ed.year)) ??
-    events.events.find((e) => e.series === ed.series && e.label.endsWith(ed.year)) ??
-    null
-  const insights = insightsRes.articles ?? []
-  // Days to go, from the event's date line ("22 September 2027").
-  let daysToGo: number | null = null
-  const when = event?.date ? Date.parse(event.date.replace(/^[A-Za-z]+,?\s+/, '')) : NaN
-  if (Number.isFinite(when)) daysToGo = Math.ceil((when - Date.now()) / 86400000)
+  const now = Date.now()
+  const upcoming = events.events
+    .filter((e) => e.status !== 'draft' && e.status !== 'past' && (parseDay(e.date) ?? Infinity) > now)
+    .sort((a, b) => (parseDay(a.date) ?? Infinity) - (parseDay(b.date) ?? Infinity))
+  const event = nexus
+    ? null
+    : events.events.find((e) => e.series === ed.series && (e.city || '') === ed.city && e.label.endsWith(ed.year)) ??
+      events.events.find((e) => e.series === ed.series && e.label.endsWith(ed.year)) ??
+      null
+  const when = parseDay(event?.date)
   return {
     ed,
-    look,
-    site: brandSite(ed.series),
+    brand,
+    site: BRANDS[brand].url,
     event,
-    daysToGo,
-    insights: insights.slice(0, 20),
+    upcoming,
+    daysToGo: when ? Math.ceil((when - now) / 86400000) : null,
+    insights: (insightsRes.articles ?? []).slice(0, 20),
     speakers: lineup.speakers,
     sponsors: lineup.sponsors,
     sessions: agenda?.sessions.filter((s) => s.type !== 'break' && s.title) ?? [],
+    photos: gallery.photos.map((p) => p.image_url).filter(Boolean),
     recent: ((recentRes.data ?? []) as Pick<ContentPost, 'kind' | 'ref' | 'headline'>[]),
   }
 }
 
 // ── Choosing what today's post is about ─────────────────────────────────────
 
-interface Pick_ { kind: ContentKind; ref: string | null; source: Record<string, unknown>; link: string }
+interface Choice { kind: ContentKind; ref: string | null; source: Record<string, unknown>; link: string; layout: CardLayout }
 
-function pools(ctx: EditionContext): Record<ContentKind, Pick_[]> {
+// A photo for the card, different from the last few posts' where it can be.
+function pickPhoto(ctx: EditionContext, seed: string): string | null {
+  if (!ctx.photos.length) return null
+  const used = new Set(ctx.recent.slice(0, 6).map((r) => String((r as { source?: { photo?: string } }).source?.photo ?? '')))
+  const fresh = ctx.photos.filter((p) => !used.has(p))
+  const pool = fresh.length ? fresh : ctx.photos
+  let h = 0
+  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return pool[h % pool.length]
+}
+
+function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
   const used = new Set(ctx.recent.map((r) => `${r.kind}:${r.ref}`))
-  const fresh = (kind: ContentKind, items: Pick_[]) => {
+  const fresh = (kind: ContentKind, items: Choice[]) => {
     const unused = items.filter((i) => !used.has(`${kind}:${i.ref}`))
     return unused.length ? unused : items
   }
   const site = ctx.site
   const confirmedIn = (s: Session) => s.speakers.filter((x) => x.status === 'confirmed' && x.name.trim())
+  // The headline layout and the split layout take turns on the briefings.
+  const alternate = (i: number): CardLayout => (i % 2 ? 'headline' : 'split')
+  const withPhoto = (seed: string, otherwise: CardLayout): { layout: CardLayout; photo?: string } => {
+    const photo = pickPhoto(ctx, seed)
+    return photo ? { layout: 'photo', photo } : { layout: otherwise }
+  }
+
+  if (ctx.brand === 'nexus') {
+    return {
+      insight: fresh('insight', ctx.insights.map((i, n) => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}`, layout: alternate(n) }))),
+      platform: fresh('platform', [
+        { kind: 'platform', ref: 'what', source: { platform: PLATFORM.name, what: PLATFORM.what, stats: PLATFORM.stats }, link: PLATFORM.link, layout: 'split' },
+        ...PLATFORM.stats.map((s) => ({ kind: 'platform' as const, ref: `stat:${s.label}`, source: { platform: PLATFORM.name, what: PLATFORM.what, figure: s.n, label: s.label }, link: PLATFORM.link, layout: 'number' as const })),
+      ]),
+      signal: fresh('signal', PLATFORM.signals.map((s) => ({ kind: 'signal', ref: s.kind, source: { platform: PLATFORM.name, what: PLATFORM.what, signal: s.kind, watches: s.watches, note: 'Write about this kind of signal and why it matters to decision-makers. Do not invent any specific company, deal, figure or date.' }, link: PLATFORM.link, layout: 'headline' }))),
+      event: fresh('event', ctx.upcoming.map((e) => {
+        const days = parseDay(e.date)
+        const look = eventLook(`${e.series} ${e.city ?? ''}`.trim())
+        const photo = withPhoto(e.slug, 'split')
+        return { kind: 'event' as const, ref: e.slug, source: { series: e.series, city: e.city, date: e.date, daysToGo: days ? Math.ceil((days - Date.now()) / 86400000) : null, site: look.key === 'pharma' ? BRANDS.pharma.url : BRANDS.health.url, ...photo }, link: look.key === 'pharma' ? `${BRANDS.pharma.url}/book` : `${BRANDS.health.url}/book`, layout: photo.layout }
+      })),
+    }
+  }
+
   return {
-    insight: fresh('insight', ctx.insights.map((i) => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}` }))),
-    session: fresh('session', ctx.sessions.map((s) => ({ kind: 'session', ref: s.id, source: { title: s.title, type: s.type, talkTitle: s.talkTitle, points: s.points, speakers: confirmedIn(s).map((x) => ({ name: x.name, role: x.role, org: x.org, moderator: x.moderator })) }, link: `${site}/events` }))),
-    speaker: fresh('speaker', ctx.speakers.filter((s) => s.linkedin_consent === true && s.name).map((s) => ({ kind: 'speaker', ref: s.id, source: { name: s.name, role: s.role, org: s.org, bio: (s.bio || '').slice(0, 600) }, link: `${site}/speakers` }))),
-    theme: fresh('theme', ctx.sessions.flatMap((s) => s.points.map((p, i) => ({ kind: 'theme' as const, ref: `${s.id}:${i}`, source: { question: p, session: s.title }, link: `${site}/events` })))),
-    countdown: ctx.daysToGo != null && ctx.daysToGo > 0 ? [{ kind: 'countdown', ref: String(ctx.daysToGo), source: { daysToGo: ctx.daysToGo }, link: `${site}/book` }] : [],
-    sponsor: fresh('sponsor', ctx.sponsors.filter((s) => s.name).map((s) => ({ kind: 'sponsor', ref: s.id, source: { name: s.name, tier: s.tier, category: s.category, website: s.website }, link: `${site}/partners` }))),
+    insight: fresh('insight', ctx.insights.map((i, n) => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}`, layout: alternate(n) }))),
+    session: fresh('session', ctx.sessions.map((s) => {
+      const photo = withPhoto(s.id, 'split')
+      return { kind: 'session' as const, ref: s.id, source: { title: s.title, type: s.type, talkTitle: s.talkTitle, points: s.points, speakers: confirmedIn(s).map((x) => ({ name: x.name, role: x.role, org: x.org, moderator: x.moderator })), ...photo }, link: `${site}/events`, layout: photo.layout }
+    })),
+    speaker: fresh('speaker', ctx.speakers.filter((s) => s.linkedin_consent === true && s.name).map((s) => {
+      const image = absoluteUrl(s.image)
+      return { kind: 'speaker' as const, ref: s.id, source: { name: s.name, role: s.role, org: s.org, bio: (s.bio || '').slice(0, 600), image }, link: `${site}/speakers`, layout: image ? 'portrait' as const : 'headline' as const }
+    })),
+    theme: fresh('theme', ctx.sessions.flatMap((s) => s.points.map((p, i) => ({ kind: 'theme' as const, ref: `${s.id}:${i}`, source: { question: p, session: s.title }, link: `${site}/events`, layout: 'split' as const })))),
+    countdown: ctx.daysToGo != null && ctx.daysToGo > 0 ? [{ kind: 'countdown', ref: String(ctx.daysToGo), source: { daysToGo: ctx.daysToGo, figure: String(ctx.daysToGo), label: ctx.daysToGo === 1 ? 'day to go' : 'days to go' }, link: `${site}/book`, layout: 'number' }] : [],
+    sponsor: fresh('sponsor', ctx.sponsors.filter((s) => s.name).map((s) => {
+      const logo = absoluteUrl(s.logo)
+      return { kind: 'sponsor' as const, ref: s.id, source: { name: s.name, tier: s.tier, category: s.category, website: s.website, logo }, link: `${site}/partners`, layout: logo ? 'logo' as const : 'split' as const }
+    })),
   }
 }
 
-function choose(ctx: EditionContext, wanted: ContentKind | null): Pick_ {
+function choose(ctx: EditionContext, wanted: ContentKind | null): Choice {
   const all = pools(ctx)
+  const rotation = ctx.brand === 'nexus' ? NEXUS_KINDS : EVENT_KINDS
   if (wanted) {
-    const pool = all[wanted]
+    const pool = all[wanted] ?? []
     if (!pool.length) throw new ContentError(emptyPoolMessage(wanted, ctx))
     return pool[0]
   }
   const lastKinds = ctx.recent.slice(0, 2).map((r) => r.kind)
-  const order = [...ROTATION.filter((k) => !lastKinds.includes(k)), ...ROTATION.filter((k) => lastKinds.includes(k))]
-  for (const k of order) if (all[k].length) return all[k][0]
+  const order = [...rotation.filter((k) => !lastKinds.includes(k)), ...rotation.filter((k) => lastKinds.includes(k))]
+  for (const k of order) if (all[k]?.length) return all[k]![0]
   throw new ContentError('There is nothing to write from yet: no published Insights, no agenda, no speakers who agreed to a post, and no event date. Add some of those first.')
 }
 
@@ -171,6 +245,9 @@ function emptyPoolMessage(kind: ContentKind, ctx: EditionContext): string {
     case 'theme': return 'The agenda has no discussion points yet to draw a theme from.'
     case 'countdown': return ctx.daysToGo != null && ctx.daysToGo <= 0 ? 'The event date has passed, so there is no countdown.' : 'The event has no date on worldnexusgroup.com yet.'
     case 'sponsor': return 'No sponsors on the line-up yet.'
+    case 'event': return 'No upcoming event with a date on worldnexusgroup.com yet.'
+    case 'platform':
+    case 'signal': return 'Nothing to draw on for that kind.'
   }
 }
 
@@ -186,18 +263,18 @@ export class ContentError extends Error {
 
 // The voice, as the event sites keep it (world-event-sites, anti-slop) and
 // the Insights desk writes (Nexus, insights/generate).
-const VOICE = `You write LinkedIn posts for World Nexus Group's executive AI summits: World Health AI (clinical leaders, the NHS, health systems and health-tech) and World Pharma AI (AI across pharma R&D, manufacturing and commercial). The posts go out from the event's own page.
+const VOICE = `You write LinkedIn posts for World Nexus Group and its executive AI summits: World Health AI (clinical leaders, the NHS, health systems and health-tech) and World Pharma AI (AI across pharma R&D, manufacturing and commercial). World Nexus Group is the parent: its own page is about its intelligence platform, a live map of the AI economy in healthcare and pharma (the vendors, the capital behind them, the operators, the deployments, and the market signals: funding, deployments, hiring, M&A, partnerships). Each post goes out from the page named in the brief.
 
 Voice:
 - Short, plain British English. Say what it is. Specific beats grand.
 - No hype words (unlock, elevate, seamless, revolutionise, cutting-edge, game-changing, excited, thrilled, delighted). No exclamation marks. No rhetorical questions. No emoji. No em-dashes anywhere: use commas, colons or full stops.
 - Sentence case throughout. Never shout in capitals.
-- Never invent figures, quotations, names, titles or claims. Use only what the brief supplies. If a detail is not supplied, leave it out.
-- Speak as the event, in the first person plural where natural ("we", "our London summit"), never as an individual.
+- Never invent figures, quotations, names, titles, companies, deals or claims. Use only what the brief supplies. If a detail is not supplied, leave it out.
+- Speak as the page, in the first person plural where natural ("we", "our London summit", "our platform"), never as an individual.
 
-The card (the image) carries: a kicker (2 to 4 words, e.g. "Panel discussion", "On the line-up", "42 days to go", "From our Insights desk"), a headline (at most 70 characters, one idea, no full stop), and a subline (at most 90 characters: the supporting fact, a name and role, a question, or the date and city).
+The card (the image) carries: a kicker (2 to 4 words, e.g. "Panel discussion", "On the line-up", "42 days to go", "From our Insights desk", "Inside the platform"), a headline (at most 70 characters, one idea, no full stop), and a subline (at most 90 characters: the supporting fact, a name and role, a question, or the date and city). When the brief gives a figure for a number card, the headline is the label of that figure, not the figure itself.
 
-The caption (the post text): 70 to 140 words. The first line must stand on its own, because LinkedIn folds the rest. Short paragraphs, one blank line between them. End with one line that points to the link, as a plain verb phrase ("Book your pass:", "Read the briefing:", "See who's speaking:") followed by the URL given. Then the hashtags on their own final line: 3 to 5, CamelCase, no spaces, always including the event's own tag (#WorldHealthAI or #WorldPharmaAI) and the city.`
+The caption (the post text): 70 to 140 words. The first line must stand on its own, because LinkedIn folds the rest. Short paragraphs, one blank line between them. End with one line that points to the link, as a plain verb phrase ("Book your pass:", "Read the briefing:", "See who's speaking:", "See the platform:") followed by the URL given. Then the hashtags on their own final line: 3 to 5, CamelCase, no spaces, always including the page's own tag (#WorldHealthAI, #WorldPharmaAI or #WorldNexusGroup) and, for an event, the city.`
 
 const SCHEMA = {
   type: 'object',
@@ -214,16 +291,19 @@ const SCHEMA = {
 
 interface Draft { kicker: string; headline: string; subline: string; caption: string; hashtags: string[] }
 
-function brief(ctx: EditionContext, pick: Pick_, extra: string | null): string {
+function brief(ctx: EditionContext, pick: Choice, extra: string | null): string {
   const ev = ctx.event
+  const page = ctx.brand === 'nexus' ? 'World Nexus Group (the group page, about the intelligence platform)' : `${ctx.ed.series}, ${ctx.ed.city || ev?.city || ''} ${ctx.ed.year}`.trim()
+  const { photo: _photo, image: _image, logo: _logo, ...material } = pick.source as Record<string, unknown>
   const lines = [
-    `Event: ${ctx.ed.series}, ${ctx.ed.city || ev?.city || ''} ${ctx.ed.year}`.trim(),
-    ev?.date ? `Date: ${ev.date}` : 'Date: not announced yet (do not mention a date)',
+    `Page the post goes out from: ${page}`,
+    ctx.brand !== 'nexus' ? (ev?.date ? `Date: ${ev.date}` : 'Date: not announced yet (do not mention a date)') : '',
     ctx.daysToGo != null && ctx.daysToGo > 0 ? `Days to go: ${ctx.daysToGo}` : '',
     `Website: ${ctx.site}`,
     `Link to end the caption with: ${pick.link}`,
     `Post type: ${pick.kind}`,
-    `Material (use only this): ${JSON.stringify(pick.source)}`,
+    `Card layout: ${pick.layout}${pick.layout === 'number' ? ' (the figure is shown large; the headline is its label)' : ''}`,
+    `Material (use only this): ${JSON.stringify(material)}`,
     ctx.recent.length ? `Headlines of the last posts, not to repeat: ${ctx.recent.slice(0, 8).map((r) => JSON.stringify(r.headline)).join(', ')}` : '',
     extra ? `The marketing team's own steer for this post: ${extra}` : '',
     'Return the post as JSON with kicker, headline, subline, caption and hashtags.',
@@ -231,7 +311,7 @@ function brief(ctx: EditionContext, pick: Pick_, extra: string | null): string {
   return lines.filter(Boolean).join('\n')
 }
 
-async function write(ctx: EditionContext, pick: Pick_, extra: string | null): Promise<Draft> {
+async function write(ctx: EditionContext, pick: Choice, extra: string | null): Promise<Draft> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
   if (!apiKey) throw new ContentError('ANTHROPIC_API_KEY is not set on the CRM, so nothing can be written.', 400)
   const client = new Anthropic({ apiKey })
@@ -293,7 +373,7 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     forDate: opts.forDate || (await nextFreeDay(ed.label)),
     ...draft,
     link: pick.link,
-    source: { ...pick.source, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
+    source: { ...pick.source, layout: pick.layout, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),

@@ -4,7 +4,7 @@
 //        drafts one post (lib/contentStudio) and stores it
 import { NextRequest, NextResponse } from 'next/server'
 import { setupHint, supabase } from '@/lib/supabase'
-import { CONTENT_KINDS, ContentError, draftPost, type ContentKind } from '@/lib/contentStudio'
+import { EVENT_KINDS, NEXUS_KINDS, ContentError, draftPost, type ContentKind } from '@/lib/contentStudio'
 import { LineupError } from '@/lib/marketingSource'
 
 export const dynamic = 'force-dynamic'
@@ -28,8 +28,9 @@ export async function POST(req: NextRequest) {
   const city = String(body.city || '').trim()
   const year = String(body.year || '').trim()
   const label = String(body.label || `${series} ${city} ${year}`).trim()
-  if (!series || !year) return NextResponse.json({ error: 'series and year are required' }, { status: 400 })
-  const kind = CONTENT_KINDS.some((k) => k.value === body.kind) ? (body.kind as ContentKind) : null
+  const nexus = /nexus/i.test(series)
+  if (!series || (!year && !nexus)) return NextResponse.json({ error: 'series and year are required' }, { status: 400 })
+  const kind = [...EVENT_KINDS, ...NEXUS_KINDS].includes(body.kind) ? (body.kind as ContentKind) : null
   const forDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.forDate || '')) ? String(body.forDate) : null
   try {
     const post = await draftPost({ series, city, year, label }, { kind, brief: body.brief ? String(body.brief) : null, forDate })
