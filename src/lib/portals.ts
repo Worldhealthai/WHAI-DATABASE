@@ -9,7 +9,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Award, Network, KanbanSquare, LayoutDashboard, Mic, Users, Upload, Inbox, Megaphone, Building2, CalendarDays,
+  Award, Network, KanbanSquare, LayoutDashboard, Mic, Users, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
 
@@ -82,6 +82,7 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
       { key: 'speakers', label: 'Speaker posts', icon: Megaphone, path: 'speakers' },
       { key: 'sponsors', label: 'Sponsor posts', icon: Building2, path: 'sponsors' },
+      { key: 'content', label: 'Content', icon: PenLine, path: 'content' },
     ],
     entities: ['speaker', 'sponsor'],
   },

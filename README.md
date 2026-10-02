@@ -2,6 +2,12 @@
 
 The World Nexus Group CRM: sales pipeline, sponsors, partners, speakers and delegates for every event, the marketing portal and the digital agenda. Next.js on Vercel, data in Supabase. The Nexus admin embeds it and talks to it over HTTP (registration, sponsor and inbox-note webhooks, staged contacts, duplicate checks, the agenda API).
 
+## Marketing portal: Content
+
+A LinkedIn post a day for an edition, drafted on the Content tab from what the group already holds: the published Insights briefings on worldnexusgroup.com, the edition's digital agenda (sessions and their questions), the line-up's speakers who agreed to a post, its sponsors, and the countdown to the date. Claude writes the card's words, the caption and the hashtags in the voice the event sites use; the CRM draws the card itself (1080 by 1080, World Health AI in its blue, World Pharma AI in its teal) so it always looks like the brand. Nothing is posted from here: the team copies the caption, saves the image, and marks the post as posted with its link.
+
+Needs `ANTHROPIC_API_KEY` and the `marketing_content` table (`supabase/migrations/010_marketing_content.sql`, or `0063_crm_marketing_content.sql` from the Nexus repository once the CRM has moved there).
+
 ## Settings
 
 Copy `.env.example` to `.env.local` for local work; on Vercel set the same names under Project → Settings → Environment Variables.
