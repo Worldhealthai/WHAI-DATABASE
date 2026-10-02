@@ -100,7 +100,7 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
   const look = eventLook(`${ed.series} ${ed.city}`.trim())
   const [events, insightsRes, lineup, agenda, recentRes] = await Promise.all([
     readJson<{ events: PublicEvent[] }>(`${NEXUS_URL}/api/public-events`, { events: [] }),
-    readJson<{ items?: PublicInsight[] } | PublicInsight[]>(`${NEXUS_URL}/api/public/insights?series=${encodeURIComponent(ed.series)}`, []),
+    readJson<{ articles?: PublicInsight[] }>(`${NEXUS_URL}/api/public/insights?series=${encodeURIComponent(ed.series)}`, { articles: [] }),
     fetchLineup(ed).catch(() => ({ event: null, speakers: [], sponsors: [] })),
     readAgenda(ed.label),
     supabase.from('marketing_content').select('kind, ref, headline').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(30),
@@ -109,7 +109,7 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
     events.events.find((e) => e.series === ed.series && (e.city || '') === ed.city && e.label.endsWith(ed.year)) ??
     events.events.find((e) => e.series === ed.series && e.label.endsWith(ed.year)) ??
     null
-  const insights = Array.isArray(insightsRes) ? insightsRes : (insightsRes.items ?? [])
+  const insights = insightsRes.articles ?? []
   // Days to go, from the event's date line ("22 September 2027").
   let daysToGo: number | null = null
   const when = event?.date ? Date.parse(event.date.replace(/^[A-Za-z]+,?\s+/, '')) : NaN
