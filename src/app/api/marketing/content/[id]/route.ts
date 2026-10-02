@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { tidy } from '@/lib/contentStudio'
+import { CARD_LAYOUTS } from '@/lib/contentBrand'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   for (const k of TEXT) if (typeof body[k] === 'string') patch[k] = k === 'link' || k === 'postUrl' ? body[k].trim() || null : tidy(body[k])
   if (Array.isArray(body.hashtags)) patch.hashtags = body.hashtags.map((h: unknown) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h: string) => h.length > 1)
   if (body.forDate === null || /^\d{4}-\d{2}-\d{2}$/.test(String(body.forDate || ''))) patch.forDate = body.forDate
+  if (typeof body.layout === 'string' && CARD_LAYOUTS.some((l) => l.value === body.layout)) {
+    const { data: cur } = await supabase.from('marketing_content').select('source').eq('id', id).maybeSingle()
+    patch.source = { ...((cur?.source as Record<string, unknown>) ?? {}), layout: body.layout }
+  }
   if (body.status === 'draft' || body.status === 'posted') {
     patch.status = body.status
     patch.postedAt = body.status === 'posted' ? new Date().toISOString() : null
