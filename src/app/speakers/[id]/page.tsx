@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
-  ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Building2,
+  ArrowLeft, Edit2, Trash2, CopyPlus, Mail, Phone, Linkedin, MapPin, Building2,
   Briefcase, Tag, Mic, ChevronRight, ChevronLeft, Plane, Hotel, Check,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
@@ -87,6 +87,7 @@ export default function SpeakerDetailPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const [copyOpen, setCopyOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [stageSaving, setStageSaving] = useState(false)
 
@@ -282,6 +283,9 @@ export default function SpeakerDetailPage() {
             <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] hover:border-slate-500 text-sm transition-colors">
               <Edit2 className="w-3.5 h-3.5" /> Edit
             </button>
+            <button onClick={() => setCopyOpen(true)} title="Start a new lead for another year with the same contact details" className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] hover:border-slate-500 text-sm transition-colors">
+              <CopyPlus className="w-3.5 h-3.5" /> Add to another edition
+            </button>
             <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
               <Trash2 className="w-3.5 h-3.5" /> Delete
             </button>
@@ -384,6 +388,29 @@ export default function SpeakerDetailPage() {
       </div>
 
       {editOpen && <SpeakerFormModal speaker={speaker} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); refetch() }} />}
+      {/* The CRM keeps one row per speaker per edition: a new lead for the
+          next year reuses the contact details and starts the pipeline
+          afresh. The event is left for the team to pick. */}
+      {copyOpen && (
+        <SpeakerFormModal
+          title={`Add ${speaker.firstName} ${speaker.lastName} to another edition`}
+          speaker={{
+            firstName: speaker.firstName,
+            lastName: speaker.lastName,
+            email: speaker.email,
+            phone: speaker.phone,
+            organization: speaker.organization,
+            jobTitle: speaker.jobTitle,
+            country: speaker.country,
+            subType: speaker.subType,
+            status: 'Not Contacted',
+            year: (speaker.year ?? new Date().getFullYear()) + 1,
+            event: '',
+          }}
+          onClose={() => setCopyOpen(false)}
+          onSaved={(created) => { setCopyOpen(false); router.push(`/speakers/${created.id}`) }}
+        />
+      )}
     </div>
   )
 }
