@@ -195,6 +195,16 @@ export async function POST(req: NextRequest) {
     // wildcards _ and %.
     const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&')
 
+    // The CRM keeps one row per contact PER EDITION (migration 011): the
+    // same person at London 2026 and London 2027 is two rows. So a match
+    // is on the email and the edition sent; a call that names no edition
+    // falls back to the email alone, as before.
+    const byEmailAndEdition = () => {
+      let sel = supabase.from(table).select('id, event').ilike('email', escapeLike(email!))
+      if (common.event) sel = sel.ilike('event', escapeLike(common.event))
+      return sel
+    }
+
     // ── action: "delete" ──────────────────────────────────────────────────
     // The website calls this when an admin permanently deletes a registration.
     // Remove the matching contact from this table by email.
@@ -205,11 +215,9 @@ export async function POST(req: NextRequest) {
           { status: 200, headers: CORS_HEADERS },
         )
       }
-      const { data: removed, error: delErr } = await supabase
-        .from(table)
-        .delete()
-        .ilike('email', escapeLike(email))
-        .select('id')
+      let del = supabase.from(table).delete().ilike('email', escapeLike(email))
+      if (common.event) del = del.ilike('event', escapeLike(common.event))
+      const { data: removed, error: delErr } = await del.select('id')
       if (delErr) throw delErr
       return NextResponse.json(
         { ok: true, deleted: removed?.length ?? 0 },
@@ -226,11 +234,7 @@ export async function POST(req: NextRequest) {
       typeof body.status === 'string' && body.status.trim() ? body.status.trim() : null
     if (statusOverride) {
       if (email) {
-        const { data: existing } = await supabase
-          .from(table)
-          .select('id, event')
-          .ilike('email', escapeLike(email))
-          .limit(1)
+        const { data: existing } = await byEmailAndEdition().limit(1)
         if (existing?.length) {
           const { error: updErr } = await writeWithFallback(
             {
@@ -257,14 +261,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Skip if this email already exists in the table, case-insensitively —
-    // imported contacts often have mixed-case emails (idempotent).
+    // Skip if this email is already in the table for this edition,
+    // case-insensitively (imported contacts often have mixed-case emails),
+    // so a re-sync is idempotent. The same person at an earlier edition is
+    // a different row and does not count.
     if (email) {
-      const { data: existing } = await supabase
-        .from(table)
-        .select('id, event')
-        .ilike('email', escapeLike(email))
-        .limit(1)
+      const { data: existing } = await byEmailAndEdition().limit(1)
       if (existing?.length) {
         // Already in the CRM: still take the marketing details (a headshot
         // uploaded afterwards) and the consent answer, as far as it applies
@@ -285,12 +287,13 @@ export async function POST(req: NextRequest) {
     // same person, imported before their email was known. Fill in the email
     // on the existing record instead of creating a second one.
     if (firstName && lastName) {
-      const { data: sameName } = await supabase
+      let nameQ = supabase
         .from(table)
         .select('id, email, event')
         .ilike('firstName', escapeLike(firstName))
         .ilike('lastName', escapeLike(lastName))
-        .limit(10)
+      if (common.event) nameQ = nameQ.ilike('event', escapeLike(common.event))
+      const { data: sameName } = await nameQ.limit(10)
       const emailless = sameName?.find((r: { id: string; email: string | null; event: string | null }) => !r.email?.trim())
       if (emailless) {
         const fill = { ...(email ? { email } : {}), ...consentFor(emailless.event) }
@@ -316,7 +319,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
       return NextResponse.json(
-        { ok: true, duplicate: true, message: 'Already registered — skipped.' },
+        { ok: true, duplicate: true, message: 'Already registered for this edition — skipped.' },
         { status: 200, headers: CORS_HEADERS },
       )
     }

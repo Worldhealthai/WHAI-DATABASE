@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
       return NextResponse.json(
-        { error: 'This delegate already exists in your CRM — duplicate entries are not allowed.' },
+        { error: 'This delegate is already in the CRM for that edition. For another year, add them under that event.' },
         { status: 409 },
       )
     }

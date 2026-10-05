@@ -13,11 +13,13 @@ import {
 
 interface Props {
   speaker?: Partial<Speaker>
+  // Heading override, e.g. when the form is pre-filled from another edition's record.
+  title?: string
   onClose: () => void
   onSaved: (s: Speaker) => void
 }
 
-export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
+export function SpeakerFormModal({ speaker, title, onClose, onSaved }: Props) {
   const isEdit = !!speaker?.id
   const currentYear = new Date().getFullYear()
   const [form, setForm] = useState({
@@ -77,7 +79,7 @@ export function SpeakerFormModal({ speaker, onClose, onSaved }: Props) {
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-sm overflow-y-auto">
       <div className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl my-4">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
-          <h2 className="text-base font-semibold text-[var(--fg)]">{isEdit ? 'Edit Speaker Lead' : 'Add Speaker Lead'}</h2>
+          <h2 className="text-base font-semibold text-[var(--fg)]">{title ?? (isEdit ? 'Edit Speaker Lead' : 'Add Speaker Lead')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-[var(--fg)] transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
