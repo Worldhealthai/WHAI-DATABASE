@@ -34,7 +34,7 @@ export function brandFor(series: string): BrandKey {
 // How a card is set. Which one a post gets is chosen with it (by its kind
 // and what it has: a photo, a headshot, a logo, a figure) and can be
 // changed on the post afterwards.
-export type CardLayout = 'headline' | 'split' | 'photo' | 'portrait' | 'number' | 'logo'
+export type CardLayout = 'headline' | 'split' | 'photo' | 'portrait' | 'number' | 'logo' | 'quote'
 export const CARD_LAYOUTS: { value: CardLayout; label: string; hint: string }[] = [
   { value: 'headline', label: 'Headline', hint: 'The words on the night colour' },
   { value: 'split', label: 'Split', hint: 'A block of the brand colour above' },
@@ -42,4 +42,5 @@ export const CARD_LAYOUTS: { value: CardLayout; label: string; hint: string }[] 
   { value: 'portrait', label: 'Portrait', hint: 'A headshot beside the words' },
   { value: 'number', label: 'Number', hint: 'One large figure' },
   { value: 'logo', label: 'Logo', hint: 'A logo on a light plate' },
+  { value: 'quote', label: 'Quote', hint: 'One line from the piece, set large' },
 ]

@@ -59,6 +59,31 @@ export interface ContentPost {
 
 interface PublicEvent { slug: string; series: string; label: string; city: string | null; country: string | null; date: string | null; status: string }
 interface PublicInsight { slug: string; title: string; dek: string | null; category: string | null; published_at: string | null; cover_image?: string | null }
+interface PublicArticle { body?: string | null; references_json?: unknown }
+
+// The briefing's own text, so a post can carry a real finding or figure
+// from it rather than restating the title: the first part of the body,
+// without its markdown furniture.
+async function readArticle(slug: string): Promise<string> {
+  const a = await readJson<PublicArticle | null>(`${NEXUS_URL}/api/public/insights/${encodeURIComponent(slug)}`, null)
+  const body = String(a?.body ?? '')
+    .replace(/^#+\s*/gm, '')
+    .replace(/\*\*?/g, '')
+    .replace(/\[(\d+)\]/g, '')
+    .replace(/\s+\n/g, '\n')
+    .trim()
+  return body.slice(0, 2200)
+}
+
+// A post about a briefing takes a different angle each time it comes round.
+const INSIGHT_ANGLES = [
+  'the single most important finding or decision in the piece, with its figure or date',
+  'what it changes for the people who buy, build or run AI in this field, in one plain consequence',
+  'the question the piece leaves open, as something the summit will debate',
+  'the number: one figure from the piece and what it measures',
+  'the regulator, journal or company at the centre of it, and what they did',
+]
+
 interface GalleryPhoto { image_url: string; title: string | null }
 
 async function readJson<T>(url: string, fallback: T): Promise<T> {
@@ -112,7 +137,7 @@ export interface EditionContext {
   sponsors: LineupSponsor[]
   sessions: Session[]
   photos: string[]
-  recent: Pick<ContentPost, 'kind' | 'ref' | 'headline'>[]
+  recent: Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'>[]
 }
 
 const parseDay = (date: string | null | undefined) => {
@@ -129,7 +154,7 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
     nexus ? Promise.resolve({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] }) : fetchLineup(ed).catch(() => ({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] })),
     nexus ? Promise.resolve(null) : readAgenda(ed.label),
     readJson<{ photos: GalleryPhoto[] }>(`${NEXUS_URL}/api/public/gallery?site=${brand === 'nexus' ? 'all' : brand}`, { photos: [] }),
-    supabase.from('marketing_content').select('kind, ref, headline').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(30),
+    supabase.from('marketing_content').select('kind, ref, headline, caption, source').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(40),
   ])
   const now = Date.now()
   const upcoming = events.events
@@ -153,7 +178,7 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
     sponsors: lineup.sponsors,
     sessions: agenda?.sessions.filter((s) => s.type !== 'break' && s.title) ?? [],
     photos: gallery.photos.map((p) => p.image_url).filter(Boolean),
-    recent: ((recentRes.data ?? []) as Pick<ContentPost, 'kind' | 'ref' | 'headline'>[]),
+    recent: ((recentRes.data ?? []) as Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'>[]),
   }
 }
 
@@ -164,7 +189,7 @@ interface Choice { kind: ContentKind; ref: string | null; source: Record<string,
 // A photo for the card, different from the last few posts' where it can be.
 function pickPhoto(ctx: EditionContext, seed: string): string | null {
   if (!ctx.photos.length) return null
-  const used = new Set(ctx.recent.slice(0, 6).map((r) => String((r as { source?: { photo?: string } }).source?.photo ?? '')))
+  const used = new Set(ctx.recent.slice(0, 6).map((r) => String((r.source as { photo?: string } | undefined)?.photo ?? '')))
   const fresh = ctx.photos.filter((p) => !used.has(p))
   const pool = fresh.length ? fresh : ctx.photos
   let h = 0
@@ -180,8 +205,18 @@ function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
   }
   const site = ctx.site
   const confirmedIn = (s: Session) => s.speakers.filter((x) => x.status === 'confirmed' && x.name.trim())
-  // The headline layout and the split layout take turns on the briefings.
-  const alternate = (i: number): CardLayout => (i % 2 ? 'headline' : 'split')
+  // The briefings take turns through four layouts, skipping the ones the
+  // last posts used, so a run of days does not look the same.
+  const lastLayouts = ctx.recent.slice(0, 3).map((r) => String((r.source as { layout?: string } | undefined)?.layout ?? ''))
+  const insightLayouts: CardLayout[] = (['headline', 'quote', 'split', 'photo'] as CardLayout[]).filter((l) => !lastLayouts.includes(l))
+  const alternate = (i: number): CardLayout => (insightLayouts.length ? insightLayouts : (['headline', 'quote', 'split'] as CardLayout[]))[i % (insightLayouts.length || 3)]
+  // A briefing's card: its layout in turn, with an event photo behind the
+  // words when the photo layout comes round and a photo is there.
+  const insightChoice = (i: PublicInsight, n: number): Choice => {
+    const layout = alternate(n)
+    const photo = layout === 'photo' ? pickPhoto(ctx, i.slug) : null
+    return { kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at, ...(photo ? { photo } : {}) }, link: `${site}/insights/${i.slug}`, layout: layout === 'photo' && !photo ? 'headline' : layout }
+  }
   const withPhoto = (seed: string, otherwise: CardLayout): { layout: CardLayout; photo?: string } => {
     const photo = pickPhoto(ctx, seed)
     return photo ? { layout: 'photo', photo } : { layout: otherwise }
@@ -189,7 +224,7 @@ function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
 
   if (ctx.brand === 'nexus') {
     return {
-      insight: fresh('insight', ctx.insights.map((i, n) => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}`, layout: alternate(n) }))),
+      insight: fresh('insight', ctx.insights.map(insightChoice)),
       platform: fresh('platform', [
         { kind: 'platform', ref: 'what', source: { platform: PLATFORM.name, what: PLATFORM.what, stats: PLATFORM.stats }, link: PLATFORM.link, layout: 'split' },
         ...PLATFORM.stats.map((s) => ({ kind: 'platform' as const, ref: `stat:${s.label}`, source: { platform: PLATFORM.name, what: PLATFORM.what, figure: s.n, label: s.label }, link: PLATFORM.link, layout: 'number' as const })),
@@ -205,7 +240,7 @@ function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
   }
 
   return {
-    insight: fresh('insight', ctx.insights.map((i, n) => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}`, layout: alternate(n) }))),
+    insight: fresh('insight', ctx.insights.map(insightChoice)),
     session: fresh('session', ctx.sessions.map((s) => {
       const photo = withPhoto(s.id, 'split')
       return { kind: 'session' as const, ref: s.id, source: { title: s.title, type: s.type, talkTitle: s.talkTitle, points: s.points, speakers: confirmedIn(s).map((x) => ({ name: x.name, role: x.role, org: x.org, moderator: x.moderator })), ...photo }, link: `${site}/events`, layout: photo.layout }
@@ -226,14 +261,17 @@ function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
 function choose(ctx: EditionContext, wanted: ContentKind | null): Choice {
   const all = pools(ctx)
   const rotation = ctx.brand === 'nexus' ? NEXUS_KINDS : EVENT_KINDS
+  // Among what has not been used lately, the newest few are all fair
+  // game, so two runs in a row do not land on the same item.
+  const vary = (pool: Choice[]): Choice => pool[Math.floor(Math.random() * Math.min(pool.length, 3))]
   if (wanted) {
     const pool = all[wanted] ?? []
     if (!pool.length) throw new ContentError(emptyPoolMessage(wanted, ctx))
-    return pool[0]
+    return vary(pool)
   }
   const lastKinds = ctx.recent.slice(0, 2).map((r) => r.kind)
   const order = [...rotation.filter((k) => !lastKinds.includes(k)), ...rotation.filter((k) => lastKinds.includes(k))]
-  for (const k of order) if (all[k]?.length) return all[k]![0]
+  for (const k of order) if (all[k]?.length) return vary(all[k]!)
   throw new ContentError('There is nothing to write from yet: no published Insights, no agenda, no speakers who agreed to a post, and no event date. Add some of those first.')
 }
 
@@ -272,26 +310,27 @@ Voice:
 - Never invent figures, quotations, names, titles, companies, deals or claims. Use only what the brief supplies. If a detail is not supplied, leave it out.
 - Speak as the page, in the first person plural where natural ("we", "our London summit", "our platform"), never as an individual.
 
-The card (the image) carries: a kicker (2 to 4 words, e.g. "Panel discussion", "On the line-up", "42 days to go", "From our Insights desk", "Inside the platform"), a headline (at most 70 characters, one idea, no full stop), and a subline (at most 90 characters: the supporting fact, a name and role, a question, or the date and city). When the brief gives a figure for a number card, the headline is the label of that figure, not the figure itself.
+The card (the image) carries: a kicker (2 to 4 words, e.g. "Panel discussion", "On the line-up", "42 days to go", "From our Insights desk", "Inside the platform"), a headline (at most 70 characters, one idea, no full stop), a subline (at most 90 characters: the supporting fact, a name and role, a question, or the date and city), and a quote (at most 120 characters: one sentence lifted word for word from the material's text, the most striking plain fact in it; an empty string when the material has no text to quote). When the brief gives a figure for a number card, the headline is the label of that figure, not the figure itself. The headline is never the briefing's title restated: it is the finding, the figure, the consequence or the question, as the brief's angle asks.
 
 The caption (the post text): 70 to 140 words. The first line must stand on its own, because LinkedIn folds the rest. Short paragraphs, one blank line between them. End with one line that points to the link, as a plain verb phrase ("Book your pass:", "Read the briefing:", "See who's speaking:", "See the platform:") followed by the URL given. Then the hashtags on their own final line: 3 to 5, CamelCase, no spaces, always including the page's own tag (#WorldHealthAI, #WorldPharmaAI or #WorldNexusGroup) and, for an event, the city.`
 
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['kicker', 'headline', 'subline', 'caption', 'hashtags'],
+  required: ['kicker', 'headline', 'subline', 'quote', 'caption', 'hashtags'],
   properties: {
     kicker: { type: 'string' },
     headline: { type: 'string' },
     subline: { type: 'string' },
+    quote: { type: 'string' },
     caption: { type: 'string' },
     hashtags: { type: 'array', items: { type: 'string' } },
   },
 }
 
-interface Draft { kicker: string; headline: string; subline: string; caption: string; hashtags: string[] }
+interface Draft { kicker: string; headline: string; subline: string; quote: string; caption: string; hashtags: string[] }
 
-function brief(ctx: EditionContext, pick: Choice, extra: string | null): string {
+function brief(ctx: EditionContext, pick: Choice, extra: string | null, angle: string | null): string {
   const ev = ctx.event
   const page = ctx.brand === 'nexus' ? 'World Nexus Group (the group page, about the intelligence platform)' : `${ctx.ed.series}, ${ctx.ed.city || ev?.city || ''} ${ctx.ed.year}`.trim()
   const { photo: _photo, image: _image, logo: _logo, ...material } = pick.source as Record<string, unknown>
@@ -304,14 +343,16 @@ function brief(ctx: EditionContext, pick: Choice, extra: string | null): string 
     `Post type: ${pick.kind}`,
     `Card layout: ${pick.layout}${pick.layout === 'number' ? ' (the figure is shown large; the headline is its label)' : ''}`,
     `Material (use only this): ${JSON.stringify(material)}`,
-    ctx.recent.length ? `Headlines of the last posts, not to repeat: ${ctx.recent.slice(0, 8).map((r) => JSON.stringify(r.headline)).join(', ')}` : '',
+    angle ? `Angle for this post: ${angle}` : '',
+    ctx.recent.length ? `Headlines of the last posts, not to repeat or echo: ${ctx.recent.slice(0, 12).map((r) => JSON.stringify(r.headline)).join(', ')}` : '',
+    ctx.recent.length ? `Opening lines of the last posts, so this one opens differently: ${ctx.recent.slice(0, 6).map((r) => JSON.stringify(String(r.caption || '').split('\n')[0].slice(0, 120))).join(', ')}` : '',
     extra ? `The marketing team's own steer for this post: ${extra}` : '',
-    'Return the post as JSON with kicker, headline, subline, caption and hashtags.',
+    'Return the post as JSON with kicker, headline, subline, quote, caption and hashtags.',
   ]
   return lines.filter(Boolean).join('\n')
 }
 
-async function write(ctx: EditionContext, pick: Choice, extra: string | null): Promise<Draft> {
+async function write(ctx: EditionContext, pick: Choice, extra: string | null, angle: string | null): Promise<Draft> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
   if (!apiKey) throw new ContentError('ANTHROPIC_API_KEY is not set on the CRM, so nothing can be written.', 400)
   const client = new Anthropic({ apiKey })
@@ -326,7 +367,7 @@ async function write(ctx: EditionContext, pick: Choice, extra: string | null): P
     thinking: { type: 'adaptive' },
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
     system: VOICE,
-    messages: [{ role: 'user', content: brief(ctx, pick, extra) }],
+    messages: [{ role: 'user', content: brief(ctx, pick, extra, angle) }],
   })
   if (res.stop_reason === 'refusal') {
     throw new ContentError(`Claude declined to write this one (${res.stop_details?.category ?? 'no category given'}). Try another post type or a different steer.`, 502)
@@ -343,6 +384,7 @@ async function write(ctx: EditionContext, pick: Choice, extra: string | null): P
     kicker: tidy(draft.kicker).slice(0, 40),
     headline: tidy(draft.headline).slice(0, 90),
     subline: tidy(draft.subline).slice(0, 120),
+    quote: tidy(draft.quote).replace(/^["“”']+|["“”']+$/g, '').slice(0, 160),
     caption: tidy(draft.caption),
     hashtags: (draft.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
   }
@@ -364,7 +406,19 @@ export function tidy(s: string): string {
 export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
   const pick = choose(ctx, opts.kind ?? null)
-  const draft = await write(ctx, pick, opts.brief?.trim() || null)
+  // A briefing is written from its own text, from an angle that moves on
+  // each time the same briefing comes round.
+  let angle: string | null = null
+  if (pick.kind === 'insight' && pick.ref) {
+    const text = await readArticle(pick.ref)
+    if (text) pick.source = { ...pick.source, text }
+    const before = ctx.recent.filter((r) => r.kind === 'insight' && r.ref === pick.ref).length
+    angle = INSIGHT_ANGLES[before % INSIGHT_ANGLES.length]
+  }
+  const { quote, ...draft } = await write(ctx, pick, opts.brief?.trim() || null, angle)
+  // A quote card needs a quote; without one it is set as a headline.
+  const layout = pick.layout === 'quote' && !quote ? 'headline' : pick.layout
+  const { text: _text, ...sourceKept } = pick.source as Record<string, unknown>
   const row = {
     edition: ed.label,
     series: ed.series,
@@ -373,7 +427,7 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     forDate: opts.forDate || (await nextFreeDay(ed.label)),
     ...draft,
     link: pick.link,
-    source: { ...pick.source, layout: pick.layout, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
+    source: { ...sourceKept, layout, quote: quote || null, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),

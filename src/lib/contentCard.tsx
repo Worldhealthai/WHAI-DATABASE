@@ -122,11 +122,29 @@ const page = (brand: Brand, extra: React.CSSProperties = {}): React.CSSPropertie
   width: CARD_SIZE, height: CARD_SIZE, display: 'flex', flexDirection: 'column', background: brand.night, color: '#fff', fontFamily: 'Inter', position: 'relative', ...extra,
 })
 
+// A soft wash of the brand colour fading into the night: from one corner,
+// and a fainter one from the opposite corner, so the ground is not flat.
+// The accent's own hex with an alpha, so each brand fades in its colour.
+const alpha = (hex: string, a: number) => `${hex}${Math.round(a * 255).toString(16).padStart(2, '0')}`
+// (On a padded page the renderer places an absolute child inside the
+// padding, so the wash is pulled back by it to cover the whole card.)
+function Wash({ brand, corner = 'top', pad = PAD }: { brand: Brand; corner?: 'top' | 'bottom'; pad?: number }) {
+  const from = corner === 'top' ? '160deg' : '340deg'
+  const box: React.CSSProperties = { position: 'absolute', top: -pad, left: -pad, width: CARD_SIZE, height: CARD_SIZE }
+  return (
+    <>
+      <div style={{ ...box, background: `linear-gradient(${from}, ${alpha(brand.accent, 0.42)} 0%, ${alpha(brand.accent, 0.14)} 36%, ${alpha(brand.accent, 0)} 64%)` }} />
+      <div style={{ ...box, background: `radial-gradient(circle at ${corner === 'top' ? '100% 100%' : '0% 0%'}, ${alpha(brand.accent, 0.16)} 0%, ${alpha(brand.accent, 0)} 48%)` }} />
+    </>
+  )
+}
+
 // ── The layouts ─────────────────────────────────────────────────────────────
 
 function Headline({ post, brand, a, city, date }: LayoutProps) {
   return (
     <div style={page(brand, { padding: `${PAD}px ${PAD}px 0` })}>
+      <Wash brand={brand} />
       <Mark brand={brand} assets={a} />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', paddingBottom: 40 }}>
         <Words post={post} brand={brand} />
@@ -222,6 +240,7 @@ function Number_({ post, brand, a, city, date }: LayoutProps) {
   const size = figure.length <= 2 ? 360 : figure.length <= 4 ? 300 : figure.length <= 6 ? 240 : 180
   return (
     <div style={page(brand, { padding: `${PAD}px ${PAD}px 0` })}>
+      <Wash brand={brand} corner="bottom" />
       <Mark brand={brand} assets={a} />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', paddingBottom: 30 }}>
         <Kicker text={post.kicker} color={brand.accent} />
@@ -239,6 +258,7 @@ function Number_({ post, brand, a, city, date }: LayoutProps) {
 function Logo({ post, brand, a, city, date, image }: LayoutProps) {
   return (
     <div style={page(brand, { padding: `${PAD}px ${PAD}px 0` })}>
+      <Wash brand={brand} />
       <Mark brand={brand} assets={a} />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', paddingBottom: 30 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: CARD_SIZE - PAD * 2, height: 300, background: '#F4F6FA', marginBottom: 48 }}>
@@ -253,13 +273,35 @@ function Logo({ post, brand, a, city, date, image }: LayoutProps) {
   )
 }
 
+// One line from the piece, set large between quotation marks in the brand
+// colour; the headline beneath it, smaller, says what it is from.
+function Quote({ post, brand, a, city, date }: LayoutProps) {
+  const quote = String(post.source?.quote ?? '').trim()
+  const size = quote.length <= 60 ? 64 : quote.length <= 90 ? 54 : 46
+  return (
+    <div style={page(brand, { padding: `${PAD}px ${PAD}px 0` })}>
+      <Wash brand={brand} corner="bottom" />
+      <Mark brand={brand} assets={a} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', paddingBottom: 30 }}>
+        <Kicker text={post.kicker} color={brand.accent} />
+        <div style={{ display: 'flex', flexDirection: 'column', borderLeft: `10px solid ${brand.accent}`, paddingLeft: 40 }}>
+          <span style={{ fontSize: size, fontWeight: 600, lineHeight: 1.18, letterSpacing: -1.5, color: '#fff', maxWidth: CARD_SIZE - PAD * 2 - 50 }}>{quote}</span>
+          <span style={{ fontSize: 28, lineHeight: 1.35, color: MUTED, marginTop: 30, maxWidth: CARD_SIZE - PAD * 2 - 110 }}>{post.headline}</span>
+        </div>
+      </div>
+      <Foot brand={brand} city={city} date={date} />
+      <Rule brand={brand} />
+    </div>
+  )
+}
+
 interface LayoutProps { post: Post; brand: Brand; a: Assets; city: string; date: string; image: string | null }
 
 // The layout the post asks for, or the one it can have: a photo, headshot
 // or logo layout without its image falls back to the words alone.
 export function layoutOf(post: Post): CardLayout {
   const asked = String(post.source?.layout ?? 'headline') as CardLayout
-  return (['headline', 'split', 'photo', 'portrait', 'number', 'logo'] as CardLayout[]).includes(asked) ? asked : 'headline'
+  return (['headline', 'split', 'photo', 'portrait', 'number', 'logo', 'quote'] as CardLayout[]).includes(asked) ? asked : 'headline'
 }
 
 export async function renderCard(post: Post, layoutOverride?: CardLayout): Promise<ImageResponse> {
@@ -272,9 +314,11 @@ export async function renderCard(post: Post, layoutOverride?: CardLayout): Promi
   const image = await remoteImage(typeof wants === 'string' ? wants : null)
   if ((layout === 'photo' || layout === 'portrait' || layout === 'logo') && !image) layout = 'split'
   if (layout === 'number' && !String(post.source?.figure ?? post.source?.daysToGo ?? '').trim()) layout = 'headline'
+  if (layout === 'quote' && !String(post.source?.quote ?? '').trim()) layout = 'headline'
   const props: LayoutProps = { post, brand, a, city, date, image }
   const body =
-    layout === 'split' ? <Split {...props} />
+    layout === 'quote' ? <Quote {...props} />
+    : layout === 'split' ? <Split {...props} />
     : layout === 'photo' ? <Photo {...props} />
     : layout === 'portrait' ? <Portrait {...props} />
     : layout === 'number' ? <Number_ {...props} />
