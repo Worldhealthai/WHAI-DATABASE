@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronUp, ChevronsUpDown, Download, Pencil, Plus, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, CopyPlus, Download, Pencil, Plus, Search, SearchX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, STATUS_OPTIONS, changeStage, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
@@ -207,6 +207,32 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   const rows = data?.data ?? []
   const total = data?.total ?? 0
 
+  // People belong to an edition, one row per edition. A search also looks
+  // across the other editions, so a 2026 speaker turns up when the team is
+  // working on 2027 and can be added to it from here.
+  const { data: otherData } = useQuery<{ data: Row[] }>({
+    queryKey: ['ws-list-other', kind, query],
+    queryFn: async () => {
+      const p = listParams(kind, [], { query, page: '1', pageSize: '50', sortBy: 'createdAt', sortDir: 'desc' })
+      const r = await fetch(`${def.api}?${p}`)
+      if (!r.ok) throw new Error('list')
+      return r.json()
+    },
+    enabled: !allEditions && query.length > 0,
+  })
+  const labelSet = new Set(labels.map((l) => l.toLowerCase()))
+  const others = (otherData?.data ?? []).filter((r) => !labelSet.has(String(r.event ?? '').toLowerCase()))
+  const [copying, setCopying] = useState<Row | null>(null)
+  // A fresh record for this edition with the person's contact details; the
+  // pipeline starts again.
+  const copyPreset = (r: Row): Row => ({
+    firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone,
+    organization: r.organization, jobTitle: r.jobTitle, country: r.country, city: r.city,
+    linkedinUrl: r.linkedinUrl, subType: r.subType,
+    ...(category && year ? { event: editionLabel(category.name, year) } : {}),
+    ...(kind === 'speaker' ? { year: year ? Number(year) : undefined, status: 'Not Contacted' } : {}),
+  })
+
   const onKeyword = (v: string) => {
     setKeyword(v)
     clearTimeout(debounce.current)
@@ -337,7 +363,39 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
             <Pagination page={page} totalPages={data?.totalPages ?? 1} total={total} pageSize={pageSize} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1) }} />
           </div>
         )}
+
+        {others.length > 0 && (
+          <div className="px-4 py-3" style={{ borderTop: '1px solid var(--line)' }}>
+            <div className="text-[12px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--fg-3)' }}>In other editions</div>
+            <ul className="divide-y" style={{ borderColor: 'var(--line)' }}>
+              {others.map((r) => {
+                const name = recordName(kind, r)
+                return (
+                  <li key={r.id} className="flex flex-wrap items-center gap-3 py-2">
+                    <button type="button" onClick={() => router.push(`${def.detailPath}/${r.id}`)} className="flex items-center gap-3 min-w-0 text-left hover:underline underline-offset-4" title="Open the profile">
+                      <Initials name={name || '?'} size={30} />
+                      <span className="min-w-0">
+                        <span className="block font-medium truncate" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
+                        <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{recordSubtitle(kind, r) || r.email || '—'}</span>
+                      </span>
+                    </button>
+                    <span className="text-[12.5px]" style={{ color: 'var(--fg-2)' }}>{r.event ? String(r.event).replace(/^World (Health|Pharma) AI\s*/i, '') : '—'}</span>
+                    <StagePill kind={kind} status={r.status} />
+                    {year && (
+                      <button type="button" onClick={() => setCopying(r)} className="ws-btn ml-auto" title={`Start a ${year} record for ${name} with the same contact details`}>
+                        <CopyPlus className="w-4 h-4" /> Add to {year}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
       </div>
+
+      {copying && kind === 'speaker' && <SpeakerFormModal title={`Add ${recordName(kind, copying)} to ${year}`} speaker={copyPreset(copying)} onClose={() => setCopying(null)} onSaved={() => { setCopying(null); saved() }} />}
+      {copying && kind === 'delegate' && <DelegateFormModal delegate={copyPreset(copying)} onClose={() => setCopying(null)} onSaved={() => { setCopying(null); saved() }} />}
 
       {adding && (kind === 'sponsor' || kind === 'partner') && (
         <SponsorFormModal sponsor={preset} partnerMode={kind === 'partner'} entityLabel={def.label} onClose={() => setAdding(false)} onSaved={saved} />

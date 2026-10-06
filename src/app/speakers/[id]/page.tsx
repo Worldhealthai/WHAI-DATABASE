@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
-  ArrowLeft, Edit2, Trash2, CopyPlus, Mail, Phone, Linkedin, MapPin, Building2,
+  ArrowLeft, Edit2, Trash2, CopyPlus, CalendarDays, Mail, Phone, Linkedin, MapPin, Building2,
   Briefcase, Tag, Mic, ChevronRight, ChevronLeft, Plane, Hotel, Check,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
@@ -95,6 +95,20 @@ export default function SpeakerDetailPage() {
     queryKey: ['speaker', id],
     queryFn: () => fetchSpeaker(id),
   })
+  // One row per edition: the other years this person has a record for.
+  type EditionRow = { id: string; event: string | null; year: number | null; status: string; sessionTitle: string | null; adminLineup?: boolean | null }
+  const { data: editionsData } = useQuery<{ data: EditionRow[] }>({
+    queryKey: ['speaker-editions', id],
+    queryFn: () => fetch(`/api/speakers/${id}/editions`).then((r) => r.json()),
+  })
+  const editions = editionsData?.data ?? []
+  // "World Health AI London 2026" → "World Health AI London 2027", for the
+  // copy's default event; the team can still pick another.
+  const nextEditionLabel = (event: string | null | undefined, year: number | null | undefined): string => {
+    if (!event) return ''
+    const y = year ?? Number(event.match(/\b(20\d{2})\b/)?.[1])
+    return y ? event.replace(String(y), String(y + 1)) : ''
+  }
 
   // Build prev/next nav query from the filters applied in the list view (saved
   // to sessionStorage when opening this profile) so next/prev walks the
@@ -380,6 +394,40 @@ export default function SpeakerDetailPage() {
         </div>
 
         <div className="space-y-4">
+          {/* Every edition this speaker has a record for, this one included:
+              the CRM keeps one row per speaker per edition. */}
+          <div className="whai-card p-5">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h2 className="text-sm font-semibold text-[var(--fg)]">Editions</h2>
+              <button onClick={() => setCopyOpen(true)} className="flex items-center gap-1 text-xs text-purple-400 hover:underline">
+                <CopyPlus className="w-3.5 h-3.5" /> Add to another edition
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {(editions.length ? editions : [{ id: speaker.id, event: speaker.event ?? null, year: speaker.year ?? null, status: speaker.status, sessionTitle: speaker.sessionTitle ?? null }]).map((e) => {
+                const current = e.id === speaker.id
+                const inner = (
+                  <>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CalendarDays className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                      <span className={`text-sm truncate ${current ? 'text-[var(--fg)] font-medium' : 'text-slate-300'}`}>{e.event || (e.year ? String(e.year) : 'No edition')}</span>
+                      {current && <span className="text-[10px] uppercase tracking-wide text-slate-500">this record</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 ml-[22px]">
+                      <StatusBadge value={e.status} variant="speaker_status" />
+                      {e.sessionTitle && <span className="text-xs text-slate-500 truncate">{e.sessionTitle}</span>}
+                    </div>
+                  </>
+                )
+                return (
+                  <li key={e.id} className={`rounded-lg border px-3 py-2 ${current ? 'border-purple-500/30 bg-purple-500/5' : 'border-[var(--line)] hover:border-slate-500 transition-colors'}`}>
+                    {current ? inner : <Link href={`/speakers/${e.id}`} className="block">{inner}</Link>}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+
           <div className="whai-card p-5">
             <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Activity</h2>
             <ActivityFeed activities={speaker.activities ?? []} entityType="speaker" entityId={id} onActivityAdded={refetch} />
@@ -405,10 +453,10 @@ export default function SpeakerDetailPage() {
             subType: speaker.subType,
             status: 'Not Contacted',
             year: (speaker.year ?? new Date().getFullYear()) + 1,
-            event: '',
+            event: nextEditionLabel(speaker.event, speaker.year),
           }}
           onClose={() => setCopyOpen(false)}
-          onSaved={(created) => { setCopyOpen(false); router.push(`/speakers/${created.id}`) }}
+          onSaved={(created) => { setCopyOpen(false); queryClient.invalidateQueries({ queryKey: ['speaker-editions'] }); router.push(`/speakers/${created.id}`) }}
         />
       )}
     </div>
