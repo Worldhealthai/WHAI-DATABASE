@@ -59,7 +59,7 @@ export interface ContentPost {
 // ── What the group holds ────────────────────────────────────────────────────
 
 interface PublicEvent { slug: string; series: string; label: string; city: string | null; country: string | null; date: string | null; status: string }
-interface PublicInsight { slug: string; title: string; dek: string | null; category: string | null; published_at: string | null; cover_image?: string | null }
+export interface PublicInsight { site?: string | null; slug: string; title: string; dek: string | null; category: string | null; published_at: string | null; cover_image?: string | null }
 interface PublicArticle { body?: string | null; references_json?: unknown }
 
 // The briefing's own text, so a post can carry a real finding or figure
@@ -185,7 +185,7 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
 
 // ── Choosing what today's post is about ─────────────────────────────────────
 
-interface Choice { kind: ContentKind; ref: string | null; source: Record<string, unknown>; link: string; layout: CardLayout }
+export interface Choice { kind: ContentKind; ref: string | null; source: Record<string, unknown>; link: string; layout: CardLayout }
 
 // A photo for the card, different from the last few posts' where it can be.
 function pickPhoto(ctx: EditionContext, seed: string): string | null {
@@ -198,7 +198,7 @@ function pickPhoto(ctx: EditionContext, seed: string): string | null {
   return pool[h % pool.length]
 }
 
-function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
+export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
   const used = new Set(ctx.recent.map((r) => `${r.kind}:${r.ref}`))
   const fresh = (kind: ContentKind, items: Choice[]) => {
     const unused = items.filter((i) => !used.has(`${kind}:${i.ref}`))
@@ -276,7 +276,7 @@ function choose(ctx: EditionContext, wanted: ContentKind | null): Choice {
   throw new ContentError('There is nothing to write from yet: no published Insights, no agenda, no speakers who agreed to a post, and no event date. Add some of those first.')
 }
 
-function emptyPoolMessage(kind: ContentKind, ctx: EditionContext): string {
+export function emptyPoolMessage(kind: ContentKind, ctx: EditionContext): string {
   switch (kind) {
     case 'insight': return `No published Insights for ${ctx.ed.series} yet. Publish one on worldnexusgroup.com first.`
     case 'session': return `No sessions in the ${ctx.ed.label} agenda yet. Build it in the Production portal first.`
@@ -302,7 +302,7 @@ export class ContentError extends Error {
 
 // The voice, as the event sites keep it (world-event-sites, anti-slop) and
 // the Insights desk writes (Nexus, insights/generate).
-const VOICE = `You write LinkedIn posts for World Nexus Group and its executive AI summits: World Health AI (clinical leaders, the NHS, health systems and health-tech) and World Pharma AI (AI across pharma R&D, manufacturing and commercial). World Nexus Group is the parent: its own page is about its intelligence platform, a live map of the AI economy in healthcare and pharma (the vendors, the capital behind them, the operators, the deployments, and the market signals: funding, deployments, hiring, M&A, partnerships). Each post goes out from the page named in the brief.
+export const VOICE = `You write LinkedIn posts for World Nexus Group and its executive AI summits: World Health AI (clinical leaders, the NHS, health systems and health-tech) and World Pharma AI (AI across pharma R&D, manufacturing and commercial). World Nexus Group is the parent: its own page is about its intelligence platform, a live map of the AI economy in healthcare and pharma (the vendors, the capital behind them, the operators, the deployments, and the market signals: funding, deployments, hiring, M&A, partnerships). Each post goes out from the page named in the brief.
 
 Voice:
 - Short, plain British English. Say what it is. Specific beats grand.
@@ -439,7 +439,7 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
 }
 
 // The first day from today with no post planned for this edition.
-async function nextFreeDay(edition: string): Promise<string> {
+export async function nextFreeDay(edition: string): Promise<string> {
   const { data } = await supabase.from('marketing_content').select('forDate').eq('edition', edition).not('forDate', 'is', null)
   const taken = new Set((data ?? []).map((r: { forDate: string }) => r.forDate))
   const d = new Date()
@@ -459,9 +459,9 @@ async function nextFreeDay(edition: string): Promise<string> {
 // the article's full text; every figure and the quote are then checked
 // against that text, and a slide that fails is left out rather than posted.
 
-interface ArticleText { body: string; publishers: string[] }
+export interface ArticleText { body: string; publishers: string[] }
 
-async function readArticleFull(slug: string): Promise<ArticleText> {
+export async function readArticleFull(slug: string): Promise<ArticleText> {
   const a = await readJson<(PublicArticle & { references_json?: { publisher?: string; label?: string }[] }) | null>(
     `${NEXUS_URL}/api/public/insights/${encodeURIComponent(slug)}`,
     null,
@@ -491,7 +491,7 @@ Every figure must appear in the text exactly. If the piece has too few figures f
 The caption: 60 to 120 words, the first line standing on its own, ending with "Read the briefing:" and the link given, then 3 to 5 hashtags on their own line.`
 
 const STR = { type: 'string' }
-const CAROUSEL_SCHEMA = {
+export const CAROUSEL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['news', 'statistic', 'data', 'quote', 'end', 'caption', 'hashtags'],
@@ -511,7 +511,7 @@ const CAROUSEL_SCHEMA = {
   },
 }
 
-interface CarouselDraft {
+export interface CarouselDraft {
   news: { kicker: string; headline: string; summary: string }
   statistic: { figure: string; label: string; context: string }
   data: { title: string; points: { figure: string; label: string }[] }
@@ -523,7 +523,7 @@ interface CarouselDraft {
 
 // For comparing with the article: quotes and dashes made plain, spaces
 // collapsed, case ignored.
-const plain = (s: string) =>
+export const plain = (s: string) =>
   s
     .replace(/[“”„]/g, '"')
     .replace(/[‘’]/g, "'")
@@ -534,11 +534,51 @@ const plain = (s: string) =>
 
 // A figure is in the text when each of its numbers is, as written there
 // ("$311 million" and "$311m" both rest on "311").
-function figureInText(figure: string, text: string): boolean {
+export function figureInText(figure: string, text: string): boolean {
   const nums = figure.match(/\d[\d,.]*/g)
   if (!nums) return false
   const t = plain(text)
   return nums.every((n) => t.includes(n.replace(/[.,]$/, '')))
+}
+
+// The carousel's slides, held to the article: the news slide always; the
+// statistic, the data and the quote only when every figure, and the quote
+// word for word, are in the article's text (else listed in `dropped`); and
+// the closing slide.
+export function checkSlides(
+  d: CarouselDraft,
+  article: ArticleText,
+  o: { title: string; publishedAt: string | null; fallbackDate: string | null; link: string },
+): { news: Slide; extras: Slide[]; end: Slide; dropped: string[] } {
+  const body = article.body
+  const source = article.publishers.slice(0, 2).join(', ') || null
+  const dropped: string[] = []
+  const extras: Slide[] = []
+  const news: Slide = {
+    kind: 'news',
+    kicker: tidy(d.news?.kicker || '').slice(0, 40) || 'From our Insights desk',
+    headline: tidy(d.news?.headline || '').slice(0, 110) || o.title,
+    summary: tidy(d.news?.summary || '').slice(0, 240),
+    date: o.publishedAt ? new Date(o.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : o.fallbackDate,
+  }
+  const statFigure = tidy(d.statistic?.figure || '')
+  if (statFigure && figureInText(statFigure, body)) {
+    extras.push({ kind: 'statistic', figure: statFigure.slice(0, 14), label: tidy(d.statistic.label || '').slice(0, 90), context: tidy(d.statistic.context || '').slice(0, 170), source })
+  } else if (statFigure) dropped.push(`statistic "${statFigure}" is not in the briefing`)
+  const points = (d.data?.points || [])
+    .map((p) => ({ figure: tidy(p.figure || '').slice(0, 14), label: tidy(p.label || '').slice(0, 80) }))
+    .filter((p) => p.figure && p.label && p.figure !== statFigure)
+  const kept = points.filter((p) => figureInText(p.figure, body)).slice(0, 4)
+  if (points.length > kept.length) dropped.push(`${points.length - kept.length} data point(s) not in the briefing`)
+  if (kept.length >= 2) extras.push({ kind: 'data', title: tidy(d.data.title || '').slice(0, 80) || 'The data', points: kept, source })
+  else if (kept.length) dropped.push('only one data point checked out, too few for a data slide')
+  const quote = (d.quote?.text || '').trim().replace(/^["“]+|["”]+$/g, '')
+  const speaker = (d.quote?.speaker || '').trim()
+  if (quote && speaker && plain(body).includes(plain(quote))) {
+    extras.push({ kind: 'quote', text: quote.slice(0, 260), speaker: speaker.slice(0, 80), role: (d.quote.role || '').trim().slice(0, 120), source })
+  } else if (quote) dropped.push('the quote is not word for word in the briefing')
+  const end: Slide = { kind: 'end', headline: tidy(d.end?.headline || '').slice(0, 90) || 'Read the full briefing', link: o.link }
+  return { news, extras, end, dropped }
 }
 
 export async function draftCarousel(ed: Edition, opts: { brief?: string | null; forDate?: string | null; ref?: string | null }): Promise<ContentPost> {
@@ -589,28 +629,9 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   }
 
   // Held to the article: a figure or a quote not in it drops its slide.
-  const body = article.body
-  const source = article.publishers.slice(0, 2).join(', ') || null
-  const dropped: string[] = []
-  const slides: Slide[] = []
   const date = ctx.event?.date ?? null
-  slides.push({ kind: 'news', kicker: tidy(d.news.kicker).slice(0, 40) || 'From our Insights desk', headline: tidy(d.news.headline).slice(0, 110) || (src.title ?? ''), summary: tidy(d.news.summary).slice(0, 240), date: src.published_at ? new Date(src.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : date })
-  const statFigure = tidy(d.statistic.figure)
-  if (statFigure && figureInText(statFigure, body)) {
-    slides.push({ kind: 'statistic', figure: statFigure.slice(0, 14), label: tidy(d.statistic.label).slice(0, 90), context: tidy(d.statistic.context).slice(0, 170), source })
-  } else if (statFigure) dropped.push(`statistic "${statFigure}" is not in the briefing`)
-  const points = (d.data.points || [])
-    .map((p) => ({ figure: tidy(p.figure).slice(0, 14), label: tidy(p.label).slice(0, 80) }))
-    .filter((p) => p.figure && p.label && p.figure !== statFigure)
-  const kept = points.filter((p) => figureInText(p.figure, body)).slice(0, 4)
-  if (points.length > kept.length) dropped.push(`${points.length - kept.length} data point(s) not in the briefing`)
-  if (kept.length >= 2) slides.push({ kind: 'data', title: tidy(d.data.title).slice(0, 80) || 'The data', points: kept, source })
-  const quote = (d.quote.text || '').trim().replace(/^["“]+|["”]+$/g, '')
-  const speaker = (d.quote.speaker || '').trim()
-  if (quote && speaker && plain(body).includes(plain(quote))) {
-    slides.push({ kind: 'quote', text: quote.slice(0, 260), speaker: speaker.slice(0, 80), role: (d.quote.role || '').trim().slice(0, 120), source })
-  } else if (quote) dropped.push('the quote is not word for word in the briefing')
-  slides.push({ kind: 'end', headline: tidy(d.end.headline).slice(0, 90) || 'Read the full briefing', link: pick.link })
+  const { news, extras, end, dropped } = checkSlides(d, article, { title: src.title ?? '', publishedAt: src.published_at ?? null, fallbackDate: date, link: pick.link })
+  const slides: Slide[] = [news, ...extras, end]
 
   const row = {
     edition: ed.label,
