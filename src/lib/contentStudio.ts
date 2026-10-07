@@ -24,6 +24,7 @@ import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, 
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
 import { eventLook } from '@/lib/portals'
 import { BRANDS, brandFor, type BrandKey, type CardLayout } from '@/lib/contentBrand'
+import type { Slide } from '@/lib/contentCarousel'
 
 export type ContentKind = 'insight' | 'speaker' | 'session' | 'sponsor' | 'countdown' | 'theme' | 'platform' | 'signal' | 'event'
 export const EVENT_KINDS: ContentKind[] = ['insight', 'session', 'speaker', 'theme', 'countdown', 'sponsor']
@@ -448,4 +449,187 @@ async function nextFreeDay(edition: string): Promise<string> {
     d.setUTCDate(d.getUTCDate() + 1)
   }
   return new Date().toISOString().slice(0, 10)
+}
+
+// ── Carousels ───────────────────────────────────────────────────────────────
+//
+// A LinkedIn carousel from one Insights briefing: the news, one statistic,
+// the data, a quote from someone in it, and a last slide pointing to the
+// briefing (lib/contentCarousel draws them and binds the PDF). Written from
+// the article's full text; every figure and the quote are then checked
+// against that text, and a slide that fails is left out rather than posted.
+
+interface ArticleText { body: string; publishers: string[] }
+
+async function readArticleFull(slug: string): Promise<ArticleText> {
+  const a = await readJson<(PublicArticle & { references_json?: { publisher?: string; label?: string }[] }) | null>(
+    `${NEXUS_URL}/api/public/insights/${encodeURIComponent(slug)}`,
+    null,
+  )
+  const body = String(a?.body ?? '')
+    .replace(/^#+\s*/gm, '')
+    .replace(/\*\*?/g, '')
+    .replace(/\[(\d+)\]/g, '')
+    .replace(/\s+\n/g, '\n')
+    .trim()
+  const publishers = (Array.isArray(a?.references_json) ? a!.references_json! : [])
+    .map((r) => String(r?.publisher || '').trim())
+    .filter(Boolean)
+  return { body: body.slice(0, 9000), publishers: [...new Set(publishers)] }
+}
+
+const CAROUSEL_VOICE = `${VOICE}
+
+This time you are writing a LinkedIn carousel: a few portrait slides the reader swipes through, and the post's caption. The slides, in order:
+- news: what happened, as a kicker (2 to 4 words, e.g. "From our Insights desk", "Policy", "Market data"), a headline (at most 80 characters, the development itself, never the briefing's title restated word for word) and a summary (at most 200 characters: who, what, when).
+- statistic: the single most striking figure in the piece, as the figure itself exactly as the text gives it ("$311m", "29%", "1,451"), a label saying what it measures (at most 70 characters) and one line of context (at most 140 characters).
+- data: two to four further figures from the piece under a short title (at most 60 characters), each a figure exactly as the text gives it and a label (at most 60 characters). Different figures from the statistic slide.
+- quote: words a named person or organisation said, copied exactly, character for character, from a passage the text puts in quotation marks, with the speaker's name and role as the text gives them. Choose the most telling line, at most 220 characters; you may stop at the end of a sentence but never change a word. If the text quotes nobody, return empty strings.
+- end: a closing headline (at most 70 characters) that gives the reader a reason to read the full briefing.
+Every figure must appear in the text exactly. If the piece has too few figures for a slide, return empty strings (and an empty points list) for it. Never invent or round a figure, never paraphrase inside quotation marks.
+
+The caption: 60 to 120 words, the first line standing on its own, ending with "Read the briefing:" and the link given, then 3 to 5 hashtags on their own line.`
+
+const STR = { type: 'string' }
+const CAROUSEL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['news', 'statistic', 'data', 'quote', 'end', 'caption', 'hashtags'],
+  properties: {
+    news: { type: 'object', additionalProperties: false, required: ['kicker', 'headline', 'summary'], properties: { kicker: STR, headline: STR, summary: STR } },
+    statistic: { type: 'object', additionalProperties: false, required: ['figure', 'label', 'context'], properties: { figure: STR, label: STR, context: STR } },
+    data: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['title', 'points'],
+      properties: { title: STR, points: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['figure', 'label'], properties: { figure: STR, label: STR } } } },
+    },
+    quote: { type: 'object', additionalProperties: false, required: ['text', 'speaker', 'role'], properties: { text: STR, speaker: STR, role: STR } },
+    end: { type: 'object', additionalProperties: false, required: ['headline'], properties: { headline: STR } },
+    caption: STR,
+    hashtags: { type: 'array', items: STR },
+  },
+}
+
+interface CarouselDraft {
+  news: { kicker: string; headline: string; summary: string }
+  statistic: { figure: string; label: string; context: string }
+  data: { title: string; points: { figure: string; label: string }[] }
+  quote: { text: string; speaker: string; role: string }
+  end: { headline: string }
+  caption: string
+  hashtags: string[]
+}
+
+// For comparing with the article: quotes and dashes made plain, spaces
+// collapsed, case ignored.
+const plain = (s: string) =>
+  s
+    .replace(/[“”„]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+
+// A figure is in the text when each of its numbers is, as written there
+// ("$311 million" and "$311m" both rest on "311").
+function figureInText(figure: string, text: string): boolean {
+  const nums = figure.match(/\d[\d,.]*/g)
+  if (!nums) return false
+  const t = plain(text)
+  return nums.every((n) => t.includes(n.replace(/[.,]$/, '')))
+}
+
+export async function draftCarousel(ed: Edition, opts: { brief?: string | null; forDate?: string | null; ref?: string | null }): Promise<ContentPost> {
+  const ctx = await gatherContext(ed)
+  const pool = pools(ctx).insight ?? []
+  if (!pool.length) throw new ContentError(emptyPoolMessage('insight', ctx))
+  // The briefing asked for, else one of the newest not turned into a
+  // carousel lately.
+  const usedForCarousel = new Set(ctx.recent.filter((r) => (r.source as { format?: string } | undefined)?.format === 'carousel').map((r) => r.ref))
+  const fresh = pool.filter((c) => !usedForCarousel.has(c.ref))
+  const pick =
+    (opts.ref && pool.find((c) => c.ref === opts.ref)) ||
+    (fresh.length ? fresh : pool)[Math.floor(Math.random() * Math.min((fresh.length ? fresh : pool).length, 3))]
+  const article = await readArticleFull(pick.ref!)
+  if (article.body.length < 200) throw new ContentError('The briefing could not be read from worldnexusgroup.com just now, so there is nothing to build slides from. Try again in a minute.', 502)
+
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
+  if (!apiKey) throw new ContentError('ANTHROPIC_API_KEY is not set on the CRM, so nothing can be written.', 400)
+  const client = new Anthropic({ apiKey })
+  const src = pick.source as { title?: string; dek?: string; category?: string; published_at?: string }
+  const briefText = [
+    `Page the post goes out from: ${ctx.brand === 'nexus' ? 'World Nexus Group' : `${ctx.ed.series}, ${ctx.ed.city || ctx.event?.city || ''} ${ctx.ed.year}`.trim()}`,
+    `Link to end the caption with: ${pick.link}`,
+    `The briefing's title: ${src.title ?? ''}`,
+    src.dek ? `Its standfirst: ${src.dek}` : '',
+    src.category ? `Its category: ${src.category}` : '',
+    `The briefing's full text (the only material; every figure and quote must come from it):\n"""\n${article.body}\n"""`,
+    opts.brief?.trim() ? `The marketing team's own steer: ${opts.brief.trim()}` : '',
+    'Return the carousel as JSON.',
+  ].filter(Boolean).join('\n\n')
+  const res = await client.beta.messages.create({
+    model: process.env.CONTENT_MODEL?.trim() || 'claude-opus-5-5',
+    max_tokens: 12000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    thinking: { type: 'adaptive' },
+    output_config: { effort: 'medium', format: { type: 'json_schema', schema: CAROUSEL_SCHEMA } },
+    system: CAROUSEL_VOICE,
+    messages: [{ role: 'user', content: briefText }],
+  })
+  if (res.stop_reason === 'refusal') throw new ContentError('Claude declined to write this one. Try again, or pick another briefing.', 502)
+  const raw = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
+  let d: CarouselDraft
+  try {
+    d = JSON.parse(raw) as CarouselDraft
+  } catch {
+    throw new ContentError('Claude did not answer in the expected shape. Try again.', 502)
+  }
+
+  // Held to the article: a figure or a quote not in it drops its slide.
+  const body = article.body
+  const source = article.publishers.slice(0, 2).join(', ') || null
+  const dropped: string[] = []
+  const slides: Slide[] = []
+  const date = ctx.event?.date ?? null
+  slides.push({ kind: 'news', kicker: tidy(d.news.kicker).slice(0, 40) || 'From our Insights desk', headline: tidy(d.news.headline).slice(0, 110) || (src.title ?? ''), summary: tidy(d.news.summary).slice(0, 240), date: src.published_at ? new Date(src.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : date })
+  const statFigure = tidy(d.statistic.figure)
+  if (statFigure && figureInText(statFigure, body)) {
+    slides.push({ kind: 'statistic', figure: statFigure.slice(0, 14), label: tidy(d.statistic.label).slice(0, 90), context: tidy(d.statistic.context).slice(0, 170), source })
+  } else if (statFigure) dropped.push(`statistic "${statFigure}" is not in the briefing`)
+  const points = (d.data.points || [])
+    .map((p) => ({ figure: tidy(p.figure).slice(0, 14), label: tidy(p.label).slice(0, 80) }))
+    .filter((p) => p.figure && p.label && p.figure !== statFigure)
+  const kept = points.filter((p) => figureInText(p.figure, body)).slice(0, 4)
+  if (points.length > kept.length) dropped.push(`${points.length - kept.length} data point(s) not in the briefing`)
+  if (kept.length >= 2) slides.push({ kind: 'data', title: tidy(d.data.title).slice(0, 80) || 'The data', points: kept, source })
+  const quote = (d.quote.text || '').trim().replace(/^["“]+|["”]+$/g, '')
+  const speaker = (d.quote.speaker || '').trim()
+  if (quote && speaker && plain(body).includes(plain(quote))) {
+    slides.push({ kind: 'quote', text: quote.slice(0, 260), speaker: speaker.slice(0, 80), role: (d.quote.role || '').trim().slice(0, 120), source })
+  } else if (quote) dropped.push('the quote is not word for word in the briefing')
+  slides.push({ kind: 'end', headline: tidy(d.end.headline).slice(0, 90) || 'Read the full briefing', link: pick.link })
+
+  const row = {
+    edition: ed.label,
+    series: ed.series,
+    kind: 'insight' as ContentKind,
+    ref: pick.ref,
+    forDate: opts.forDate || (await nextFreeDay(ed.label)),
+    kicker: slides[0].kind === 'news' ? slides[0].kicker : '',
+    headline: slides[0].kind === 'news' ? slides[0].headline : '',
+    subline: slides[0].kind === 'news' ? slides[0].summary.slice(0, 120) : '',
+    caption: tidy(d.caption),
+    hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
+    link: pick.link,
+    source: { ...pick.source, format: 'carousel', layout: 'headline', slides, dropped, city: ctx.ed.city, date, site: ctx.site },
+    brief: opts.brief?.trim() || null,
+    status: 'draft',
+    updatedAt: new Date().toISOString(),
+  }
+  const { data, error } = await supabase.from('marketing_content').insert(row).select('*').single()
+  if (error) throw error
+  return data as ContentPost
 }

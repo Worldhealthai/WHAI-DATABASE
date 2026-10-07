@@ -25,9 +25,9 @@ const HEART_PULSE = [
 ]
 
 const ASSETS = join(process.cwd(), 'src/assets')
-type Assets = { regular: Buffer; semibold: Buffer; wpai: string; wng: string }
+export type Assets = { regular: Buffer; semibold: Buffer; wpai: string; wng: string }
 let assets: Assets | null = null
-async function loadAssets(): Promise<Assets> {
+export async function loadAssets(): Promise<Assets> {
   if (assets) return assets
   const [regular, semibold, wpai, wng] = await Promise.all([
     readFile(join(ASSETS, 'fonts/Inter-Regular.ttf')),
@@ -42,7 +42,7 @@ async function loadAssets(): Promise<Assets> {
 // A photo, headshot or logo from the web, as a data URL the renderer can
 // draw; null when it cannot be fetched in time, and the card is set
 // without it.
-async function remoteImage(url: string | null | undefined): Promise<string | null> {
+export async function remoteImage(url: string | null | undefined): Promise<string | null> {
   if (!url || !/^https?:/i.test(url)) return null
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(8000) })
@@ -68,7 +68,7 @@ function headlineSize(text: string, max = 82): number {
 
 type Post = Pick<ContentPost, 'series' | 'kicker' | 'headline' | 'subline' | 'source'>
 
-function Mark({ brand, assets: a, size = 1 }: { brand: Brand; assets: Assets; size?: number }) {
+export function Mark({ brand, assets: a, size = 1 }: { brand: Brand; assets: Assets; size?: number }) {
   if (brand.key === 'pharma') {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={a.wpai} alt="" width={344 * size} height={56 * size} style={{ width: 344 * size, height: 56 * size }} />
@@ -125,7 +125,7 @@ const page = (brand: Brand, extra: React.CSSProperties = {}): React.CSSPropertie
 // A soft wash of the brand colour fading into the night: from one corner,
 // and a fainter one from the opposite corner, so the ground is not flat.
 // The accent's own hex with an alpha, so each brand fades in its colour.
-const alpha = (hex: string, a: number) => `${hex}${Math.round(a * 255).toString(16).padStart(2, '0')}`
+export const alpha = (hex: string, a: number) => `${hex}${Math.round(a * 255).toString(16).padStart(2, '0')}`
 // (On a padded page the renderer places an absolute child inside the
 // padding, so the wash is pulled back by it to cover the whole card.)
 function Wash({ brand, corner = 'top', pad = PAD }: { brand: Brand; corner?: 'top' | 'bottom'; pad?: number }) {
