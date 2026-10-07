@@ -50,7 +50,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; slides?: { kind: string }[]; dropped?: string[] }
+  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[] }
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -315,6 +315,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
           <div className="flex flex-wrap items-center gap-2">
             <Tone tone={post.status === 'posted' ? 'ok' : 'accent'}>{post.status === 'posted' ? 'Posted' : 'Draft'}</Tone>
             <Tone tone="muted">{kindLabel(post.kind)}</Tone>
+            {post.source?.by === 'routine' && <Tone tone="muted">Daily routine</Tone>}
             <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{fmtDay(post.forDate)}</span>
             {post.postUrl && <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-[12.5px] hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>View the post</a>}
             <span className="ml-auto flex items-center gap-1">
@@ -323,7 +324,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
             </span>
           </div>
 
-          {carousel && <Tone tone="muted">Carousel</Tone>}
+          {carousel && <Tone tone="muted">{post.source?.pages === 'two-page' ? 'Two-page post' : 'Carousel'}</Tone>}
           <div className={cn('grid sm:grid-cols-[1fr_2fr] gap-2', carousel && 'hidden')}>
             <input className="ws-input" value={kicker} onChange={(e) => setKicker(e.target.value)} placeholder="Kicker" aria-label="Kicker" />
             <input className="ws-input" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline" aria-label="Headline" />
