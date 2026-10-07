@@ -1,14 +1,15 @@
 // The Content tab's posts for one edition.
 //   GET  /api/marketing/content?edition=World%20Health%20AI%20London%202027   → { data }
-//   POST /api/marketing/content { series, city, year, label, kind?, brief?, forDate? } → { post }
-//        drafts one post (lib/contentStudio) and stores it
+//   POST /api/marketing/content { series, city, year, label, kind?, brief?, forDate?, format? } → { post }
+//        drafts one post (lib/contentStudio) and stores it; with format
+//        "carousel", a LinkedIn carousel from an Insights briefing (ref picks which)
 import { NextRequest, NextResponse } from 'next/server'
 import { setupHint, supabase } from '@/lib/supabase'
-import { EVENT_KINDS, NEXUS_KINDS, ContentError, draftPost, type ContentKind } from '@/lib/contentStudio'
+import { EVENT_KINDS, NEXUS_KINDS, ContentError, draftCarousel, draftPost, type ContentKind } from '@/lib/contentStudio'
 import { LineupError } from '@/lib/marketingSource'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120
+export const maxDuration = 180
 
 export async function GET(req: NextRequest) {
   const edition = (req.nextUrl.searchParams.get('edition') || '').trim()
@@ -33,7 +34,11 @@ export async function POST(req: NextRequest) {
   const kind = [...EVENT_KINDS, ...NEXUS_KINDS].includes(body.kind) ? (body.kind as ContentKind) : null
   const forDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.forDate || '')) ? String(body.forDate) : null
   try {
-    const post = await draftPost({ series, city, year, label }, { kind, brief: body.brief ? String(body.brief) : null, forDate })
+    const ed = { series, city, year, label }
+    const brief = body.brief ? String(body.brief) : null
+    const post = body.format === 'carousel'
+      ? await draftCarousel(ed, { brief, forDate, ref: body.ref ? String(body.ref) : null })
+      : await draftPost(ed, { kind, brief, forDate })
     return NextResponse.json({ post }, { status: 201 })
   } catch (error: any) {
     if (error instanceof ContentError) return NextResponse.json({ error: error.message }, { status: error.status })

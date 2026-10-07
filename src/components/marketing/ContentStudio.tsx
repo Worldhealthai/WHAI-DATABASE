@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, Download, PenLine, RefreshCw, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Copy, Download, FileText, PenLine, RefreshCw, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
@@ -50,7 +50,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string }
+  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; slides?: { kind: string }[]; dropped?: string[] }
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -90,17 +90,20 @@ export function ContentStudio() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [view, setView] = useState<'all' | 'draft' | 'posted'>('all')
+  // A single post, or a LinkedIn carousel from an Insights briefing.
+  const [format, setFormat] = useState<'single' | 'carousel'>('single')
   const kinds = KINDS.filter((k) => k.track === track)
 
-  async function generate(opts: { kind?: Pick; brief?: string; forDate?: string } = {}) {
+  async function generate(opts: { kind?: Pick; brief?: string; forDate?: string; format?: 'single' | 'carousel'; ref?: string | null } = {}) {
     if (!ed) return
     setBusy(true)
     setError('')
     const kind = opts.kind ?? pick
+    const fmt = opts.format ?? format
     const r = await fetch('/api/marketing/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...ed, kind: kind === 'auto' ? null : kind, brief: opts.brief ?? brief, forDate: opts.forDate ?? forDate ?? null }),
+      body: JSON.stringify({ ...ed, kind: kind === 'auto' ? null : kind, brief: opts.brief ?? brief, forDate: opts.forDate ?? forDate ?? null, format: fmt, ref: opts.ref ?? null }),
     })
     const j = await r.json().catch(() => ({}))
     setBusy(false)
@@ -154,13 +157,30 @@ export function ContentStudio() {
               <PenLine className="w-4 h-4" style={{ color: 'var(--accent-ink)' }} />
               <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>Draft the next post</p>
             </div>
+            <div className="mb-3">
+              <Segmented
+                size="sm"
+                value={format}
+                onChange={setFormat}
+                options={[
+                  { value: 'single', label: 'Single post', hint: 'One image and a caption' },
+                  { value: 'carousel', label: 'Carousel', hint: 'Swipeable slides from an Insights briefing, as a PDF for LinkedIn' },
+                ]}
+              />
+            </div>
             <div className="grid sm:grid-cols-2 gap-3">
-              <Field label="What it is about" hint="Choose for me rotates through the kinds, skipping what the last posts used.">
-                <select className="ws-input" value={pick} onChange={(e) => setPick(e.target.value as Pick)}>
-                  <option value="auto">Choose for me</option>
-                  {kinds.map((k) => <option key={k.value} value={k.value}>{k.label}: {k.hint}</option>)}
-                </select>
-              </Field>
+              {format === 'carousel' ? (
+                <Field label="What it is about" hint="One of the newest Insights briefings not yet turned into a carousel.">
+                  <p className="ws-input flex items-center" style={{ color: 'var(--fg-2)' }}>An Insights briefing: the news, a statistic, the data, a quote</p>
+                </Field>
+              ) : (
+                <Field label="What it is about" hint="Choose for me rotates through the kinds, skipping what the last posts used.">
+                  <select className="ws-input" value={pick} onChange={(e) => setPick(e.target.value as Pick)}>
+                    <option value="auto">Choose for me</option>
+                    {kinds.map((k) => <option key={k.value} value={k.value}>{k.label}: {k.hint}</option>)}
+                  </select>
+                </Field>
+              )}
               <Field label="Planned for" hint="Left blank, the next day with nothing planned.">
                 <input className="ws-input" type="date" value={forDate} onChange={(e) => setForDate(e.target.value)} />
               </Field>
@@ -170,7 +190,7 @@ export function ContentStudio() {
             </div>
             <div className="flex flex-wrap items-center gap-3 mt-3">
               <button type="button" onClick={() => generate()} disabled={busy || !ed} className="ws-btn ws-btn-primary">
-                {busy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Writing…</> : 'Draft the post'}
+                {busy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Writing…</> : format === 'carousel' ? 'Draft the carousel' : 'Draft the post'}
               </button>
               {error && <span className="text-[13px]" style={{ color: 'var(--bad)' }}>{error}</span>}
             </div>
@@ -198,7 +218,7 @@ export function ContentStudio() {
           ) : (
             <div className="flex flex-col gap-3">
               {shown.map((p) => (
-                <PostCard key={p.id} post={p} onChanged={refresh} onRegenerate={() => generate({ kind: p.kind, brief: p.brief ?? '', forDate: p.forDate ?? '' })} busy={busy} />
+                <PostCard key={p.id} post={p} onChanged={refresh} onRegenerate={() => generate({ kind: p.kind, brief: p.brief ?? '', forDate: p.forDate ?? '', format: p.source?.format === 'carousel' ? 'carousel' : 'single', ref: p.source?.format === 'carousel' ? p.ref : null })} busy={busy} />
               ))}
             </div>
           )}
@@ -218,6 +238,10 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   const [logging, setLogging] = useState(false)
   const [v, setV] = useState(0)
   const [layout, setLayout] = useState<CardLayout>(post.source?.layout ?? 'headline')
+  const carousel = post.source?.format === 'carousel'
+  const slideNames = (post.source?.slides ?? []).map((x) => ({ news: 'The news', statistic: 'Statistic', data: 'Data', quote: 'Quote', end: 'Read more' } as Record<string, string>)[x.kind] ?? x.kind)
+  const slideCount = Math.max(1, slideNames.length)
+  const [slide, setSlide] = useState(0)
   const dirty = caption !== post.caption || headline !== post.headline || subline !== post.subline || kicker !== post.kicker
   const text = `${caption.trim()}\n\n${post.hashtags.join(' ')}`.trim()
   const image = `/api/marketing/content/${post.id}/image?v=${encodeURIComponent(post.updatedAt)}-${v}`
@@ -248,7 +272,25 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   return (
     <div className="ws-card overflow-hidden">
       <div className="grid md:grid-cols-[300px_1fr]">
-        {/* The image */}
+        {/* The image, or the carousel's slides */}
+        {carousel ? (
+          <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`${image}&slide=${slide + 1}`} alt={`Slide ${slide + 1} of ${slideCount}`} width={1080} height={1350} className="w-full h-auto block" style={{ aspectRatio: '1080 / 1350', background: '#0A0F1D' }} />
+            <div className="flex items-center gap-2 mt-3">
+              <button type="button" className="ws-btn ws-btn-sm" disabled={slide === 0} onClick={() => setSlide((n) => n - 1)} aria-label="Previous slide"><ChevronLeft className="w-3.5 h-3.5" /></button>
+              <span className="text-[12.5px] tabular flex-1 text-center" style={{ color: 'var(--fg-3)' }}>{`${slideNames[slide] ?? ''} · ${slide + 1} of ${slideCount}`}</span>
+              <button type="button" className="ws-btn ws-btn-sm" disabled={slide >= slideCount - 1} onClick={() => setSlide((n) => n + 1)} aria-label="Next slide"><ChevronRight className="w-3.5 h-3.5" /></button>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <a href={`/api/marketing/content/${post.id}/carousel`} className="ws-btn ws-btn-primary ws-btn-sm flex-1 justify-center" title="Every slide as one PDF: on LinkedIn, Add a document"><FileText className="w-3.5 h-3.5" /> Download PDF</a>
+              <a href={`${image}&slide=${slide + 1}&download=1`} className="ws-btn ws-btn-sm" title="This slide as a 1080 × 1350 PNG"><Download className="w-3.5 h-3.5" /> Slide</a>
+            </div>
+            {post.source?.dropped?.length ? (
+              <p className="text-[11.5px] mt-2" style={{ color: 'var(--fg-4)' }}>{`Left out, as not in the briefing word for word: ${post.source.dropped.join('; ')}.`}</p>
+            ) : null}
+          </div>
+        ) : (
         <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image} alt="" width={1080} height={1080} className="w-full h-auto block" style={{ aspectRatio: '1 / 1', background: '#0A0F1D' }} />
@@ -266,6 +308,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
             <a href={`${image}&download=1`} className="ws-btn ws-btn-sm" title="1080 × 1080 PNG"><Download className="w-3.5 h-3.5" /> Save</a>
           </div>
         </div>
+        )}
 
         {/* The words */}
         <div className="p-4 flex flex-col gap-3 min-w-0">
@@ -280,7 +323,8 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
             </span>
           </div>
 
-          <div className="grid sm:grid-cols-[1fr_2fr] gap-2">
+          {carousel && <Tone tone="muted">Carousel</Tone>}
+          <div className={cn('grid sm:grid-cols-[1fr_2fr] gap-2', carousel && 'hidden')}>
             <input className="ws-input" value={kicker} onChange={(e) => setKicker(e.target.value)} placeholder="Kicker" aria-label="Kicker" />
             <input className="ws-input" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline" aria-label="Headline" />
             <input className="ws-input sm:col-span-2" value={subline} onChange={(e) => setSubline(e.target.value)} placeholder="Subline" aria-label="Subline" />
