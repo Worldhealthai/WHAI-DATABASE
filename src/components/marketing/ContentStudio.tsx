@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Linkedin, PenLine, RefreshCw, Send, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Linkedin, PenLine, RefreshCw, Send, Sparkles, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
@@ -50,7 +50,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[] }
+  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[]; design?: { style: string } | null }
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -370,6 +370,20 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
       setTimeout(() => setCopied(false), 1800)
     } catch { /* the caption is on screen to select */ }
   }
+  // Design: a richer card (event photos, a mosaic, a magazine cover…); each
+  // press moves on to another design. Plain goes back to the layout.
+  const [designing, setDesigning] = useState(false)
+  const design = post.source?.design?.style ?? null
+  const DESIGN_NAMES: Record<string, string> = { cinematic: 'Cinematic photo', mosaic: 'Photo mosaic', magazine: 'Magazine cover', framed: 'Editorial frame', spotlight: 'Spotlight' }
+  async function redesign(plain = false) {
+    setDesigning(true)
+    const r = await fetch(`/api/marketing/content/${post.id}/design`, { method: plain ? 'DELETE' : 'POST' })
+    setDesigning(false)
+    if (r.ok) {
+      setV((n) => n + 1)
+      onChanged()
+    }
+  }
   // Approve and post: up on the brand's page now, then marked posted.
   async function approve() {
     if (!liPage) return
@@ -409,6 +423,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
               <a href={`/api/marketing/content/${post.id}/carousel`} className="ws-btn ws-btn-primary ws-btn-sm flex-1 justify-center" title="Every slide as one PDF: on LinkedIn, Add a document"><FileText className="w-3.5 h-3.5" /> Download PDF</a>
               <a href={`${image}&slide=${slide + 1}&download=1`} className="ws-btn ws-btn-sm" title="This slide as a 1080 × 1350 PNG"><Download className="w-3.5 h-3.5" /> Slide</a>
             </div>
+            <DesignBar design={design} names={DESIGN_NAMES} busy={designing} onDesign={() => { setSlide(0); redesign() }} onPlain={() => redesign(true)} carousel />
             {post.source?.dropped?.length ? (
               <p className="text-[11.5px] mt-2" style={{ color: 'var(--fg-4)' }}>{`Left out, as not in the briefing word for word: ${post.source.dropped.join('; ')}.`}</p>
             ) : null}
@@ -430,6 +445,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
             </select>
             <a href={`${image}&download=1`} className="ws-btn ws-btn-sm" title="1080 × 1080 PNG"><Download className="w-3.5 h-3.5" /> Save</a>
           </div>
+          <DesignBar design={design} names={DESIGN_NAMES} busy={designing} onDesign={() => redesign()} onPlain={() => redesign(true)} />
         </div>
         )}
 
@@ -496,6 +512,27 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
           onSave={async (url) => patch({ status: 'posted', postUrl: url || null })}
         />
       )}
+    </div>
+  )
+}
+
+function DesignBar({ design, names, busy, onDesign, onPlain, carousel = false }: { design: string | null; names: Record<string, string>; busy: boolean; onDesign: () => void; onPlain: () => void; carousel?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <button
+        type="button"
+        onClick={onDesign}
+        disabled={busy}
+        className="ws-btn ws-btn-sm flex-1 justify-center"
+        title={carousel ? 'An event photo behind the cover slide; press again for another' : 'A richer design with event photos; press again for another'}
+      >
+        {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+        {design ? (carousel ? 'Another photo' : 'Another design') : 'Design'}
+      </button>
+      {design && (
+        <button type="button" onClick={onPlain} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm" title="Back to the everyday look">Plain</button>
+      )}
+      {design && !carousel && <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{names[design] ?? design}</span>}
     </div>
   )
 }

@@ -9,7 +9,8 @@
 import { ImageResponse } from 'next/og'
 import { PDFDocument } from 'pdf-lib'
 import { BRANDS, brandFor, type Brand } from '@/lib/contentBrand'
-import { Mark, alpha, loadAssets, type Assets } from '@/lib/contentCard'
+import { Mark, alpha, loadAssets, remoteImage, type Assets } from '@/lib/contentCard'
+import { designOf } from '@/lib/contentDesign'
 
 export const SLIDE_W = 1080
 export const SLIDE_H = 1350
@@ -42,11 +43,20 @@ function sized(text: string, max: number): number {
   return Math.round(max * 0.56)
 }
 
-function Frame({ brand, a, n, total, children, corner = 'top' }: { brand: Brand; a: Assets; n: number; total: number; children: React.ReactNode; corner?: 'top' | 'bottom' }) {
+function Frame({ brand, a, n, total, children, corner = 'top', photo = null }: { brand: Brand; a: Assets; n: number; total: number; children: React.ReactNode; corner?: 'top' | 'bottom'; photo?: string | null }) {
   const from = corner === 'top' ? '160deg' : '340deg'
   const full: React.CSSProperties = { position: 'absolute', top: 0, left: 0, width: SLIDE_W, height: SLIDE_H }
   return (
     <div style={{ width: SLIDE_W, height: SLIDE_H, display: 'flex', background: brand.night, color: '#fff', fontFamily: 'Inter', position: 'relative' }}>
+      {/* A designed cover: an event photo under the night, fading to it where the words sit. */}
+      {photo ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo} alt="" width={SLIDE_W} height={SLIDE_H} style={{ ...full, objectFit: 'cover' }} />
+          <div style={{ ...full, background: brand.night, opacity: 0.35 }} />
+          <div style={{ ...full, background: `linear-gradient(to bottom, ${alpha(brand.night, 0)} 25%, ${alpha(brand.night, 0.88)} 58%, ${brand.night} 78%)` }} />
+        </>
+      ) : null}
       {/* The wash, on the unpadded slide so it covers all of it. */}
       <div style={{ ...full, background: `linear-gradient(${from}, ${alpha(brand.accent, 0.4)} 0%, ${alpha(brand.accent, 0.13)} 34%, ${alpha(brand.accent, 0)} 62%)` }} />
       <div style={{ ...full, background: `radial-gradient(circle at ${corner === 'top' ? '100% 100%' : '0% 0%'}, ${alpha(brand.accent, 0.15)} 0%, ${alpha(brand.accent, 0)} 48%)` }} />
@@ -56,7 +66,7 @@ function Frame({ brand, a, n, total, children, corner = 'top' }: { brand: Brand;
           <Mark brand={brand} assets={a} size={0.86} />
           <span style={{ fontSize: 24, color: FAINT, fontVariantNumeric: 'tabular-nums' }}>{`${n} / ${total}`}</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'center', width: WIDTH, paddingBottom: 40 }}>{children}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: photo ? 'flex-end' : 'center', width: WIDTH, paddingBottom: photo ? 70 : 40 }}>{children}</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: WIDTH, fontSize: 24, paddingBottom: 60, color: FAINT }}>
           <span>{brand.site}</span>
           {n < total ? <span style={{ color: brand.accent, fontWeight: 600 }}>Swipe →</span> : <span />}
@@ -150,9 +160,12 @@ export async function renderSlide(post: CarouselPost, index: number): Promise<Im
   const slides = slidesOf(post)
   const i = Math.min(Math.max(0, index), Math.max(0, slides.length - 1))
   const slide = slides[i] ?? { kind: 'end', headline: 'No slides yet', link: brand.url }
+  // Designed (the Design button): the cover slide carries an event photo.
+  const design = designOf(post as Parameters<typeof designOf>[0])
+  const photo = i === 0 && design?.photos[0] ? await remoteImage(design.photos[0]) : null
   return new ImageResponse(
     (
-      <Frame brand={brand} a={a} n={i + 1} total={Math.max(1, slides.length)} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'}>
+      <Frame brand={brand} a={a} n={i + 1} total={Math.max(1, slides.length)} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} photo={photo}>
         <SlideBody slide={slide} brand={brand} />
       </Frame>
     ),

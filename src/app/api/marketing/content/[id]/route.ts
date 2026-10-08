@@ -19,7 +19,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.forDate === null || /^\d{4}-\d{2}-\d{2}$/.test(String(body.forDate || ''))) patch.forDate = body.forDate
   if (typeof body.layout === 'string' && CARD_LAYOUTS.some((l) => l.value === body.layout)) {
     const { data: cur } = await supabase.from('marketing_content').select('source').eq('id', id).maybeSingle()
-    patch.source = { ...((cur?.source as Record<string, unknown>) ?? {}), layout: body.layout }
+    // Choosing a layout goes back from a designed card to the everyday ones.
+    patch.source = { ...((cur?.source as Record<string, unknown>) ?? {}), layout: body.layout, design: null }
   }
   if (body.status === 'draft' || body.status === 'posted') {
     patch.status = body.status
