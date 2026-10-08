@@ -91,7 +91,9 @@ async function pickInsight(brand: RoutineBrand, ref?: string | null): Promise<Pi
   if (ref) insight = list.find((i) => i.slug === ref)
   else {
     const fresh = list.filter((i) => !posted.has(i.slug))
-    insight = (brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : undefined) ?? fresh[0]
+    // The group's page posts about its own pieces only: the health and
+    // pharma pieces already have posts on their own pages.
+    insight = brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : fresh[0]
   }
   if (!insight) return null
   const choice = (pools(ctx).insight ?? []).find((c) => c.ref === insight!.slug) ?? {
@@ -137,7 +139,7 @@ export async function routineBrief(brand: RoutineBrand, ref?: string | null) {
   const picked = await pickInsight(brand, ref)
   const page = brand === 'nexus' ? 'World Nexus Group (the group page, about its market intelligence)' : (await routineEdition(brand)).label
   if (!picked) {
-    return { brand, page, status: 'nothing' as const, message: `Every published briefing for ${SERIES[brand]} already has a post. Nothing to write today.` }
+    return { brand, page, status: 'nothing' as const, message: `Every published ${SERIES[brand]} briefing already has a post. Nothing to write.` }
   }
   const { ctx, insight, choice } = picked
   const article = await readArticleFull(insight.slug)
