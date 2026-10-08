@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { ImageResponse } from 'next/og'
 import { BRANDS, brandFor, type Brand, type CardLayout } from '@/lib/contentBrand'
 import type { ContentPost } from '@/lib/contentStudio'
+import { designOf, designedCard } from '@/lib/contentDesign'
 
 export const CARD_SIZE = 1080
 const PAD = 88
@@ -315,6 +316,19 @@ export async function renderCard(post: Post, layoutOverride?: CardLayout): Promi
   if ((layout === 'photo' || layout === 'portrait' || layout === 'logo') && !image) layout = 'split'
   if (layout === 'number' && !String(post.source?.figure ?? post.source?.daysToGo ?? '').trim()) layout = 'headline'
   if (layout === 'quote' && !String(post.source?.quote ?? '').trim()) layout = 'headline'
+  // A designed card (the Design button) replaces the layout until the
+  // layout is chosen again.
+  const design = layoutOverride ? null : designOf(post)
+  if (design) {
+    return new ImageResponse(await designedCard(post, a, design), {
+      width: CARD_SIZE,
+      height: CARD_SIZE,
+      fonts: [
+        { name: 'Inter', data: a.regular, weight: 400, style: 'normal' },
+        { name: 'Inter', data: a.semibold, weight: 600, style: 'normal' },
+      ],
+    })
+  }
   const props: LayoutProps = { post, brand, a, city, date, image }
   const body =
     layout === 'quote' ? <Quote {...props} />
