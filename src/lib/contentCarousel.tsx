@@ -69,9 +69,6 @@ function Frame({ brand, a, n, total, children, corner = 'top' }: { brand: Brand;
 const Kicker = ({ text, brand }: { text: string; brand: Brand }) =>
   text ? <span style={{ fontSize: 24, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: brand.accent, marginBottom: 30 }}>{text}</span> : null
 
-const SourceLine = ({ source }: { source?: string | null }) =>
-  source ? <span style={{ fontSize: 24, color: FAINT, marginTop: 44 }}>{`Source: ${source}`}</span> : null
-
 const Col = ({ children }: { children: React.ReactNode }) => <div style={{ display: 'flex', flexDirection: 'column', width: WIDTH }}>{children}</div>
 
 function SlideBody({ slide, brand }: { slide: Slide; brand: Brand }) {
@@ -98,7 +95,6 @@ function Body({ slide, brand }: { slide: Slide; brand: Brand }) {
           <span style={{ fontSize: size, fontWeight: 600, lineHeight: 0.95, letterSpacing: -8, color: brand.accent, fontVariantNumeric: 'tabular-nums' }}>{slide.figure}</span>
           <span style={{ fontSize: sized(slide.label, 58), fontWeight: 600, lineHeight: 1.12, letterSpacing: -1.5, marginTop: 36, maxWidth: WIDTH }}>{slide.label}</span>
           {slide.context ? <span style={{ fontSize: 32, lineHeight: 1.4, color: MUTED, marginTop: 26, maxWidth: WIDTH - 40 }}>{slide.context}</span> : null}
-          <SourceLine source={slide.source} />
         </div>
       )
     }
@@ -115,7 +111,6 @@ function Body({ slide, brand }: { slide: Slide; brand: Brand }) {
               </div>
             ))}
           </div>
-          <SourceLine source={slide.source} />
         </div>
       )
     case 'quote': {
@@ -128,7 +123,6 @@ function Body({ slide, brand }: { slide: Slide; brand: Brand }) {
             <span style={{ fontSize: 32, fontWeight: 600, marginTop: 40 }}>{slide.speaker}</span>
             {slide.role ? <span style={{ fontSize: 28, color: MUTED, marginTop: 8, maxWidth: WIDTH - 60 }}>{slide.role}</span> : null}
           </div>
-          <SourceLine source={slide.source} />
         </div>
       )
     }
@@ -138,7 +132,7 @@ function Body({ slide, brand }: { slide: Slide; brand: Brand }) {
           <Kicker text="Read the briefing" brand={brand} />
           <span style={{ fontSize: sized(slide.headline, 80), fontWeight: 600, lineHeight: 1.08, letterSpacing: -2, maxWidth: WIDTH }}>{slide.headline}</span>
           <span style={{ fontSize: 32, color: brand.accent, fontWeight: 600, marginTop: 44, maxWidth: WIDTH }}>{slide.link.replace(/^https?:\/\/(www\.)?/, '')}</span>
-          <span style={{ fontSize: 30, color: MUTED, marginTop: 20 }}>Every figure on these slides is from the sources cited there.</span>
+          <span style={{ fontSize: 30, color: MUTED, marginTop: 20 }}>Every figure here is referenced in the full briefing.</span>
         </div>
       )
   }

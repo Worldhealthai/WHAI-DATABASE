@@ -214,6 +214,8 @@ export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: Routi
     source: {
       ...choice.source,
       by: BY,
+      // Where the briefing's facts come from: for the team, never on the post.
+      publishers: article.publishers,
       ...(single ? {} : { format: 'carousel', pages: format, slides }),
       layout,
       quote: single ? cardQuote || null : null,

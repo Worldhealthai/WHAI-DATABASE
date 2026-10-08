@@ -50,7 +50,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string } }
+  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[] }
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -336,6 +336,12 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   const li = useLinkedIn().data
   const brand = brandFor(post.series)
   const liPage = li?.connected ? li.pages.find((p) => p.urn === li.pageFor[brand]) : undefined
+  // Where the facts come from, for the team only: the briefing's publishers,
+  // or on older carousels the source each slide used to carry.
+  const sources = [...new Set([
+    ...(post.source?.publishers ?? []),
+    ...((post.source?.slides ?? []) as { source?: string | null }[]).flatMap((x) => (x.source ? x.source.split(/,\s*/) : [])),
+  ].filter(Boolean))]
   const [posting, setPosting] = useState(false)
   const [postErr, setPostErr] = useState('')
   const [layout, setLayout] = useState<CardLayout>(post.source?.layout ?? 'headline')
@@ -475,6 +481,11 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
             )}
           </div>
           {postErr && <p className="text-[12.5px]" style={{ color: 'var(--bad)' }}>{postErr}</p>}
+          {sources.length > 0 && (
+            <p className="text-[12px]" style={{ color: 'var(--fg-4)' }} title="For your reference: not shown on the post">
+              {`Sources (not on the post): ${sources.join(', ')}`}
+            </p>
+          )}
         </div>
       </div>
       {logging && (

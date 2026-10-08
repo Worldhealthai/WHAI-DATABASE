@@ -645,7 +645,7 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
     caption: tidy(d.caption),
     hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
     link: pick.link,
-    source: { ...pick.source, format: 'carousel', layout: 'headline', slides, dropped, city: ctx.ed.city, date, site: ctx.site },
+    source: { ...pick.source, format: 'carousel', layout: 'headline', slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
