@@ -8,12 +8,12 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronLeft, ChevronRight, Copy, Download, FileText, PenLine, RefreshCw, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Linkedin, PenLine, RefreshCw, Send, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { LogPostModal, Notice, Tone, useEdition } from './shared'
-import { CARD_LAYOUTS, type CardLayout } from '@/lib/contentBrand'
+import { CARD_LAYOUTS, brandFor, type BrandKey, type CardLayout } from '@/lib/contentBrand'
 
 type Kind = 'insight' | 'session' | 'speaker' | 'theme' | 'countdown' | 'sponsor' | 'platform' | 'signal' | 'event'
 type Pick = 'auto' | Kind
@@ -50,7 +50,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[] }
+  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string } }
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -61,6 +61,101 @@ export interface Post {
 
 const fmtDay = (iso: string | null) =>
   iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : 'No day set'
+
+// The LinkedIn connection (api/linkedin): whether posts can go straight up.
+interface LinkedInStatus {
+  configured: boolean
+  tableMissing: boolean
+  redirectUri: string
+  connected: boolean
+  expiresAt: string | null
+  renews: boolean
+  pages: { urn: string; name: string }[]
+  pageFor: Partial<Record<BrandKey, string>>
+  pagesError: string | null
+  /** Days left on the sign-in, worked out when it was read */
+  days: number | null
+}
+function useLinkedIn() {
+  return useQuery<LinkedInStatus>({
+    queryKey: ['linkedin'],
+    queryFn: async () => {
+      const j = (await (await fetch('/api/linkedin', { cache: 'no-store' })).json()) as LinkedInStatus
+      return { ...j, days: j.expiresAt ? Math.ceil((Date.parse(j.expiresAt) - Date.now()) / 86400000) : null }
+    },
+    refetchOnWindowFocus: true,
+  })
+}
+const BRAND_NAMES: { key: BrandKey; name: string }[] = [
+  { key: 'health', name: 'World Health AI' },
+  { key: 'pharma', name: 'World Pharma AI' },
+  { key: 'nexus', name: 'World Nexus Group' },
+]
+
+function LinkedInBar() {
+  const qc = useQueryClient()
+  const q = useLinkedIn()
+  const [err, setErr] = useState('')
+  const s = q.data
+  if (!s) return null
+  const call = async (method: string, body?: unknown) => {
+    setErr('')
+    const r = await fetch('/api/linkedin', { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) setErr(j?.error || 'That did not work.')
+    else qc.invalidateQueries({ queryKey: ['linkedin'] })
+  }
+  const connect = () => window.open('/api/linkedin/connect', '_blank', 'noopener')
+  const days = s.days
+  return (
+    <div className="ws-card px-5 py-4 mb-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <Linkedin className="w-4 h-4" style={{ color: 'var(--accent-ink)' }} />
+        <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>LinkedIn</p>
+        {!s.configured ? (
+          <span className="text-[13px]" style={{ color: 'var(--fg-3)' }}>Not set up yet. Posts are downloaded and put up by hand until then.</span>
+        ) : s.tableMissing ? (
+          <span className="text-[13px]" style={{ color: 'var(--warn)' }}>Run supabase/migrations/012_linkedin_connection.sql in the Supabase SQL editor first.</span>
+        ) : s.connected ? (
+          <span className="text-[13px]" style={{ color: days != null && days <= 7 && !s.renews ? 'var(--warn)' : 'var(--fg-3)' }}>
+            {`Connected${days != null && !s.renews ? ` · the sign-in lasts ${days} more day${days === 1 ? '' : 's'}` : ''}`}
+          </span>
+        ) : (
+          <span className="text-[13px]" style={{ color: 'var(--fg-3)' }}>Connect once to post drafts straight to the company pages.</span>
+        )}
+        <span className="ml-auto flex items-center gap-2">
+          {s.configured && !s.tableMissing && (
+            <button type="button" onClick={connect} className={cn('ws-btn ws-btn-sm', !s.connected && 'ws-btn-primary')}>
+              <ExternalLink className="w-3.5 h-3.5" /> {s.connected ? 'Connect again' : 'Connect LinkedIn'}
+            </button>
+          )}
+          {s.connected && <button type="button" onClick={() => call('POST', { action: 'refresh-pages' })} className="ws-btn ws-btn-ghost ws-btn-sm" title="Read the pages again">Refresh pages</button>}
+        </span>
+      </div>
+      {!s.configured && (
+        <p className="text-[12.5px] mt-2" style={{ color: 'var(--fg-4)' }}>
+          {`When LinkedIn approves the app (Community Management API), add LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET to the CRM in Vercel and redeploy. In the LinkedIn app, the authorised redirect URL is ${s.redirectUri}`}
+        </p>
+      )}
+      {s.connected && (
+        <div className="grid sm:grid-cols-3 gap-3 mt-3">
+          {BRAND_NAMES.map((b) => (
+            <Field key={b.key} label={`${b.name} posts to`}>
+              <select className="ws-input" value={s.pageFor[b.key] ?? ''} onChange={(e) => call('PATCH', { pageFor: { ...s.pageFor, [b.key]: e.target.value || undefined } })}>
+                <option value="">Not chosen</option>
+                {s.pages.map((p) => <option key={p.urn} value={p.urn}>{p.name}</option>)}
+              </select>
+            </Field>
+          ))}
+        </div>
+      )}
+      {s.connected && !s.pages.length && (
+        <p className="text-[12.5px] mt-2" style={{ color: 'var(--warn)' }}>{`No company pages came back${s.pagesError ? ` (${s.pagesError})` : ''}. The person who connected must be an admin of the pages.`}</p>
+      )}
+      {err && <p className="text-[12.5px] mt-2" style={{ color: 'var(--bad)' }}>{err}</p>}
+    </div>
+  )
+}
 
 export function ContentStudio() {
   const edition = useEdition()
@@ -144,6 +239,7 @@ export function ContentStudio() {
         <Notice message={q.data.error} tone={migration ? 'warn' : 'bad'} />
       ) : (
         <>
+          <LinkedInBar />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             <Stat label="Drafts ready" value={drafts.length} loading={q.isLoading} hint={nextDay ? `Next planned for ${fmtDay(nextDay)}` : 'Nothing planned yet'} />
             <Stat label="Posted" value={posted.length} loading={q.isLoading} hint={posted[0]?.postedAt ? `Last on ${fmtDay(posted[0].postedAt.slice(0, 10))}` : 'None yet'} />
@@ -237,6 +333,11 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   const [copied, setCopied] = useState(false)
   const [logging, setLogging] = useState(false)
   const [v, setV] = useState(0)
+  const li = useLinkedIn().data
+  const brand = brandFor(post.series)
+  const liPage = li?.connected ? li.pages.find((p) => p.urn === li.pageFor[brand]) : undefined
+  const [posting, setPosting] = useState(false)
+  const [postErr, setPostErr] = useState('')
   const [layout, setLayout] = useState<CardLayout>(post.source?.layout ?? 'headline')
   const carousel = post.source?.format === 'carousel'
   const slideNames = (post.source?.slides ?? []).map((x) => ({ news: 'The news', statistic: 'Statistic', data: 'Data', quote: 'Quote', end: 'Read more' } as Record<string, string>)[x.kind] ?? x.kind)
@@ -262,6 +363,22 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch { /* the caption is on screen to select */ }
+  }
+  // Approve and post: up on the brand's page now, then marked posted.
+  async function approve() {
+    if (!liPage) return
+    if (dirty && !(await patch({ caption, headline, subline, kicker }))) return
+    if (!confirm(`Post this to ${liPage.name} on LinkedIn now?`)) return
+    setPosting(true)
+    setPostErr('')
+    const r = await fetch(`/api/marketing/content/${post.id}/linkedin`, { method: 'POST' })
+    const j = await r.json().catch(() => ({}))
+    setPosting(false)
+    if (!r.ok) {
+      setPostErr(j?.error || 'It could not be posted.')
+      return
+    }
+    onChanged()
   }
   async function remove() {
     if (!confirm('Delete this draft?')) return
@@ -343,9 +460,21 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
             {post.status === 'posted' ? (
               <button type="button" onClick={() => patch({ status: 'draft' })} className="ws-btn ws-btn-ghost ws-btn-sm">Back to draft</button>
             ) : (
-              <button type="button" onClick={() => setLogging(true)} className="ws-btn ws-btn-ghost ws-btn-sm">Mark as posted</button>
+              <>
+                <button
+                  type="button"
+                  onClick={approve}
+                  disabled={!liPage || posting}
+                  className="ws-btn ws-btn-primary ws-btn-sm"
+                  title={liPage ? `Puts it up on ${liPage.name} now` : li?.connected ? 'Choose this brand\u2019s LinkedIn page at the top of the tab first' : 'Connect LinkedIn at the top of the tab first'}
+                >
+                  {posting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Posting…</> : <><Send className="w-3.5 h-3.5" /> Approve and post</>}
+                </button>
+                <button type="button" onClick={() => setLogging(true)} className="ws-btn ws-btn-ghost ws-btn-sm">Mark as posted</button>
+              </>
             )}
           </div>
+          {postErr && <p className="text-[12.5px]" style={{ color: 'var(--bad)' }}>{postErr}</p>}
         </div>
       </div>
       {logging && (
