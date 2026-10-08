@@ -22,7 +22,7 @@ const serviceKeySetting = () => (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').tr
 
 /** Every table the CRM uses. */
 export const CRM_TABLES = [
-  'delegates', 'speakers', 'sponsors', 'partners', 'activities', 'staged_contacts', 'marketing_tracking', 'agendas', 'marketing_content',
+  'delegates', 'speakers', 'sponsors', 'partners', 'activities', 'staged_contacts', 'marketing_tracking', 'agendas', 'marketing_content', 'linkedin_connection',
 ] as const
 
 /**
@@ -31,7 +31,7 @@ export const CRM_TABLES = [
  * never have run them; the feature then explains the step on its own screen,
  * and the rest of the CRM works as usual.
  */
-const OPTIONAL_TABLES: ReadonlySet<string> = new Set(['marketing_tracking', 'agendas', 'marketing_content'])
+const OPTIONAL_TABLES: ReadonlySet<string> = new Set(['marketing_tracking', 'agendas', 'marketing_content', 'linkedin_connection'])
 
 /** Error code of the answers made up here when the database is not set up for the CRM. */
 export const SETUP_ERROR_CODE = 'CRM_DB_SETUP'
@@ -71,6 +71,7 @@ const PUBLIC_MIGRATION_HINTS: Partial<Record<(typeof CRM_TABLES)[number], string
   agendas: 'The agendas table is missing — run supabase/migrations/008_agendas.sql in the Supabase SQL editor.',
   marketing_tracking: 'The tracking table is missing — run supabase/migrations/007_marketing_tracking.sql in the Supabase SQL editor.',
   marketing_content: 'The content table is missing — run supabase/migrations/010_marketing_content.sql in the Supabase SQL editor.',
+  linkedin_connection: 'LinkedIn posting needs its table — run supabase/migrations/012_linkedin_connection.sql in the Supabase SQL editor.',
 }
 
 // Tables added after the move into Nexus (0060) have a migration of their own there.
