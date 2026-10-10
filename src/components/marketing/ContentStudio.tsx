@@ -374,7 +374,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   // press moves on to another design. Plain goes back to the layout.
   const [designing, setDesigning] = useState(false)
   const design = post.source?.design?.style ?? null
-  const DESIGN_NAMES: Record<string, string> = { cinematic: 'Cinematic photo', mosaic: 'Photo mosaic', magazine: 'Magazine cover', framed: 'Editorial frame', spotlight: 'Spotlight' }
+  const DESIGN_NAMES: Record<string, string> = { cinematic: 'Cinematic photo', block: 'Colour block', mosaic: 'Photo mosaic', bars: 'Data bars', magazine: 'Magazine cover', mesh: 'Colour glow', framed: 'Editorial frame', bands: 'Diagonal bands', spotlight: 'Spotlight' }
   async function redesign(plain = false) {
     setDesigning(true)
     const r = await fetch(`/api/marketing/content/${post.id}/design`, { method: plain ? 'DELETE' : 'POST' })

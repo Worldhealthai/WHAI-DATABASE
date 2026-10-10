@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const post = await load(id)
   if (!post) return NextResponse.json({ error: 'No such post' }, { status: 404 })
   const wanted = DESIGN_STYLES.some((s) => s.value === body.style) ? (body.style as DesignStyle) : null
-  const design = await nextDesign(post, wanted)
+  const design = await nextDesign(post, wanted, { photosOnly: (post.source as { format?: string })?.format === 'carousel' })
   const { data, error } = await supabase
     .from('marketing_content')
     .update({ source: { ...post.source, design }, updatedAt: new Date().toISOString() })
