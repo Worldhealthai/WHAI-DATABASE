@@ -77,6 +77,7 @@ const PUBLIC_MIGRATION_HINTS: Partial<Record<(typeof CRM_TABLES)[number], string
 // Tables added after the move into Nexus (0060) have a migration of their own there.
 const CRM_SCHEMA_HINTS: Partial<Record<(typeof CRM_TABLES)[number], string>> = {
   marketing_content: 'The content table is missing — run supabase/migrations/0063_crm_marketing_content.sql from the Nexus repository in the Supabase SQL editor.',
+  linkedin_connection: 'LinkedIn posting needs its table — run supabase/migrations/0069_crm_linkedin_connection.sql from the Nexus repository in the Supabase SQL editor.',
 }
 
 /** What to run when one of the CRM's tables is missing, for the database in use. */
