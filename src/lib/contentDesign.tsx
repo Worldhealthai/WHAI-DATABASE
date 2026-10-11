@@ -11,12 +11,18 @@ import { Mark, alpha, remoteImage, type Assets } from '@/lib/contentCard'
 import { NEXUS_URL } from '@/lib/marketingSource'
 import type { ContentPost } from '@/lib/contentStudio'
 
-export type DesignStyle = 'cinematic' | 'mosaic' | 'framed' | 'magazine' | 'spotlight'
+export type DesignStyle = 'cinematic' | 'block' | 'mosaic' | 'bars' | 'magazine' | 'mesh' | 'framed' | 'bands' | 'spotlight'
+// In the order the Design button goes through them: photo and graphic
+// designs in turn, so pressing it again always looks different.
 export const DESIGN_STYLES: { value: DesignStyle; label: string; photos: number }[] = [
   { value: 'cinematic', label: 'Cinematic photo', photos: 1 },
+  { value: 'block', label: 'Colour block', photos: 0 },
   { value: 'mosaic', label: 'Photo mosaic', photos: 3 },
+  { value: 'bars', label: 'Data bars', photos: 0 },
   { value: 'magazine', label: 'Magazine cover', photos: 1 },
+  { value: 'mesh', label: 'Colour glow', photos: 0 },
   { value: 'framed', label: 'Editorial frame', photos: 1 },
+  { value: 'bands', label: 'Diagonal bands', photos: 0 },
   { value: 'spotlight', label: 'Spotlight', photos: 0 },
 ]
 export interface Design { style: DesignStyle; photos: string[] }
@@ -52,10 +58,11 @@ function shuffle<T>(list: T[]): T[] {
 
 // The design after the current one (or after the given style), with photos
 // it has not just used. Without photos only the spotlight is possible.
-export async function nextDesign(post: Post, wanted?: DesignStyle | null): Promise<Design> {
+export async function nextDesign(post: Post, wanted?: DesignStyle | null, opts: { photosOnly?: boolean } = {}): Promise<Design> {
   const cur = designOf(post)
   const photos = await galleryPhotos(brandFor(post.series))
-  const usable = DESIGN_STYLES.filter((s) => s.photos <= photos.length)
+  // A carousel only takes a photo behind its cover, so it goes through the photo designs.
+  const usable = DESIGN_STYLES.filter((s) => s.photos <= photos.length && (!opts.photosOnly || s.photos > 0))
   const style =
     (wanted && usable.find((s) => s.value === wanted)?.value) ||
     usable[(usable.findIndex((s) => s.value === cur?.style) + 1) % usable.length]?.value ||
@@ -243,6 +250,124 @@ function Spotlight({ post, brand, a }: DrawProps) {
   )
 }
 
+// A number from the headline, so a design's pattern is the same each time
+// the same post is drawn but differs from post to post.
+function seedOf(text: string): number {
+  let h = 2166136261
+  for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0
+  return h
+}
+
+// The brand's name set in type, for designs on the brand colour itself
+// (the logo files are drawn for the night).
+function NameMark({ brand, color, size = 34 }: { brand: Brand; color: string; size?: number }) {
+  return <span style={{ fontSize: size, fontWeight: 600, letterSpacing: -0.8, color }}>{brand.name}</span>
+}
+
+// The whole card in the brand colour, the words in its night ink; a great
+// disc of the night rising from the corner, a ring inside it.
+function Block({ post, brand }: DrawProps) {
+  const ink = brand.onAccent
+  return (
+    <div style={{ width: W, height: W, display: 'flex', position: 'relative', background: brand.accent, fontFamily: 'Inter', color: ink, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: W - 430, top: W - 430, width: 860, height: 860, borderRadius: 860, background: brand.night }} />
+      <div style={{ position: 'absolute', left: W - 300, top: W - 300, width: 600, height: 600, borderRadius: 600, border: `2px solid ${alpha(brand.accent, 0.55)}` }} />
+      <div style={{ position: 'absolute', left: W - 175, top: W - 175, width: 350, height: 350, borderRadius: 350, border: `2px solid ${alpha(brand.accent, 0.35)}` }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: W, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: W - PAD * 2 }}>
+          <NameMark brand={brand} color={ink} />
+          <span style={{ fontSize: 20, letterSpacing: 3, fontWeight: 600, color: alpha(ink, 0.75) }}>{today()}</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 120, width: W - PAD * 2 - 140 }}>
+          {post.kicker ? <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 26, color: alpha(ink, 0.8) }}>{post.kicker}</span> : null}
+          <span style={{ fontSize: size(post.headline, 88), fontWeight: 600, lineHeight: 1.03, letterSpacing: -2.5 }}>{post.headline}</span>
+          {post.subline ? <span style={{ fontSize: 28, lineHeight: 1.38, marginTop: 28, maxWidth: 640, color: alpha(ink, 0.82) }}>{post.subline}</span> : null}
+        </div>
+        <span style={{ position: 'absolute', left: PAD, top: W - 70, fontSize: 22, color: alpha(ink, 0.75) }}>{brand.site}</span>
+      </div>
+    </div>
+  )
+}
+
+// Market intelligence as a motif: a row of bars along the foot, in the
+// brand colour at different strengths, one of them full; the headline above.
+function Bars({ post, brand, a }: DrawProps) {
+  const n = 18
+  const seed = seedOf(post.headline)
+  const bw = 34
+  const gap = (W - PAD * 2 - n * bw) / (n - 1)
+  const heights = Array.from({ length: n }, (_, i) => 70 + (((seed >>> (i % 24)) ^ (i * 2654435761)) >>> 0) % 260)
+  const peak = seed % n
+  heights[peak] = 360
+  return (
+    <div style={{ width: W, height: W, display: 'flex', position: 'relative', background: brand.night, fontFamily: 'Inter', color: '#fff', overflow: 'hidden' }}>
+      <div style={full({ background: `linear-gradient(180deg, ${alpha(brand.accent, 0.16)} 0%, ${alpha(brand.accent, 0)} 45%)` })} />
+      {heights.map((h, i) => (
+        <div key={i} style={{ position: 'absolute', left: PAD + i * (bw + gap), top: W - 14 - h, width: bw, height: h, background: i === peak ? brand.accent : alpha(brand.accent, 0.14 + ((i * 7) % 5) * 0.06) }} />
+      ))}
+      <div style={{ position: 'absolute', left: PAD, top: W - 14 - 360 - 34, width: W - PAD * 2, height: 1, background: alpha('#FFFFFF', 0.16) }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: W, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: W - PAD * 2 }}>
+          <Mark brand={brand} assets={a} size={0.85} />
+          <span style={{ fontSize: 20, letterSpacing: 3, color: MUTED, fontWeight: 600 }}>{today()}</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 80, width: W - PAD * 2 - 40 }}>
+          <KickerBar text={post.kicker} brand={brand} />
+          <span style={{ fontSize: size(post.headline, 80), fontWeight: 600, lineHeight: 1.05, letterSpacing: -2.2 }}>{post.headline}</span>
+          {post.subline ? <span style={{ fontSize: 28, lineHeight: 1.38, color: MUTED, marginTop: 24, maxWidth: W - PAD * 2 - 120 }}>{post.subline}</span> : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Soft light of the brand colour from two corners over the night, a fine
+// rule and the words centred: the quiet one.
+function Mesh({ post, brand, a }: DrawProps) {
+  return (
+    <div style={{ width: W, height: W, display: 'flex', position: 'relative', background: brand.night, fontFamily: 'Inter', color: '#fff', overflow: 'hidden' }}>
+      <div style={full({ background: `radial-gradient(circle at 12% 8%, ${alpha(brand.accent, 0.55)} 0%, ${alpha(brand.accent, 0.12)} 30%, ${alpha(brand.accent, 0)} 55%)` })} />
+      <div style={full({ background: `radial-gradient(circle at 92% 96%, ${alpha(brand.accent, 0.4)} 0%, ${alpha(brand.accent, 0.08)} 32%, ${alpha(brand.accent, 0)} 58%)` })} />
+      <div style={full({ background: `radial-gradient(circle at 70% 30%, ${alpha('#FFFFFF', 0.06)} 0%, ${alpha('#FFFFFF', 0)} 40%)` })} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: W, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `${PAD}px ${PAD}px 0` }}>
+        <Mark brand={brand} assets={a} size={0.85} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexGrow: 1, justifyContent: 'center', width: W - PAD * 2 - 40 }}>
+          {post.kicker ? <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: 4, textTransform: 'uppercase', color: brand.accent, marginBottom: 30 }}>{post.kicker}</span> : null}
+          <span style={{ fontSize: size(post.headline, 84), fontWeight: 600, lineHeight: 1.05, letterSpacing: -2.4, textAlign: 'center' }}>{post.headline}</span>
+          <div style={{ width: 90, height: 4, background: brand.accent, marginTop: 36 }} />
+          {post.subline ? <span style={{ fontSize: 28, lineHeight: 1.4, color: MUTED, marginTop: 30, textAlign: 'center', maxWidth: 760 }}>{post.subline}</span> : null}
+        </div>
+        <span style={{ fontSize: 22, color: FAINT, paddingBottom: 60 }}>{brand.site}</span>
+      </div>
+      <div style={{ position: 'absolute', left: 0, top: W - 14, width: W, height: 14, background: brand.accent }} />
+    </div>
+  )
+}
+
+// Bands of the brand colour cutting across the right of the card at an
+// angle, from full strength to faint; the words on the night beside them.
+function Bands({ post, brand, a }: DrawProps) {
+  const bands = [0.95, 0.6, 0.35, 0.2, 0.1]
+  return (
+    <div style={{ width: W, height: W, display: 'flex', position: 'relative', background: brand.night, fontFamily: 'Inter', color: '#fff', overflow: 'hidden' }}>
+      {bands.map((o, i) => (
+        <div key={i} style={{ position: 'absolute', left: 640 + i * 96, top: -300, width: 64, height: 1700, background: alpha(brand.accent, o), transform: 'rotate(24deg)', transformOrigin: 'center' }} />
+      ))}
+      <div style={full({ background: `linear-gradient(90deg, ${brand.night} 0%, ${brand.night} 48%, ${alpha(brand.night, 0)} 72%)` })} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: W, display: 'flex', flexDirection: 'column', padding: `${PAD}px 0 0 ${PAD}px` }}>
+        <Mark brand={brand} assets={a} size={0.85} />
+        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'center', width: 540 }}>
+          <KickerBar text={post.kicker} brand={brand} />
+          <span style={{ fontSize: size(post.headline, 72), fontWeight: 600, lineHeight: 1.05, letterSpacing: -2 }}>{post.headline}</span>
+          {post.subline ? <span style={{ fontSize: 27, lineHeight: 1.4, color: MUTED, marginTop: 26 }}>{post.subline}</span> : null}
+        </div>
+        <span style={{ fontSize: 22, color: FAINT, paddingBottom: 60 }}>{brand.site}</span>
+      </div>
+      <div style={{ position: 'absolute', left: 0, top: W - 14, width: W, height: 14, background: brand.accent }} />
+    </div>
+  )
+}
+
 interface DrawProps { post: Post; brand: Brand; a: Assets; photos: string[] }
 
 // The designed card as JSX, its photos fetched; the spotlight when the
@@ -257,5 +382,9 @@ export async function designedCard(post: Post, a: Assets, design: Design): Promi
     : style === 'mosaic' ? <Mosaic {...props} />
     : style === 'magazine' ? <Magazine {...props} />
     : style === 'framed' ? <Framed {...props} />
+    : style === 'block' ? <Block {...props} />
+    : style === 'bars' ? <Bars {...props} />
+    : style === 'mesh' ? <Mesh {...props} />
+    : style === 'bands' ? <Bands {...props} />
     : <Spotlight {...props} />
 }
