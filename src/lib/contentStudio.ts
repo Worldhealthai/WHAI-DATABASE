@@ -604,9 +604,11 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   // carousel lately.
   const usedForCarousel = new Set(ctx.recent.filter((r) => (r.source as { format?: string } | undefined)?.format === 'carousel').map((r) => r.ref))
   const fresh = pool.filter((c) => !usedForCarousel.has(c.ref))
-  const pick =
-    (opts.ref && pool.find((c) => c.ref === opts.ref)) ||
-    (fresh.length ? fresh : pool)[Math.floor(Math.random() * Math.min((fresh.length ? fresh : pool).length, 3))]
+  // As for a single post: the page's own field before a piece on a deal.
+  const candidates = fresh.length ? fresh : pool
+  const own = ctx.brand === 'nexus' ? candidates : candidates.filter((c) => String(c.source.category || '').toLowerCase() !== 'markets')
+  const from = own.length ? own : candidates
+  const pick = (opts.ref && pool.find((c) => c.ref === opts.ref)) || from[Math.floor(Math.random() * Math.min(from.length, 3))]
   const article = await readArticleFull(pick.ref!)
   if (article.body.length < 200) throw new ContentError('The briefing could not be read from worldnexusgroup.com just now, so there is nothing to build slides from. Try again in a minute.', 502)
 
