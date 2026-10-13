@@ -1,9 +1,10 @@
 // The image for a LinkedIn post: a 1080 by 1080 card in the page's own look.
-// Seven styles (contentBrand): an event photo or headshot across the card
+// Eleven styles (contentBrand): an event photo or headshot across the card
 // (photo), the brand colour washed over the night (night), ink on white
 // (light), the whole card in the brand colour (block), a photo, headshot
-// or logo set in a frame beside the words (frame), diagonal bands of the
-// brand colour (bands), and three event photos above the words (mosaic).
+// or logo set in a frame beside the words (frame), four graphic looks in
+// the brand colour over the night (bands, rings, bars, arcs, wedge), and
+// three event photos above the words (mosaic).
 // Each kind of post has its own composition in each style: a briefing is
 // its words; a speaker carries the headshot, name and role; a session its
 // speakers; a sponsor its logo; a theme its question; a countdown its
@@ -62,13 +63,14 @@ export async function loadAssets(): Promise<Assets> {
   return assets
 }
 
-// Outfit's Latin and Latin Extended files; a glyph missing from the first
-// is taken from the next.
+// Outfit's Latin files, and its Latin Extended files under a name of their
+// own: the renderer keeps one file per name and weight, and takes a glyph
+// the first family lacks (an accented name) from the other families loaded.
 export const FONTS = (a: Assets) => [
   { name: 'Outfit', data: a.regular, weight: 400 as const, style: 'normal' as const },
   { name: 'Outfit', data: a.semibold, weight: 600 as const, style: 'normal' as const },
-  { name: 'Outfit', data: a.regularExt, weight: 400 as const, style: 'normal' as const },
-  { name: 'Outfit', data: a.semiboldExt, weight: 600 as const, style: 'normal' as const },
+  { name: 'Outfit Ext', data: a.regularExt, weight: 400 as const, style: 'normal' as const },
+  { name: 'Outfit Ext', data: a.semiboldExt, weight: 600 as const, style: 'normal' as const },
 ]
 
 // A photo, headshot or logo from the web, as a data URL the renderer can
@@ -239,6 +241,82 @@ export function BandsGround({ brand, w = W, h = W }: { brand: Brand; w?: number;
   )
 }
 
+// Rings of the brand colour off the bottom-right corner, the widest faint
+// and the smallest strong, over a glow in the corner.
+export function RingsGround({ brand, w = W, h = W }: { brand: Brand; w?: number; h?: number }) {
+  const rings = [980, 760, 540, 320]
+  return (
+    <>
+      <div style={{ ...box(w, h), background: `radial-gradient(circle at 92% 92%, ${alpha(brand.accent, 0.42)} 0%, ${alpha(brand.accent, 0)} 60%)` }} />
+      {rings.map((d, i) => (
+        <div key={d} style={{ position: 'absolute', left: w - d / 2 - 60, top: h - d / 2 - 60, width: d, height: d, borderRadius: d, border: `${i === rings.length - 1 ? 4 : 2}px solid ${alpha(brand.accent, 0.26 + i * 0.16)}` }} />
+      ))}
+    </>
+  )
+}
+
+// A number from a text, so a pattern is the same each time the same post
+// is drawn but differs from post to post.
+export function seedOf(text: string): number {
+  let h = 2166136261
+  for (const c of text) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0
+  return h
+}
+
+// A row of bars along the base of the card, in the brand colour at
+// different strengths, one of them full: the market's motif. The words
+// and the foot sit above them (BARS_H is the strip they take).
+export const BARS_H = 236
+export function BarsGround({ brand, seed, w = W, h = W }: { brand: Brand; seed: number; w?: number; h?: number }) {
+  const n = 18
+  const bw = 34
+  const gap = (w - PAD * 2 - n * bw) / (n - 1)
+  const heights = Array.from({ length: n }, (_, i) => 36 + (((seed >>> (i % 24)) ^ (i * 2654435761)) >>> 0) % 130)
+  const peak = seed % n
+  heights[peak] = BARS_H - 40
+  return (
+    <>
+      <div style={{ ...box(w, h), background: `linear-gradient(180deg, ${alpha(brand.accent, 0.16)} 0%, ${alpha(brand.accent, 0)} 45%)` }} />
+      {heights.map((bh, i) => (
+        <div key={i} style={{ position: 'absolute', left: PAD + i * (bw + gap), top: h - 14 - 24 - bh, width: bw, height: bh, background: i === peak ? brand.accent : alpha(brand.accent, 0.14 + ((i * 7) % 5) * 0.06) }} />
+      ))}
+    </>
+  )
+}
+
+// Arcs of the brand colour sweeping in from the right edge, the innermost
+// strong, the words in the clear left.
+export function ArcsGround({ brand, w = W, h = W }: { brand: Brand; w?: number; h?: number }) {
+  const arcs = [720, 580, 440, 300]
+  const widths = [1, 2, 3, 6]
+  const alphas = [0.28, 0.42, 0.6, 1]
+  return (
+    <>
+      <div style={{ ...box(w, h), background: `linear-gradient(270deg, ${alpha(brand.accent, 0.28)} 0%, ${alpha(brand.accent, 0)} 45%)` }} />
+      {arcs.map((d, i) => (
+        <div key={d} style={{ position: 'absolute', left: w + 240 - d, top: h / 2 - d / 2, width: d, height: d, borderRadius: d, border: `${widths[i]}px solid ${alpha(brand.accent, alphas[i])}` }} />
+      ))}
+    </>
+  )
+}
+
+// A wedge of the brand colour cutting the top-right corner, a fine line
+// of it running alongside; the words in the clear below and left of it.
+export function WedgeGround({ brand, w = W, h = W }: { brand: Brand; w?: number; h?: number }) {
+  // The wedge's edge runs from (x0, 0) down to the right edge at y1.
+  const x0 = Math.round(w * 0.48)
+  const y1 = Math.round(h * 0.68)
+  const dx = w - x0
+  // A parallel line 34px further out, drawn past the card so it meets the edges.
+  const lx = x0 - 34
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', top: 0, left: 0 }}>
+      <polygon points={`${x0},0 ${w},0 ${w},${y1}`} fill={brand.accent} />
+      <line x1={lx - dx} y1={-y1} x2={lx + dx * 2} y2={y1 * 2} stroke={alpha(brand.accent, 0.55)} strokeWidth="3" />
+    </svg>
+  )
+}
+
 // The frame style's ground: a photo (or a logo on a white plate) set in on
 // the right over a block of the brand colour, offset like a print layout.
 const FRAME = { w: 430, h: 640, x: W - 430 - 70, y: 210 }
@@ -321,9 +399,15 @@ function Foot({ s, city, date, site, width = W - PAD * 2, mark }: { s: Skin; cit
   )
 }
 
-// The width the words have in a style: the frame and the bands keep the
-// right of the card for themselves, the block its disc.
-const bodyWidth = (style: CardStyle) => (style === 'frame' ? FRAME.x - PAD - 50 : style === 'bands' ? 540 : style === 'block' ? W - PAD * 2 - 140 : W - PAD * 2)
+// The width the words have in a style: the frame, the bands and the arcs
+// keep the right of the card for themselves, the block and the rings their
+// corner, the wedge the top.
+const bodyWidth = (style: CardStyle) =>
+  style === 'frame' ? FRAME.x - PAD - 50 : style === 'bands' || style === 'arcs' ? 540 : style === 'block' || style === 'rings' ? W - PAD * 2 - 140 : style === 'wedge' ? 760 : W - PAD * 2
+// Where the words sit: at the foot under a photo or a wedge, else in the middle.
+const justifyFor = (style: CardStyle): 'center' | 'flex-end' => (style === 'photo' || style === 'wedge' ? 'flex-end' : 'center')
+// The looks drawn with shapes alone, with room for a square headshot above the words.
+const graphic = (style: CardStyle) => style === 'bands' || style === 'rings' || style === 'bars' || style === 'arcs' || style === 'wedge'
 
 // The card's frame in a style: the ground, the logo at the head (at the
 // foot for the mosaic), the foot, and the band of the brand colour along
@@ -331,10 +415,12 @@ const bodyWidth = (style: CardStyle) => (style === 'frame' ? FRAME.x - PAD - 50 
 function Card({ brand, a, s, ground, city, date, children, justify = 'center', width }: { brand: Brand; a: Assets; s: Skin; ground: React.ReactNode; city: string; date: string; children: React.ReactNode; justify?: 'center' | 'flex-end'; width?: number }) {
   const mosaic = s.style === 'mosaic'
   const w = width ?? bodyWidth(s.style)
+  // The words and the foot sit above the bars along the base.
+  const bottom = s.style === 'bars' ? BARS_H : 0
   return (
     <div style={{ width: W, height: W, display: 'flex', position: 'relative', background: s.bg, color: s.ink, fontFamily: 'Outfit', overflow: 'hidden' }}>
       {ground}
-      <div style={{ ...box(W, W), display: 'flex', flexDirection: 'column', padding: mosaic ? `${MOSAIC.top + 44}px ${PAD}px 0` : `${PAD}px ${PAD}px 0` }}>
+      <div style={{ ...box(W, W), display: 'flex', flexDirection: 'column', padding: mosaic ? `${MOSAIC.top + 44}px ${PAD}px ${bottom}px` : `${PAD}px ${PAD}px ${bottom}px` }}>
         {mosaic ? null : <Mark brand={brand} assets={a} on={s.on} />}
         <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: mosaic ? 'flex-start' : justify, paddingBottom: justify === 'flex-end' ? 44 : 36, width: w }}>{children}</div>
         <Foot s={s} city={city} date={date} site={brand.site} mark={mosaic ? <Mark brand={brand} assets={a} size={0.7} on={s.on} /> : undefined} />
@@ -354,12 +440,16 @@ const str = (v: unknown) => (v === null || v === undefined ? '' : String(v).trim
 
 // The ground a style draws under the words when the kind has nothing of
 // its own to put there.
-function groundFor({ brand, s, images }: DrawProps, extra: { image?: string | null; plate?: string | null } = {}): React.ReactNode {
+function groundFor({ brand, s, images, post }: DrawProps, extra: { image?: string | null; plate?: string | null } = {}): React.ReactNode {
   switch (s.style) {
     case 'photo': return <PhotoGround brand={brand} src={extra.image ?? images.photos[0]} />
     case 'light': return <LightGround brand={brand} />
     case 'block': return <BlockGround brand={brand} />
     case 'bands': return <BandsGround brand={brand} />
+    case 'rings': return <RingsGround brand={brand} />
+    case 'bars': return <BarsGround brand={brand} seed={seedOf(post.headline)} />
+    case 'arcs': return <ArcsGround brand={brand} />
+    case 'wedge': return <WedgeGround brand={brand} />
     case 'frame': return <FrameGround brand={brand} image={extra.plate ? null : extra.image ?? images.photos[0]} plate={extra.plate} />
     case 'mosaic': return <MosaicGround brand={brand} photos={images.photos} big={extra.image} plate={extra.plate} />
     default: return <Wash brand={brand} />
@@ -370,10 +460,10 @@ function groundFor({ brand, s, images }: DrawProps, extra: { image?: string | nu
 function Plain(p: DrawProps) {
   const { post, brand, a, s, city, date } = p
   const theme = post.kind === 'theme'
-  const max = s.style === 'photo' ? 76 : s.style === 'frame' ? 64 : s.style === 'bands' ? 72 : s.style === 'mosaic' ? 72 : 82
+  const max = s.style === 'photo' ? 76 : s.style === 'frame' ? 64 : s.style === 'bands' || s.style === 'arcs' ? 72 : s.style === 'mosaic' || s.style === 'wedge' ? 72 : 82
   return (
-    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={s.style === 'photo' ? 'flex-end' : 'center'}>
-      {theme && (s.style === 'night' || s.style === 'bands') ? (
+    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={justifyFor(s.style)}>
+      {theme && (s.style === 'night' || graphic(s.style)) ? (
         <div style={{ display: 'flex', flexDirection: 'column', borderLeft: `10px solid ${s.shape}`, paddingLeft: 40 }}>
           <Words post={post} s={s} max={max} width={bodyWidth(s.style) - 50} />
         </div>
@@ -403,7 +493,7 @@ function Speaker(p: DrawProps) {
   if (!headshot) {
     // No headshot: the words, and the name and role under them.
     return (
-      <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={s.style === 'photo' ? 'flex-end' : 'center'}>
+      <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={justifyFor(s.style)}>
         <Words post={post} s={s} max={s.style === 'frame' ? 60 : s.style === 'bands' ? 66 : 76} width={bodyWidth(s.style)} bar={s.style === 'light' || s.style === 'block'} />
         {who(post, s, 32)}
       </Card>
@@ -428,13 +518,15 @@ function Speaker(p: DrawProps) {
       </Card>
     )
   }
-  if (s.style === 'bands') {
-    // A square headshot above the words, in the clear left of the bands.
+  if (graphic(s.style)) {
+    // A square headshot above the words, in the clear part of the card
+    // (smaller over the bars, which take the base).
+    const hs = s.style === 'bars' ? 210 : 250
     return (
-      <Card brand={brand} a={a} s={s} ground={<BandsGround brand={brand} />} city={city} date={date}>
+      <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={justifyFor(s.style)}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={headshot} alt="" width={250} height={250} style={{ width: 250, height: 250, objectFit: 'cover', marginBottom: 36 }} />
-        <Words post={post} s={s} max={58} width={540} />
+        <img src={headshot} alt="" width={hs} height={hs} style={{ width: hs, height: hs, objectFit: 'cover', marginBottom: 32 }} />
+        <Words post={post} s={s} max={s.style === 'bars' ? 54 : 58} width={bodyWidth(s.style)} />
         {who(post, s, 28)}
       </Card>
     )
@@ -488,7 +580,7 @@ function Speaker(p: DrawProps) {
 // the bands) each person takes two lines; under the mosaic only two fit.
 function Session(p: DrawProps) {
   const { post, brand, a, s, city, date } = p
-  const narrow = s.style === 'frame' || s.style === 'bands'
+  const narrow = s.style === 'frame' || s.style === 'bands' || s.style === 'arcs'
   const people = (Array.isArray(post.source?.speakers) ? (post.source!.speakers as { name?: string; org?: string; moderator?: boolean }[]) : [])
     .filter((x) => str(x.name))
     .slice(0, s.style === 'photo' || s.style === 'mosaic' ? 2 : 3)
@@ -496,27 +588,30 @@ function Session(p: DrawProps) {
   const list = people.length ? (
     <div style={{ display: 'flex', flexDirection: 'column', marginTop: s.style === 'mosaic' ? 26 : 36, width: Math.min(width, W - PAD * 2 - 40), ...(s.style === 'light' ? { background: s.plate, padding: '6px 32px' } : {}) }}>
       {people.map((x, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: narrow ? 'flex-start' : 'center', borderTop: i ? `1px solid ${s.line}` : 'none', padding: narrow ? '14px 0' : '16px 0' }}>
-          <div style={{ width: 10, height: 10, background: s.shape, marginRight: 22, marginTop: narrow ? 12 : 0, flexShrink: 0 }} />
-          {narrow ? (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 26, fontWeight: 600, color: s.ink }}>{str(x.name)}{x.moderator ? ', chair' : ''}</span>
-              {str(x.org) ? <span style={{ fontSize: 23, color: s.muted, marginTop: 4 }}>{str(x.org)}</span> : null}
-            </div>
-          ) : (
-            <>
-              <span style={{ fontSize: 27, fontWeight: 600, color: s.ink }}>{str(x.name)}</span>
-              {str(x.org) ? <span style={{ fontSize: 25, color: s.muted, marginLeft: 16 }}>{str(x.org)}</span> : null}
-              {x.moderator ? <div style={{ display: 'flex', flexGrow: 1, justifyContent: 'flex-end' }}><span style={{ fontSize: 20, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', color: s.accent }}>Chair</span></div> : null}
-            </>
-          )}
+        <div key={i} style={{ display: 'flex', alignItems: narrow ? 'flex-start' : 'center', justifyContent: 'space-between', width: '100%', borderTop: i ? `1px solid ${s.line}` : 'none', padding: narrow ? '14px 0' : '16px 0' }}>
+          <div style={{ display: 'flex', alignItems: narrow ? 'flex-start' : 'center' }}>
+            <div style={{ width: 10, height: 10, background: s.shape, marginRight: 22, marginTop: narrow ? 12 : 0, flexShrink: 0 }} />
+            {narrow ? (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 26, fontWeight: 600, color: s.ink }}>{str(x.name)}{x.moderator ? ', chair' : ''}</span>
+                {str(x.org) ? <span style={{ fontSize: 23, color: s.muted, marginTop: 4 }}>{str(x.org)}</span> : null}
+              </div>
+            ) : (
+              <>
+                <span style={{ fontSize: 27, fontWeight: 600, color: s.ink }}>{str(x.name)}</span>
+                {str(x.org) ? <span style={{ fontSize: 25, color: s.muted, marginLeft: 16 }}>{str(x.org)}</span> : null}
+              </>
+            )}
+          </div>
+          {/* The chair's label at the far end of the row, clear of the name. */}
+          {!narrow && x.moderator ? <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', color: s.accent, marginLeft: 24, flexShrink: 0 }}>Chair</span> : null}
         </div>
       ))}
     </div>
   ) : null
   const max = people.length ? (narrow ? 50 : s.style === 'mosaic' ? 58 : 66) : s.style === 'frame' ? 64 : 80
   return (
-    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={s.style === 'photo' ? 'flex-end' : 'center'}>
+    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={justifyFor(s.style)}>
       <Words post={post} s={s} max={max} width={width} bar={s.style === 'light' || s.style === 'block'} />
       {list}
     </Card>
@@ -537,15 +632,15 @@ function Sponsor(p: DrawProps) {
     )
   }
   const width = bodyWidth(s.style)
-  const plateH = s.style === 'photo' ? 250 : s.style === 'bands' ? 230 : 300
+  const plateH = s.style === 'photo' ? 250 : graphic(s.style) ? 230 : 300
   const plate = s.style === 'light' ? { border: `1px solid ${s.line}`, background: '#FFFFFF' } : { background: s.plate }
   return (
-    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={s.style === 'photo' ? 'flex-end' : 'center'}>
+    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={justifyFor(s.style)}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width, height: plateH, marginBottom: 44, ...plate }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={logo} alt="" width={Math.min(640, width - 100)} height={plateH - 80} style={{ width: Math.min(640, width - 100), height: plateH - 80, objectFit: 'contain' }} />
       </div>
-      <Words post={post} s={s} max={s.style === 'bands' ? 52 : 60} width={width} bar={s.style === 'light' || s.style === 'block'} />
+      <Words post={post} s={s} max={width < 700 ? 52 : 60} width={width} bar={s.style === 'light' || s.style === 'block'} />
     </Card>
   )
 }
@@ -560,7 +655,7 @@ function Figure(p: DrawProps) {
   const big = figure.length <= 2 ? 360 : figure.length <= 4 ? 300 : figure.length <= 6 ? 240 : 180
   const size = Math.min(s.style === 'photo' || s.style === 'mosaic' ? Math.round(big * 0.72) : big, Math.floor(width / (0.62 * figure.length)))
   return (
-    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={s.style === 'photo' ? 'flex-end' : 'center'}>
+    <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={justifyFor(s.style)}>
       <Kicker text={post.kicker} s={s} bar={s.style === 'light' || s.style === 'block'} />
       <span style={{ fontSize: size, fontWeight: 600, lineHeight: 0.95, letterSpacing: -10, color: s.accent, fontVariantNumeric: 'tabular-nums' }}>{figure}</span>
       <span style={{ fontSize: headlineSize(post.headline, width < 600 ? 46 : 56), fontWeight: 600, lineHeight: 1.1, letterSpacing: -1.5, marginTop: 28, maxWidth: width, color: s.ink }}>{post.headline}</span>

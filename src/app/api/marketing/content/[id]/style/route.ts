@@ -1,10 +1,10 @@
-// POST /api/marketing/content/<id>/style { style?: "photo" | "night" | "light" | "block" | "frame" | "bands" | "mosaic" }
+// POST /api/marketing/content/<id>/style { style?: one of CARD_STYLES (lib/contentBrand) }
 // Draws the post in another of the styles (lib/contentCard): the one
 // asked for, else the next in turn. A style that takes photos gets fresh
 // event photos each time, so asking for it again shuffles them.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { STYLE_ORDER, brandFor, isCardStyle, photosFor, photosOf, styleOf, type CardStyle } from '@/lib/contentBrand'
+import { brandFor, isCardStyle, photosFor, photosOf, styleOf, stylesFor, type CardStyle } from '@/lib/contentBrand'
 import { NEXUS_URL } from '@/lib/marketingSource'
 import type { ContentPost } from '@/lib/contentStudio'
 
@@ -43,10 +43,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const gallery = await galleryPhotos(post.series)
   // A speaker's headshot stands in for one photo (the photo and frame styles).
   const own = post.kind === 'speaker' && typeof source.image === 'string' && source.image ? 1 : 0
-  const possible = STYLE_ORDER.filter((s) => photosFor(s) <= Math.max(gallery.length, own))
+  const possible = stylesFor(post.kind).filter((s) => photosFor(s) <= Math.max(gallery.length, own))
   let style: CardStyle
   if (isCardStyle(body.style)) {
     if (!possible.includes(body.style)) {
+      if (!stylesFor(post.kind).includes(body.style)) return NextResponse.json({ error: 'A speaker\'s card shows their own photo and no other, so the mosaic look is not one of theirs.' }, { status: 409 })
       return NextResponse.json({ error: `The ${body.style} look needs ${photosFor(body.style)} event photo${photosFor(body.style) === 1 ? '' : 's'} and the gallery on worldnexusgroup.com has ${gallery.length}.` }, { status: 409 })
     }
     style = body.style

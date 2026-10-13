@@ -38,15 +38,19 @@ export function brandFor(series: string): BrandKey {
 
 // How a card is drawn. Every kind of post (a briefing, a speaker, a
 // session, a sponsor, a theme, a countdown) has its own composition in each
-// style, so one post can be shuffled between seven looks:
+// style, so one post can be shuffled between eleven looks:
 //   photo:  an event photo (or the speaker's headshot) across the card
 //   night:  the brand colour washed over the night, the house look
 //   light:  ink on white, the brand colour as the accent
 //   block:  the whole card in the brand colour
 //   frame:  a photo, the headshot or the logo set in a frame, words beside
 //   bands:  diagonal bands of the brand colour over the night
+//   rings:  rings of the brand colour off the corner of the night
+//   bars:   a row of bars along the foot, the market's motif
+//   arcs:   arcs of the brand colour sweeping in from the right
+//   wedge:  a wedge of the brand colour cutting the corner
 //   mosaic: three event photos above, the words below
-export type CardStyle = 'photo' | 'night' | 'light' | 'block' | 'frame' | 'bands' | 'mosaic'
+export type CardStyle = 'photo' | 'night' | 'light' | 'block' | 'frame' | 'bands' | 'rings' | 'bars' | 'arcs' | 'wedge' | 'mosaic'
 export const CARD_STYLES: { value: CardStyle; label: string; hint: string; photos: number }[] = [
   { value: 'photo', label: 'Photo', hint: 'An event photo, or the headshot, across the card', photos: 1 },
   { value: 'night', label: 'Night', hint: 'The brand colour over the night: the house look', photos: 0 },
@@ -54,12 +58,22 @@ export const CARD_STYLES: { value: CardStyle; label: string; hint: string; photo
   { value: 'block', label: 'Block', hint: 'The whole card in the brand colour', photos: 0 },
   { value: 'frame', label: 'Frame', hint: 'A photo, the headshot or the logo set in a frame, the words beside it', photos: 1 },
   { value: 'bands', label: 'Bands', hint: 'Diagonal bands of the brand colour over the night', photos: 0 },
+  { value: 'rings', label: 'Rings', hint: 'Rings of the brand colour off the corner of the night', photos: 0 },
+  { value: 'bars', label: 'Bars', hint: 'A row of bars along the foot, in the brand colour', photos: 0 },
+  { value: 'arcs', label: 'Arcs', hint: 'Arcs of the brand colour sweeping in from the right', photos: 0 },
+  { value: 'wedge', label: 'Wedge', hint: 'A wedge of the brand colour cutting the top corner', photos: 0 },
   { value: 'mosaic', label: 'Mosaic', hint: 'Three event photos above, the words below', photos: 3 },
 ]
-// The order the automated posts and the Shuffle button go through.
-export const STYLE_ORDER: CardStyle[] = ['night', 'photo', 'light', 'block', 'frame', 'bands', 'mosaic']
+// The order the automated posts and the Shuffle button go through: a look
+// with photos between the graphic ones.
+export const STYLE_ORDER: CardStyle[] = ['night', 'photo', 'light', 'bands', 'frame', 'block', 'rings', 'mosaic', 'bars', 'arcs', 'wedge']
 export const isCardStyle = (v: unknown): v is CardStyle => CARD_STYLES.some((s) => s.value === v)
 export const photosFor = (style: CardStyle): number => CARD_STYLES.find((s) => s.value === style)?.photos ?? 0
+
+// The looks a kind of post can take: a speaker's card shows the speaker's
+// own photo and no other, so the mosaic (three event photos) is not one of
+// theirs.
+export const stylesFor = (kind: string | null | undefined): CardStyle[] => STYLE_ORDER.filter((s) => !(kind === 'speaker' && s === 'mosaic'))
 
 // The style a post is drawn in. Posts from before the styles carried a
 // layout and, now and then, a "design"; they are read as the nearest style
@@ -91,8 +105,8 @@ export function photosOf(source: Record<string, unknown> | null | undefined): st
 // run of posts takes every look before any comes round again. A chosen
 // style stands; a style that needs more photos than there are is passed
 // over.
-export function nextStyle(recent: { source?: Record<string, unknown> | null }[], wanted: CardStyle | 'rotate' | null | undefined, photoCount: number): CardStyle {
-  const possible = STYLE_ORDER.filter((s) => photosFor(s) <= photoCount)
+export function nextStyle(recent: { source?: Record<string, unknown> | null }[], wanted: CardStyle | 'rotate' | null | undefined, photoCount: number, kind?: string | null): CardStyle {
+  const possible = stylesFor(kind).filter((s) => photosFor(s) <= photoCount)
   if (wanted && wanted !== 'rotate') return possible.includes(wanted) ? wanted : 'night'
   const last = recent.slice(0, possible.length - 1).map((r) => styleOf(r.source))
   return possible.find((s) => !last.includes(s)) ?? possible[0]

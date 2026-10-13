@@ -11,7 +11,7 @@
 import { ImageResponse } from 'next/og'
 import { PDFDocument } from 'pdf-lib'
 import { BRANDS, brandFor, photosOf, styleOf, type Brand, type CardStyle } from '@/lib/contentBrand'
-import { BandsGround, BlockGround, FONTS, FrameGround, Kicker, LightGround, Mark, MosaicGround, PhotoGround, Wash, alpha, loadAssets, remoteImage, skinFor, type Assets, type Skin } from '@/lib/contentCard'
+import { ArcsGround, BARS_H, BandsGround, BarsGround, BlockGround, FONTS, FrameGround, Kicker, LightGround, Mark, MosaicGround, PhotoGround, RingsGround, Wash, WedgeGround, alpha, loadAssets, remoteImage, seedOf, skinFor, type Assets, type Skin } from '@/lib/contentCard'
 
 export const SLIDE_W = 1080
 export const SLIDE_H = 1350
@@ -45,12 +45,16 @@ function sized(text: string, max: number): number {
 // The cover's ground in its style.
 const MOSAIC = { top: 520, gap: 10, bigW: 640 }
 const FRAME = { w: 430, h: 560, x: SLIDE_W - 430 - 70, y: 230 }
-function Cover({ brand, s, photos }: { brand: Brand; s: Skin; photos: string[] }) {
+function Cover({ brand, s, photos, seed }: { brand: Brand; s: Skin; photos: string[]; seed: number }) {
   switch (s.style) {
     case 'photo': return <PhotoGround brand={brand} src={photos[0]} w={SLIDE_W} h={SLIDE_H} fade={0.72} />
     case 'light': return <LightGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
     case 'block': return <BlockGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
     case 'bands': return <BandsGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
+    case 'rings': return <RingsGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
+    case 'bars': return <BarsGround brand={brand} seed={seed} w={SLIDE_W} h={SLIDE_H} />
+    case 'arcs': return <ArcsGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
+    case 'wedge': return <WedgeGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
     case 'frame': return <FrameGround brand={brand} image={photos[0]} w={SLIDE_W} h={SLIDE_H} f={FRAME} />
     case 'mosaic':
       return (
@@ -63,20 +67,26 @@ function Cover({ brand, s, photos }: { brand: Brand; s: Skin; photos: string[] }
   }
 }
 
-function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null }: { brand: Brand; a: Assets; s: Skin; n: number; total: number; children: React.ReactNode; corner?: 'top' | 'bottom'; cover?: string[] | null }) {
+// The words' width on a cover: beside the frame, clear of the bands, the arcs and the wedge.
+const coverWidth = (style: CardStyle | null) => (style === 'frame' ? FRAME.x - PAD - 50 : style === 'bands' || style === 'arcs' ? 560 : style === 'wedge' ? 720 : style === 'rings' ? WIDTH - 120 : WIDTH)
+
+function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null, seed = 0 }: { brand: Brand; a: Assets; s: Skin; n: number; total: number; children: React.ReactNode; corner?: 'top' | 'bottom'; cover?: string[] | null; seed?: number }) {
   const full: React.CSSProperties = { position: 'absolute', top: 0, left: 0, width: SLIDE_W, height: SLIDE_H }
   const light = s.style === 'light'
   const block = s.style === 'block'
-  // The words sit at the foot under a photo or beside a frame, in the clear
-  // left of the bands, under the mosaic, else in the middle.
-  const justify = cover && (s.style === 'photo' || s.style === 'frame') ? 'flex-end' : 'center'
-  const width = cover && s.style === 'bands' ? 560 : WIDTH
+  // The words sit at the foot under a photo or a wedge, beside the frame
+  // in its own column, in the clear left of the bands and the arcs, under
+  // the mosaic, else in the middle.
+  const justify = cover && (s.style === 'photo' || s.style === 'wedge') ? 'flex-end' : 'center'
+  const width = coverWidth(cover ? s.style : null)
   const top = cover && s.style === 'mosaic' ? MOSAIC.top + 40 : PAD
+  // The words and the cue sit above the bars along the base.
+  const bottom = cover && s.style === 'bars' ? BARS_H : 0
   return (
     <div style={{ width: SLIDE_W, height: SLIDE_H, display: 'flex', background: s.bg, color: s.ink, fontFamily: 'Outfit', position: 'relative', overflow: 'hidden' }}>
-      {cover ? <Cover brand={brand} s={s} photos={cover} /> : light ? <LightGround brand={brand} w={SLIDE_W} h={SLIDE_H} /> : <Wash brand={brand} corner={corner} w={SLIDE_W} h={SLIDE_H} />}
+      {cover ? <Cover brand={brand} s={s} photos={cover} seed={seed} /> : light ? <LightGround brand={brand} w={SLIDE_W} h={SLIDE_H} /> : <Wash brand={brand} corner={corner} w={SLIDE_W} h={SLIDE_H} />}
       {light || block ? null : <div style={{ position: 'absolute', left: 0, top: SLIDE_H - 14, width: SLIDE_W, height: 14, background: s.shape }} />}
-      <div style={{ ...full, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px 0` }}>
+      <div style={{ ...full, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px ${bottom}px` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: WIDTH }}>
           <Mark brand={brand} assets={a} size={0.86} on={s.on} />
           <span style={{ fontSize: 24, color: cover && s.style === 'mosaic' ? '#C7CBD6' : s.faint, fontVariantNumeric: 'tabular-nums' }}>{`${n} / ${total}`}</span>
@@ -85,7 +95,14 @@ function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null }
         {/* On the brand colour the cue keeps to the left, clear of the night disc in the corner. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: block ? 'flex-start' : 'space-between', width: WIDTH, fontSize: 24, paddingBottom: 60, color: s.faint }}>
           <span>{brand.site}</span>
-          {n < total ? <span style={{ color: s.accent, fontWeight: 600, marginLeft: block ? 40 : 0 }}>Swipe →</span> : <span />}
+          {n < total ? (
+            <span style={{ display: 'flex', alignItems: 'center', color: s.accent, fontWeight: 600, marginLeft: block ? 40 : 0 }}>
+              <span>Swipe</span>
+              <svg width="30" height="24" viewBox="0 0 30 24" style={{ marginLeft: 10 }}>
+                <path d="M2 12h24M17 4l9 8-9 8" fill="none" stroke={s.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          ) : <span />}
         </div>
       </div>
     </div>
@@ -179,10 +196,10 @@ export async function renderSlide(post: CarouselPost, index: number): Promise<Im
   const cover = i === 0 ? await coverFor(post, asked) : null
   const style: CardStyle = cover ? cover.style : asked === 'light' ? 'light' : 'night'
   const s = skinFor(brand, style)
-  const width = cover && style === 'bands' ? 560 : WIDTH
+  const width = coverWidth(cover && style !== 'night' ? style : null)
   return new ImageResponse(
     (
-      <Frame brand={brand} a={a} s={s} n={i + 1} total={Math.max(1, slides.length)} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={cover && style !== 'night' ? cover.photos : null}>
+      <Frame brand={brand} a={a} s={s} n={i + 1} total={Math.max(1, slides.length)} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={cover && style !== 'night' ? cover.photos : null} seed={seedOf(slide.kind === 'news' ? slide.headline : '')}>
         <Body slide={slide} s={s} width={width} site={brand.site} />
       </Frame>
     ),
