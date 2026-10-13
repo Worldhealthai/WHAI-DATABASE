@@ -356,14 +356,19 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
   async function set(style?: CardStyle) {
     setBusy(style ?? 'next')
     setErr('')
-    const r = await fetch(`/api/marketing/content/${post.id}/style`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(style ? { style } : {}) })
-    const j = await r.json().catch(() => ({}))
-    setBusy(null)
-    if (!r.ok) {
-      setErr(j?.error || 'That look could not be drawn.')
-      return
+    try {
+      const r = await fetch(`/api/marketing/content/${post.id}/style`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(style ? { style } : {}) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setErr(j?.error || 'That look could not be drawn.')
+        return
+      }
+      onChanged()
+    } catch {
+      setErr('The CRM could not be reached. Try again.')
+    } finally {
+      setBusy(null)
     }
-    onChanged()
   }
   // A speaker's own headshot fills the photo and frame looks, so there is no other photo to take.
   const again = photosFor(current) > 0 && !(post.kind === 'speaker' && (current === 'photo' || current === 'frame'))
@@ -378,8 +383,8 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
               <button
                 key={s.value}
                 type="button"
-                onClick={() => set(s.value)}
-                disabled={busy !== null || (active && !again)}
+                onClick={() => { if (!active || again) set(s.value) }}
+                disabled={busy !== null}
                 aria-pressed={active}
                 aria-label={s.label}
                 title={active && again ? `${s.label}: other photos` : carousel && s.photos ? `${s.label}: on the cover slide` : `${s.label}: ${s.hint}`}
