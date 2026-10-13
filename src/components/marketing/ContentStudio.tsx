@@ -3,28 +3,32 @@
 // The Content tab: a LinkedIn post a day for the edition, drafted from
 // what the group already holds about it (an Insights briefing, a session,
 // a speaker, a sponsor, the countdown), as an image in the brand's look
-// and a caption in its voice. The team reads it, changes what it likes,
-// copies the caption, saves the image, and marks it posted.
+// and a caption in its voice. Each card can be drawn in seven styles (a
+// photo, the night, ink on white, the brand colour, a frame, bands, a
+// mosaic) and shuffled between them. The team
+// reads it, changes what it likes, copies the caption or posts it straight
+// to LinkedIn, and marks it posted.
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Linkedin, PenLine, RefreshCw, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Moon, PenLine, RefreshCw, Send, Shuffle, Square, Sun, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { LogPostModal, Notice, Tone, useEdition } from './shared'
-import { CARD_LAYOUTS, brandFor, type BrandKey, type CardLayout } from '@/lib/contentBrand'
+import { CARD_STYLES, brandFor, photosFor, styleOf, type BrandKey, type CardStyle } from '@/lib/contentBrand'
 
 type Kind = 'insight' | 'session' | 'speaker' | 'theme' | 'countdown' | 'sponsor' | 'platform' | 'signal' | 'event'
 type Pick = 'auto' | Kind
 type Track = 'event' | 'nexus'
+type Look = 'rotate' | CardStyle
 
 // As lib/contentStudio.ts has them; listed here so the page needs nothing server-side.
 const KINDS: { value: Kind; label: string; hint: string; track: Track }[] = [
   { value: 'insight', label: 'Insight', hint: 'A published Insights briefing', track: 'event' },
-  { value: 'session', label: 'Session', hint: 'A session on the agenda and its questions', track: 'event' },
+  { value: 'session', label: 'Session', hint: 'A session on the agenda and who is on it', track: 'event' },
   { value: 'speaker', label: 'Speaker', hint: 'A confirmed speaker who agreed to a post', track: 'event' },
-  { value: 'theme', label: 'Theme', hint: 'A topic the agenda raises', track: 'event' },
+  { value: 'theme', label: 'Theme', hint: 'A question the agenda raises', track: 'event' },
   { value: 'countdown', label: 'Countdown', hint: 'Days to go, and booking', track: 'event' },
   { value: 'sponsor', label: 'Sponsor', hint: 'A sponsor on the line-up', track: 'event' },
   { value: 'insight', label: 'Insight', hint: 'A published Insights briefing, any series', track: 'nexus' },
@@ -33,6 +37,8 @@ const KINDS: { value: Kind; label: string; hint: string; track: Track }[] = [
   { value: 'event', label: 'Event', hint: 'The next summit across the group', track: 'nexus' },
 ]
 const kindLabel = (k: string) => KINDS.find((x) => x.value === k)?.label ?? k
+
+const STYLE_ICONS: Record<CardStyle, typeof ImageIcon> = { photo: ImageIcon, night: Moon, light: Sun, block: Square, frame: Frame, bands: Layers, mosaic: LayoutGrid }
 
 // The group's own page, filed as an edition of its own.
 const NEXUS = { series: 'World Nexus Group', city: '', year: '', label: 'World Nexus Group' }
@@ -50,7 +56,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { layout?: CardLayout; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[]; design?: { style: string } | null }
+  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -180,6 +186,7 @@ export function ContentStudio() {
   const refresh = () => qc.invalidateQueries({ queryKey: key })
 
   const [pick, setPick] = useState<Pick>('auto')
+  const [look, setLook] = useState<Look>('rotate')
   const [brief, setBrief] = useState('')
   const [forDate, setForDate] = useState('')
   const [busy, setBusy] = useState(false)
@@ -189,16 +196,17 @@ export function ContentStudio() {
   const [format, setFormat] = useState<'single' | 'carousel'>('single')
   const kinds = KINDS.filter((k) => k.track === track)
 
-  async function generate(opts: { kind?: Pick; brief?: string; forDate?: string; format?: 'single' | 'carousel'; ref?: string | null } = {}) {
+  async function generate(opts: { kind?: Pick; brief?: string; forDate?: string; format?: 'single' | 'carousel'; ref?: string | null; style?: Look } = {}) {
     if (!ed) return
     setBusy(true)
     setError('')
     const kind = opts.kind ?? pick
     const fmt = opts.format ?? format
+    const style = opts.style ?? look
     const r = await fetch('/api/marketing/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...ed, kind: kind === 'auto' ? null : kind, brief: opts.brief ?? brief, forDate: opts.forDate ?? forDate ?? null, format: fmt, ref: opts.ref ?? null }),
+      body: JSON.stringify({ ...ed, kind: kind === 'auto' ? null : kind, brief: opts.brief ?? brief, forDate: opts.forDate ?? forDate ?? null, format: fmt, ref: opts.ref ?? null, style: style === 'rotate' ? null : style }),
     })
     const j = await r.json().catch(() => ({}))
     setBusy(false)
@@ -221,16 +229,16 @@ export function ContentStudio() {
     <WorkspacePage
       title="Content"
       description={track === 'nexus'
-        ? 'A LinkedIn post a day for World Nexus Group: the intelligence platform, the market signals it watches, the Insights desk and the next summit, in the group\u2019s own look.'
-        : 'A LinkedIn post a day for this edition: an image in the event\u2019s own look and a caption in its voice, drawn from the Insights desk, the agenda, the line-up and the countdown.'}
+        ? 'A LinkedIn post a day for World Nexus Group: the intelligence platform, the market signals it watches, the Insights desk and the next summit, in the group’s own look.'
+        : 'A LinkedIn post a day for this edition, drawn from the Insights desk, the agenda, the line-up and the countdown. Every card comes in seven looks, and each post can be shuffled between them.'}
       actions={
         <Segmented
           size="sm"
           value={track}
           onChange={(t) => { setTrack(t); setPick('auto'); setError('') }}
           options={[
-            { value: 'event', label: edition ? `${edition.series} ${edition.city} ${edition.year}`.replace(/\s+/g, ' ').trim() : 'This edition', hint: 'Posts for the event\u2019s own page' },
-            { value: 'nexus', label: 'World Nexus Group', hint: 'Posts for the group\u2019s page: the intelligence platform' },
+            { value: 'event', label: edition ? `${edition.series} ${edition.city} ${edition.year}`.replace(/\s+/g, ' ').trim() : 'This edition', hint: 'Posts for the event’s own page' },
+            { value: 'nexus', label: 'World Nexus Group', hint: 'Posts for the group’s page: the intelligence platform' },
           ]}
         />
       }
@@ -277,10 +285,16 @@ export function ContentStudio() {
                   </select>
                 </Field>
               )}
+              <Field label="Look" hint="In turn takes each of the seven looks before any comes round again. Any card can be changed afterwards.">
+                <select className="ws-input" value={look} onChange={(e) => setLook(e.target.value as Look)}>
+                  <option value="rotate">The next look in turn</option>
+                  {CARD_STYLES.map((s) => <option key={s.value} value={s.value}>{s.label}: {s.hint}</option>)}
+                </select>
+              </Field>
               <Field label="Planned for" hint="Left blank, the next day with nothing planned.">
                 <input className="ws-input" type="date" value={forDate} onChange={(e) => setForDate(e.target.value)} />
               </Field>
-              <Field label="Any steer (optional)" span hint="A line for the writer: an angle, a person to mention, something to leave out.">
+              <Field label="Any steer (optional)" hint="A line for the writer: an angle, a person to mention, something to leave out.">
                 <input className="ws-input" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={track === 'nexus' ? 'e.g. Aim it at investors; keep it to deployments' : 'e.g. Lead with the NHS angle; mention the early-bird rate ends Friday'} />
               </Field>
             </div>
@@ -314,13 +328,88 @@ export function ContentStudio() {
           ) : (
             <div className="flex flex-col gap-3">
               {shown.map((p) => (
-                <PostCard key={p.id} post={p} onChanged={refresh} onRegenerate={() => generate({ kind: p.kind, brief: p.brief ?? '', forDate: p.forDate ?? '', format: p.source?.format === 'carousel' ? 'carousel' : 'single', ref: p.source?.format === 'carousel' ? p.ref : null })} busy={busy} />
+                <PostCard
+                  key={p.id}
+                  post={p}
+                  onChanged={refresh}
+                  onRegenerate={() => generate({ kind: p.kind, brief: p.brief ?? '', forDate: p.forDate ?? '', format: p.source?.format === 'carousel' ? 'carousel' : 'single', ref: p.source?.format === 'carousel' ? p.ref : null, style: styleOf(p.source) })}
+                  busy={busy}
+                />
               ))}
             </div>
           )}
         </>
       )}
     </WorkspacePage>
+  )
+}
+
+// The looks a card can take, one button each, and a shuffle to the next.
+// Pressing the look the card already has, for a look with photos, takes
+// other photos.
+function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
+  const [busy, setBusy] = useState<CardStyle | 'next' | null>(null)
+  const [err, setErr] = useState('')
+  const current = styleOf(post.source)
+  const carousel = post.source?.format === 'carousel'
+  const meta = CARD_STYLES.find((s) => s.value === current)
+  async function set(style?: CardStyle) {
+    setBusy(style ?? 'next')
+    setErr('')
+    try {
+      const r = await fetch(`/api/marketing/content/${post.id}/style`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(style ? { style } : {}) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setErr(j?.error || 'That look could not be drawn.')
+        return
+      }
+      onChanged()
+    } catch {
+      setErr('The CRM could not be reached. Try again.')
+    } finally {
+      setBusy(null)
+    }
+  }
+  // A speaker's own headshot fills the photo and frame looks, so there is no other photo to take.
+  const again = photosFor(current) > 0 && !(post.kind === 'speaker' && (current === 'photo' || current === 'frame'))
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-1.5">
+        <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg flex-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }} role="group" aria-label="Card look">
+          {CARD_STYLES.map((s) => {
+            const Icon = STYLE_ICONS[s.value]
+            const active = s.value === current
+            return (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => { if (!active || again) set(s.value) }}
+                disabled={busy !== null}
+                aria-pressed={active}
+                aria-label={s.label}
+                title={active && again ? `${s.label}: other photos` : carousel && s.photos ? `${s.label}: on the cover slide` : `${s.label}: ${s.hint}`}
+                className={cn('flex-1 inline-flex items-center justify-center h-8 rounded-md transition-colors', active ? 'shadow-sm' : 'opacity-70 hover:opacity-100')}
+                style={active ? { background: 'var(--surface)', color: 'var(--accent-ink)', border: '1px solid var(--line)' } : { color: 'var(--fg-2)', border: '1px solid transparent' }}
+              >
+                {busy === s.value ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
+              </button>
+            )
+          })}
+        </div>
+        <button type="button" onClick={() => set()} disabled={busy !== null} className="ws-btn ws-btn-sm" title="The next look, with other photos when it takes them" aria-label="Shuffle the look">
+          {busy === 'next' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+      <div className="flex items-center justify-between gap-2 mt-1.5">
+        <p className="text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }} title={meta?.hint}>{meta ? `${meta.label}: ${meta.hint}` : current}</p>
+        {again && (
+          <button type="button" onClick={() => set(current)} disabled={busy !== null} className="text-[11.5px] shrink-0 hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>
+            Other photos
+          </button>
+        )}
+      </div>
+      {err && <p className="text-[12px] mt-1.5" style={{ color: 'var(--bad)' }}>{err}</p>}
+    </div>
   )
 }
 
@@ -344,7 +433,6 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   ].filter(Boolean))]
   const [posting, setPosting] = useState(false)
   const [postErr, setPostErr] = useState('')
-  const [layout, setLayout] = useState<CardLayout>(post.source?.layout ?? 'headline')
   const carousel = post.source?.format === 'carousel'
   const slideNames = (post.source?.slides ?? []).map((x) => ({ news: 'The news', statistic: 'Statistic', data: 'Data', quote: 'Quote', end: 'Read more' } as Record<string, string>)[x.kind] ?? x.kind)
   const slideCount = Math.max(1, slideNames.length)
@@ -369,20 +457,6 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch { /* the caption is on screen to select */ }
-  }
-  // Design: a richer card (event photos, a mosaic, a magazine cover…); each
-  // press moves on to another design. Plain goes back to the layout.
-  const [designing, setDesigning] = useState(false)
-  const design = post.source?.design?.style ?? null
-  const DESIGN_NAMES: Record<string, string> = { cinematic: 'Cinematic photo', block: 'Colour block', mosaic: 'Photo mosaic', bars: 'Data bars', magazine: 'Magazine cover', mesh: 'Colour glow', framed: 'Editorial frame', bands: 'Diagonal bands', spotlight: 'Spotlight' }
-  async function redesign(plain = false) {
-    setDesigning(true)
-    const r = await fetch(`/api/marketing/content/${post.id}/design`, { method: plain ? 'DELETE' : 'POST' })
-    setDesigning(false)
-    if (r.ok) {
-      setV((n) => n + 1)
-      onChanged()
-    }
   }
   // Approve and post: up on the brand's page now, then marked posted.
   async function approve() {
@@ -413,40 +487,31 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
         {carousel ? (
           <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`${image}&slide=${slide + 1}`} alt={`Slide ${slide + 1} of ${slideCount}`} width={1080} height={1350} className="w-full h-auto block" style={{ aspectRatio: '1080 / 1350', background: '#0A0F1D' }} />
+            <img src={`${image}&slide=${slide + 1}`} alt={`Slide ${slide + 1} of ${slideCount}`} width={1080} height={1350} className="w-full h-auto block" style={{ aspectRatio: '1080 / 1350', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
             <div className="flex items-center gap-2 mt-3">
               <button type="button" className="ws-btn ws-btn-sm" disabled={slide === 0} onClick={() => setSlide((n) => n - 1)} aria-label="Previous slide"><ChevronLeft className="w-3.5 h-3.5" /></button>
               <span className="text-[12.5px] tabular flex-1 text-center" style={{ color: 'var(--fg-3)' }}>{`${slideNames[slide] ?? ''} · ${slide + 1} of ${slideCount}`}</span>
               <button type="button" className="ws-btn ws-btn-sm" disabled={slide >= slideCount - 1} onClick={() => setSlide((n) => n + 1)} aria-label="Next slide"><ChevronRight className="w-3.5 h-3.5" /></button>
             </div>
+            <StyleBar post={post} onChanged={() => { setSlide(0); onChanged() }} />
             <div className="flex items-center gap-2 mt-2">
-              <a href={`/api/marketing/content/${post.id}/carousel`} className="ws-btn ws-btn-primary ws-btn-sm flex-1 justify-center" title="Every slide as one PDF: on LinkedIn, Add a document"><FileText className="w-3.5 h-3.5" /> Download PDF</a>
-              <a href={`${image}&slide=${slide + 1}&download=1`} className="ws-btn ws-btn-sm" title="This slide as a 1080 × 1350 PNG"><Download className="w-3.5 h-3.5" /> Slide</a>
+              <a href={`/api/marketing/content/${post.id}/carousel?format=png`} className="ws-btn ws-btn-primary ws-btn-sm flex-1 justify-center" title="Every slide as a 1080 × 1350 PNG, in one zip, to upload as the images of a post yourself"><Download className="w-3.5 h-3.5" /> Download images</a>
+              <a href={`/api/marketing/content/${post.id}/carousel`} className="ws-btn ws-btn-sm" title="Every slide as one PDF: what LinkedIn's Add a document takes as a carousel"><FileText className="w-3.5 h-3.5" /> PDF</a>
+              <a href={`${image}&slide=${slide + 1}&download=1`} className="ws-btn ws-btn-sm" title="This slide on its own, as a PNG"><Download className="w-3.5 h-3.5" /></a>
             </div>
-            <DesignBar design={design} names={DESIGN_NAMES} busy={designing} onDesign={() => { setSlide(0); redesign() }} onPlain={() => redesign(true)} carousel />
             {post.source?.dropped?.length ? (
               <p className="text-[11.5px] mt-2" style={{ color: 'var(--fg-4)' }}>{`Left out, as not in the briefing word for word: ${post.source.dropped.join('; ')}.`}</p>
             ) : null}
           </div>
         ) : (
-        <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image} alt="" width={1080} height={1080} className="w-full h-auto block" style={{ aspectRatio: '1 / 1', background: '#0A0F1D' }} />
-          <div className="flex items-center gap-2 mt-3">
-            <select
-              className="ws-input"
-              style={{ height: 32, padding: '0 8px', fontSize: 12.5, flex: 1 }}
-              value={layout}
-              onChange={async (e) => { const l = e.target.value as CardLayout; setLayout(l); await patch({ layout: l }) }}
-              aria-label="Card layout"
-              title="How the card is set"
-            >
-              {CARD_LAYOUTS.map((l) => <option key={l.value} value={l.value}>{l.label}: {l.hint}</option>)}
-            </select>
-            <a href={`${image}&download=1`} className="ws-btn ws-btn-sm" title="1080 × 1080 PNG"><Download className="w-3.5 h-3.5" /> Save</a>
+          <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={image} alt="" width={1080} height={1080} className="w-full h-auto block" style={{ aspectRatio: '1 / 1', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
+            <StyleBar post={post} onChanged={onChanged} />
+            <div className="flex items-center gap-2 mt-2">
+              <a href={`${image}&download=1`} className="ws-btn ws-btn-sm flex-1 justify-center" title="1080 × 1080 PNG"><Download className="w-3.5 h-3.5" /> Save the image</a>
+            </div>
           </div>
-          <DesignBar design={design} names={DESIGN_NAMES} busy={designing} onDesign={() => redesign()} onPlain={() => redesign(true)} />
-        </div>
         )}
 
         {/* The words */}
@@ -488,7 +553,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
                   onClick={approve}
                   disabled={!liPage || posting}
                   className="ws-btn ws-btn-primary ws-btn-sm"
-                  title={liPage ? `Puts it up on ${liPage.name} now` : li?.connected ? 'Choose this brand\u2019s LinkedIn page at the top of the tab first' : 'Connect LinkedIn at the top of the tab first'}
+                  title={liPage ? `Puts it up on ${liPage.name} now` : li?.connected ? 'Choose this brand’s LinkedIn page at the top of the tab first' : 'Connect LinkedIn at the top of the tab first'}
                 >
                   {posting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Posting…</> : <><Send className="w-3.5 h-3.5" /> Approve and post</>}
                 </button>
@@ -512,27 +577,6 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
           onSave={async (url) => patch({ status: 'posted', postUrl: url || null })}
         />
       )}
-    </div>
-  )
-}
-
-function DesignBar({ design, names, busy, onDesign, onPlain, carousel = false }: { design: string | null; names: Record<string, string>; busy: boolean; onDesign: () => void; onPlain: () => void; carousel?: boolean }) {
-  return (
-    <div className="flex items-center gap-2 mt-2">
-      <button
-        type="button"
-        onClick={onDesign}
-        disabled={busy}
-        className="ws-btn ws-btn-sm flex-1 justify-center"
-        title={carousel ? 'An event photo behind the cover slide; press again for another' : 'A richer design with event photos; press again for another'}
-      >
-        {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-        {design ? (carousel ? 'Another photo' : 'Another design') : 'Design'}
-      </button>
-      {design && (
-        <button type="button" onClick={onPlain} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm" title="Back to the everyday look">Plain</button>
-      )}
-      {design && !carousel && <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{names[design] ?? design}</span>}
     </div>
   )
 }

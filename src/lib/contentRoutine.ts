@@ -18,7 +18,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, type Edition } from '@/lib/marketingSource'
-import { BRANDS, type BrandKey, type CardLayout } from '@/lib/contentBrand'
+import { BRANDS, nextStyle, type BrandKey } from '@/lib/contentBrand'
 import type { Slide } from '@/lib/contentCarousel'
 import {
   CAROUSEL_SCHEMA,
@@ -27,7 +27,7 @@ import {
   VOICE,
   checkSlides,
   gatherContext,
-  plain,
+  photoFields,
   pools,
   readArticleFull,
   tidy,
@@ -92,8 +92,11 @@ async function pickInsight(brand: RoutineBrand, ref?: string | null): Promise<Pi
   else {
     const fresh = list.filter((i) => !posted.has(i.slug))
     // The group's page posts about its own pieces only: the health and
-    // pharma pieces already have posts on their own pages.
-    insight = brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : fresh[0]
+    // pharma pieces already have posts on their own pages. Those pages
+    // lead with their own field: a piece on a deal or a funding round
+    // (category "Markets") waits until the others have had their post.
+    const isMarkets = (i: PublicInsight) => (i.category || '').toLowerCase() === 'markets'
+    insight = brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : fresh.find((i) => !isMarkets(i)) ?? fresh[0]
   }
   if (!insight) return null
   const choice = (pools(ctx).insight ?? []).find((c) => c.ref === insight!.slug) ?? {
@@ -101,7 +104,6 @@ async function pickInsight(brand: RoutineBrand, ref?: string | null): Promise<Pi
     ref: insight.slug,
     source: { title: insight.title, dek: insight.dek, category: insight.category, published_at: insight.published_at },
     link: `${ctx.site}/insights/${insight.slug}`,
-    layout: 'headline' as CardLayout,
   }
   return { ctx, insight, choice }
 }
@@ -116,7 +118,7 @@ You are writing today's LinkedIn post about one Insights briefing. Write everyth
 - data: two to four further figures from the piece under a short title (at most 60 characters), each a figure exactly as the text gives it and a label (at most 60 characters). Different figures from the statistic.
 - quote: words a named person or organisation said, copied exactly, character for character, from a passage the text puts in quotation marks, with the speaker's name and role as the text gives them. At most 220 characters; you may stop at the end of a sentence but never change a word. If the text quotes nobody, empty strings.
 - end: a closing headline (at most 70 characters) that gives the reader a reason to read the full briefing.
-- card: the words for a single image if the post ends up as one: kicker, headline (at most 70 characters, the finding or consequence, no full stop), subline (at most 90 characters) and quote (at most 120 characters, one sentence lifted word for word from the text, or an empty string).
+- card: the words for a single image if the post ends up as one: kicker, headline (at most 70 characters, the finding or consequence, no full stop) and subline (at most 90 characters).
 Every figure must appear in the text exactly. Where the piece has too few figures or no quotation, return empty strings (and an empty points list); a weak slide is worse than none. Never invent or round a figure, never paraphrase inside quotation marks.
 
 The caption: 60 to 120 words, the first line standing on its own, written so it reads right whether the post is one image or several (never mention slides or swiping), ending with "Read the briefing:" and the link given, then 3 to 5 hashtags on their own line.`
@@ -127,12 +129,12 @@ export const ROUTINE_SCHEMA = {
   required: [...CAROUSEL_SCHEMA.required, 'card'],
   properties: {
     ...CAROUSEL_SCHEMA.properties,
-    card: { type: 'object', additionalProperties: false, required: ['kicker', 'headline', 'subline', 'quote'], properties: { kicker: STR, headline: STR, subline: STR, quote: STR } },
+    card: { type: 'object', additionalProperties: false, required: ['kicker', 'headline', 'subline'], properties: { kicker: STR, headline: STR, subline: STR } },
   },
 }
 
 export interface RoutineDraft extends CarouselDraft {
-  card: { kicker: string; headline: string; subline: string; quote: string }
+  card: { kicker: string; headline: string; subline: string }
 }
 
 export async function routineBrief(brand: RoutineBrand, ref?: string | null) {
@@ -190,12 +192,10 @@ export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: Routi
   const slides: Slide[] = format === 'carousel' ? [news, ...extras, end] : format === 'two-page' ? [news, extras[0]] : []
   const n = news.kind === 'news' ? news : null
 
-  // The single card: its quote only if it is word for word in the text, and
-  // a quote layout only with one.
-  const cardQuoteRaw = tidy(d.card?.quote || '').replace(/^["“”']+|["“”']+$/g, '')
-  const cardQuote = cardQuoteRaw && plain(article.body).includes(plain(cardQuoteRaw)) ? cardQuoteRaw.slice(0, 160) : ''
-  if (format === 'single' && cardQuoteRaw && !cardQuote) dropped.push('the card quote is not word for word in the briefing')
-  const layout: CardLayout = format !== 'single' ? 'headline' : choice.layout === 'quote' && !cardQuote ? 'headline' : choice.layout
+  // The card's style: the one the page's last posts did not use, so a run
+  // of days takes all three looks; a photo behind it when that comes round.
+  const style = nextStyle(ctx.recent, null, ctx.photos.length)
+  const photos = photoFields(ctx, insight.slug, style)
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' })
   const single = format === 'single'
@@ -217,8 +217,8 @@ export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: Routi
       // Where the briefing's facts come from: for the team, never on the post.
       publishers: article.publishers,
       ...(single ? {} : { format: 'carousel', pages: format, slides }),
-      layout,
-      quote: single ? cardQuote || null : null,
+      style,
+      ...photos,
       dropped,
       city: ed.city,
       date,
