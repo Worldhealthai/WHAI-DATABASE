@@ -92,7 +92,7 @@ function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null }
   )
 }
 
-function Body({ slide, s, width = WIDTH }: { slide: Slide; s: Skin; width?: number }) {
+function Body({ slide, s, width = WIDTH, site }: { slide: Slide; s: Skin; width?: number; site: string }) {
   const bar = s.style === 'light' || s.style === 'block'
   switch (slide.kind) {
     case 'news':
@@ -144,12 +144,16 @@ function Body({ slide, s, width = WIDTH }: { slide: Slide; s: Skin; width?: numb
       )
     }
     case 'end':
+      // An editorial sign-off: no address and no claims about the checks;
+      // the site is in the foot, the link in the caption.
       return (
         <div style={{ display: 'flex', flexDirection: 'column', width }}>
-          <Kicker text="Read the briefing" s={s} size={24} bar={bar} />
+          <Kicker text="From our Insights desk" s={s} size={24} bar={bar} />
           <span style={{ fontSize: sized(slide.headline, 80), fontWeight: 600, lineHeight: 1.08, letterSpacing: -2, maxWidth: width, color: s.ink }}>{slide.headline}</span>
-          <span style={{ fontSize: 32, color: s.accent, fontWeight: 600, marginTop: 44, maxWidth: width }}>{slide.link.replace(/^https?:\/\/(www\.)?/, '')}</span>
-          <span style={{ fontSize: 30, color: s.muted, marginTop: 20 }}>Every figure here is referenced in the full briefing.</span>
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: 44 }}>
+            <div style={{ width: 56, height: 4, background: s.shape, marginRight: 22 }} />
+            <span style={{ fontSize: 30, color: s.muted }}>{`The full briefing is on ${site}`}</span>
+          </div>
         </div>
       )
   }
@@ -179,7 +183,7 @@ export async function renderSlide(post: CarouselPost, index: number): Promise<Im
   return new ImageResponse(
     (
       <Frame brand={brand} a={a} s={s} n={i + 1} total={Math.max(1, slides.length)} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={cover && style !== 'night' ? cover.photos : null}>
-        <Body slide={slide} s={s} width={width} />
+        <Body slide={slide} s={s} width={width} site={brand.site} />
       </Frame>
     ),
     { width: SLIDE_W, height: SLIDE_H, fonts: FONTS(a) },
