@@ -208,6 +208,14 @@ export async function renderCarouselPdf(post: CarouselPost, title: string): Prom
   return doc.save()
 }
 
+// A Content-Disposition for a download whose name may hold any character:
+// an ASCII name for old clients, the full name UTF-8 encoded beside it.
+export function attachment(name: string): string {
+  const clean = name.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120)
+  const ascii = clean.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim() || 'post'
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`
+}
+
 // The name each slide's file takes, by what it is.
 export const slideFileName = (slide: Slide, i: number) =>
   `${String(i + 1).padStart(2, '0')} ${({ news: 'The news', statistic: 'The number', data: 'The data', quote: 'The quote', end: 'Read the briefing' } as Record<string, string>)[slide.kind] ?? slide.kind}.png`

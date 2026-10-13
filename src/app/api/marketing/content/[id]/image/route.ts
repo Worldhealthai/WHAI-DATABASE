@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { renderCard } from '@/lib/contentCard'
-import { renderSlide } from '@/lib/contentCarousel'
+import { attachment, renderSlide } from '@/lib/contentCarousel'
 import { isCardStyle } from '@/lib/contentBrand'
 import type { ContentPost } from '@/lib/contentStudio'
 
@@ -25,8 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     : await renderCard(post, isCardStyle(asked) ? asked : undefined)
   const download = req.nextUrl.searchParams.get('download') === '1'
   if (download) {
-    const name = `${post.edition} - ${post.headline}${carousel ? ` - slide ${slideNo}` : ''}`.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120)
-    image.headers.set('Content-Disposition', `attachment; filename="${name}.png"`)
+    image.headers.set('Content-Disposition', attachment(`${post.edition} - ${post.headline}${carousel ? ` - slide ${slideNo}` : ''}.png`))
   }
   image.headers.set('Cache-Control', 'private, no-store')
   return image

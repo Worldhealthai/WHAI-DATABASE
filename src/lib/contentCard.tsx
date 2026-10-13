@@ -29,6 +29,8 @@ const ASSETS = join(process.cwd(), 'src/assets')
 export type Assets = {
   regular: Buffer
   semibold: Buffer
+  regularExt: Buffer
+  semiboldExt: Buffer
   whai: string
   wpai: string
   whaiLight: string
@@ -42,9 +44,11 @@ let assets: Assets | null = null
 export async function loadAssets(): Promise<Assets> {
   if (assets) return assets
   const png = async (file: string) => `data:image/png;base64,${(await readFile(join(ASSETS, file))).toString('base64')}`
-  const [regular, semibold, whai, wpai, whaiLight, wpaiLight, whaiInk, wpaiInk, wng, wngEmblem] = await Promise.all([
+  const [regular, semibold, regularExt, semiboldExt, whai, wpai, whaiLight, wpaiLight, whaiInk, wpaiInk, wng, wngEmblem] = await Promise.all([
     readFile(join(ASSETS, 'fonts/Outfit-400.woff')),
     readFile(join(ASSETS, 'fonts/Outfit-600.woff')),
+    readFile(join(ASSETS, 'fonts/Outfit-ext-400.woff')),
+    readFile(join(ASSETS, 'fonts/Outfit-ext-600.woff')),
     png('whai-logo.png'),
     png('wpai-logo.png'),
     png('whai-logo-light.png'),
@@ -54,13 +58,17 @@ export async function loadAssets(): Promise<Assets> {
     png('wng-gold.png'),
     png('wng-emblem-gold.png'),
   ])
-  assets = { regular, semibold, whai, wpai, whaiLight, wpaiLight, whaiInk, wpaiInk, wng, wngEmblem }
+  assets = { regular, semibold, regularExt, semiboldExt, whai, wpai, whaiLight, wpaiLight, whaiInk, wpaiInk, wng, wngEmblem }
   return assets
 }
 
+// Outfit's Latin and Latin Extended files; a glyph missing from the first
+// is taken from the next.
 export const FONTS = (a: Assets) => [
   { name: 'Outfit', data: a.regular, weight: 400 as const, style: 'normal' as const },
   { name: 'Outfit', data: a.semibold, weight: 600 as const, style: 'normal' as const },
+  { name: 'Outfit', data: a.regularExt, weight: 400 as const, style: 'normal' as const },
+  { name: 'Outfit', data: a.semiboldExt, weight: 600 as const, style: 'normal' as const },
 ]
 
 // A photo, headshot or logo from the web, as a data URL the renderer can
@@ -392,7 +400,15 @@ function who(post: Post, s: Skin, size: number) {
 function Speaker(p: DrawProps) {
   const { post, brand, a, s, images, city, date } = p
   const headshot = images.headshot
-  if (!headshot) return <Plain {...p} />
+  if (!headshot) {
+    // No headshot: the words, and the name and role under them.
+    return (
+      <Card brand={brand} a={a} s={s} ground={groundFor(p)} city={city} date={date} justify={s.style === 'photo' ? 'flex-end' : 'center'}>
+        <Words post={post} s={s} max={s.style === 'frame' ? 60 : s.style === 'bands' ? 66 : 76} width={bodyWidth(s.style)} bar={s.style === 'light' || s.style === 'block'} />
+        {who(post, s, 32)}
+      </Card>
+    )
+  }
 
   if (s.style === 'photo') {
     // The headshot across the whole card, the words at the foot.
