@@ -24,7 +24,7 @@ import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
 import { eventLook } from '@/lib/portals'
-import { BRANDS, brandFor, nextStyle, type BrandKey, type CardStyle } from '@/lib/contentBrand'
+import { BRANDS, brandFor, nextStyle, photosFor, type BrandKey, type CardStyle } from '@/lib/contentBrand'
 import type { Slide } from '@/lib/contentCarousel'
 
 export type ContentKind = 'insight' | 'speaker' | 'session' | 'sponsor' | 'countdown' | 'theme' | 'platform' | 'signal' | 'event'
@@ -188,15 +188,33 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
 
 export interface Choice { kind: ContentKind; ref: string | null; source: Record<string, unknown>; link: string }
 
-// A photo for the card, different from the last few posts' where it can be.
-export function pickPhoto(ctx: EditionContext, seed: string): string | null {
-  if (!ctx.photos.length) return null
-  const used = new Set(ctx.recent.slice(0, 6).map((r) => String((r.source as { photo?: string } | undefined)?.photo ?? '')))
+// Photos for the card, different from the last few posts' where they can
+// be: `n` of them, distinct, chosen by the seed so a post keeps its own.
+export function pickPhotos(ctx: EditionContext, seed: string, n: number): string[] {
+  if (!ctx.photos.length || n <= 0) return []
+  const used = new Set(ctx.recent.slice(0, 6).flatMap((r) => {
+    const src = r.source as { photo?: string; photos?: string[] } | undefined
+    return [...(Array.isArray(src?.photos) ? src!.photos! : []), ...(src?.photo ? [src.photo] : [])]
+  }))
   const fresh = ctx.photos.filter((p) => !used.has(p))
-  const pool = fresh.length ? fresh : ctx.photos
+  const pool = fresh.length >= n ? fresh : ctx.photos
   let h = 0
   for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return pool[h % pool.length]
+  const out: string[] = []
+  for (let i = 0; i < pool.length && out.length < n; i++) out.push(pool[(h + i * 7) % pool.length])
+  return [...new Set(out)]
+}
+
+// A look asked for by name that takes more photos than the gallery has.
+function needsPhotos(style: CardStyle | 'rotate' | null | undefined, photoCount: number) {
+  if (!style || style === 'rotate' || photosFor(style) <= photoCount) return
+  throw new ContentError(`The ${style} look needs ${photosFor(style)} event photo${photosFor(style) === 1 ? '' : 's'} and the gallery on worldnexusgroup.com has ${photoCount}. Choose another look, or add photos to the gallery first.`)
+}
+
+// What a card with this style carries: its photo, or the mosaic's three.
+export function photoFields(ctx: EditionContext, seed: string, style: CardStyle): { photo?: string; photos?: string[] } {
+  const photos = pickPhotos(ctx, seed, photosFor(style))
+  return photos.length ? { photo: photos[0], photos } : {}
 }
 
 export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
@@ -251,7 +269,13 @@ function choose(ctx: EditionContext, wanted: ContentKind | null): Choice {
   const rotation = ctx.brand === 'nexus' ? NEXUS_KINDS : EVENT_KINDS
   // Among what has not been used lately, the newest few are all fair
   // game, so two runs in a row do not land on the same item.
-  const vary = (pool: Choice[]): Choice => pool[Math.floor(Math.random() * Math.min(pool.length, 3))]
+  // A briefing on a deal or a funding round (category "Markets") is taken
+  // only when the page has nothing else left to post about.
+  const vary = (pool: Choice[]): Choice => {
+    const own = ctx.brand === 'nexus' ? pool : pool.filter((c) => String(c.source.category || '').toLowerCase() !== 'markets' || c.kind !== 'insight')
+    const from = own.length ? own : pool
+    return from[Math.floor(Math.random() * Math.min(from.length, 3))]
+  }
   if (wanted) {
     const pool = all[wanted] ?? []
     if (!pool.length) throw new ContentError(emptyPoolMessage(wanted, ctx))
@@ -298,25 +322,24 @@ Voice:
 - Never invent figures, quotations, names, titles, companies, deals or claims. Use only what the brief supplies. If a detail is not supplied, leave it out.
 - Speak as the page, in the first person plural where natural ("we", "our London summit", "our platform"), never as an individual.
 
-The card (the image) carries: a kicker (2 to 4 words, e.g. "Panel discussion", "On the line-up", "42 days to go", "From our Insights desk", "Inside the platform"), a headline (at most 70 characters, one idea, no full stop), a subline (at most 90 characters: the supporting fact, a name and role, a question, or the date and city), and a quote (at most 120 characters: one sentence lifted word for word from the material's text, the most striking plain fact in it; an empty string when the material has no text to quote). When the brief gives a figure for a number card, the headline is the label of that figure, not the figure itself. The headline is never the briefing's title restated: it is the finding, the figure, the consequence or the question, as the brief's angle asks.
+The card (the image) carries: a kicker (2 to 4 words, e.g. "Panel discussion", "On the line-up", "42 days to go", "From our Insights desk", "Inside the platform"), a headline (at most 70 characters, one idea, no full stop) and a subline (at most 90 characters: the supporting fact, a name and role, a question, or the date and city). When the brief gives a figure for a number card, the headline is the label of that figure, not the figure itself. The headline is never the briefing's title restated: it is the finding, the figure, the consequence or the question, as the brief's angle asks.
 
 The caption (the post text): 70 to 140 words. The first line must stand on its own, because LinkedIn folds the rest. Short paragraphs, one blank line between them. End with one line that points to the link, as a plain verb phrase ("Book your pass:", "Read the briefing:", "See who's speaking:", "See the platform:") followed by the URL given. Then the hashtags on their own final line: 3 to 5, CamelCase, no spaces, always including the page's own tag (#WorldHealthAI, #WorldPharmaAI or #WorldNexusGroup) and, for an event, the city.`
 
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['kicker', 'headline', 'subline', 'quote', 'caption', 'hashtags'],
+  required: ['kicker', 'headline', 'subline', 'caption', 'hashtags'],
   properties: {
     kicker: { type: 'string' },
     headline: { type: 'string' },
     subline: { type: 'string' },
-    quote: { type: 'string' },
     caption: { type: 'string' },
     hashtags: { type: 'array', items: { type: 'string' } },
   },
 }
 
-interface Draft { kicker: string; headline: string; subline: string; quote: string; caption: string; hashtags: string[] }
+interface Draft { kicker: string; headline: string; subline: string; caption: string; hashtags: string[] }
 
 function brief(ctx: EditionContext, pick: Choice, extra: string | null, angle: string | null): string {
   const ev = ctx.event
@@ -335,7 +358,7 @@ function brief(ctx: EditionContext, pick: Choice, extra: string | null, angle: s
     ctx.recent.length ? `Headlines of the last posts, not to repeat or echo: ${ctx.recent.slice(0, 12).map((r) => JSON.stringify(r.headline)).join(', ')}` : '',
     ctx.recent.length ? `Opening lines of the last posts, so this one opens differently: ${ctx.recent.slice(0, 6).map((r) => JSON.stringify(String(r.caption || '').split('\n')[0].slice(0, 120))).join(', ')}` : '',
     extra ? `The marketing team's own steer for this post: ${extra}` : '',
-    'Return the post as JSON with kicker, headline, subline, quote, caption and hashtags.',
+    'Return the post as JSON with kicker, headline, subline, caption and hashtags.',
   ]
   return lines.filter(Boolean).join('\n')
 }
@@ -372,7 +395,6 @@ async function write(ctx: EditionContext, pick: Choice, extra: string | null, an
     kicker: tidy(draft.kicker).slice(0, 40),
     headline: tidy(draft.headline).slice(0, 90),
     subline: tidy(draft.subline).slice(0, 120),
-    quote: tidy(draft.quote).replace(/^["“”']+|["“”']+$/g, '').slice(0, 160),
     caption: tidy(draft.caption),
     hashtags: (draft.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
   }
@@ -403,13 +425,15 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     const before = ctx.recent.filter((r) => r.kind === 'insight' && r.ref === pick.ref).length
     angle = INSIGHT_ANGLES[before % INSIGHT_ANGLES.length]
   }
-  const { quote, ...draft } = await write(ctx, pick, opts.brief?.trim() || null, angle)
+  const draft = await write(ctx, pick, opts.brief?.trim() || null, angle)
   // The card's style: the one asked for, else the one the last posts did
   // not use. The photo style takes an event photo (a speaker's own headshot
   // will do), chosen now so the post keeps it.
-  const canPhoto = ctx.photos.length > 0 || (pick.kind === 'speaker' && Boolean(pick.source.image))
-  const style = nextStyle(ctx.recent, opts.style ?? null, canPhoto)
-  const photo = style === 'photo' ? pickPhoto(ctx, pick.ref ?? pick.kind) : null
+  // A speaker's headshot stands in for one photo (the photo and frame styles).
+  const photoCount = Math.max(ctx.photos.length, pick.kind === 'speaker' && pick.source.image ? 1 : 0)
+  needsPhotos(opts.style, photoCount)
+  const style = nextStyle(ctx.recent, opts.style ?? null, photoCount)
+  const photos = photoFields(ctx, pick.ref ?? pick.kind, style)
   const { text: _text, ...sourceKept } = pick.source as Record<string, unknown>
   const row = {
     edition: ed.label,
@@ -419,7 +443,7 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     forDate: opts.forDate || (await nextFreeDay(ed.label)),
     ...draft,
     link: pick.link,
-    source: { ...sourceKept, style, ...(photo ? { photo } : {}), quote: quote || null, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
+    source: { ...sourceKept, style, ...photos, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
@@ -624,8 +648,9 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   const { news, extras, end, dropped } = checkSlides(d, article, { title: src.title ?? '', publishedAt: src.published_at ?? null, fallbackDate: date, link: pick.link })
   const slides: Slide[] = [news, ...extras, end]
   // The slides' style, as for a single card; a photo goes behind the cover.
-  const style = nextStyle(ctx.recent, opts.style ?? null, ctx.photos.length > 0)
-  const photo = style === 'photo' ? pickPhoto(ctx, pick.ref!) : null
+  needsPhotos(opts.style, ctx.photos.length)
+  const style = nextStyle(ctx.recent, opts.style ?? null, ctx.photos.length)
+  const photos = photoFields(ctx, pick.ref!, style)
 
   const row = {
     edition: ed.label,
@@ -639,7 +664,7 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
     caption: tidy(d.caption),
     hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
     link: pick.link,
-    source: { ...pick.source, format: 'carousel', style, ...(photo ? { photo } : {}), slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
+    source: { ...pick.source, format: 'carousel', style, ...photos, slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),

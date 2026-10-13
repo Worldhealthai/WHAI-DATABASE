@@ -3,19 +3,20 @@
 // The Content tab: a LinkedIn post a day for the edition, drafted from
 // what the group already holds about it (an Insights briefing, a session,
 // a speaker, a sponsor, the countdown), as an image in the brand's look
-// and a caption in its voice. Each card can be drawn in three styles (a
-// photo, the night, ink on white) and shuffled between them. The team
+// and a caption in its voice. Each card can be drawn in seven styles (a
+// photo, the night, ink on white, the brand colour, a frame, bands, a
+// mosaic) and shuffled between them. The team
 // reads it, changes what it likes, copies the caption or posts it straight
 // to LinkedIn, and marks it posted.
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Image as ImageIcon, Linkedin, Moon, PenLine, RefreshCw, Send, Shuffle, Sun, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Moon, PenLine, RefreshCw, Send, Shuffle, Square, Sun, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { LogPostModal, Notice, Tone, useEdition } from './shared'
-import { CARD_STYLES, brandFor, styleOf, type BrandKey, type CardStyle } from '@/lib/contentBrand'
+import { CARD_STYLES, brandFor, photosFor, styleOf, type BrandKey, type CardStyle } from '@/lib/contentBrand'
 
 type Kind = 'insight' | 'session' | 'speaker' | 'theme' | 'countdown' | 'sponsor' | 'platform' | 'signal' | 'event'
 type Pick = 'auto' | Kind
@@ -37,7 +38,7 @@ const KINDS: { value: Kind; label: string; hint: string; track: Track }[] = [
 ]
 const kindLabel = (k: string) => KINDS.find((x) => x.value === k)?.label ?? k
 
-const STYLE_ICONS: Record<CardStyle, typeof ImageIcon> = { photo: ImageIcon, night: Moon, light: Sun }
+const STYLE_ICONS: Record<CardStyle, typeof ImageIcon> = { photo: ImageIcon, night: Moon, light: Sun, block: Square, frame: Frame, bands: Layers, mosaic: LayoutGrid }
 
 // The group's own page, filed as an edition of its own.
 const NEXUS = { series: 'World Nexus Group', city: '', year: '', label: 'World Nexus Group' }
@@ -55,7 +56,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { style?: CardStyle; photo?: string; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
+  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -229,7 +230,7 @@ export function ContentStudio() {
       title="Content"
       description={track === 'nexus'
         ? 'A LinkedIn post a day for World Nexus Group: the intelligence platform, the market signals it watches, the Insights desk and the next summit, in the group’s own look.'
-        : 'A LinkedIn post a day for this edition, drawn from the Insights desk, the agenda, the line-up and the countdown. Every card comes in three looks: a photo, the night, and ink on white.'}
+        : 'A LinkedIn post a day for this edition, drawn from the Insights desk, the agenda, the line-up and the countdown. Every card comes in seven looks, and each post can be shuffled between them.'}
       actions={
         <Segmented
           size="sm"
@@ -284,7 +285,7 @@ export function ContentStudio() {
                   </select>
                 </Field>
               )}
-              <Field label="Look" hint="In turn goes night, photo, light, so three posts in a row look different. Any card can be changed afterwards.">
+              <Field label="Look" hint="In turn takes each of the seven looks before any comes round again. Any card can be changed afterwards.">
                 <select className="ws-input" value={look} onChange={(e) => setLook(e.target.value as Look)}>
                   <option value="rotate">The next look in turn</option>
                   {CARD_STYLES.map((s) => <option key={s.value} value={s.value}>{s.label}: {s.hint}</option>)}
@@ -343,13 +344,15 @@ export function ContentStudio() {
   )
 }
 
-// The three looks a card can take, and a shuffle to the next. Pressing
-// the look the card already has, for the photo style, takes another photo.
+// The looks a card can take, one button each, and a shuffle to the next.
+// Pressing the look the card already has, for a look with photos, takes
+// other photos.
 function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
   const [busy, setBusy] = useState<CardStyle | 'next' | null>(null)
   const [err, setErr] = useState('')
   const current = styleOf(post.source)
   const carousel = post.source?.format === 'carousel'
+  const meta = CARD_STYLES.find((s) => s.value === current)
   async function set(style?: CardStyle) {
     setBusy(style ?? 'next')
     setErr('')
@@ -362,14 +365,15 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
     }
     onChanged()
   }
+  // A speaker's own headshot fills the photo and frame looks, so there is no other photo to take.
+  const again = photosFor(current) > 0 && !(post.kind === 'speaker' && (current === 'photo' || current === 'frame'))
   return (
     <div className="mt-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg flex-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }} role="group" aria-label="Card look">
           {CARD_STYLES.map((s) => {
             const Icon = STYLE_ICONS[s.value]
             const active = s.value === current
-            const again = active && s.value === 'photo'
             return (
               <button
                 key={s.value}
@@ -377,21 +381,29 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
                 onClick={() => set(s.value)}
                 disabled={busy !== null || (active && !again)}
                 aria-pressed={active}
-                title={again ? (carousel ? 'Another photo behind the cover' : 'Another photo') : carousel && s.value === 'photo' ? 'An event photo behind the cover slide' : s.hint}
-                className={cn('flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-md text-[12.5px] font-medium transition-colors', active ? 'shadow-sm' : 'opacity-75 hover:opacity-100')}
-                style={active ? { background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)' } : { color: 'var(--fg-2)', border: '1px solid transparent' }}
+                aria-label={s.label}
+                title={active && again ? `${s.label}: other photos` : carousel && s.photos ? `${s.label}: on the cover slide` : `${s.label}: ${s.hint}`}
+                className={cn('flex-1 inline-flex items-center justify-center h-8 rounded-md transition-colors', active ? 'shadow-sm' : 'opacity-70 hover:opacity-100')}
+                style={active ? { background: 'var(--surface)', color: 'var(--accent-ink)', border: '1px solid var(--line)' } : { color: 'var(--fg-2)', border: '1px solid transparent' }}
               >
                 {busy === s.value ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
-                {s.label}
               </button>
             )
           })}
         </div>
-        <button type="button" onClick={() => set()} disabled={busy !== null} className="ws-btn ws-btn-sm" title="The next look, with a fresh photo when it comes round" aria-label="Shuffle the look">
+        <button type="button" onClick={() => set()} disabled={busy !== null} className="ws-btn ws-btn-sm" title="The next look, with other photos when it takes them" aria-label="Shuffle the look">
           {busy === 'next' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5" />}
         </button>
       </div>
-      {err && <p className="text-[12px] mt-2" style={{ color: 'var(--bad)' }}>{err}</p>}
+      <div className="flex items-center justify-between gap-2 mt-1.5">
+        <p className="text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }} title={meta?.hint}>{meta ? `${meta.label}: ${meta.hint}` : current}</p>
+        {again && (
+          <button type="button" onClick={() => set(current)} disabled={busy !== null} className="text-[11.5px] shrink-0 hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>
+            Other photos
+          </button>
+        )}
+      </div>
+      {err && <p className="text-[12px] mt-1.5" style={{ color: 'var(--bad)' }}>{err}</p>}
     </div>
   )
 }

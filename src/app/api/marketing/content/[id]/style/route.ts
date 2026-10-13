@@ -1,10 +1,10 @@
-// POST /api/marketing/content/<id>/style { style?: "photo" | "night" | "light" }
-// Draws the post in another of the three styles (lib/contentCard): the one
-// asked for, else the next in turn. The photo style takes a fresh event
-// photo each time, so asking for it again shuffles the photo.
+// POST /api/marketing/content/<id>/style { style?: "photo" | "night" | "light" | "block" | "frame" | "bands" | "mosaic" }
+// Draws the post in another of the styles (lib/contentCard): the one
+// asked for, else the next in turn. A style that takes photos gets fresh
+// event photos each time, so asking for it again shuffles them.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { STYLE_ORDER, brandFor, isCardStyle, styleOf, type CardStyle } from '@/lib/contentBrand'
+import { STYLE_ORDER, brandFor, isCardStyle, photosFor, photosOf, styleOf, type CardStyle } from '@/lib/contentBrand'
 import { NEXUS_URL } from '@/lib/marketingSource'
 import type { ContentPost } from '@/lib/contentStudio'
 
@@ -16,10 +16,19 @@ async function galleryPhotos(series: string): Promise<string[]> {
     const r = await fetch(`${NEXUS_URL}/api/public/gallery?site=${brand === 'nexus' ? 'all' : brand}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
     if (!r.ok) return []
     const j = (await r.json()) as { photos?: { image_url?: string }[] }
-    return (j.photos ?? []).map((p) => p.image_url || '').filter(Boolean)
+    return [...new Set((j.photos ?? []).map((p) => p.image_url || '').filter(Boolean))]
   } catch {
     return []
   }
+}
+
+function shuffle<T>(list: T[]): T[] {
+  const a = [...list]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -31,23 +40,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const post = data as ContentPost
   const source = (post.source ?? {}) as Record<string, unknown>
   const current = styleOf(source)
-  const style: CardStyle = isCardStyle(body.style) ? body.style : STYLE_ORDER[(STYLE_ORDER.indexOf(current) + 1) % STYLE_ORDER.length]
-
-  // A fresh photo for the photo style: one the post is not showing already.
-  // A speaker's card has the headshot to show, so it needs none.
-  let photo = typeof source.photo === 'string' ? source.photo : null
-  if (style === 'photo') {
-    const photos = await galleryPhotos(post.series)
-    const fresh = photos.filter((p) => p !== photo)
-    const pool = fresh.length ? fresh : photos
-    if (pool.length) photo = pool[Math.floor(Math.random() * pool.length)]
-    else if (!(post.kind === 'speaker' && source.image)) {
-      return NextResponse.json({ error: 'There are no event photos in the gallery on worldnexusgroup.com yet, so the photo style has nothing to show.' }, { status: 409 })
+  const gallery = await galleryPhotos(post.series)
+  // A speaker's headshot stands in for one photo (the photo and frame styles).
+  const own = post.kind === 'speaker' && typeof source.image === 'string' && source.image ? 1 : 0
+  const possible = STYLE_ORDER.filter((s) => photosFor(s) <= Math.max(gallery.length, own))
+  let style: CardStyle
+  if (isCardStyle(body.style)) {
+    if (!possible.includes(body.style)) {
+      return NextResponse.json({ error: `The ${body.style} look needs ${photosFor(body.style)} event photo${photosFor(body.style) === 1 ? '' : 's'} and the gallery on worldnexusgroup.com has ${gallery.length}.` }, { status: 409 })
     }
+    style = body.style
+  } else {
+    style = possible[(possible.indexOf(current) + 1) % possible.length] ?? 'night'
+  }
+
+  // Fresh photos for a style that takes them: ones the post is not showing.
+  const had = photosOf(source)
+  const need = photosFor(style)
+  let photos = had.slice(0, need)
+  if (need) {
+    const fresh = gallery.filter((p) => !had.includes(p))
+    photos = shuffle(fresh.length >= need ? fresh : gallery).slice(0, need)
   }
   // The old layout and design fields no longer decide anything.
-  const { layout: _layout, design: _design, ...rest } = source
-  const next = { ...rest, style, ...(photo ? { photo } : {}) }
+  const { layout: _layout, design: _design, photo: _photo, photos: _photos, ...rest } = source
+  const next = { ...rest, style, ...(photos.length ? { photo: photos[0], photos } : {}) }
   const { data: saved, error: saveErr } = await supabase
     .from('marketing_content')
     .update({ source: next, updatedAt: new Date().toISOString() })

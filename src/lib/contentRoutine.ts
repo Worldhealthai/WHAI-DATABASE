@@ -27,7 +27,7 @@ import {
   VOICE,
   checkSlides,
   gatherContext,
-  pickPhoto,
+  photoFields,
   pools,
   readArticleFull,
   tidy,
@@ -194,8 +194,8 @@ export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: Routi
 
   // The card's style: the one the page's last posts did not use, so a run
   // of days takes all three looks; a photo behind it when that comes round.
-  const style = nextStyle(ctx.recent, null, ctx.photos.length > 0)
-  const photo = style === 'photo' ? pickPhoto(ctx, insight.slug) : null
+  const style = nextStyle(ctx.recent, null, ctx.photos.length)
+  const photos = photoFields(ctx, insight.slug, style)
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' })
   const single = format === 'single'
@@ -218,7 +218,7 @@ export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: Routi
       publishers: article.publishers,
       ...(single ? {} : { format: 'carousel', pages: format, slides }),
       style,
-      ...(photo ? { photo } : {}),
+      ...photos,
       dropped,
       city: ed.city,
       date,
