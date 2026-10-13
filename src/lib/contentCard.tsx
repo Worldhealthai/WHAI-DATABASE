@@ -21,7 +21,8 @@ const FAINT = '#8A93A6'
 
 const ASSETS = join(process.cwd(), 'src/assets')
 // The brand logos: silver letters for the night (`whai`, `wpai`), and one
-// colour in ink for a block of the brand colour (`whaiInk`, `wpaiInk`).
+// colour for a block of the brand colour, in the brand's text colour on it
+// (`whaiInk` white on the blue, `wpaiInk` black on the teal).
 export type Assets = { regular: Buffer; semibold: Buffer; whai: string; wpai: string; whaiInk: string; wpaiInk: string; wng: string }
 let assets: Assets | null = null
 export async function loadAssets(): Promise<Assets> {
@@ -32,7 +33,7 @@ export async function loadAssets(): Promise<Assets> {
     readFile(join(ASSETS, 'fonts/Inter-SemiBold.ttf')),
     png('whai-logo.png'),
     png('wpai-logo.png'),
-    png('whai-logo-black.png'),
+    png('whai-logo-white.png'),
     png('wpai-logo-black.png'),
     png('wng-gold.png'),
   ])
