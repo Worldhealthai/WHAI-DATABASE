@@ -15,15 +15,16 @@
 //
 // Claude writes the words (the card's kicker, headline and subline, the
 // caption and the hashtags) against a voice guide drawn from the sites;
-// the card is drawn here (lib/contentCard.tsx) in one of several layouts,
-// so it is always in the brand's own look.
+// the card is drawn here (lib/contentCard.tsx) in one of three styles (an
+// event photo, the night, ink on white), the next one each time, so it is
+// always in the brand's own look and a run of posts does not look the same.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
 import { eventLook } from '@/lib/portals'
-import { BRANDS, brandFor, type BrandKey, type CardLayout } from '@/lib/contentBrand'
+import { BRANDS, brandFor, nextStyle, type BrandKey, type CardStyle } from '@/lib/contentBrand'
 import type { Slide } from '@/lib/contentCarousel'
 
 export type ContentKind = 'insight' | 'speaker' | 'session' | 'sponsor' | 'countdown' | 'theme' | 'platform' | 'signal' | 'event'
@@ -185,10 +186,10 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
 
 // ── Choosing what today's post is about ─────────────────────────────────────
 
-export interface Choice { kind: ContentKind; ref: string | null; source: Record<string, unknown>; link: string; layout: CardLayout }
+export interface Choice { kind: ContentKind; ref: string | null; source: Record<string, unknown>; link: string }
 
 // A photo for the card, different from the last few posts' where it can be.
-function pickPhoto(ctx: EditionContext, seed: string): string | null {
+export function pickPhoto(ctx: EditionContext, seed: string): string | null {
   if (!ctx.photos.length) return null
   const used = new Set(ctx.recent.slice(0, 6).map((r) => String((r.source as { photo?: string } | undefined)?.photo ?? '')))
   const fresh = ctx.photos.filter((p) => !used.has(p))
@@ -206,55 +207,41 @@ export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]
   }
   const site = ctx.site
   const confirmedIn = (s: Session) => s.speakers.filter((x) => x.status === 'confirmed' && x.name.trim())
-  // The briefings take turns through four layouts, skipping the ones the
-  // last posts used, so a run of days does not look the same.
-  const lastLayouts = ctx.recent.slice(0, 3).map((r) => String((r.source as { layout?: string } | undefined)?.layout ?? ''))
-  const insightLayouts: CardLayout[] = (['headline', 'quote', 'split', 'photo'] as CardLayout[]).filter((l) => !lastLayouts.includes(l))
-  const alternate = (i: number): CardLayout => (insightLayouts.length ? insightLayouts : (['headline', 'quote', 'split'] as CardLayout[]))[i % (insightLayouts.length || 3)]
-  // A briefing's card: its layout in turn, with an event photo behind the
-  // words when the photo layout comes round and a photo is there.
-  const insightChoice = (i: PublicInsight, n: number): Choice => {
-    const layout = alternate(n)
-    const photo = layout === 'photo' ? pickPhoto(ctx, i.slug) : null
-    return { kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at, ...(photo ? { photo } : {}) }, link: `${site}/insights/${i.slug}`, layout: layout === 'photo' && !photo ? 'headline' : layout }
-  }
-  const withPhoto = (seed: string, otherwise: CardLayout): { layout: CardLayout; photo?: string } => {
-    const photo = pickPhoto(ctx, seed)
-    return photo ? { layout: 'photo', photo } : { layout: otherwise }
-  }
+  // A briefing's card. The pharma and health pages lead with their own
+  // field: a piece on a deal or a funding round (category "Markets") comes
+  // after the others, as those belong to the group's page first.
+  const insightChoice = (i: PublicInsight): Choice => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}` })
+  const isMarkets = (i: PublicInsight) => (i.category || '').toLowerCase() === 'markets'
+  const insights = ctx.brand === 'nexus' ? ctx.insights : [...ctx.insights.filter((i) => !isMarkets(i)), ...ctx.insights.filter(isMarkets)]
 
   if (ctx.brand === 'nexus') {
     return {
-      insight: fresh('insight', ctx.insights.map(insightChoice)),
+      insight: fresh('insight', insights.map(insightChoice)),
       platform: fresh('platform', [
-        { kind: 'platform', ref: 'what', source: { platform: PLATFORM.name, what: PLATFORM.what, stats: PLATFORM.stats }, link: PLATFORM.link, layout: 'split' },
-        ...PLATFORM.stats.map((s) => ({ kind: 'platform' as const, ref: `stat:${s.label}`, source: { platform: PLATFORM.name, what: PLATFORM.what, figure: s.n, label: s.label }, link: PLATFORM.link, layout: 'number' as const })),
+        { kind: 'platform', ref: 'what', source: { platform: PLATFORM.name, what: PLATFORM.what, stats: PLATFORM.stats }, link: PLATFORM.link },
+        ...PLATFORM.stats.map((s) => ({ kind: 'platform' as const, ref: `stat:${s.label}`, source: { platform: PLATFORM.name, what: PLATFORM.what, figure: s.n, label: s.label }, link: PLATFORM.link })),
       ]),
-      signal: fresh('signal', PLATFORM.signals.map((s) => ({ kind: 'signal', ref: s.kind, source: { platform: PLATFORM.name, what: PLATFORM.what, signal: s.kind, watches: s.watches, note: 'Write about this kind of signal and why it matters to decision-makers. Do not invent any specific company, deal, figure or date.' }, link: PLATFORM.link, layout: 'headline' }))),
+      signal: fresh('signal', PLATFORM.signals.map((s) => ({ kind: 'signal', ref: s.kind, source: { platform: PLATFORM.name, what: PLATFORM.what, signal: s.kind, watches: s.watches, note: 'Write about this kind of signal and why it matters to decision-makers. Do not invent any specific company, deal, figure or date.' }, link: PLATFORM.link }))),
       event: fresh('event', ctx.upcoming.map((e) => {
         const days = parseDay(e.date)
         const look = eventLook(`${e.series} ${e.city ?? ''}`.trim())
-        const photo = withPhoto(e.slug, 'split')
-        return { kind: 'event' as const, ref: e.slug, source: { series: e.series, city: e.city, date: e.date, daysToGo: days ? Math.ceil((days - Date.now()) / 86400000) : null, site: look.key === 'pharma' ? BRANDS.pharma.url : BRANDS.health.url, ...photo }, link: look.key === 'pharma' ? `${BRANDS.pharma.url}/book` : `${BRANDS.health.url}/book`, layout: photo.layout }
+        return { kind: 'event' as const, ref: e.slug, source: { series: e.series, city: e.city, date: e.date, daysToGo: days ? Math.ceil((days - Date.now()) / 86400000) : null, site: look.key === 'pharma' ? BRANDS.pharma.url : BRANDS.health.url }, link: look.key === 'pharma' ? `${BRANDS.pharma.url}/book` : `${BRANDS.health.url}/book` }
       })),
     }
   }
 
   return {
-    insight: fresh('insight', ctx.insights.map(insightChoice)),
-    session: fresh('session', ctx.sessions.map((s) => {
-      const photo = withPhoto(s.id, 'split')
-      return { kind: 'session' as const, ref: s.id, source: { title: s.title, type: s.type, talkTitle: s.talkTitle, points: s.points, speakers: confirmedIn(s).map((x) => ({ name: x.name, role: x.role, org: x.org, moderator: x.moderator })), ...photo }, link: `${site}/events`, layout: photo.layout }
-    })),
+    insight: fresh('insight', insights.map(insightChoice)),
+    session: fresh('session', ctx.sessions.map((s) => ({ kind: 'session' as const, ref: s.id, source: { title: s.title, type: s.type, talkTitle: s.talkTitle, points: s.points, speakers: confirmedIn(s).map((x) => ({ name: x.name, role: x.role, org: x.org, moderator: x.moderator })) }, link: `${site}/events` }))),
     speaker: fresh('speaker', ctx.speakers.filter((s) => s.linkedin_consent === true && s.name).map((s) => {
       const image = absoluteUrl(s.image)
-      return { kind: 'speaker' as const, ref: s.id, source: { name: s.name, role: s.role, org: s.org, bio: (s.bio || '').slice(0, 600), image }, link: `${site}/speakers`, layout: image ? 'portrait' as const : 'headline' as const }
+      return { kind: 'speaker' as const, ref: s.id, source: { name: s.name, role: s.role, org: s.org, bio: (s.bio || '').slice(0, 600), image }, link: `${site}/speakers` }
     })),
-    theme: fresh('theme', ctx.sessions.flatMap((s) => s.points.map((p, i) => ({ kind: 'theme' as const, ref: `${s.id}:${i}`, source: { question: p, session: s.title }, link: `${site}/events`, layout: 'split' as const })))),
-    countdown: ctx.daysToGo != null && ctx.daysToGo > 0 ? [{ kind: 'countdown', ref: String(ctx.daysToGo), source: { daysToGo: ctx.daysToGo, figure: String(ctx.daysToGo), label: ctx.daysToGo === 1 ? 'day to go' : 'days to go' }, link: `${site}/book`, layout: 'number' }] : [],
+    theme: fresh('theme', ctx.sessions.flatMap((s) => s.points.map((p, i) => ({ kind: 'theme' as const, ref: `${s.id}:${i}`, source: { question: p, session: s.title }, link: `${site}/events` })))),
+    countdown: ctx.daysToGo != null && ctx.daysToGo > 0 ? [{ kind: 'countdown', ref: String(ctx.daysToGo), source: { daysToGo: ctx.daysToGo, figure: String(ctx.daysToGo), label: ctx.daysToGo === 1 ? 'day to go' : 'days to go' }, link: `${site}/book` }] : [],
     sponsor: fresh('sponsor', ctx.sponsors.filter((s) => s.name).map((s) => {
       const logo = absoluteUrl(s.logo)
-      return { kind: 'sponsor' as const, ref: s.id, source: { name: s.name, tier: s.tier, category: s.category, website: s.website, logo }, link: `${site}/partners`, layout: logo ? 'logo' as const : 'split' as const }
+      return { kind: 'sponsor' as const, ref: s.id, source: { name: s.name, tier: s.tier, category: s.category, website: s.website, logo }, link: `${site}/partners` }
     })),
   }
 }
@@ -342,7 +329,7 @@ function brief(ctx: EditionContext, pick: Choice, extra: string | null, angle: s
     `Website: ${ctx.site}`,
     `Link to end the caption with: ${pick.link}`,
     `Post type: ${pick.kind}`,
-    `Card layout: ${pick.layout}${pick.layout === 'number' ? ' (the figure is shown large; the headline is its label)' : ''}`,
+    `The card: ${pick.kind === 'countdown' || (pick.kind === 'platform' && pick.source.figure) ? 'the figure is shown large, so the headline is its label' : pick.kind === 'speaker' ? 'the headshot, name, role and organisation are shown, so the headline need not repeat them' : pick.kind === 'session' ? 'the speakers on the session are listed on the card, so the headline is about the session itself' : 'the kicker, headline and subline over the brand look'}`,
     `Material (use only this): ${JSON.stringify(material)}`,
     angle ? `Angle for this post: ${angle}` : '',
     ctx.recent.length ? `Headlines of the last posts, not to repeat or echo: ${ctx.recent.slice(0, 12).map((r) => JSON.stringify(r.headline)).join(', ')}` : '',
@@ -404,7 +391,7 @@ export function tidy(s: string): string {
 
 // ── The whole run ───────────────────────────────────────────────────────────
 
-export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null }): Promise<ContentPost> {
+export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
   const pick = choose(ctx, opts.kind ?? null)
   // A briefing is written from its own text, from an angle that moves on
@@ -417,8 +404,12 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     angle = INSIGHT_ANGLES[before % INSIGHT_ANGLES.length]
   }
   const { quote, ...draft } = await write(ctx, pick, opts.brief?.trim() || null, angle)
-  // A quote card needs a quote; without one it is set as a headline.
-  const layout = pick.layout === 'quote' && !quote ? 'headline' : pick.layout
+  // The card's style: the one asked for, else the one the last posts did
+  // not use. The photo style takes an event photo (a speaker's own headshot
+  // will do), chosen now so the post keeps it.
+  const canPhoto = ctx.photos.length > 0 || (pick.kind === 'speaker' && Boolean(pick.source.image))
+  const style = nextStyle(ctx.recent, opts.style ?? null, canPhoto)
+  const photo = style === 'photo' ? pickPhoto(ctx, pick.ref ?? pick.kind) : null
   const { text: _text, ...sourceKept } = pick.source as Record<string, unknown>
   const row = {
     edition: ed.label,
@@ -428,7 +419,7 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     forDate: opts.forDate || (await nextFreeDay(ed.label)),
     ...draft,
     link: pick.link,
-    source: { ...sourceKept, layout, quote: quote || null, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
+    source: { ...sourceKept, style, ...(photo ? { photo } : {}), quote: quote || null, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
@@ -581,7 +572,7 @@ export function checkSlides(
   return { news, extras, end, dropped }
 }
 
-export async function draftCarousel(ed: Edition, opts: { brief?: string | null; forDate?: string | null; ref?: string | null }): Promise<ContentPost> {
+export async function draftCarousel(ed: Edition, opts: { brief?: string | null; forDate?: string | null; ref?: string | null; style?: CardStyle | 'rotate' | null }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
   const pool = pools(ctx).insight ?? []
   if (!pool.length) throw new ContentError(emptyPoolMessage('insight', ctx))
@@ -632,6 +623,9 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   const date = ctx.event?.date ?? null
   const { news, extras, end, dropped } = checkSlides(d, article, { title: src.title ?? '', publishedAt: src.published_at ?? null, fallbackDate: date, link: pick.link })
   const slides: Slide[] = [news, ...extras, end]
+  // The slides' style, as for a single card; a photo goes behind the cover.
+  const style = nextStyle(ctx.recent, opts.style ?? null, ctx.photos.length > 0)
+  const photo = style === 'photo' ? pickPhoto(ctx, pick.ref!) : null
 
   const row = {
     edition: ed.label,
@@ -645,7 +639,7 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
     caption: tidy(d.caption),
     hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
     link: pick.link,
-    source: { ...pick.source, format: 'carousel', layout: 'headline', slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
+    source: { ...pick.source, format: 'carousel', style, ...(photo ? { photo } : {}), slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
