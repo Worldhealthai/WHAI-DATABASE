@@ -5,13 +5,14 @@
 // as a PDF document, one page per slide, so the slides are also bound into
 // a PDF here. The same styles as the single cards (lib/contentCard): the
 // cover slide takes the style (a photo, the brand colour, a frame, bands,
-// a mosaic), and the slides after it follow in the night; the light style
-// keeps every slide on white. No dates on the slides.
+// a mosaic, a seam, a masthead...), and the slides after it follow in the
+// night; the white styles keep every slide on white. No dates on the
+// slides.
 
 import { ImageResponse } from 'next/og'
 import { PDFDocument } from 'pdf-lib'
-import { BRANDS, brandFor, photosOf, styleOf, type Brand, type CardStyle } from '@/lib/contentBrand'
-import { ArcsGround, BARS_H, BandsGround, BarsGround, BlockGround, FONTS, FrameGround, Kicker, LightGround, Mark, MosaicGround, PhotoGround, RingsGround, Wash, WedgeGround, alpha, loadAssets, remoteImage, seedOf, skinFor, type Assets, type Skin } from '@/lib/contentCard'
+import { BRANDS, brandFor, photosFor, photosOf, styleOf, type Brand, type CardStyle } from '@/lib/contentBrand'
+import { ArcsGround, BARS_H, BandsGround, BarsGround, BlockGround, FONTS, FrameGround, InitialGround, Kicker, LightGround, Mark, MosaicGround, PhotoGround, RingsGround, SplitGround, TAPE_W, TapeGround, TicksGround, TintGround, Wash, WedgeGround, alpha, barred, clip, loadAssets, onWhite, remoteImage, seedOf, skinFor, tapeText, tickMark, type Assets, type Skin } from '@/lib/contentCard'
 
 export const SLIDE_W = 1080
 export const SLIDE_H = 1350
@@ -45,8 +46,76 @@ function sized(text: string, max: number): number {
 // The cover's ground in its style.
 const MOSAIC = { top: 520, gap: 10, bigW: 640 }
 const FRAME = { w: 430, h: 560, x: SLIDE_W - 430 - 70, y: 230 }
-function Cover({ brand, s, photos, seed }: { brand: Brand; s: Skin; photos: string[]; seed: number }) {
+// Where the cover's words begin in each style, measured from the top of
+// the slide: under the mosaic's photos, the still's strip, the masthead's
+// picture, or hanging from the split's seam.
+const SEAM = Math.round(SLIDE_H * 0.42)
+const RULE_Y = Math.round(SLIDE_H * 0.48)
+const STRIP = { y: 196, h: 400 }
+const MAST = { pic: 480 }
+const COL = { w: 600, line: 728, mx: 768, mw: 224, top: 220 }
+const coverTop = (style: CardStyle) =>
+  style === 'mosaic' ? MOSAIC.top + 40 : style === 'split' ? SEAM + 48 - 58 : style === 'still' ? STRIP.y + STRIP.h + 64 - 58 : style === 'masthead' ? 254 + MAST.pic + 46 - 58 : PAD
+
+function Cover({ brand, s, photos, seed, slide }: { brand: Brand; s: Skin; photos: string[]; seed: number; slide: Slide }) {
+  const kicker = slide.kind === 'news' ? slide.kicker : slide.kind === 'end' ? 'From our Insights desk' : ''
+  const headline = slide.kind === 'news' || slide.kind === 'end' ? slide.headline : slide.kind === 'data' ? slide.title : slide.kind === 'statistic' ? slide.label : slide.text
+  const summary = slide.kind === 'news' ? slide.summary : slide.kind === 'statistic' ? slide.context : ''
+  const rule = alpha('#0B0C10', 0.12)
   switch (s.style) {
+    case 'split':
+      return (
+        <>
+          <SplitGround brand={brand} seam={SEAM} w={SLIDE_W} />
+          {kicker ? (
+            <div style={{ position: 'absolute', left: PAD, top: SEAM - 74, display: 'flex', alignItems: 'center' }}>
+              <div style={{ width: 44, height: 6, background: brand.onAccent, marginRight: 18 }} />
+              <span style={{ fontSize: 24, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: brand.onAccent }}>{kicker}</span>
+            </div>
+          ) : null}
+        </>
+      )
+    case 'masthead':
+      return (
+        <>
+          <div style={{ position: 'absolute', left: PAD, top: 160, width: WIDTH, height: 8, background: s.ink }} />
+          <div style={{ position: 'absolute', left: PAD, top: 174, width: WIDTH, height: 2, background: s.ink }} />
+          <div style={{ position: 'absolute', left: PAD, top: 186, width: WIDTH, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: s.accent }}>{kicker}</span>
+            <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', color: s.faint }}>{brand.site}</span>
+          </div>
+          <div style={{ position: 'absolute', left: PAD, top: 226, width: WIDTH, height: 1, background: rule }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photos[0]} alt="" width={WIDTH} height={MAST.pic} style={{ position: 'absolute', left: PAD, top: 254, width: WIDTH, height: MAST.pic, objectFit: 'cover' }} />
+        </>
+      )
+    case 'column':
+      return (
+        <>
+          <div style={{ position: 'absolute', left: COL.line, top: COL.top, width: 1, height: SLIDE_H - COL.top, background: alpha('#0B0C10', 0.14) }} />
+          <div style={{ position: 'absolute', left: COL.mx, top: COL.top, width: COL.mw, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ width: COL.mw, height: 6, background: brand.accent }} />
+            {kicker ? <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: s.accent, padding: '22px 0', lineHeight: 1.4 }}>{kicker}</span> : null}
+            {summary ? <span style={{ fontSize: 24, lineHeight: 1.45, color: s.muted, padding: '22px 0', borderTop: `1px solid ${alpha('#0B0C10', 0.14)}` }}>{clip(summary, 260)}</span> : null}
+          </div>
+        </>
+      )
+    case 'tape': {
+      const run = tapeText(brand, '', '', kicker)
+      return <TapeGround brand={brand} text={run.text} size={run.size} w={SLIDE_W} h={SLIDE_H} />
+    }
+    case 'ticks': return <TicksGround brand={brand} mark={tickMark(seed, null, SLIDE_W)} y={RULE_Y} w={SLIDE_W} />
+    case 'tint': return <TintGround brand={brand} src={photos[0]} w={SLIDE_W} h={SLIDE_H} />
+    case 'initial': return <InitialGround brand={brand} glyph={(headline.replace(/[^\p{L}\p{N}]/gu, '').toUpperCase() || 'A').slice(0, /^[IJLT1]/.test(headline.replace(/[^\p{L}\p{N}]/gu, '').toUpperCase()) ? 2 : 1)} w={SLIDE_W} h={SLIDE_H} />
+    case 'still':
+      return (
+        <>
+          <Wash brand={brand} corner="bottom" w={SLIDE_W} h={SLIDE_H} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photos[0]} alt="" width={SLIDE_W} height={STRIP.h} style={{ position: 'absolute', left: 0, top: STRIP.y, width: SLIDE_W, height: STRIP.h, objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', left: 0, top: STRIP.y, width: SLIDE_W, height: STRIP.h, background: brand.night, opacity: 0.1 }} />
+        </>
+      )
     case 'photo': return <PhotoGround brand={brand} src={photos[0]} w={SLIDE_W} h={SLIDE_H} fade={0.72} />
     case 'light': return <LightGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
     case 'block': return <BlockGround brand={brand} w={SLIDE_W} h={SLIDE_H} />
@@ -67,33 +136,39 @@ function Cover({ brand, s, photos, seed }: { brand: Brand; s: Skin; photos: stri
   }
 }
 
-// The words' width on a cover: beside the frame, clear of the bands, the arcs and the wedge.
-const coverWidth = (style: CardStyle | null) => (style === 'frame' ? FRAME.x - PAD - 50 : style === 'bands' || style === 'arcs' ? 560 : style === 'wedge' ? 720 : style === 'rings' ? WIDTH - 120 : WIDTH)
+// The words' width on a cover: beside the frame, clear of the bands, the
+// arcs, the wedge and the tape, in the column's wide measure.
+const coverWidth = (style: CardStyle | null) => (style === 'frame' ? FRAME.x - PAD - 50 : style === 'bands' || style === 'arcs' ? 560 : style === 'wedge' ? 720 : style === 'rings' ? WIDTH - 120 : style === 'tape' ? 740 : style === 'initial' ? 720 : style === 'column' ? COL.w : WIDTH)
+// Where the words sit on a cover: at the foot under a photo, a wedge or a
+// tint; from the top under the mosaic, the still and the masthead and
+// hanging from the seam; else in the middle.
+const coverJustify = (style: CardStyle | null): 'center' | 'flex-end' | 'flex-start' =>
+  style === 'photo' || style === 'wedge' || style === 'tint' ? 'flex-end' : style === 'mosaic' || style === 'still' || style === 'masthead' || style === 'split' || style === 'ticks' ? 'flex-start' : 'center'
 
-function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null, seed = 0 }: { brand: Brand; a: Assets; s: Skin; n: number; total: number; children: React.ReactNode; corner?: 'top' | 'bottom'; cover?: string[] | null; seed?: number }) {
+function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null, seed = 0, slide }: { brand: Brand; a: Assets; s: Skin; n: number; total: number; children: React.ReactNode; corner?: 'top' | 'bottom'; cover?: string[] | null; seed?: number; slide: Slide }) {
   const full: React.CSSProperties = { position: 'absolute', top: 0, left: 0, width: SLIDE_W, height: SLIDE_H }
-  const light = s.style === 'light'
+  const light = s.on === 'light'
   const block = s.style === 'block'
-  // The words sit at the foot under a photo or a wedge, beside the frame
-  // in its own column, in the clear left of the bands and the arcs, under
-  // the mosaic, else in the middle.
-  const justify = cover && (s.style === 'photo' || s.style === 'wedge') ? 'flex-end' : 'center'
-  const width = coverWidth(cover ? s.style : null)
-  const top = cover && s.style === 'mosaic' ? MOSAIC.top + 40 : PAD
-  // The words and the cue sit above the bars along the base.
-  const bottom = cover && s.style === 'bars' ? BARS_H : 0
+  const style = cover ? s.style : null
+  const justify = coverJustify(style)
+  const width = coverWidth(style)
+  const top = style ? coverTop(style) : PAD
+  // The words and the cue sit above the bars along the base; beside the tape.
+  const bottom = style === 'bars' ? BARS_H : 0
+  const left = style === 'tape' ? TAPE_W + PAD : PAD
+  const measure = SLIDE_W - PAD - left
   return (
     <div style={{ width: SLIDE_W, height: SLIDE_H, display: 'flex', background: s.bg, color: s.ink, fontFamily: 'Outfit', position: 'relative', overflow: 'hidden' }}>
-      {cover ? <Cover brand={brand} s={s} photos={cover} seed={seed} /> : light ? <LightGround brand={brand} w={SLIDE_W} h={SLIDE_H} /> : <Wash brand={brand} corner={corner} w={SLIDE_W} h={SLIDE_H} />}
-      {light || block ? null : <div style={{ position: 'absolute', left: 0, top: SLIDE_H - 14, width: SLIDE_W, height: 14, background: s.shape }} />}
-      <div style={{ ...full, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px ${bottom}px` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: WIDTH }}>
+      {cover ? <Cover brand={brand} s={s} photos={cover} seed={seed} slide={slide} /> : light ? <LightGround brand={brand} w={SLIDE_W} h={SLIDE_H} /> : <Wash brand={brand} corner={corner} w={SLIDE_W} h={SLIDE_H} />}
+      {light || s.on === 'accent' ? null : <div style={{ position: 'absolute', left: 0, top: SLIDE_H - 14, width: SLIDE_W, height: 14, background: s.shape }} />}
+      <div style={{ ...full, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px ${bottom}px ${left}px` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: measure }}>
           <Mark brand={brand} assets={a} size={0.86} on={s.on} />
-          <span style={{ fontSize: 24, color: cover && s.style === 'mosaic' ? '#C7CBD6' : s.faint, fontVariantNumeric: 'tabular-nums' }}>{`${n} / ${total}`}</span>
+          <span style={{ fontSize: 24, color: style === 'mosaic' ? '#C7CBD6' : s.faint, fontVariantNumeric: 'tabular-nums' }}>{`${n} / ${total}`}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: justify, width, paddingTop: top - PAD, paddingBottom: justify === 'flex-end' ? 70 : 40 }}>{children}</div>
         {/* On the brand colour the cue keeps to the left, clear of the night disc in the corner. */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: block ? 'flex-start' : 'space-between', width: WIDTH, fontSize: 24, paddingBottom: 60, color: s.faint }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: block ? 'flex-start' : 'space-between', width: measure, fontSize: 24, paddingBottom: 60, color: s.faint }}>
           <span>{brand.site}</span>
           {n < total ? (
             <span style={{ display: 'flex', alignItems: 'center', color: s.accent, fontWeight: 600, marginLeft: block ? 40 : 0 }}>
@@ -109,15 +184,15 @@ function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null, 
   )
 }
 
-function Body({ slide, s, width = WIDTH, site }: { slide: Slide; s: Skin; width?: number; site: string }) {
-  const bar = s.style === 'light' || s.style === 'block'
+function Body({ slide, s, width = WIDTH, site, kicker = true, summary = true }: { slide: Slide; s: Skin; width?: number; site: string; kicker?: boolean; summary?: boolean }) {
+  const bar = barred(s.style)
   switch (slide.kind) {
     case 'news':
       return (
         <div style={{ display: 'flex', flexDirection: 'column', width }}>
-          <Kicker text={slide.kicker} s={s} size={24} bar={bar} />
+          {kicker ? <Kicker text={slide.kicker} s={s} size={24} bar={bar} /> : null}
           <span style={{ fontSize: sized(slide.headline, width < 700 ? 72 : 92), fontWeight: 600, lineHeight: 1.06, letterSpacing: -2.5, maxWidth: width, color: s.ink }}>{slide.headline}</span>
-          {slide.summary ? <span style={{ fontSize: width < 700 ? 30 : 34, lineHeight: 1.4, color: s.muted, marginTop: 40, maxWidth: width - 40 }}>{slide.summary}</span> : null}
+          {slide.summary && summary ? <span style={{ fontSize: width < 700 ? 30 : 34, lineHeight: 1.4, color: s.muted, marginTop: 40, maxWidth: width - 40 }}>{slide.summary}</span> : null}
         </div>
       )
     case 'statistic': {
@@ -176,31 +251,99 @@ function Body({ slide, s, width = WIDTH, site }: { slide: Slide; s: Skin; width?
   }
 }
 
+// The timeline's cover: the kicker and the headline stand on the rule, the
+// summary hangs beneath it.
+function TicksBody({ slide, s }: { slide: Slide; s: Skin }) {
+  const headline = slide.kind === 'news' || slide.kind === 'end' ? slide.headline : slide.kind === 'data' ? slide.title : slide.kind === 'statistic' ? slide.label : slide.text
+  const summary = slide.kind === 'news' ? slide.summary : slide.kind === 'statistic' ? slide.context : ''
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: RULE_Y - 28 - (PAD + 58), width: WIDTH }}>
+        <Kicker text={slide.kind === 'news' ? slide.kicker : 'From our Insights desk'} s={s} size={24} />
+        <span style={{ fontSize: sized(headline, 72), fontWeight: 600, lineHeight: 1.06, letterSpacing: -2.5, maxWidth: WIDTH, color: s.ink }}>{headline}</span>
+      </div>
+      {summary ? <span style={{ fontSize: 32, lineHeight: 1.4, color: s.muted, marginTop: 76, maxWidth: WIDTH - 40 }}>{summary}</span> : null}
+    </>
+  )
+}
+
+// The paper's cover: the photo in full colour, the logo over it, and a
+// white sheet over the lower left carrying the words and the cue.
+function PaperCover({ brand, a, s, n, total, slide, photo }: { brand: Brand; a: Assets; s: Skin; n: number; total: number; slide: Slide; photo: string }) {
+  const light = skinFor(brand, 'light')
+  const headline = slide.kind === 'news' || slide.kind === 'end' ? slide.headline : slide.kind === 'data' ? slide.title : slide.kind === 'statistic' ? slide.label : slide.text
+  const summary = slide.kind === 'news' ? slide.summary : slide.kind === 'statistic' ? slide.context : ''
+  const top = 620
+  const width = 760 - PAD - 56
+  return (
+    <div style={{ width: SLIDE_W, height: SLIDE_H, display: 'flex', background: s.bg, color: s.ink, fontFamily: 'Outfit', position: 'relative', overflow: 'hidden' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={photo} alt="" width={SLIDE_W} height={SLIDE_H} style={{ position: 'absolute', left: 0, top: 0, width: SLIDE_W, height: SLIDE_H, objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, width: SLIDE_W, height: SLIDE_H, background: brand.night, opacity: 0.22 }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, width: SLIDE_W, height: 320, background: `linear-gradient(to bottom, ${alpha(brand.night, 0.62)} 0%, ${alpha(brand.night, 0)} 100%)` }} />
+      <div style={{ position: 'absolute', left: PAD, top: PAD, width: WIDTH, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Mark brand={brand} assets={a} size={0.86} on="night" />
+        <span style={{ fontSize: 24, color: s.faint, fontVariantNumeric: 'tabular-nums' }}>{`${n} / ${total}`}</span>
+      </div>
+      <div style={{ position: 'absolute', left: 0, top, width: 760, height: SLIDE_H - top, display: 'flex', flexDirection: 'column', background: '#FFFFFF', padding: `56px 56px 60px ${PAD}px`, color: light.ink }}>
+        <Kicker text={slide.kind === 'news' ? slide.kicker : 'From our Insights desk'} s={light} size={24} bar />
+        <span style={{ fontSize: sized(headline, 64), fontWeight: 600, lineHeight: 1.06, letterSpacing: -2, maxWidth: width, color: light.ink }}>{headline}</span>
+        {summary ? <span style={{ fontSize: 28, lineHeight: 1.4, color: light.muted, marginTop: 28, maxWidth: width }}>{clip(summary, 170)}</span> : null}
+        <div style={{ display: 'flex', flexGrow: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width, fontSize: 24, color: light.faint }}>
+          <span>{brand.site}</span>
+          {n < total ? (
+            <span style={{ display: 'flex', alignItems: 'center', color: light.accent, fontWeight: 600 }}>
+              <span>Swipe</span>
+              <svg width="30" height="24" viewBox="0 0 30 24" style={{ marginLeft: 10 }}>
+                <path d="M2 12h24M17 4l9 8-9 8" fill="none" stroke={light.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          ) : <span />}
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 0, top: SLIDE_H - 14, width: SLIDE_W, height: 14, background: brand.accent }} />
+    </div>
+  )
+}
+
 // What the cover needs for the post's style, fetched; a style without its
 // photos is drawn as the night.
 async function coverFor(post: CarouselPost, style: CardStyle): Promise<{ style: CardStyle; photos: string[] }> {
-  const need = style === 'mosaic' ? 3 : style === 'photo' || style === 'frame' ? 1 : 0
+  const need = photosFor(style)
   const photos = (await Promise.all(photosOf(post.source).slice(0, need).map((p) => remoteImage(p)))).filter((p): p is string => Boolean(p))
   return photos.length < need ? { style: 'night', photos: [] } : { style, photos }
 }
 
-// One slide as a PNG. The cover slide takes the style; the slides after it
-// follow in the night (or on white, for the light style).
-export async function renderSlide(post: CarouselPost, index: number): Promise<ImageResponse> {
+// One slide as a PNG. The cover slide takes the style (the post's, or one
+// to preview); the slides after it follow in the night (or on white, for
+// the light style).
+export async function renderSlide(post: CarouselPost, index: number, styleOverride?: CardStyle): Promise<ImageResponse> {
   const brand = BRANDS[brandFor(post.series)]
   const a = await loadAssets()
   const slides = slidesOf(post)
   const i = Math.min(Math.max(0, index), Math.max(0, slides.length - 1))
   const slide = slides[i] ?? { kind: 'end', headline: 'No slides yet', link: brand.url }
-  const asked = styleOf(post.source)
+  const asked = styleOverride ?? styleOf(post.source)
   const cover = i === 0 ? await coverFor(post, asked) : null
-  const style: CardStyle = cover ? cover.style : asked === 'light' ? 'light' : 'night'
+  const style: CardStyle = cover ? cover.style : onWhite(asked) ? 'light' : 'night'
   const s = skinFor(brand, style)
-  const width = coverWidth(cover && style !== 'night' ? style : null)
+  const on = cover && style !== 'night'
+  const width = coverWidth(on ? style : null)
+  const n = i + 1
+  const total = Math.max(1, slides.length)
+  const seed = seedOf(slide.kind === 'news' ? slide.headline : '')
+  if (on && style === 'paper') {
+    return new ImageResponse(<PaperCover brand={brand} a={a} s={s} n={n} total={total} slide={slide} photo={cover.photos[0]} />, { width: SLIDE_W, height: SLIDE_H, fonts: FONTS(a) })
+  }
+  // The split's kicker stands in the colour, the masthead's in the folio,
+  // the column's in the margin with the summary: the cover draws those.
+  const kicker = !(on && (style === 'split' || style === 'masthead' || style === 'column'))
+  const summary = !(on && style === 'column')
   return new ImageResponse(
     (
-      <Frame brand={brand} a={a} s={s} n={i + 1} total={Math.max(1, slides.length)} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={cover && style !== 'night' ? cover.photos : null} seed={seedOf(slide.kind === 'news' ? slide.headline : '')}>
-        <Body slide={slide} s={s} width={width} site={brand.site} />
+      <Frame brand={brand} a={a} s={s} n={n} total={total} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={on ? cover.photos : null} seed={seed} slide={slide}>
+        {on && style === 'ticks' ? <TicksBody slide={slide} s={s} /> : <Body slide={slide} s={s} width={width} site={brand.site} kicker={kicker} summary={summary} />}
       </Frame>
     ),
     { width: SLIDE_W, height: SLIDE_H, fonts: FONTS(a) },

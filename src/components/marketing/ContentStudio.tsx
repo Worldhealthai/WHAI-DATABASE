@@ -3,19 +3,20 @@
 // The Content tab: a LinkedIn post a day for the edition, drafted from
 // what the group already holds about it (an Insights briefing, a session,
 // a speaker, a sponsor, the countdown), as an image in the brand's look
-// and a caption in its voice. Each card can be drawn in eleven looks (a
-// photo, the night, ink on white, the brand colour, a frame, four graphic
-// looks, a mosaic) and shuffled between them. The team
+// and a caption in its voice. Each card can be drawn in twenty looks
+// (contentBrand) and shuffled between them, or chosen from the look
+// gallery, which draws the post in every one. The team
 // reads it, changes what it likes, copies the caption or posts it straight
 // to LinkedIn, and marks it posted.
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Moon, PenLine, RefreshCw, Send, Shuffle, Square, Sun, Target, Trash2, Triangle, Waves } from 'lucide-react'
+import { BarChart3, Bookmark, CaseUpper, Check, ChevronDown, ChevronLeft, ChevronRight, Columns2, Copy, Download, Droplet, ExternalLink, FileText, Film, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Milestone, Moon, Newspaper, PenLine, RefreshCw, Send, Shuffle, Square, SquareSplitVertical, StickyNote, Sun, Target, Trash2, Triangle, Waves } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { LogPostModal, Notice, Tone, useEdition } from './shared'
+import { LookGallery } from './LookGallery'
 import { CARD_STYLES, brandFor, photosFor, styleOf, stylesFor, type BrandKey, type CardStyle } from '@/lib/contentBrand'
 
 type Kind = 'insight' | 'session' | 'speaker' | 'theme' | 'countdown' | 'sponsor' | 'platform' | 'signal' | 'event'
@@ -38,7 +39,7 @@ const KINDS: { value: Kind; label: string; hint: string; track: Track }[] = [
 ]
 const kindLabel = (k: string) => KINDS.find((x) => x.value === k)?.label ?? k
 
-const STYLE_ICONS: Record<CardStyle, typeof ImageIcon> = { photo: ImageIcon, night: Moon, light: Sun, block: Square, frame: Frame, bands: Layers, rings: Target, bars: BarChart3, arcs: Waves, wedge: Triangle, mosaic: LayoutGrid }
+const STYLE_ICONS: Record<CardStyle, typeof ImageIcon> = { photo: ImageIcon, night: Moon, light: Sun, block: Square, frame: Frame, bands: Layers, rings: Target, bars: BarChart3, arcs: Waves, wedge: Triangle, mosaic: LayoutGrid, split: SquareSplitVertical, masthead: Newspaper, column: Columns2, tape: Bookmark, paper: StickyNote, ticks: Milestone, tint: Droplet, initial: CaseUpper, still: Film }
 
 // The group's own page, filed as an edition of its own.
 const NEXUS = { series: 'World Nexus Group', city: '', year: '', label: 'World Nexus Group' }
@@ -187,6 +188,7 @@ export function ContentStudio() {
 
   const [pick, setPick] = useState<Pick>('auto')
   const [look, setLook] = useState<Look>('rotate')
+  const [browsing, setBrowsing] = useState(false)
   const [brief, setBrief] = useState('')
   const [forDate, setForDate] = useState('')
   const [busy, setBusy] = useState(false)
@@ -285,12 +287,28 @@ export function ContentStudio() {
                   </select>
                 </Field>
               )}
-              <Field label="Look" hint="In turn takes each of the eleven looks before any comes round again. Any card can be changed afterwards.">
-                <select className="ws-input" value={look} onChange={(e) => setLook(e.target.value as Look)}>
-                  <option value="rotate">The next look in turn</option>
-                  {CARD_STYLES.map((s) => <option key={s.value} value={s.value}>{s.label}: {s.hint}</option>)}
-                </select>
+              <Field label="Look" hint="Browse the looks to see each one drawn for this edition. In turn takes each of the twenty before any comes round again; any card can be changed afterwards.">
+                <button type="button" className="ws-input flex items-center gap-2 text-left w-full" onClick={() => setBrowsing(true)} aria-haspopup="dialog" aria-expanded={browsing}>
+                  <LookIcon look={look} />
+                  <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--fg)' }}>{look === 'rotate' ? 'The next look in turn' : CARD_STYLES.find((s) => s.value === look)?.label ?? look}</span>
+                  <span className="text-[12px] shrink-0" style={{ color: 'var(--accent-ink)' }}>Browse</span>
+                  <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--fg-4)' }} />
+                </button>
               </Field>
+              {browsing && ed && (
+                <LookGallery
+                  title="Choose the look"
+                  subtitle={`How each look draws ${format === 'carousel' ? 'a carousel cover' : pick === 'auto' ? 'a briefing' : `a ${kindLabel(pick).toLowerCase()} post`} for ${ed.label}: a sample, with its own speakers, sponsors and photos where it has them.`}
+                  looks={CARD_STYLES.filter((s) => stylesFor(pick === 'auto' ? null : pick).includes(s.value))}
+                  icons={STYLE_ICONS}
+                  current={look}
+                  rotate
+                  portrait={format === 'carousel'}
+                  preview={(style) => `/api/marketing/content/sample?${new URLSearchParams({ series: ed.series, city: ed.city, year: ed.year, kind: pick === 'auto' ? 'insight' : pick, style, ...(format === 'carousel' ? { format: 'carousel' } : {}) })}`}
+                  onPick={(style) => { setLook(style); setBrowsing(false) }}
+                  onClose={() => setBrowsing(false)}
+                />
+              )}
               <Field label="Planned for" hint="Left blank, the next day with nothing planned.">
                 <input className="ws-input" type="date" value={forDate} onChange={(e) => setForDate(e.target.value)} />
               </Field>
@@ -344,17 +362,27 @@ export function ContentStudio() {
   )
 }
 
-// The looks a card can take, chosen from a list with the current one's
-// icon beside it, and a shuffle to the next. For a look with photos,
-// "Other photos" takes other ones.
+// The current look's icon, in the look field and the card's bar.
+function LookIcon({ look, busy = false }: { look: Look; busy?: boolean }) {
+  const Icon = look === 'rotate' ? Shuffle : STYLE_ICONS[look]
+  return (
+    <span className="inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent-ink)' }} aria-hidden="true">
+      {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
+    </span>
+  )
+}
+
+// The look a card is drawn in: its name opens the gallery, the post drawn
+// in every look it can take, to pick from; a shuffle takes the next. For a
+// look with photos, choosing it again takes other ones.
 function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
   const [busy, setBusy] = useState<CardStyle | 'next' | null>(null)
   const [err, setErr] = useState('')
+  const [open, setOpen] = useState(false)
   const current = styleOf(post.source)
   const carousel = post.source?.format === 'carousel'
   const looks = CARD_STYLES.filter((s) => stylesFor(post.kind).includes(s.value))
   const meta = CARD_STYLES.find((s) => s.value === current)
-  const Icon = STYLE_ICONS[current]
   async function set(style?: CardStyle) {
     setBusy(style ?? 'next')
     setErr('')
@@ -365,6 +393,7 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
         setErr(j?.error || 'That look could not be drawn.')
         return
       }
+      setOpen(false)
       onChanged()
     } catch {
       setErr('The CRM could not be reached. Try again.')
@@ -377,33 +406,49 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
   return (
     <div className="mt-3">
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex items-center justify-center w-8 h-8 rounded-md shrink-0" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--accent-ink)' }} aria-hidden="true">
-          {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
-        </span>
-        <select
-          className="ws-input flex-1 min-w-0"
-          style={{ height: 32, padding: '0 8px', fontSize: 12.5 }}
-          value={current}
-          onChange={(e) => set(e.target.value as CardStyle)}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
           disabled={busy !== null}
-          aria-label="Card look"
-          title={meta ? `${meta.label}: ${meta.hint}` : 'The look'}
+          className="ws-input flex-1 min-w-0 flex items-center gap-2 text-left"
+          style={{ height: 36, padding: '0 8px 0 4px', fontSize: 12.5 }}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          title={meta ? `${meta.label}: ${meta.hint}. Click to see every look.` : 'The look'}
         >
-          {looks.map((s) => <option key={s.value} value={s.value}>{s.label}{s.photos && carousel ? ' (on the cover)' : ''}: {s.hint}</option>)}
-        </select>
-        <button type="button" onClick={() => set()} disabled={busy !== null} className="ws-btn ws-btn-sm" title="The next look, with other photos when it takes them" aria-label="Shuffle the look">
+          <LookIcon look={current} busy={busy !== null} />
+          <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--fg)' }}>{meta?.label ?? current}</span>
+          <span className="text-[11.5px] shrink-0" style={{ color: 'var(--accent-ink)' }}>{`${looks.length} looks`}</span>
+          <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--fg-4)' }} />
+        </button>
+        <button type="button" onClick={() => set()} disabled={busy !== null} className="ws-btn ws-btn-sm" style={{ height: 36 }} title="The next look, with other photos when it takes them" aria-label="Shuffle the look">
           <Shuffle className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="flex items-center justify-between gap-2 mt-1.5">
-        <p className="text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }}>{`${looks.length} looks to shuffle through`}</p>
-        {again && (
+      {again && (
+        <div className="flex items-center justify-end mt-1.5">
           <button type="button" onClick={() => set(current)} disabled={busy !== null} className="text-[11.5px] shrink-0 hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>
             Other photos
           </button>
-        )}
-      </div>
-      {err && <p className="text-[12px] mt-1.5" style={{ color: 'var(--bad)' }}>{err}</p>}
+        </div>
+      )}
+      {err && !open && <p className="text-[12px] mt-1.5" style={{ color: 'var(--bad)' }}>{err}</p>}
+      {open && (
+        <LookGallery
+          title={carousel ? 'Choose the cover\'s look' : 'Choose the look'}
+          subtitle={carousel ? 'This carousel\'s cover, drawn in every look it can take. The slides after it follow in the night, or on white.' : 'This post, drawn in every look it can take. Click one to redraw it.'}
+          looks={looks}
+          icons={STYLE_ICONS}
+          current={current}
+          portrait={carousel}
+          busy={busy === 'next' ? null : busy}
+          again={again}
+          error={err}
+          preview={(style) => `/api/marketing/content/${post.id}/image?style=${style}&v=${encodeURIComponent(post.updatedAt)}`}
+          onPick={(style) => { if (style !== 'rotate') set(style) }}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </div>
   )
 }
