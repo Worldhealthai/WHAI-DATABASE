@@ -206,8 +206,10 @@ export function pickPhotos(ctx: EditionContext, seed: string, n: number): string
 }
 
 // A look asked for by name that takes more photos than the gallery has.
-function needsPhotos(style: CardStyle | 'rotate' | null | undefined, photoCount: number) {
-  if (!style || style === 'rotate' || photosFor(style) <= photoCount) return
+function needsPhotos(style: CardStyle | 'rotate' | null | undefined, photoCount: number, kind?: string) {
+  if (!style || style === 'rotate') return
+  if (kind === 'speaker' && style === 'mosaic') throw new ContentError('A speaker\'s card shows their own photo and no other, so the mosaic look is not one of theirs. Choose another look.')
+  if (photosFor(style) <= photoCount) return
   throw new ContentError(`The ${style} look needs ${photosFor(style)} event photo${photosFor(style) === 1 ? '' : 's'} and the gallery on worldnexusgroup.com has ${photoCount}. Choose another look, or add photos to the gallery first.`)
 }
 
@@ -431,8 +433,8 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
   // will do), chosen now so the post keeps it.
   // A speaker's headshot stands in for one photo (the photo and frame styles).
   const photoCount = Math.max(ctx.photos.length, pick.kind === 'speaker' && pick.source.image ? 1 : 0)
-  needsPhotos(opts.style, photoCount)
-  const style = nextStyle(ctx.recent, opts.style ?? null, photoCount)
+  needsPhotos(opts.style, photoCount, pick.kind)
+  const style = nextStyle(ctx.recent, opts.style ?? null, photoCount, pick.kind)
   const photos = photoFields(ctx, pick.ref ?? pick.kind, style)
   const { text: _text, ...sourceKept } = pick.source as Record<string, unknown>
   const row = {
