@@ -16,7 +16,7 @@ create table if not exists delegates (
   id                    text primary key default gen_random_uuid()::text,
   "firstName"           text not null,
   "lastName"            text not null,
-  email                 text unique,
+  email                 text,
   phone                 text,
   "linkedinUrl"         text,
   organization          text,
@@ -42,6 +42,10 @@ create index if not exists idx_delegates_event   on delegates(event);
 create index if not exists idx_delegates_country on delegates(country);
 create index if not exists idx_delegates_email   on delegates(email);
 create index if not exists idx_delegates_created on delegates("createdAt" desc);
+-- One row per email per edition (migration 011).
+create unique index if not exists delegates_email_edition_key
+  on delegates (lower(email), coalesce(event, ''))
+  where email is not null and email <> '';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- SPEAKERS
@@ -51,7 +55,7 @@ create table if not exists speakers (
   id                   text primary key default gen_random_uuid()::text,
   "firstName"          text not null,
   "lastName"           text not null,
-  email                text unique,
+  email                text,
   phone                text,
   "linkedinUrl"        text,
   organization         text,
@@ -85,6 +89,10 @@ create index if not exists idx_speakers_event   on speakers(event);
 create index if not exists idx_speakers_country on speakers(country);
 create index if not exists idx_speakers_email   on speakers(email);
 create index if not exists idx_speakers_created on speakers("createdAt" desc);
+-- One row per email per edition (migration 011).
+create unique index if not exists speakers_email_edition_key
+  on speakers (lower(email), coalesce(event, ''))
+  where email is not null and email <> '';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- SPONSORS

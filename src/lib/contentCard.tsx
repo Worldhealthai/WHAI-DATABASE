@@ -1,7 +1,7 @@
 // The image for a LinkedIn post: a 1080 by 1080 card in the page's own
-// look, as the sites set it. World Health AI on its night blue with the
-// heart-pulse mark, World Pharma AI on its night with its logo, World
-// Nexus Group on black with the gold emblem. Six layouts (contentBrand):
+// look, as the sites set it. World Health AI on its night blue and World
+// Pharma AI on its night, each with its logo, World Nexus Group on black
+// with the gold emblem. Six layouts (contentBrand):
 // the words on the night colour; a block of the brand colour above; an
 // event photo behind the words, under a flat scrim; a headshot beside
 // them; one large figure; a logo on a light plate. Flat surfaces, one
@@ -19,24 +19,25 @@ const PAD = 88
 const MUTED = '#C7CBD6'
 const FAINT = '#8A93A6'
 
-// Bootstrap Icons' "heart-pulse" (MIT), the mark World Health AI shows beside its name.
-const HEART_PULSE = [
-  'm8 2.748-.717-.737C5.6.281 2.514.878 1.4 3.053.918 3.995.78 5.323 1.508 7H.43c-2.128-5.697 4.165-8.83 7.394-5.857q.09.083.176.171a3 3 0 0 1 .176-.17c3.23-2.974 9.522.159 7.394 5.856h-1.078c.728-1.677.59-3.005.108-3.947C13.486.878 10.4.28 8.717 2.01zM2.212 10h1.315C4.593 11.183 6.05 12.458 8 13.795c1.949-1.337 3.407-2.612 4.473-3.795h1.315c-1.265 1.566-3.14 3.25-5.788 5-2.648-1.75-4.523-3.434-5.788-5',
-  'M10.464 3.314a.5.5 0 0 0-.945.049L7.921 8.956 6.464 5.314a.5.5 0 0 0-.88-.091L3.732 8H.5a.5.5 0 0 0 0 1H4a.5.5 0 0 0 .416-.223l1.473-2.209 1.647 4.118a.5.5 0 0 0 .945-.049l1.598-5.593 1.457 3.642A.5.5 0 0 0 12 9h3.5a.5.5 0 0 0 0-1h-3.162z',
-]
-
 const ASSETS = join(process.cwd(), 'src/assets')
-export type Assets = { regular: Buffer; semibold: Buffer; wpai: string; wng: string }
+// The brand logos: silver letters for the night (`whai`, `wpai`), and one
+// colour for a block of the brand colour, in the brand's text colour on it
+// (`whaiInk` white on the blue, `wpaiInk` black on the teal).
+export type Assets = { regular: Buffer; semibold: Buffer; whai: string; wpai: string; whaiInk: string; wpaiInk: string; wng: string }
 let assets: Assets | null = null
 export async function loadAssets(): Promise<Assets> {
   if (assets) return assets
-  const [regular, semibold, wpai, wng] = await Promise.all([
+  const png = async (file: string) => `data:image/png;base64,${(await readFile(join(ASSETS, file))).toString('base64')}`
+  const [regular, semibold, whai, wpai, whaiInk, wpaiInk, wng] = await Promise.all([
     readFile(join(ASSETS, 'fonts/Inter-Regular.ttf')),
     readFile(join(ASSETS, 'fonts/Inter-SemiBold.ttf')),
-    readFile(join(ASSETS, 'wpai-logo.png')),
-    readFile(join(ASSETS, 'wng-gold.png')),
+    png('whai-logo.png'),
+    png('wpai-logo.png'),
+    png('whai-logo-white.png'),
+    png('wpai-logo-black.png'),
+    png('wng-gold.png'),
   ])
-  assets = { regular, semibold, wpai: `data:image/png;base64,${wpai.toString('base64')}`, wng: `data:image/png;base64,${wng.toString('base64')}` }
+  assets = { regular, semibold, whai, wpai, whaiInk, wpaiInk, wng }
   return assets
 }
 
@@ -69,25 +70,18 @@ function headlineSize(text: string, max = 82): number {
 
 type Post = Pick<ContentPost, 'series' | 'kicker' | 'headline' | 'subline' | 'source'>
 
-export function Mark({ brand, assets: a, size = 1 }: { brand: Brand; assets: Assets; size?: number }) {
-  if (brand.key === 'pharma') {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={a.wpai} alt="" width={344 * size} height={56 * size} style={{ width: 344 * size, height: 56 * size }} />
-  }
+// The logo files are 1200 by 215.
+const LOGO_W = 380
+const LOGO_H = 68
+
+export function Mark({ brand, assets: a, size = 1, ink = false }: { brand: Brand; assets: Assets; size?: number; ink?: boolean }) {
   if (brand.key === 'nexus') {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={a.wng} alt="" width={224 * size} height={60 * size} style={{ width: 224 * size, height: 60 * size }} />
   }
-  return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      <svg width={48 * size} height={48 * size} viewBox="0 0 16 16" fill={brand.accent} style={{ marginRight: 18 * size }}>
-        {HEART_PULSE.map((d) => (
-          <path key={d.slice(0, 10)} d={d} />
-        ))}
-      </svg>
-      <span style={{ fontSize: 44 * size, fontWeight: 600, letterSpacing: -1, color: '#fff' }}>{brand.name}</span>
-    </div>
-  )
+  const src = brand.key === 'pharma' ? (ink ? a.wpaiInk : a.wpai) : ink ? a.whaiInk : a.whai
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" width={LOGO_W * size} height={LOGO_H * size} style={{ width: LOGO_W * size, height: LOGO_H * size }} />
 }
 
 function Foot({ brand, city, date, light = false, site = true }: { brand: Brand; city: string; date: string; light?: boolean; site?: boolean }) {
@@ -163,16 +157,7 @@ function Split({ post, brand, a, city, date }: LayoutProps) {
     <div style={page(brand)}>
       <div style={{ display: 'flex', flexDirection: 'column', background: brand.accent, color: brand.onAccent, padding: `${PAD}px ${PAD}px 72px`, height: 640 }}>
         <div style={{ display: 'flex', alignItems: 'center', opacity: 0.9 }}>
-          {brand.key === 'health' ? (
-            <>
-              <svg width={48} height={48} viewBox="0 0 16 16" fill={brand.onAccent} style={{ marginRight: 18 }}>
-                {HEART_PULSE.map((d) => <path key={d.slice(0, 10)} d={d} />)}
-              </svg>
-              <span style={{ fontSize: 44, fontWeight: 600, letterSpacing: -1 }}>{brand.name}</span>
-            </>
-          ) : (
-            <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>{brand.name}</span>
-          )}
+          {brand.key === 'nexus' ? <span style={{ fontSize: 40, fontWeight: 600, letterSpacing: -1 }}>{brand.name}</span> : <Mark brand={brand} assets={a} ink />}
         </div>
         <div style={{ display: 'flex', flex: 1, alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', maxWidth: CARD_SIZE - PAD * 2 }}>
@@ -221,7 +206,7 @@ function Portrait({ post, brand, a, city, date, image }: LayoutProps) {
       <img src={image!} alt="" width={w} height={CARD_SIZE - 14} style={{ position: 'absolute', right: 0, top: 0, width: w, height: CARD_SIZE - 14, objectFit: 'cover' }} />
       <div style={{ position: 'absolute', right: w - 1, top: 0, bottom: 14, width: 1, background: brand.accent, opacity: 0.6 }} />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: `${PAD}px 0 0 ${PAD}px`, width: CARD_SIZE - w, position: 'relative' }}>
-        <Mark brand={brand} assets={a} size={brand.key === 'health' ? 0.78 : 0.85} />
+        <Mark brand={brand} assets={a} size={0.85} />
         <div style={{ display: 'flex', flex: 1, alignItems: 'center' }}>
           <Words post={post} brand={brand} max={64} width={CARD_SIZE - w - PAD - 48} />
         </div>

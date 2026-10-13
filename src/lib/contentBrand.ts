@@ -19,8 +19,10 @@ export interface Brand {
 }
 
 export const BRANDS: Record<BrandKey, Brand> = {
-  health: { key: 'health', name: 'World Health AI', night: '#0A0F1D', accent: '#6A8DFF', onAccent: '#070B16', site: 'worldhealth.ai', url: 'https://worldhealth.ai', tag: '#WorldHealthAI' },
-  pharma: { key: 'pharma', name: 'World Pharma AI', night: '#070B16', accent: '#2CC7B4', onAccent: '#04221E', site: 'worldpharma.ai', url: 'https://worldpharma.ai', tag: '#WorldPharmaAI' },
+  // The logos' colours (October 2026): World Health AI's blue takes white
+  // text (4.8:1), World Pharma AI's teal a deep teal (6.7:1).
+  health: { key: 'health', name: 'World Health AI', night: '#0A0F1D', accent: '#0066FF', onAccent: '#FFFFFF', site: 'worldhealth.ai', url: 'https://worldhealth.ai', tag: '#WorldHealthAI' },
+  pharma: { key: 'pharma', name: 'World Pharma AI', night: '#070B16', accent: '#14B8A6', onAccent: '#04221E', site: 'worldpharma.ai', url: 'https://www.worldpharma.ai', tag: '#WorldPharmaAI' },
   nexus: { key: 'nexus', name: 'World Nexus Group', night: '#0A0A0A', accent: '#F0B429', onAccent: '#1A1200', site: 'worldnexusgroup.com', url: 'https://www.worldnexusgroup.com', tag: '#WorldNexusGroup' },
 }
 

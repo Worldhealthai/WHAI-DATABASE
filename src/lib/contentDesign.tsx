@@ -258,15 +258,17 @@ function seedOf(text: string): number {
   return h
 }
 
-// The brand's name set in type, for designs on the brand colour itself
-// (the logo files are drawn for the night).
-function NameMark({ brand, color, size = 34 }: { brand: Brand; color: string; size?: number }) {
+// The brand on the brand colour itself: the one-colour logo in ink for
+// World Health AI and World Pharma AI, the name set in type for the group
+// (its gold emblem is drawn for the night).
+function NameMark({ brand, color, a, size = 34 }: { brand: Brand; color: string; a: Assets; size?: number }) {
+  if (brand.key !== 'nexus') return <Mark brand={brand} assets={a} size={0.75} ink />
   return <span style={{ fontSize: size, fontWeight: 600, letterSpacing: -0.8, color }}>{brand.name}</span>
 }
 
 // The whole card in the brand colour, the words in its night ink; a great
 // disc of the night rising from the corner, a ring inside it.
-function Block({ post, brand }: DrawProps) {
+function Block({ post, brand, a }: DrawProps) {
   const ink = brand.onAccent
   return (
     <div style={{ width: W, height: W, display: 'flex', position: 'relative', background: brand.accent, fontFamily: 'Inter', color: ink, overflow: 'hidden' }}>
@@ -275,7 +277,7 @@ function Block({ post, brand }: DrawProps) {
       <div style={{ position: 'absolute', left: W - 175, top: W - 175, width: 350, height: 350, borderRadius: 350, border: `2px solid ${alpha(brand.accent, 0.35)}` }} />
       <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: W, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: W - PAD * 2 }}>
-          <NameMark brand={brand} color={ink} />
+          <NameMark brand={brand} color={ink} a={a} />
           <span style={{ fontSize: 20, letterSpacing: 3, fontWeight: 600, color: alpha(ink, 0.75) }}>{today()}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 120, width: W - PAD * 2 - 140 }}>
