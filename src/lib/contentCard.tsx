@@ -332,12 +332,12 @@ export function WedgeGround({ brand, w = W, h = W }: { brand: Brand; w?: number;
 // brand, the city and the date, or the brand and the kicker) set along it
 // bottom to top in small capitals, like the spine of a book.
 export const TAPE_W = 112
-export function tapeText(brand: Brand, city: string, date: string, kicker: string): { text: string; size: number } {
+export function tapeText(brand: Brand, city: string, date: string): { text: string; size: number } {
   const name = brand.name.toUpperCase()
   // The run must fit the edge: drop the city, then the day name, then shrink.
   const runs = city || date
     ? [[name, city, date], [name, date], [name, date.replace(/^[A-Za-z]+,?\s+/, '')], [name, city]]
-    : [[name, kicker], [name, brand.site]]
+    : [[name, brand.site]]
   const texts = runs.map((r) => r.filter(Boolean).join(' · ').toUpperCase())
   const fit = texts.find((x) => x.length <= 56)
   return fit ? { text: fit, size: 20 } : { text: texts[texts.length - 1], size: 18 }
@@ -365,9 +365,9 @@ export function TintGround({ brand, src, w = W, h = W }: { brand: Brand; src: st
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt="" width={w} height={h} style={{ ...box(w, h), objectFit: 'cover' }} />
       <div style={{ ...box(w, h), background: brand.night, opacity: brand.key === 'nexus' ? 0.36 : 0.3 }} />
-      <div style={{ ...box(w, h), background: alpha(brand.accent, 0.74) }} />
-      <div style={{ position: 'absolute', left: 0, top: 0, width: w, height: 280, background: `linear-gradient(to bottom, ${alpha(brand.accent, 0.55)} 0%, ${alpha(brand.accent, 0)} 100%)` }} />
-      <div style={{ position: 'absolute', left: 0, top: Math.round(h * 0.48), width: w, height: h - Math.round(h * 0.48), background: `linear-gradient(to bottom, ${alpha(brand.accent, 0)} 0%, ${alpha(brand.accent, 0.8)} 45%, ${alpha(brand.accent, 0.92)} 100%)` }} />
+      <div style={{ ...box(w, h), background: alpha(brand.accent, 0.86) }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, width: w, height: 280, background: `linear-gradient(to bottom, ${alpha(brand.accent, 0.6)} 0%, ${alpha(brand.accent, 0)} 100%)` }} />
+      <div style={{ position: 'absolute', left: 0, top: Math.round(h * 0.44), width: w, height: h - Math.round(h * 0.44), background: `linear-gradient(to bottom, ${alpha(brand.accent, 0)} 0%, ${alpha(brand.accent, 0.9)} 45%, ${alpha(brand.accent, 0.97)} 100%)` }} />
       <div style={{ position: 'absolute', left: 0, top: h - 14, width: w, height: 14, background: brand.night }} />
     </>
   )
@@ -387,8 +387,10 @@ export function glyphFor(post: Post): string {
 }
 export function InitialGround({ brand, glyph, w = W, h = W }: { brand: Brand; glyph: string; w?: number; h?: number }) {
   return (
-    <div style={{ position: 'absolute', right: -40, top: -140 + Math.round((h - W) / 2), display: 'flex', fontSize: 1500, fontWeight: 600, lineHeight: 1, letterSpacing: glyph.length > 1 ? -60 : 0, color: alpha(brand.accent, brand.key === 'health' ? 0.14 : 0.16), whiteSpace: 'nowrap' }}>
-      {glyph}
+    <div style={{ ...box(w, h), display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', fontSize: 1500, fontWeight: 600, lineHeight: 1, letterSpacing: glyph.length > 1 ? -60 : 0, color: alpha(brand.accent, brand.key === 'health' ? 0.14 : 0.16), whiteSpace: 'nowrap', marginRight: -40, marginTop: -140 + Math.round((h - W) / 2) }}>
+        {glyph}
+      </div>
     </div>
   )
 }
@@ -396,20 +398,22 @@ export function InitialGround({ brand, glyph, w = W, h = W }: { brand: Brand; gl
 // A timeline: one rule across the card, ticked, run in the brand colour up
 // to a marker and faint beyond it. The marker stands where the post is in
 // time: a countdown's days to go against a year, else drawn from the seed.
-export function tickMark(seed: number, daysToGo: number | null, w = W): number {
+// The marker stands where the event is in the year: with no countdown the
+// rule carries none, so it never pretends to measure anything.
+export function tickMark(daysToGo: number | null, w = W): number | null {
   if (daysToGo && daysToGo > 0) return Math.round(w * 0.22 + w * 0.54 * (1 - Math.min(daysToGo, 365) / 365))
-  return Math.round(w * 0.33) + 36 * Math.floor(13 * ((seed % 1000) / 1000))
+  return null
 }
-export function TicksGround({ brand, mark, y, w = W }: { brand: Brand; mark: number; y: number; w?: number }) {
+export function TicksGround({ brand, mark, y, w = W }: { brand: Brand; mark: number | null; y: number; w?: number }) {
   const minors = Array.from({ length: Math.floor(w / 60) + 1 }, (_, i) => i * 60)
   return (
     <>
-      <div style={{ position: 'absolute', left: 0, top: y - 2, width: mark, height: 4, background: brand.accent }} />
-      <div style={{ position: 'absolute', left: mark, top: y - 1, width: w - mark, height: 2, background: alpha('#FFFFFF', 0.22) }} />
+      {mark ? <div style={{ position: 'absolute', left: 0, top: y - 2, width: mark, height: 4, background: brand.accent }} /> : null}
+      <div style={{ position: 'absolute', left: mark ?? 0, top: y - 1, width: w - (mark ?? 0), height: 2, background: alpha('#FFFFFF', 0.22) }} />
       {minors.map((x) => (
-        <div key={x} style={{ position: 'absolute', left: x, top: y, width: x % 180 === 0 ? 2 : 1, height: x % 180 === 0 ? 24 : 12, background: alpha('#FFFFFF', x % 180 === 0 ? 0.42 : 0.2) }} />
+        <div key={x} style={{ position: 'absolute', left: x, top: y, width: x % 180 === 0 ? 2 : 1, height: x % 180 === 0 ? 24 : 12, background: x % 180 === 0 ? alpha(brand.accent, 0.8) : alpha('#FFFFFF', 0.2) }} />
       ))}
-      <div style={{ position: 'absolute', left: mark - 2, top: y - 22, width: 4, height: 44, background: brand.accent }} />
+      {mark ? <div style={{ position: 'absolute', left: mark - 2, top: y - 22, width: 4, height: 44, background: brand.accent }} /> : null}
     </>
   )
 }
@@ -499,8 +503,8 @@ export function MosaicGround({ brand, photos, big, plate, w = W, m = MOSAIC }: {
   )
 }
 
-function Foot({ s, city, date, site, width = W - PAD * 2, mark }: { s: Skin; city: string; date: string; site: string; width?: number; mark?: React.ReactNode }) {
-  if (s.style === 'block') {
+function Foot({ s, city, date, site, width = W - PAD * 2, mark, left = false }: { s: Skin; city: string; date: string; site: string; width?: number; mark?: React.ReactNode; left?: boolean }) {
+  if (s.style === 'block' || left) {
     // Everything on the left, clear of the night disc in the corner.
     return (
       <div style={{ display: 'flex', alignItems: 'center', fontSize: 24, paddingBottom: 56, width, color: s.muted }}>
@@ -543,10 +547,16 @@ const leftFor = (style: CardStyle) => (style === 'tape' ? TAPE_W + PAD : PAD)
 // The card's frame in a style: the ground, the logo at the head (at the
 // foot for the mosaic), the foot, and the band of the brand colour along
 // the bottom; the body between them.
-function Card({ brand, a, s, ground, city, date, children, justify = 'center', width, padTop, site }: { brand: Brand; a: Assets; s: Skin; ground: React.ReactNode; city: string; date: string; children: React.ReactNode; justify?: 'center' | 'flex-end' | 'flex-start'; width?: number; padTop?: number; site?: string }) {
+function Card({ brand, a, s, ground, city, date, children, justify = 'center', width, padTop, site, footLeft = false }: { brand: Brand; a: Assets; s: Skin; ground: React.ReactNode; city: string; date: string; children: React.ReactNode; justify?: 'center' | 'flex-end' | 'flex-start'; width?: number; padTop?: number; site?: string; footLeft?: boolean }) {
   const mosaic = s.style === 'mosaic'
   const w = width ?? bodyWidth(s.style)
   const left = leftFor(s.style)
+  // The tape carries the city and the date (or the site) itself, so the
+  // foot does not say them again.
+  const tape = s.style === 'tape'
+  const footCity = tape ? '' : city
+  const footDate = tape ? '' : date
+  const footSite = tape && !(city || date) ? '' : site ?? brand.site
   // The words and the foot sit above the bars along the base.
   const bottom = s.style === 'bars' ? BARS_H : 0
   return (
@@ -555,7 +565,7 @@ function Card({ brand, a, s, ground, city, date, children, justify = 'center', w
       <div style={{ ...box(W, W), display: 'flex', flexDirection: 'column', padding: mosaic ? `${MOSAIC.top + 44}px ${PAD}px ${bottom}px ${left}px` : `${PAD}px ${PAD}px ${bottom}px ${left}px` }}>
         {mosaic ? null : <Mark brand={brand} assets={a} on={s.on} />}
         <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: mosaic ? 'flex-start' : justify, paddingTop: padTop ?? 0, paddingBottom: justify === 'flex-end' ? 44 : 36, width: w }}>{children}</div>
-        <Foot s={s} city={city} date={date} site={site ?? brand.site} width={W - PAD - left} mark={mosaic ? <Mark brand={brand} assets={a} size={0.7} on={s.on} /> : undefined} />
+        <Foot s={s} city={footCity} date={footDate} site={footSite} width={W - PAD - left} left={footLeft} mark={mosaic ? <Mark brand={brand} assets={a} size={0.7} on={s.on} /> : undefined} />
       </div>
       {onWhite(s.style) || onAccent(s.style) ? null : <div style={{ position: 'absolute', left: 0, top: W - 14, width: W, height: 14, background: s.shape }} />}
     </div>
@@ -584,7 +594,7 @@ function groundFor(p: DrawProps, extra: { image?: string | null; plate?: string 
     case 'arcs': return <ArcsGround brand={brand} />
     case 'wedge': return <WedgeGround brand={brand} />
     case 'tape': {
-      const run = tapeText(brand, p.city, p.date, post.kicker)
+      const run = tapeText(brand, p.city, p.date)
       return (
         <>
           <TapeGround brand={brand} text={run.text} size={run.size} />
@@ -679,9 +689,9 @@ function Speaker(p: DrawProps) {
   }
   if (s.style === 'initial') {
     // The headshot off the bottom-right corner over the letter, the words
-    // to its left; the site leaves the foot to it.
+    // to its left; the foot keeps to the left too.
     return (
-      <Card brand={brand} a={a} s={s} ground={groundFor(p, { image: headshot })} city={city} date={date} width={560} site="">
+      <Card brand={brand} a={a} s={s} ground={groundFor(p, { image: headshot })} city={city} date={date} width={560} footLeft>
         <Words post={post} s={s} max={56} width={560} />
         {who(post, s, 28, 560)}
       </Card>
@@ -889,7 +899,7 @@ function Split(p: DrawProps) {
         </div>
       ) : null}
       {headshot ? <Portrait src={headshot} x={632} y={212} w={360} h={480} /> : null}
-      {logo ? <Plate logo={logo} x={PAD} y={322} w={W - PAD * 2} h={260} /> : null}
+      {logo ? <Plate logo={logo} x={512} y={322} w={480} h={260} /> : null}
       {tile ? (
         <div style={{ ...at(PAD, 262, 380, 380), alignItems: 'center', justifyContent: 'center', background: brand.night }}>
           <span style={{ fontSize: figureSize(figure, 300, 300), fontWeight: 600, lineHeight: 0.95, letterSpacing: -10, color: brand.accent, fontVariantNumeric: 'tabular-nums' }}>{figure}</span>
@@ -921,7 +931,7 @@ function Masthead(p: DrawProps) {
   const photo = images.photos[0]
   const picH = people.length ? 220 : 360
   const rule = alpha(s.ink, 0.12)
-  const folio = city || date ? [city, date].filter(Boolean) : [brand.site]
+  const folio = city || date ? [post.kicker.toLowerCase().includes(city.toLowerCase()) ? '' : city, date].filter(Boolean) : [brand.site]
   const twoCol = Boolean(post.subline) && post.headline.length <= 70 && !headshot && !people.length && !figure
   const top = headshot || figure ? 254 : 254 + picH + 36
   const width = headshot ? 544 : W - PAD * 2
@@ -941,10 +951,7 @@ function Masthead(p: DrawProps) {
       </div>
       <div style={at(PAD, 226, W - PAD * 2, 1)}><div style={{ width: '100%', height: 1, background: rule }} /></div>
       {headshot ? (
-        <>
-          <Portrait src={headshot} x={672} y={254} w={320} h={427} />
-          <div style={at(672, 681, 320, 2)}><div style={{ width: 320, height: 2, background: brand.accent }} /></div>
-        </>
+        <Portrait src={headshot} x={672} y={254} w={320} h={480} />
       ) : logo ? (
         <Plate logo={logo} x={PAD} y={254} w={W - PAD * 2} h={picH} border />
       ) : figure ? null : photo ? (
@@ -952,7 +959,7 @@ function Masthead(p: DrawProps) {
         <img src={photo} alt="" width={W - PAD * 2} height={picH} style={{ ...at(PAD, 254, W - PAD * 2, picH), objectFit: 'cover' }} />
       ) : null}
       <div style={{ ...at(PAD, top, W - PAD * 2), flexDirection: 'column' }}>
-        {figure ? <span style={{ fontSize: figureSize(figure, W - PAD * 2, 320), fontWeight: 600, lineHeight: 0.95, letterSpacing: -10, color: s.accent, fontVariantNumeric: 'tabular-nums', marginBottom: 40 }}>{figure}</span> : null}
+        {figure ? <span style={{ fontSize: figureSize(figure, W - PAD * 2, 380), fontWeight: 600, lineHeight: 0.95, letterSpacing: -12, color: s.accent, fontVariantNumeric: 'tabular-nums', marginBottom: 40 }}>{figure}</span> : null}
         {twoCol ? (
           <div style={{ display: 'flex', alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', width: 584 }}><Headline text={post.headline} s={s} max={60} width={584} ls={-1.5} /></div>
@@ -990,8 +997,8 @@ function Column(p: DrawProps) {
   // The margin's entries: the kicker, the deck, who, when.
   const entries: { label?: string; text: string; tone: 'kicker' | 'muted' | 'name' | 'when' }[] = [
     ...(post.kicker ? [{ text: post.kicker, tone: 'kicker' as const }] : []),
-    ...(post.subline ? [{ text: clip(post.subline, headshot ? 120 : 180), tone: 'muted' as const }] : []),
-    ...(headshot && name ? [{ label: 'Speaker', text: name, tone: 'name' as const }, ...(role ? [{ text: clip(role, 90), tone: 'muted' as const }] : [])] : []),
+    ...(post.subline && !headshot ? [{ text: clip(post.subline, 180), tone: 'muted' as const }] : []),
+    ...(headshot && name ? [{ label: 'Speaker', text: name, tone: 'name' as const }, ...(role ? [{ text: clip(role, 140), tone: 'muted' as const }] : [])] : []),
     ...(city || date ? [{ text: [city, date].filter(Boolean).join(' · '), tone: 'when' as const }] : []),
   ]
   const max = headshot || logo || figure ? 56 : people.length ? 60 : 88
@@ -1012,7 +1019,7 @@ function Column(p: DrawProps) {
           <div key={i} style={{ display: 'flex', flexDirection: 'column', padding: '22px 0', borderTop: i ? `1px solid ${rule}` : 'none' }}>
             {e.label ? <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: s.accent, marginBottom: 6 }}>{e.label}</span> : null}
             <span style={{
-              fontSize: e.tone === 'kicker' ? 18 : 24,
+              fontSize: e.tone === 'kicker' ? 18 : e.tone === 'muted' && headshot ? 22 : 24,
               lineHeight: 1.4,
               fontWeight: e.tone === 'kicker' || e.tone === 'name' || e.tone === 'when' ? 600 : 400,
               letterSpacing: e.tone === 'kicker' ? 3 : 0,
@@ -1038,22 +1045,30 @@ function Paper(p: DrawProps) {
   const figure = figureOf(post)
   const people = peopleOf(post).slice(0, 3)
   const light = skinFor(brand, 'light')
-  const top = headshot ? 560 : people.length || logo ? 400 : 440
-  const width = 760 - PAD - 56
+  const top = headshot ? 500 : people.length || logo ? 400 : 440
+  const sheetW = headshot ? 680 : 760
+  const width = sheetW - PAD - 56
   const max = headshot || people.length ? 50 : figure ? 44 : 58
   return (
     <div style={root(s)}>
       {headshot ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={headshot} alt="" width={880} height={1173} style={{ ...at(360, -160, 880, 1173), objectFit: 'cover' }} />
+        // A speaker: the night, the headshot a tile beside the sheet.
+        <>
+          <Wash brand={brand} />
+          <Portrait src={headshot} x={sheetW + 40} y={top} w={W - sheetW - 40} h={W - 14 - top} />
+        </>
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={images.photos[0]} alt="" width={W} height={W} style={{ ...box(W, W), objectFit: 'cover' }} />
+        // The photo held high, so the band above the sheet shows its upper
+        // part (where the faces are) and the sheet cuts across the floor.
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={images.photos[0]} alt="" width={W} height={Math.round(W * 1.37)} style={{ ...at(0, -260, W, Math.round(W * 1.37)), objectFit: 'cover' }} />
+          <div style={{ ...box(W, W), background: brand.night, opacity: 0.22 }} />
+          <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: 320, background: `linear-gradient(to bottom, ${alpha(brand.night, 0.62)} 0%, ${alpha(brand.night, 0)} 100%)` }} />
+        </>
       )}
-      <div style={{ ...box(W, W), background: brand.night, opacity: 0.22 }} />
-      <div style={{ position: 'absolute', left: 0, top: 0, width: headshot ? 560 : W, height: 320, background: `linear-gradient(to bottom, ${alpha(brand.night, 0.62)} 0%, ${alpha(brand.night, 0)} 100%)` }} />
       <div style={at(PAD, PAD)}><Mark brand={brand} assets={a} on="night" /></div>
-      <div style={{ ...at(0, top, 760, W - top), flexDirection: 'column', background: '#FFFFFF', padding: `56px 56px 70px ${PAD}px`, color: light.ink }}>
+      <div style={{ ...at(0, top, sheetW, W - top), flexDirection: 'column', background: '#FFFFFF', padding: `56px 56px 70px ${PAD}px`, color: light.ink }}>
         {logo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logo} alt="" width={400} height={140} style={{ width: 400, height: 140, objectFit: 'contain', objectPosition: 'left', marginBottom: 28 }} />
@@ -1091,16 +1106,18 @@ function Ticks(p: DrawProps) {
   const figure = figureOf(post)
   const people = peopleOf(post).slice(0, 3)
   const days = Number(post.source?.daysToGo)
-  const mark = tickMark(seedOf(post.headline), post.kind === 'countdown' && Number.isFinite(days) ? days : null)
+  const mark = tickMark(post.kind === 'countdown' && Number.isFinite(days) ? days : null)
   const upperW = headshot ? 600 : logo ? 460 : W - PAD * 2
+  // With nothing above the rule but the words, the rule sits lower.
+  const ruleY = headshot || logo || figure || people.length ? RULE_Y : RULE_Y + 80
   return (
     <div style={root(s)}>
-      <TicksGround brand={brand} mark={mark} y={RULE_Y} />
+      <TicksGround brand={brand} mark={mark} y={ruleY} />
       <div style={at(PAD, PAD)}><Mark brand={brand} assets={a} on="night" /></div>
       {headshot ? <Portrait src={headshot} x={740} y={156} w={252} h={336} /> : null}
       {logo ? <Plate logo={logo} x={592} y={236} w={400} h={228} /> : null}
       {/* Standing on the rule */}
-      <div style={{ ...at(PAD, 156, upperW, RULE_Y - 28 - 156), flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div style={{ ...at(PAD, 156, upperW, ruleY - 28 - 156), flexDirection: 'column', justifyContent: 'flex-end' }}>
         <Kicker text={post.kicker} s={s} />
         {figure ? (
           <span style={{ fontSize: figureSize(figure, upperW, 260), fontWeight: 600, lineHeight: 0.95, letterSpacing: -10, color: s.accent, fontVariantNumeric: 'tabular-nums' }}>{figure}</span>
@@ -1109,9 +1126,9 @@ function Ticks(p: DrawProps) {
         )}
       </div>
       {/* Hanging beneath it */}
-      <div style={{ ...at(PAD, RULE_Y + 48, W - PAD * 2), flexDirection: 'column' }}>
+      <div style={{ ...at(PAD, ruleY + 48, W - PAD * 2), flexDirection: 'column' }}>
         {figure ? <Headline text={post.headline} s={s} max={56} width={W - PAD * 2} /> : null}
-        {post.subline ? <span style={{ fontSize: 28, lineHeight: 1.35, color: s.muted, marginTop: figure ? 20 : 0, maxWidth: 760 }}>{clip(post.subline, 160)}</span> : null}
+        {post.subline ? <span style={{ fontSize: ruleY > RULE_Y ? 32 : 28, lineHeight: 1.4, color: s.muted, marginTop: figure ? 20 : 0, maxWidth: 800 }}>{clip(post.subline, 160)}</span> : null}
         {headshot ? who(post, s, 30, 760) : null}
         <People people={people} s={s} width={W - PAD * 2} top={post.subline ? 28 : 0} />
       </div>
@@ -1144,7 +1161,7 @@ function Still(p: DrawProps) {
           <div style={{ display: 'flex', position: 'relative', width: stripH, height: stripH, overflow: 'hidden' }}><Portrait src={headshot} x={0} y={0} w={stripH} h={stripH} /></div>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', width: W - stripH, height: stripH, background: brand.accent, padding: '0 56px' }}>
             <span style={{ fontSize: 34, fontWeight: 600, color: brand.onAccent }}>{name}</span>
-            {role ? <span style={{ fontSize: 26, lineHeight: 1.3, color: brand.onAccent, marginTop: 10, maxWidth: W - stripH - 112 }}>{clip(role, 90)}</span> : null}
+            {role ? <span style={{ fontSize: 26, lineHeight: 1.3, color: brand.onAccent, marginTop: 10, maxWidth: W - stripH - 112 }}>{clip(role, 150)}</span> : null}
           </div>
         </div>
       ) : logo ? (

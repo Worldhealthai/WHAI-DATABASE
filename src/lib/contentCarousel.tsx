@@ -96,15 +96,15 @@ function Cover({ brand, s, photos, seed, slide }: { brand: Brand; s: Skin; photo
           <div style={{ position: 'absolute', left: COL.mx, top: COL.top, width: COL.mw, display: 'flex', flexDirection: 'column' }}>
             <div style={{ width: COL.mw, height: 6, background: brand.accent }} />
             {kicker ? <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: s.accent, padding: '22px 0', lineHeight: 1.4 }}>{kicker}</span> : null}
-            {summary ? <span style={{ fontSize: 24, lineHeight: 1.45, color: s.muted, padding: '22px 0', borderTop: `1px solid ${alpha('#0B0C10', 0.14)}` }}>{clip(summary, 260)}</span> : null}
+            <span style={{ fontSize: 22, lineHeight: 1.45, color: s.faint, padding: '22px 0', borderTop: `1px solid ${alpha('#0B0C10', 0.14)}` }}>{brand.site}</span>
           </div>
         </>
       )
     case 'tape': {
-      const run = tapeText(brand, '', '', kicker)
+      const run = tapeText(brand, '', '')
       return <TapeGround brand={brand} text={run.text} size={run.size} w={SLIDE_W} h={SLIDE_H} />
     }
-    case 'ticks': return <TicksGround brand={brand} mark={tickMark(seed, null, SLIDE_W)} y={RULE_Y} w={SLIDE_W} />
+    case 'ticks': return <TicksGround brand={brand} mark={tickMark(null, SLIDE_W)} y={RULE_Y} w={SLIDE_W} />
     case 'tint': return <TintGround brand={brand} src={photos[0]} w={SLIDE_W} h={SLIDE_H} />
     case 'initial': return <InitialGround brand={brand} glyph={(headline.replace(/[^\p{L}\p{N}]/gu, '').toUpperCase() || 'A').slice(0, /^[IJLT1]/.test(headline.replace(/[^\p{L}\p{N}]/gu, '').toUpperCase()) ? 2 : 1)} w={SLIDE_W} h={SLIDE_H} />
     case 'still':
@@ -257,13 +257,13 @@ function TicksBody({ slide, s }: { slide: Slide; s: Skin }) {
   const headline = slide.kind === 'news' || slide.kind === 'end' ? slide.headline : slide.kind === 'data' ? slide.title : slide.kind === 'statistic' ? slide.label : slide.text
   const summary = slide.kind === 'news' ? slide.summary : slide.kind === 'statistic' ? slide.context : ''
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', width: WIDTH }}>
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: RULE_Y - 28 - (PAD + 58), width: WIDTH }}>
         <Kicker text={slide.kind === 'news' ? slide.kicker : 'From our Insights desk'} s={s} size={24} />
         <span style={{ fontSize: sized(headline, 72), fontWeight: 600, lineHeight: 1.06, letterSpacing: -2.5, maxWidth: WIDTH, color: s.ink }}>{headline}</span>
       </div>
       {summary ? <span style={{ fontSize: 32, lineHeight: 1.4, color: s.muted, marginTop: 76, maxWidth: WIDTH - 40 }}>{summary}</span> : null}
-    </>
+    </div>
   )
 }
 
@@ -277,8 +277,9 @@ function PaperCover({ brand, a, s, n, total, slide, photo }: { brand: Brand; a: 
   const width = 760 - PAD - 56
   return (
     <div style={{ width: SLIDE_W, height: SLIDE_H, display: 'flex', background: s.bg, color: s.ink, fontFamily: 'Outfit', position: 'relative', overflow: 'hidden' }}>
+      {/* The photo held high, so the band above the sheet shows its upper part. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={photo} alt="" width={SLIDE_W} height={SLIDE_H} style={{ position: 'absolute', left: 0, top: 0, width: SLIDE_W, height: SLIDE_H, objectFit: 'cover' }} />
+      <img src={photo} alt="" width={SLIDE_W} height={Math.round(SLIDE_H * 1.3)} style={{ position: 'absolute', left: 0, top: -250, width: SLIDE_W, height: Math.round(SLIDE_H * 1.3), objectFit: 'cover' }} />
       <div style={{ position: 'absolute', left: 0, top: 0, width: SLIDE_W, height: SLIDE_H, background: brand.night, opacity: 0.22 }} />
       <div style={{ position: 'absolute', left: 0, top: 0, width: SLIDE_W, height: 320, background: `linear-gradient(to bottom, ${alpha(brand.night, 0.62)} 0%, ${alpha(brand.night, 0)} 100%)` }} />
       <div style={{ position: 'absolute', left: PAD, top: PAD, width: WIDTH, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -337,9 +338,9 @@ export async function renderSlide(post: CarouselPost, index: number, styleOverri
     return new ImageResponse(<PaperCover brand={brand} a={a} s={s} n={n} total={total} slide={slide} photo={cover.photos[0]} />, { width: SLIDE_W, height: SLIDE_H, fonts: FONTS(a) })
   }
   // The split's kicker stands in the colour, the masthead's in the folio,
-  // the column's in the margin with the summary: the cover draws those.
+  // the column's in the margin: the cover draws those.
   const kicker = !(on && (style === 'split' || style === 'masthead' || style === 'column'))
-  const summary = !(on && style === 'column')
+  const summary = true
   return new ImageResponse(
     (
       <Frame brand={brand} a={a} s={s} n={n} total={total} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={on ? cover.photos : null} seed={seed} slide={slide}>
