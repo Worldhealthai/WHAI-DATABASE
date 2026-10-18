@@ -226,7 +226,7 @@ export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]
     return unused.length ? unused : items
   }
   const site = ctx.site
-  const confirmedIn = (s: Session) => s.speakers.filter((x) => x.status === 'confirmed' && x.name.trim())
+  const confirmedIn = (s: Session) => s.speakers.filter((x) => x.status === 'confirmed' && x.name.trim() && !x.backup)
   // A briefing's card. The pharma and health pages lead with their own
   // field: a piece on a deal or a funding round (category "Markets") comes
   // after the others, as those belong to the group's page first.

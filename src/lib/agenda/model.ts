@@ -14,6 +14,10 @@ export interface SpeakerSlot {
   org: string
   moderator: boolean
   status: SlotStatus
+  /** Backup panellist: on the bench for this session, not in a seat. */
+  backup?: boolean
+  /** The speaker picked several panels — this session is their option 1/2/3. */
+  option?: number | null
   /** The admin panel's speaker id when this person is on the event's line-up */
   lineupRef?: string | null
   notes?: string
@@ -80,10 +84,11 @@ export function seatsFor(type: SessionType): Seats {
 export const sessionSeats = (s: Session): Seats => s.seats ?? seatsFor(s.type)
 
 // Seats still empty on a session (a named person, confirmed or TBC, fills
-// a seat), and how many named people are still to be confirmed.
+// a seat), and how many named people are still to be confirmed. Backup
+// panellists sit on the bench — they never fill a seat or count as due.
 export function sessionNeeds(s: Session): { moderators: number; speakers: number; toConfirm: number } {
   const seats = sessionSeats(s)
-  const named = s.speakers.filter((x) => x.name.trim())
+  const named = s.speakers.filter((x) => x.name.trim() && !x.backup)
   const mods = named.filter((x) => x.moderator).length
   const others = named.length - mods
   return {
@@ -108,7 +113,12 @@ export function normaliseAgenda(a: Agenda): Agenda {
     sessions: (a.sessions ?? []).map((s) => ({
       ...s,
       points: s.points ?? [],
-      speakers: (s.speakers ?? []).map((x) => ({ ...x, status: x.status === 'confirmed' ? 'confirmed' : 'tbc' })),
+      speakers: (s.speakers ?? []).map((x) => ({
+        ...x,
+        status: x.status === 'confirmed' ? 'confirmed' : 'tbc',
+        backup: Boolean(x.backup),
+        option: [1, 2, 3].includes(Number(x.option)) ? Number(x.option) : null,
+      })),
     })),
   }
 }
@@ -157,9 +167,11 @@ export function to24h(raw: string): string {
 }
 
 // Everything except the breaks: keynotes, panels, spotlights, firesides.
+// Backup panellists are counted on their own, never as filled seats.
 export function agendaStats(a: Agenda) {
   const talks = a.sessions.filter((s) => s.type !== 'break')
-  const slots = talks.flatMap((s) => s.speakers.filter((x) => x.name.trim()))
+  const slots = talks.flatMap((s) => s.speakers.filter((x) => x.name.trim() && !x.backup))
+  const backups = talks.reduce((n, s) => n + s.speakers.filter((x) => x.name.trim() && x.backup).length, 0)
   const seats = talks.reduce((n, s) => { const k = sessionSeats(s); return n + k.moderators + k.speakers }, 0)
   const need = talks.reduce((acc, s) => { const n = sessionNeeds(s); acc.moderators += n.moderators; acc.speakers += n.speakers; return acc }, { moderators: 0, speakers: 0 })
   return {
@@ -169,6 +181,7 @@ export function agendaStats(a: Agenda) {
     filled: slots.length,
     confirmed: slots.filter((s) => s.status === 'confirmed').length,
     tbc: slots.filter((s) => s.status !== 'confirmed').length,
+    backups,
     needModerators: need.moderators,
     needSpeakers: need.speakers,
     sessionsShort: talks.filter((s) => { const n = sessionNeeds(s); return n.moderators + n.speakers > 0 }).length,
