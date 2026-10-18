@@ -729,3 +729,173 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   if (error) throw error
   return data as ContentPost
 }
+
+// ── Revising a post ─────────────────────────────────────────────────────────
+//
+// The team's own instruction for a post that is already written ("end on
+// what buyers should check", "add that registration opens on 3 March"):
+// Claude rewrites the post as asked, from the same material, and the image
+// is drawn again from the new words. Facts the instruction gives may be
+// used as given; everything else is held to the material as when it was
+// first written, and a carousel's figures and quote are checked again
+// (against the briefing and the instruction), a slide that fails keeping
+// its old words. The words before the last revision are kept, so it can be
+// undone.
+
+export interface Revision { post: ContentPost; notes: string[] }
+
+type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[] }
+type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: { text: string; at: string }[] } & Record<string, unknown> }
+
+const snapshot = (p: Revisable): Snapshot => ({
+  kicker: p.kicker,
+  headline: p.headline,
+  subline: p.subline,
+  caption: p.caption,
+  hashtags: p.hashtags,
+  ...(Array.isArray(p.source?.slides) ? { slides: p.source.slides } : {}),
+})
+
+const hashtagsOf = (tags: string[] | undefined) => (tags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5)
+
+// A carousel's slides as the draft they came from, for Claude to revise;
+// a section with no slide is left empty.
+function draftOf(p: Revisable): CarouselDraft {
+  const slides = p.source.slides ?? []
+  const of = <K extends Slide['kind']>(k: K) => slides.find((s) => s.kind === k) as Extract<Slide, { kind: K }> | undefined
+  const news = of('news'), stat = of('statistic'), data = of('data'), quote = of('quote'), end = of('end')
+  return {
+    news: { kicker: news?.kicker ?? '', headline: news?.headline ?? '', summary: news?.summary ?? '' },
+    statistic: { figure: stat?.figure ?? '', label: stat?.label ?? '', context: stat?.context ?? '' },
+    data: { title: data?.title ?? '', points: data?.points ?? [] },
+    quote: { text: quote?.text ?? '', speaker: quote?.speaker ?? '', role: quote?.role ?? '' },
+    end: { headline: end?.headline ?? '' },
+    caption: p.caption,
+    hashtags: p.hashtags.map((h) => h.replace(/^#+/, '')),
+  }
+}
+
+async function readPost(id: string): Promise<Revisable> {
+  const { data, error } = await supabase.from('marketing_content').select('*').eq('id', id).maybeSingle()
+  if (error) throw error
+  if (!data) throw new ContentError('No such post.', 404)
+  return data as Revisable
+}
+
+// A revised carousel's slides: each slide takes its new words; one whose
+// new figure or quote did not check out keeps its old words; one Claude
+// left empty, as asked, goes; and a full carousel can gain a slide the
+// instruction asked for. What changed beyond the words goes in notes.
+export function mergeSlides(old: Slide[], checked: ReturnType<typeof checkSlides>, d: CarouselDraft, twoPage: boolean, notes: string[]): Slide[] {
+  const fresh = new Map<string, Slide>([[checked.news.kind, checked.news], ...checked.extras.map((s) => [s.kind, s] as [string, Slide]), [checked.end.kind, checked.end]])
+  const asked = (k: string) => (k === 'statistic' ? d.statistic?.figure : k === 'data' ? d.data?.points?.length : k === 'quote' ? d.quote?.text : true)
+  const kept = old.flatMap((s) => {
+    const next = fresh.get(s.kind)
+    if (next) return [next]
+    if (!asked(s.kind)) {
+      notes.push(`the ${s.kind} slide was taken out`)
+      return []
+    }
+    notes.push(`the ${s.kind} slide kept its old words: the new ones did not check out against the briefing`)
+    return [s]
+  })
+  const added = twoPage ? [] : checked.extras.filter((s) => !old.some((o) => o.kind === s.kind))
+  if (added.length) notes.push(`added ${added.map((s) => `a ${s.kind} slide`).join(' and ')}`)
+  const order = ['news', 'statistic', 'data', 'quote', 'end']
+  return [...kept, ...added].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))
+}
+
+export async function revisePost(id: string, instruction: string): Promise<Revision> {
+  const steer = instruction.trim()
+  if (!steer) throw new ContentError('Say what to change in the post.', 400)
+  const post = await readPost(id)
+  const { photo: _p, photos: _ps, image: _i, logo: _l, style: _s, before: _b, steers: _st, linkedin: _li, slides: _sl, dropped: _d, by: _by, ...material } = post.source
+  const carousel = Array.isArray(post.source.slides) && post.source.slides.length > 0
+  const ask = (current: unknown, more: string[]) =>
+    [
+      `Page the post goes out from: ${post.edition}`,
+      post.link ? `Link to end the caption with: ${post.link}` : '',
+      `Post type: ${post.kind}`,
+      ...more,
+      `The post as it stands:\n${JSON.stringify(current, null, 2)}`,
+      `The marketing team's instruction for this revision: ${steer}`,
+      'Revise the post as the instruction asks. Facts the team gives in the instruction may be used as given; everything else must come from the material, as before. Change what the instruction asks for and anything that must change with it to read right; keep the rest word for word. Return the whole post as JSON.',
+    ].filter(Boolean).join('\n\n')
+  const notes: string[] = []
+  let patch: Record<string, unknown>
+
+  if (carousel) {
+    if (!post.ref) throw new ContentError('This carousel has no briefing to check its figures against, so it cannot be revised.', 400)
+    const article = await readArticleFull(post.ref)
+    if (article.body.length < 200) throw new ContentError('The briefing could not be read from worldnexusgroup.com just now, so the revision could not be checked. Try again in a minute.', 502)
+    const d = await draftWithin<CarouselDraft>(
+      {
+        system: CAROUSEL_VOICE,
+        schema: CAROUSEL_SCHEMA,
+        brief: ask(draftOf(post), [
+          `The briefing's title: ${String(material.title ?? '')}`,
+          `The briefing's full text (with the instruction, the only material; every figure and quote must come from them):\n"""\n${article.body}\n"""`,
+          'A section left empty has no slide on the post: keep it empty unless the instruction asks for it.',
+        ]),
+        maxTokens: 12000,
+        refused: () => 'Claude declined to make this change. Try putting it another way.',
+      },
+      carouselLimits,
+    )
+    // Held to the briefing and the instruction, as when it was written.
+    const checked = checkSlides(d, { ...article, body: `${article.body}\n\n${steer}` }, {
+      title: String(material.title ?? post.headline),
+      publishedAt: (material.published_at as string | undefined) ?? null,
+      fallbackDate: (material.date as string | undefined) ?? null,
+      link: post.link ?? '',
+    })
+    const slides = mergeSlides(post.source.slides ?? [], checked, d, post.source.pages === 'two-page', notes)
+    notes.push(...checked.dropped)
+    const news = slides[0]?.kind === 'news' ? slides[0] : null
+    patch = {
+      ...(news ? { kicker: news.kicker, headline: news.headline, subline: fitText(news.summary, 120) } : {}),
+      caption: tidy(d.caption) || post.caption,
+      hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags,
+      source: { ...post.source, slides },
+    }
+  } else {
+    const text = post.kind === 'insight' && post.ref ? await readArticle(post.ref) : ''
+    const d = await draftWithin<Draft>(
+      {
+        system: VOICE,
+        schema: SCHEMA,
+        brief: ask(
+          { kicker: post.kicker, headline: post.headline, subline: post.subline, caption: post.caption, hashtags: post.hashtags },
+          [`Material (with the instruction, use only this): ${JSON.stringify(text ? { ...material, text } : material)}`],
+        ),
+        maxTokens: 8000,
+        refused: (category) => `Claude declined to make this change (${category ?? 'no category given'}). Try putting it another way.`,
+      },
+      (x) => cardLimits(x),
+    )
+    patch = { kicker: tidy(d.kicker), headline: tidy(d.headline), subline: tidy(d.subline), caption: tidy(d.caption) || post.caption, hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags }
+  }
+
+  const source = (patch.source as Record<string, unknown> | undefined) ?? post.source
+  const row = {
+    ...patch,
+    source: { ...source, before: snapshot(post), steers: [...(post.source.steers ?? []), { text: steer, at: new Date().toISOString() }].slice(-10) },
+    updatedAt: new Date().toISOString(),
+  }
+  const { data, error } = await supabase.from('marketing_content').update(row).eq('id', id).select('*').single()
+  if (error) throw error
+  return { post: data as ContentPost, notes }
+}
+
+// Back to the words before the last revision.
+export async function undoRevision(id: string): Promise<ContentPost> {
+  const post = await readPost(id)
+  const before = post.source.before
+  if (!before) throw new ContentError('There is no revision to undo.', 409)
+  const { slides, ...words } = before
+  const { before: _b, ...source } = post.source
+  const row = { ...words, source: slides ? { ...source, slides } : source, updatedAt: new Date().toISOString() }
+  const { data, error } = await supabase.from('marketing_content').update(row).eq('id', id).select('*').single()
+  if (error) throw error
+  return data as ContentPost
+}
