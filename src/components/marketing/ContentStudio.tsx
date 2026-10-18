@@ -57,7 +57,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; before?: unknown; steers?: { text: string; at: string; changed?: string[]; notes?: string[] }[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
+  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; before?: unknown; steers?: { text: string; at: string; changed?: string[]; notes?: string[]; reply?: string }[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -510,28 +510,51 @@ function pngName(post: Post, slide: { n: number; of: number; name?: string } | n
 
 const PAGES: BrandKey[] = ['pharma', 'health', 'nexus']
 
-// Over the image on hover: it can be clicked to ask for a change there.
+// Where the team clicked on the picture, for Claude: a fraction of its
+// width and height, on a slide (null for a single card).
+type Spot = { x: number; y: number; slide: number | null; label: string }
+
+// The picture as the team saw it, with the spot they clicked ringed in
+// red, as a JPEG for Claude to look at.
+async function markedPicture(url: string, spot: Spot): Promise<string> {
+  const r = await fetch(url, { cache: 'no-store' })
+  if (!r.ok) throw new Error('The picture could not be drawn.')
+  const bitmap = await createImageBitmap(await r.blob())
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  const c = canvas.getContext('2d')!
+  c.drawImage(bitmap, 0, 0)
+  const x = spot.x * bitmap.width
+  const y = spot.y * bitmap.height
+  const r0 = Math.round(bitmap.width * 0.045)
+  c.lineWidth = 12
+  c.strokeStyle = '#FFFFFF'
+  c.beginPath(); c.arc(x, y, r0 + 6, 0, Math.PI * 2); c.stroke()
+  c.lineWidth = 8
+  c.strokeStyle = '#FF1F1F'
+  c.beginPath(); c.arc(x, y, r0, 0, Math.PI * 2); c.stroke()
+  return canvas.toDataURL('image/jpeg', 0.85)
+}
+
+// The ring on the picture where the team clicked, until it is sent.
+function SpotRing({ spot }: { spot: Spot }) {
+  return (
+    <span className="pointer-events-none absolute" style={{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%`, width: 28, height: 28, marginLeft: -14, marginTop: -14, borderRadius: 999, border: '3px solid #FF1F1F', boxShadow: '0 0 0 2px #FFFFFF' }} />
+  )
+}
+
+// Over the image on hover: anything on it can be clicked to ask for a change.
 function ClickHint() {
   return (
     <span className="pointer-events-none absolute inset-0 flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.45), rgba(0,0,0,0) 40%)' }}>
       <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium" style={{ background: 'rgba(255,255,255,0.92)', color: '#0B0C10' }}>
-        <MousePointerClick className="w-3.5 h-3.5" /> Click to change something here
+        <MousePointerClick className="w-3.5 h-3.5" /> Click anything to change it
       </span>
     </span>
   )
 }
 
-// The parts of what is in view, each a click away from the chat.
-function PartChips({ parts, onPick }: { parts: { label: string; prefix: string }[]; onPick: (t: { label: string; prefix: string }) => void }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 mt-2">
-      <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Change:</span>
-      {parts.map((p) => (
-        <button key={p.label} type="button" onClick={() => onPick(p)} className="rounded-full px-2.5 py-0.5 text-[11.5px] hover:underline underline-offset-2" style={{ border: '1px solid var(--line)', color: 'var(--fg-2)' }}>{p.label}</button>
-      ))}
-    </div>
-  )
-}
 
 // Moving a post to another page: Claude rewrites it for that page's
 // readers and files it there as a draft (api/marketing/content/<id>/move).
@@ -616,7 +639,9 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
   const [notes, setNotes] = useState<string[]>([])
   // What the next instruction is about: a slide or a part of the post,
   // chosen by clicking it; none for the whole post.
-  const [target, setTarget] = useState<{ label: string; prefix: string } | null>(null)
+  const [target, setTarget] = useState<Spot | null>(null)
+  // The words by hand, folded away: the chat is the way in.
+  const [byHand, setByHand] = useState(false)
   const [asked, setAsked] = useState('')
   const chat = useRef<HTMLTextAreaElement>(null)
   const [moving, setMoving] = useState(false)
@@ -655,9 +680,22 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
     setRevising(undo ? 'undo' : 'revise')
     setReviseErr('')
     setNotes([])
-    const instruction = target ? `${target.prefix}: ${steer.trim()}` : steer.trim()
+    const instruction = target ? `${target.label}, at the spot clicked: ${steer.trim()}` : steer.trim()
     setAsked(undo ? 'Undo the last change' : instruction)
-    const r = await fetch(`/api/marketing/content/${post.id}/revise`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(undo ? { undo: true } : { instruction }) })
+    // The picture with the click ringed, so Claude sees what was meant.
+    let picture: string | null = null
+    if (!undo && target) {
+      try {
+        picture = await markedPicture(target.slide === null ? image : `${image}&slide=${target.slide + 1}`, target)
+      } catch {
+        picture = null
+      }
+    }
+    const r = await fetch(`/api/marketing/content/${post.id}/revise`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(undo ? { undo: true } : { instruction, picture, where: target?.label ?? null }),
+    })
     const j = await r.json().catch(() => ({}))
     setRevising(null)
     setAsked('')
@@ -674,23 +712,17 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
     setV((n) => n + 1)
     onChanged()
   }
-  // Point the chat at a slide or a part of the post, ready to type.
-  function aim(t: { label: string; prefix: string } | null) {
-    setTarget(t)
+  // A click on the picture: the spot is ringed and the chat is ready to type.
+  function point(e: React.MouseEvent<HTMLElement>) {
+    const box = e.currentTarget.getBoundingClientRect()
+    const x = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width))
+    const y = Math.min(1, Math.max(0, (e.clientY - box.top) / box.height))
+    setTarget({ x, y, slide: carousel ? slide : null, label: carousel ? `On slide ${slide + 1} (${slideNames[slide] ?? 'slide'})` : 'On the image' })
     setTimeout(() => {
       chat.current?.focus()
       chat.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     }, 0)
   }
-  const here = carousel ? { label: `${slideNames[slide] ?? 'Slide'} · slide ${slide + 1}`, prefix: `On slide ${slide + 1} (${slideNames[slide] ?? 'slide'})` } : { label: 'The image', prefix: 'On the image' }
-  // The parts that can be pointed at on what is in view.
-  const parts: { label: string; prefix: string }[] = [
-    ...(carousel
-      ? [...(SLIDE_FIELDS[slides[slide]?.kind ?? ''] ?? []).map((f) => f.label), ...(slides[slide]?.kind === 'data' ? ['Figures'] : [])].map((l) => ({ label: l, prefix: `${here.prefix}, the ${l.toLowerCase()}` }))
-      : ['Kicker', 'Headline', 'Subline'].map((l) => ({ label: l, prefix: `On the image, the ${l.toLowerCase()}` }))),
-    { label: 'Caption', prefix: 'In the caption' },
-    { label: 'Hashtags', prefix: 'In the hashtags' },
-  ]
   // The images saved as PNG files, named here so the name always ends in
   // .png and the file opens anywhere.
   async function saveImages(slides: (number | null)[]) {
@@ -758,17 +790,17 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
         {/* The image, or the carousel's slides */}
         {carousel ? (
           <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
-            <button type="button" onClick={() => aim(here)} className="group relative block w-full p-0 border-0 bg-transparent cursor-pointer" title="Click to ask Claude to change something on this slide">
+            <button type="button" onClick={point} className="group relative block w-full p-0 border-0 bg-transparent cursor-crosshair" title="Click anything on the slide to ask Claude to change it">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`${image}&slide=${slide + 1}`} alt={`Slide ${slide + 1} of ${slideCount}`} width={1080} height={1350} className="w-full h-auto block" style={{ aspectRatio: '1080 / 1350', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
               <ClickHint />
+              {target && target.slide === slide ? <SpotRing spot={target} /> : null}
             </button>
             <div className="flex items-center gap-2 mt-3">
               <button type="button" className="ws-btn ws-btn-sm" disabled={slide === 0} onClick={() => setSlide((n) => n - 1)} aria-label="Previous slide"><ChevronLeft className="w-3.5 h-3.5" /></button>
               <span className="text-[12.5px] tabular flex-1 text-center" style={{ color: 'var(--fg-3)' }}>{`${slideNames[slide] ?? ''} · ${slide + 1} of ${slideCount}`}</span>
               <button type="button" className="ws-btn ws-btn-sm" disabled={slide >= slideCount - 1} onClick={() => setSlide((n) => n + 1)} aria-label="Next slide"><ChevronRight className="w-3.5 h-3.5" /></button>
             </div>
-            <PartChips parts={parts} onPick={aim} />
             <StyleBar post={post} onChanged={() => { setSlide(0); onChanged() }} />
             <div className="flex items-center gap-2 mt-2">
               <button type="button" onClick={saveAll} disabled={saving_ !== null} className="ws-btn ws-btn-primary ws-btn-sm flex-1 justify-center" title="Every slide as its own 1080 × 1350 PNG image">
@@ -785,12 +817,12 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
           </div>
         ) : (
           <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
-            <button type="button" onClick={() => aim(here)} className="group relative block w-full p-0 border-0 bg-transparent cursor-pointer" title="Click to ask Claude to change something on the image">
+            <button type="button" onClick={point} className="group relative block w-full p-0 border-0 bg-transparent cursor-crosshair" title="Click anything on the image to ask Claude to change it">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={image} alt="" width={1080} height={1080} className="w-full h-auto block" style={{ aspectRatio: '1 / 1', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
               <ClickHint />
+              {target ? <SpotRing spot={target} /> : null}
             </button>
-            <PartChips parts={parts} onPick={aim} />
             <StyleBar post={post} onChanged={onChanged} />
             <div className="flex items-center gap-2 mt-2">
               <button type="button" onClick={() => saveOne(null)} disabled={saving_ !== null} className="ws-btn ws-btn-sm flex-1 justify-center" title="1080 × 1080 PNG image">
@@ -825,10 +857,13 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
           )}
           {post.source?.movedFrom ? <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{`Moved here from ${(post.source.movedFrom as { edition?: string }).edition ?? 'another page'}.`}</p> : null}
           {carousel && <Tone tone="muted">{post.source?.pages === 'two-page' ? 'Two-page post' : 'Carousel'}</Tone>}
-          {carousel && slides[slide] && (
+          <button type="button" onClick={() => setByHand((b) => !b)} className="self-start text-[12px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
+            {byHand ? 'Hide the words on the image' : 'Edit the words on the image by hand'}
+          </button>
+          {byHand && carousel && slides[slide] && (
             <SlideEditor slide={slides[slide]} name={`${slideNames[slide] ?? 'Slide'} · slide ${slide + 1}`} onChange={(next) => setSlides((all) => all.map((x, i) => (i === slide ? next : x)))} />
           )}
-          <div className={cn('grid sm:grid-cols-[1fr_2fr] gap-2', carousel && 'hidden')}>
+          <div className={cn('grid sm:grid-cols-[1fr_2fr] gap-2', (carousel || !byHand) && 'hidden')}>
             <input className="ws-input" value={kicker} onChange={(e) => setKicker(e.target.value)} placeholder="Kicker" aria-label="Kicker" />
             <input className="ws-input" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline" aria-label="Headline" />
             <input className="ws-input sm:col-span-2" value={subline} onChange={(e) => setSubline(e.target.value)} placeholder="Subline" aria-label="Subline" />
@@ -843,7 +878,7 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
               <div key={`${x.at}-${i}`} className="flex flex-col gap-1">
                 <p className="self-end max-w-[85%] rounded-lg px-3 py-1.5 text-[12.5px]" style={{ background: 'var(--accent-soft)', color: 'var(--fg)' }}>{x.text}</p>
                 <p className="self-start max-w-[85%] rounded-lg px-3 py-1.5 text-[12.5px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--fg-2)' }}>
-                  {x.changed === undefined ? 'Done.' : x.changed.length ? `Changed ${x.changed.join(', ')}.` : 'Nothing needed changing.'}
+                  {x.reply || (x.changed === undefined ? 'Done.' : x.changed.length ? `Changed ${x.changed.join(', ')}.` : 'Nothing needed changing.')}
                   {x.notes?.length ? <span style={{ color: 'var(--fg-4)' }}>{` Note: ${x.notes.join('; ')}.`}</span> : null}
                 </p>
               </div>
@@ -856,8 +891,8 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
             )}
             {target && (
               <span className="self-start inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px]" style={{ background: 'var(--surface-3)', border: '1px solid var(--line)', color: 'var(--fg-2)' }}>
-                <MousePointerClick className="w-3 h-3" /> {target.label}
-                <button type="button" onClick={() => setTarget(null)} aria-label="Change the whole post instead" className="ml-0.5" style={{ color: 'var(--fg-4)' }}>×</button>
+                <MousePointerClick className="w-3 h-3" /> {`${target.label}: the spot you clicked`}
+                <button type="button" onClick={() => setTarget(null)} aria-label="Clear the click and change the whole post instead" className="ml-0.5" style={{ color: 'var(--fg-4)' }}>×</button>
               </span>
             )}
             <textarea
@@ -867,7 +902,7 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
               value={steer}
               onChange={(e) => setSteer(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); revise() } }}
-              placeholder={target ? `What should change on ${target.label.toLowerCase()}?` : carousel ? 'Click a slide or a part above, or just say what to change, e.g. "End on what NHS buyers should check before they buy"' : 'Click the image or a part above, or just say what to change, e.g. "Mention that early-bird passes close on 30 November"'}
+              placeholder={target ? 'What should change there? e.g. "Write the figure in full", "Use a different photo", "Make this about NHS buyers"' : carousel ? 'Click anything on the slide, then say what to change. Or just type, e.g. "End on what NHS buyers should check before they buy"' : 'Click anything on the image, then say what to change. Or just type, e.g. "Mention that early-bird passes close on 30 November"'}
               disabled={revising !== null}
               style={{ resize: 'vertical', lineHeight: 1.45 }}
               aria-label="What to change"

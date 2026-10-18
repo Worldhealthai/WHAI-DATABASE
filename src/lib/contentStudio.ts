@@ -24,7 +24,8 @@ import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
 import { eventLook } from '@/lib/portals'
-import { BRANDS, brandFor, nextStyle, photosFor, type BrandKey, type CardStyle } from '@/lib/contentBrand'
+import { BRANDS, CARD_STYLES, brandFor, nextStyle, photosFor, styleOf, stylesFor, type BrandKey, type CardStyle } from '@/lib/contentBrand'
+import { LookError, restyle } from '@/lib/contentLook'
 import type { Slide } from '@/lib/contentCarousel'
 import { describeOverruns, fitText, overruns, type Limit } from '@/lib/contentText'
 
@@ -376,7 +377,7 @@ const cardLimits = (d: { kicker?: string; headline?: string; subline?: string },
   { field: `${at}subline`, text: tidy(d.subline || ''), max: 120 },
 ]
 
-interface Ask { system: string; schema: Record<string, unknown>; brief: string; maxTokens: number; refused: (category: string | null) => string }
+interface Ask { system: string; schema: Record<string, unknown>; brief: string; maxTokens: number; refused: (category: string | null) => string; picture?: string | null }
 
 // Claude's draft as JSON. When any of its words run over the room they
 // have, it goes back once with the fields named, to be rewritten whole: a
@@ -386,7 +387,13 @@ async function draftWithin<T>(ask: Ask, limits: (d: T) => Limit[]): Promise<T> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
   if (!apiKey) throw new ContentError('ANTHROPIC_API_KEY is not set on the CRM, so nothing can be written.', 400)
   const client = new Anthropic({ apiKey })
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: ask.brief }]
+  // A picture of the post goes first when there is one (the chat's click).
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{
+    role: 'user',
+    content: ask.picture
+      ? [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: ask.picture } }, { type: 'text', text: ask.brief }]
+      : ask.brief,
+  }]
   for (let round = 0; ; round++) {
     // Opus 5.5 with the server-side fallback: a benign life-sciences brief
     // can trip its safety classifiers, and the fallback re-runs it on the
@@ -742,11 +749,11 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
 // its old words. The words before the last revision are kept, so it can be
 // undone.
 
-export interface Revision { post: ContentPost; notes: string[]; changed: string[] }
+export interface Revision { post: ContentPost; notes: string[]; changed: string[]; reply: string }
 // One instruction and what came of it, kept with the post as its thread.
-export interface Steer { text: string; at: string; changed?: string[]; notes?: string[] }
+export interface Steer { text: string; at: string; changed?: string[]; notes?: string[]; reply?: string }
 
-type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[] }
+type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[]; look?: { style?: unknown; photo?: unknown; photos?: unknown } }
 export type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: Steer[] } & Record<string, unknown> }
 
 const snapshot = (p: Revisable): Snapshot => ({
@@ -756,6 +763,7 @@ const snapshot = (p: Revisable): Snapshot => ({
   caption: p.caption,
   hashtags: p.hashtags,
   ...(Array.isArray(p.source?.slides) ? { slides: p.source.slides } : {}),
+  look: { style: p.source?.style, photo: p.source?.photo, photos: p.source?.photos },
 })
 
 const hashtagsOf = (tags: string[] | undefined) => (tags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5)
@@ -810,7 +818,34 @@ export function mergeSlides(old: Slide[], checked: ReturnType<typeof checkSlides
 // A post's words (and slides) rewritten by an instruction, held to its
 // material and checked as when it was written; with `to`, rewritten for
 // another page, ending on that page's link.
-export async function rewritePost(post: Revisable, steer: string, to?: { page: string; link: string | null; facts: Record<string, unknown> }): Promise<{ patch: Record<string, unknown>; notes: string[] }> {
+// The chat on a post: Claude may also change its look (or its photos) and
+// answers the team in a line. `picture` is the post as the team saw it,
+// with the spot they clicked ringed in red; `where` says which slide.
+export interface Chat { picture: string | null; where: string | null }
+export interface ChatAnswer { reply: string; look: { style: string; newPhotos: boolean } }
+
+const withChat = (schema: { required: string[]; properties: Record<string, unknown> } & Record<string, unknown>, styles: CardStyle[]) => ({
+  ...schema,
+  required: [...schema.required, 'reply', 'look'],
+  properties: {
+    ...schema.properties,
+    reply: { type: 'string' },
+    look: { type: 'object', additionalProperties: false, required: ['style', 'newPhotos'], properties: { style: { type: 'string', enum: ['', ...styles] }, newPhotos: { type: 'boolean' } } },
+  },
+})
+
+function chatLines(post: Revisable, chat: Chat, styles: CardStyle[]): string[] {
+  const looks = CARD_STYLES.filter((c) => styles.includes(c.value)).map((c) => `${c.value}: ${c.hint}${c.photos ? ` (${c.photos} event photo${c.photos > 1 ? 's' : ''})` : ''}`).join('; ')
+  return [
+    chat.picture ? `The attached image is ${chat.where || 'the post'} as the team sees it. They clicked the spot ringed in red: the instruction is about whatever is under the ring (a word or line, the figure, the photo, the logo or the background). Change that, and anything else only as the instruction asks.` : '',
+    `You are answering the team in a chat on this post. Besides the words you can change its look: look.style set to one of these redraws it in that look (${looks}); the post is now in "${styleOf(post.source)}". look.newPhotos true puts different event photos in a look that shows photos (they come from the event gallery: you cannot pick or describe one). Otherwise look.style is "" and look.newPhotos false. The logo, the fonts, and the colours, sizes and positions within a look cannot be changed, and a photo cannot be edited: when asked for one of those, change nothing for it and say so, offering the nearest thing you can do (another look, other photos, other words).`,
+    'reply: one or two short, plain sentences to the team saying what you changed (or why you could not), with no field names. Never say you changed something you did not.',
+  ]
+}
+
+export async function rewritePost(post: Revisable, steer: string, to?: { page: string; link: string | null; facts: Record<string, unknown> }, chat?: Chat): Promise<{ patch: Record<string, unknown>; notes: string[]; answer: ChatAnswer | null }> {
+  const styles = stylesFor(post.kind)
+  const extra = chat ? chatLines(post, chat, styles) : []
   const page = to ? to.page : post.edition
   const link = to ? to.link : post.link
   const { photo: _p, photos: _ps, image: _i, logo: _l, style: _s, before: _b, steers: _st, linkedin: _li, slides: _sl, dropped: _d, by: _by, movedFrom: _m, ...held } = post.source
@@ -823,21 +858,27 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       link ? `Link to end the caption with: ${link}` : '',
       `Post type: ${post.kind}`,
       ...more,
+      ...extra,
       `The post as it stands:\n${JSON.stringify(current, null, 2)}`,
       `The marketing team's instruction for this revision: ${steer}`,
       'Revise the post as the instruction asks. Facts the team gives in the instruction may be used as given; everything else must come from the material, as before. Change what the instruction asks for and anything that must change with it to read right; keep the rest word for word. Return the whole post as JSON.',
     ].filter(Boolean).join('\n\n')
   const notes: string[] = []
   let patch: Record<string, unknown>
+  let answer: ChatAnswer | null = null
+  const pick = (d: Partial<ChatAnswer>) => {
+    if (chat) answer = { reply: String(d.reply || '').trim(), look: { style: String(d.look?.style || ''), newPhotos: Boolean(d.look?.newPhotos) } }
+  }
 
   if (carousel) {
     if (!post.ref) throw new ContentError('This carousel has no briefing to check its figures against, so it cannot be revised.', 400)
     const article = await readArticleFull(post.ref)
     if (article.body.length < 200) throw new ContentError('The briefing could not be read from worldnexusgroup.com just now, so the revision could not be checked. Try again in a minute.', 502)
-    const d = await draftWithin<CarouselDraft>(
+    const d = await draftWithin<CarouselDraft & Partial<ChatAnswer>>(
       {
         system: CAROUSEL_VOICE,
-        schema: CAROUSEL_SCHEMA,
+        schema: chat ? withChat(CAROUSEL_SCHEMA, styles) : CAROUSEL_SCHEMA,
+        picture: chat?.picture,
         brief: ask(draftOf(post), [
           `The briefing's title: ${String(material.title ?? '')}`,
           `The briefing's full text (with the instruction, the only material; every figure and quote must come from them):\n"""\n${article.body}\n"""`,
@@ -848,6 +889,7 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       },
       carouselLimits,
     )
+    pick(d)
     // Held to the briefing and the instruction, as when it was written.
     const checked = checkSlides(d, { ...article, body: `${article.body}\n\n${steer}` }, {
       title: String(material.title ?? post.headline),
@@ -866,10 +908,11 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
     }
   } else {
     const text = post.kind === 'insight' && post.ref ? await readArticle(post.ref) : ''
-    const d = await draftWithin<Draft>(
+    const d = await draftWithin<Draft & Partial<ChatAnswer>>(
       {
         system: VOICE,
-        schema: SCHEMA,
+        schema: chat ? withChat(SCHEMA, styles) : SCHEMA,
+        picture: chat?.picture,
         brief: ask(
           { kicker: post.kicker, headline: post.headline, subline: post.subline, caption: post.caption, hashtags: post.hashtags },
           [`Material (with the instruction, use only this): ${JSON.stringify(text ? { ...material, text } : material)}`],
@@ -879,10 +922,11 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       },
       (x) => cardLimits(x),
     )
+    pick(d)
     patch = { kicker: tidy(d.kicker), headline: tidy(d.headline), subline: tidy(d.subline), caption: tidy(d.caption) || post.caption, hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags }
   }
 
-  return { patch, notes }
+  return { patch, notes, answer }
 }
 
 // What a revision changed, in the tab's own words, for the thread.
@@ -902,21 +946,37 @@ export function changesBetween(was: Snapshot, now: Snapshot): string[] {
   return out
 }
 
-export async function revisePost(id: string, instruction: string): Promise<Revision> {
+export async function revisePost(id: string, instruction: string, chat: Chat = { picture: null, where: null }): Promise<Revision> {
   const steer = instruction.trim()
   if (!steer) throw new ContentError('Say what to change in the post.', 400)
   const post = await readPost(id)
-  const { patch, notes } = await rewritePost(post, steer)
-  const source = (patch.source as Record<string, unknown> | undefined) ?? post.source
+  const { patch, notes, answer } = await rewritePost(post, steer, undefined, chat)
+  let source = (patch.source as Record<string, unknown> | undefined) ?? post.source
   const changed = changesBetween(snapshot(post), snapshot({ ...post, ...patch, source } as Revisable))
+  // Another look, or other photos, when the chat asked for them.
+  const look = answer?.look
+  if (look && (look.style || look.newPhotos)) {
+    const was = styleOf(source)
+    try {
+      const next = await restyle({ series: post.series, kind: post.kind, source }, (look.style || was) as CardStyle)
+      source = next.source
+      if (next.style !== was) changed.push(`the look (now ${CARD_STYLES.find((c) => c.value === next.style)?.label ?? next.style})`)
+      else if (photosFor(next.style)) changed.push('the photos')
+      else notes.push(`the ${next.style} look shows no event photos, so there were none to change`)
+    } catch (e) {
+      if (!(e instanceof LookError)) throw e
+      notes.push(e.message)
+    }
+  }
+  const reply = answer?.reply || ''
   const row = {
     ...patch,
-    source: { ...source, before: snapshot(post), steers: [...(post.source.steers ?? []), { text: steer, at: new Date().toISOString(), changed, notes }].slice(-20) },
+    source: { ...source, before: snapshot(post), steers: [...(post.source.steers ?? []), { text: steer, at: new Date().toISOString(), changed, notes, ...(reply ? { reply } : {}) }].slice(-20) },
     updatedAt: new Date().toISOString(),
   }
   const { data, error } = await supabase.from('marketing_content').update(row).eq('id', id).select('*').single()
   if (error) throw error
-  return { post: data as ContentPost, notes, changed }
+  return { post: data as ContentPost, notes, changed, reply }
 }
 
 // Back to the words before the last revision.
@@ -924,10 +984,12 @@ export async function undoRevision(id: string): Promise<ContentPost> {
   const post = await readPost(id)
   const before = post.source.before
   if (!before) throw new ContentError('There is no revision to undo.', 409)
-  const { slides, ...words } = before
+  const { slides, look, ...words } = before
   const { before: _b, ...source } = post.source
-  const steers = [...(post.source.steers ?? []), { text: 'Undo the last change', at: new Date().toISOString(), changed: ['back to the words before it'] }].slice(-20)
-  const row = { ...words, source: { ...(slides ? { ...source, slides } : source), steers }, updatedAt: new Date().toISOString() }
+  const steers = [...(post.source.steers ?? []), { text: 'Undo the last change', at: new Date().toISOString(), changed: [], reply: 'Put back as it was before the last change.' }].slice(-20)
+  // The look as it was too: its style and photos (none kept means none).
+  const looked = look ? { style: look.style, photo: look.photo, photos: look.photos } : {}
+  const row = { ...words, source: { ...source, ...(slides ? { slides } : {}), ...looked, steers }, updatedAt: new Date().toISOString() }
   const { data, error } = await supabase.from('marketing_content').update(row).eq('id', id).select('*').single()
   if (error) throw error
   return data as ContentPost
