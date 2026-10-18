@@ -86,7 +86,7 @@ function NeedsBadge({ session }: { session: Session }) {
 // ── Speaker row ─────────────────────────────────────────────────────────────
 
 // Name · Role · Organisation · Seat · Option · Status · bench · remove
-const SLOT_GRID = 'grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(0,1.25fr)_104px_88px_96px_28px_28px] gap-2 items-center'
+const SLOT_GRID = 'grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(0,1.25fr)_104px_112px_96px_28px_28px] gap-2 items-center'
 
 function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; lineup: SpeakerRow[]; onChange: (s: SpeakerSlot) => void; onRemove: () => void }) {
   const onLineup = Boolean(slot.lineupRef) || lineup.some((l) => l.name.trim().toLowerCase() === slot.name.trim().toLowerCase())
@@ -115,7 +115,7 @@ function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; line
         <option value="moderator">Moderator</option>
       </select>
       <select
-        className="ws-input h-8 text-[12.5px] py-0 pr-6"
+        className="ws-input h-8 text-[12.5px] py-0 pl-2 pr-6"
         value={slot.option ?? ''}
         onChange={(e) => onChange({ ...slot, option: e.target.value ? Number(e.target.value) : null })}
         aria-label="Panel preference"
