@@ -20,11 +20,13 @@ import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, type Edition } from '@/lib/marketingSource'
 import { BRANDS, nextStyle, type BrandKey } from '@/lib/contentBrand'
 import type { Slide } from '@/lib/contentCarousel'
+import { describeOverruns, fitText, overruns } from '@/lib/contentText'
 import {
   CAROUSEL_SCHEMA,
   ContentError,
   NEXUS_EDITION,
   VOICE,
+  carouselLimits,
   checkSlides,
   gatherContext,
   photoFields,
@@ -117,9 +119,9 @@ You are writing today's LinkedIn post about one Insights briefing. Write everyth
 - statistic: the single most striking figure in the piece, the figure exactly as the text gives it ("$311m", "29%", "1,451"), a label saying what it measures (at most 70 characters) and one line of context (at most 140 characters).
 - data: two to four further figures from the piece under a short title (at most 60 characters), each a figure exactly as the text gives it and a label (at most 60 characters). Different figures from the statistic.
 - quote: words a named person or organisation said, copied exactly, character for character, from a passage the text puts in quotation marks, with the speaker's name and role as the text gives them. At most 220 characters; you may stop at the end of a sentence but never change a word. If the text quotes nobody, empty strings.
-- end: a closing headline (at most 70 characters) that gives the reader a reason to read the full briefing.
+- end: a closing headline (at most 70 characters) that gives the reader a reason to read the full briefing: a complete statement, specific to this piece, of what the briefing gives the people the post is written for (the same readers as the rest of the post, never another party such as the suppliers when the post speaks to buyers), and only what the briefing really holds. Not a vague fragment and not a label for the article, e.g. "The reporting gaps to check before you buy an LLM tool", not "What suppliers should expect evaluators to ask for".
 - card: the words for a single image if the post ends up as one: kicker, headline (at most 70 characters, the finding or consequence, no full stop) and subline (at most 90 characters).
-Every figure must appear in the text exactly. Where the piece has too few figures or no quotation, return empty strings (and an empty points list); a weak slide is worse than none. Never invent or round a figure, never paraphrase inside quotation marks.
+Keep every field within its limit (count the characters) as a complete phrase: nothing is cut to fit, so a draft with a field over its limit is sent back to be rewritten. Every figure must appear in the text exactly, written in full as the text gives it. Where the piece has too few figures or no quotation, return empty strings (and an empty points list); a weak slide is worse than none. Never invent or round a figure, never paraphrase inside quotation marks.
 
 The caption: 60 to 120 words, the first line standing on its own, written so it reads right whether the post is one image or several (never mention slides or swiping), ending with "Read the briefing:" and the link given, then 3 to 5 hashtags on their own line.`
 
@@ -172,6 +174,18 @@ export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: Routi
   const { ctx, insight, choice } = picked
   const ed = ctx.ed
 
+  // Words that run over the room they have are sent back to be rewritten,
+  // never cut short on the post.
+  const over = overruns([
+    ...carouselLimits(d),
+    { field: 'card.kicker', text: tidy(d.card?.kicker || ''), max: 40 },
+    { field: 'card.headline', text: tidy(d.card?.headline || ''), max: 90 },
+    { field: 'card.subline', text: tidy(d.card?.subline || ''), max: 120 },
+  ])
+  if (over.length) {
+    throw new ContentError(`Nothing was saved: these run over the space they have, and words are never cut to fit. Rewrite each as a complete phrase within its limit, keeping every figure and quotation exact, and POST the whole draft again.\n${describeOverruns(over)}`, 422)
+  }
+
   // One routine post per briefing per page.
   const { data: dupe } = await supabase
     .from('marketing_content')
@@ -205,9 +219,9 @@ export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: Routi
     kind: 'insight',
     ref: insight.slug,
     forDate: today,
-    kicker: single ? tidy(d.card?.kicker || '').slice(0, 40) || 'From our Insights desk' : n?.kicker ?? '',
-    headline: single ? tidy(d.card?.headline || '').slice(0, 90) || insight.title : n?.headline ?? '',
-    subline: single ? tidy(d.card?.subline || '').slice(0, 120) : (n?.summary ?? '').slice(0, 120),
+    kicker: single ? tidy(d.card?.kicker || '') || 'From our Insights desk' : n?.kicker ?? '',
+    headline: single ? tidy(d.card?.headline || '') || insight.title : n?.headline ?? '',
+    subline: single ? tidy(d.card?.subline || '') : fitText(n?.summary ?? '', 120),
     caption: tidy(d.caption || ''),
     hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
     link: choice.link,

@@ -20,6 +20,7 @@ import { join } from 'node:path'
 import { ImageResponse } from 'next/og'
 import { BRANDS, brandFor, photosFor, photosOf, styleOf, type Brand, type CardStyle } from '@/lib/contentBrand'
 import type { ContentPost } from '@/lib/contentStudio'
+import { fitText } from '@/lib/contentText'
 
 export const CARD_SIZE = 1080
 const W = CARD_SIZE
@@ -448,7 +449,14 @@ export function Plate({ logo, x, y, w, h, border = false }: { logo: string; x: n
 }
 
 // A text cut to a length, so a long line never runs past its room.
-export const clip = (text: string, n: number) => (text.length > n ? `${text.slice(0, n - 1).trimEnd()}…` : text)
+// Text held to n characters on the image: at the end of a sentence or a
+// clause where there is one, else between words with an ellipsis, never
+// inside a word.
+export const clip = (text: string, n: number) => {
+  if (text.length <= n) return text
+  const fit = fitText(text, n - 1)
+  return /[.?!]$/.test(fit) ? fit : `${fit}…`
+}
 
 // The frame style's ground: a photo (or a logo on a white plate) set in on
 // the right over a block of the brand colour, offset like a print layout.

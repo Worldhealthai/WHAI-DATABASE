@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Bookmark, CaseUpper, Check, ChevronDown, ChevronLeft, ChevronRight, Columns2, Copy, Download, Droplet, ExternalLink, FileText, Film, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Milestone, Moon, Newspaper, PenLine, RefreshCw, Send, Shuffle, Square, SquareSplitVertical, StickyNote, Sun, Target, Trash2, Triangle, Waves } from 'lucide-react'
+import { BarChart3, Bookmark, CaseUpper, Check, ChevronDown, ChevronLeft, ChevronRight, Columns2, Copy, Download, Droplet, ExternalLink, FileText, Film, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Milestone, Moon, Newspaper, PenLine, RefreshCw, Send, Shuffle, Sparkles, Square, SquareSplitVertical, StickyNote, Sun, Target, Trash2, Triangle, Undo2, Waves } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
@@ -57,7 +57,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
+  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; before?: unknown; steers?: { text: string; at: string }[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -453,6 +453,41 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
   )
 }
 
+// A slide's words as saved in the post (lib/contentCarousel's Slide).
+type SlideWords = { kind: string; points?: { figure: string; label: string }[] } & Record<string, unknown>
+
+const SLIDE_FIELDS: Record<string, { key: string; label: string; long?: boolean }[]> = {
+  news: [{ key: 'kicker', label: 'Kicker' }, { key: 'headline', label: 'Headline' }, { key: 'summary', label: 'Summary', long: true }],
+  statistic: [{ key: 'figure', label: 'Figure' }, { key: 'label', label: 'What it measures' }, { key: 'context', label: 'Context', long: true }],
+  data: [{ key: 'title', label: 'Title' }],
+  quote: [{ key: 'text', label: 'Quotation (word for word)', long: true }, { key: 'speaker', label: 'Speaker' }, { key: 'role', label: 'Role' }],
+  end: [{ key: 'headline', label: 'Closing line' }],
+}
+
+// The words on the slide in view, to correct before it goes out.
+function SlideEditor({ slide, name, onChange }: { slide: SlideWords; name: string; onChange: (next: SlideWords) => void }) {
+  const fields = SLIDE_FIELDS[slide.kind] ?? []
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{`The words on ${name}`}</span>
+      {fields.map((f) =>
+        f.long ? (
+          <textarea key={f.key} className="ws-input" rows={2} value={str(slide[f.key])} onChange={(e) => onChange({ ...slide, [f.key]: e.target.value })} placeholder={f.label} aria-label={f.label} style={{ resize: 'vertical', lineHeight: 1.45 }} />
+        ) : (
+          <input key={f.key} className="ws-input" value={str(slide[f.key])} onChange={(e) => onChange({ ...slide, [f.key]: e.target.value })} placeholder={f.label} aria-label={f.label} />
+        ),
+      )}
+      {slide.kind === 'data' && (slide.points ?? []).map((p, i) => (
+        <div key={i} className="grid grid-cols-[1fr_2fr] gap-2">
+          <input className="ws-input" value={p.figure} onChange={(e) => onChange({ ...slide, points: (slide.points ?? []).map((q, j) => (j === i ? { ...q, figure: e.target.value } : q)) })} placeholder="Figure" aria-label={`Figure ${i + 1}`} />
+          <input className="ws-input" value={p.label} onChange={(e) => onChange({ ...slide, points: (slide.points ?? []).map((q, j) => (j === i ? { ...q, label: e.target.value } : q)) })} placeholder="What it measures" aria-label={`Label ${i + 1}`} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChanged: () => void; onRegenerate: () => void; busy: boolean }) {
   const [caption, setCaption] = useState(post.caption)
   const [headline, setHeadline] = useState(post.headline)
@@ -477,7 +512,16 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   const slideNames = (post.source?.slides ?? []).map((x) => ({ news: 'The news', statistic: 'Statistic', data: 'Data', quote: 'Quote', end: 'Read more' } as Record<string, string>)[x.kind] ?? x.kind)
   const slideCount = Math.max(1, slideNames.length)
   const [slide, setSlide] = useState(0)
-  const dirty = caption !== post.caption || headline !== post.headline || subline !== post.subline || kicker !== post.kicker
+  // A carousel's words, slide by slide, as the team corrects them.
+  const [slides, setSlides] = useState<SlideWords[]>(() => ((post.source?.slides ?? []) as SlideWords[]).map((x) => ({ ...x })))
+  const slidesDirty = carousel && JSON.stringify(slides) !== JSON.stringify(post.source?.slides ?? [])
+  const dirty = caption !== post.caption || headline !== post.headline || subline !== post.subline || kicker !== post.kicker || slidesDirty
+  const words = () => ({ caption, headline, subline, kicker, ...(slidesDirty ? { slides } : {}) })
+  // The team's instruction for Claude to rewrite the post by.
+  const [steer, setSteer] = useState('')
+  const [revising, setRevising] = useState<'revise' | 'undo' | null>(null)
+  const [reviseErr, setReviseErr] = useState('')
+  const [notes, setNotes] = useState<string[]>([])
   const text = `${caption.trim()}\n\n${post.hashtags.join(' ')}`.trim()
   const image = `/api/marketing/content/${post.id}/image?v=${encodeURIComponent(post.updatedAt)}-${v}`
 
@@ -486,10 +530,43 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
     const r = await fetch(`/api/marketing/content/${post.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) })
     setSaving(false)
     if (r.ok) {
+      // The slides as saved (house style applied), so they read as unchanged.
+      if (fields.slides) {
+        const saved = ((await r.json().catch(() => ({})))?.post?.source?.slides ?? null) as SlideWords[] | null
+        if (saved) setSlides(saved.map((x) => ({ ...x })))
+      }
       setV((n) => n + 1)
       onChanged()
     }
     return r.ok
+  }
+  // The words on screen take the post as saved after a revision.
+  function take(next: Post) {
+    setCaption(next.caption)
+    setHeadline(next.headline)
+    setSubline(next.subline)
+    setKicker(next.kicker)
+    setSlides(((next.source?.slides ?? []) as SlideWords[]).map((x) => ({ ...x })))
+  }
+  async function revise(undo = false) {
+    if (!undo && !steer.trim()) return
+    // Unsaved edits are saved first, so the revision starts from them.
+    if (dirty && !(await patch(words()))) return
+    setRevising(undo ? 'undo' : 'revise')
+    setReviseErr('')
+    setNotes([])
+    const r = await fetch(`/api/marketing/content/${post.id}/revise`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(undo ? { undo: true } : { instruction: steer.trim() }) })
+    const j = await r.json().catch(() => ({}))
+    setRevising(null)
+    if (!r.ok || !j?.post) {
+      setReviseErr(j?.error || 'The post could not be revised.')
+      return
+    }
+    take(j.post as Post)
+    setNotes(Array.isArray(j.notes) ? j.notes : [])
+    if (!undo) setSteer('')
+    setV((n) => n + 1)
+    onChanged()
   }
   async function copy() {
     try {
@@ -501,7 +578,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   // Approve and post: up on the brand's page now, then marked posted.
   async function approve() {
     if (!liPage) return
-    if (dirty && !(await patch({ caption, headline, subline, kicker }))) return
+    if (dirty && !(await patch(words()))) return
     if (!confirm(`Post this to ${liPage.name} on LinkedIn now?`)) return
     setPosting(true)
     setPostErr('')
@@ -569,6 +646,9 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
           </div>
 
           {carousel && <Tone tone="muted">{post.source?.pages === 'two-page' ? 'Two-page post' : 'Carousel'}</Tone>}
+          {carousel && slides[slide] && (
+            <SlideEditor slide={slides[slide]} name={`${slideNames[slide] ?? 'Slide'} · slide ${slide + 1}`} onChange={(next) => setSlides((all) => all.map((x, i) => (i === slide ? next : x)))} />
+          )}
           <div className={cn('grid sm:grid-cols-[1fr_2fr] gap-2', carousel && 'hidden')}>
             <input className="ws-input" value={kicker} onChange={(e) => setKicker(e.target.value)} placeholder="Kicker" aria-label="Kicker" />
             <input className="ws-input" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline" aria-label="Headline" />
@@ -576,11 +656,43 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
           </div>
           <textarea className="ws-input" rows={7} value={caption} onChange={(e) => setCaption(e.target.value)} aria-label="Caption" style={{ resize: 'vertical', lineHeight: 1.5 }} />
           <p className="text-[12.5px] break-words" style={{ color: 'var(--accent-ink)' }}>{post.hashtags.join(' ')}</p>
+
+          {/* Revise with Claude: the team's instruction, the post rewritten and drawn again. */}
+          <div className="flex flex-col gap-2 rounded-md p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+            <label htmlFor={`steer-${post.id}`} className="text-[12.5px] font-medium flex items-center gap-1.5" style={{ color: 'var(--fg-2)' }}><Sparkles className="w-3.5 h-3.5" /> Revise with Claude</label>
+            <textarea
+              id={`steer-${post.id}`}
+              className="ws-input"
+              rows={2}
+              value={steer}
+              onChange={(e) => setSteer(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) revise() }}
+              placeholder={carousel ? 'What to change, e.g. "End on what NHS buyers should check before they buy" or "Lead with the 461 trials"' : 'What to change, e.g. "Mention that early-bird passes close on 30 November" or "Make the headline about the NHS"'}
+              disabled={revising !== null}
+              style={{ resize: 'vertical', lineHeight: 1.45 }}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => revise()} disabled={!steer.trim() || revising !== null} className="ws-btn ws-btn-primary ws-btn-sm">
+                {revising === 'revise' ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Revising…</> : <><Sparkles className="w-3.5 h-3.5" /> Revise</>}
+              </button>
+              {post.source?.before ? (
+                <button type="button" onClick={() => revise(true)} disabled={revising !== null} className="ws-btn ws-btn-ghost ws-btn-sm" title="Back to the words before the last revision">
+                  <Undo2 className="w-3.5 h-3.5" /> {revising === 'undo' ? 'Undoing…' : 'Undo last revision'}
+                </button>
+              ) : null}
+              <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Facts you give here are used as written; everything else stays true to the source{carousel ? ', and figures are checked against the briefing' : ''}.</span>
+            </div>
+            {reviseErr && <p className="text-[12.5px]" style={{ color: 'var(--bad)' }}>{reviseErr}</p>}
+            {notes.length > 0 && <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{`Revised. Note: ${notes.join('; ')}.`}</p>}
+            {post.source?.steers?.length ? (
+              <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }} title={post.source.steers.map((x) => x.text).join('\n')}>{`Last instruction: "${post.source.steers[post.source.steers.length - 1].text}"`}</p>
+            ) : null}
+          </div>
           {post.link && <p className="text-[12px] truncate" style={{ color: 'var(--fg-4)' }}>Points to {post.link}</p>}
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {dirty ? (
-              <button type="button" onClick={() => patch({ caption, headline, subline, kicker })} disabled={saving} className="ws-btn ws-btn-primary ws-btn-sm">{saving ? 'Saving…' : 'Save changes'}</button>
+              <button type="button" onClick={() => patch(words())} disabled={saving} className="ws-btn ws-btn-primary ws-btn-sm">{saving ? 'Saving…' : 'Save changes'}</button>
             ) : (
               <button type="button" onClick={copy} className="ws-btn ws-btn-sm">{copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy caption</>}</button>
             )}
