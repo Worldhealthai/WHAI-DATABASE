@@ -742,10 +742,12 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
 // its old words. The words before the last revision are kept, so it can be
 // undone.
 
-export interface Revision { post: ContentPost; notes: string[] }
+export interface Revision { post: ContentPost; notes: string[]; changed: string[] }
+// One instruction and what came of it, kept with the post as its thread.
+export interface Steer { text: string; at: string; changed?: string[]; notes?: string[] }
 
 type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[] }
-export type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: { text: string; at: string }[] } & Record<string, unknown> }
+export type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: Steer[] } & Record<string, unknown> }
 
 const snapshot = (p: Revisable): Snapshot => ({
   kicker: p.kicker,
@@ -883,20 +885,38 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
   return { patch, notes }
 }
 
+// What a revision changed, in the tab's own words, for the thread.
+const SLIDE_NAMES: Record<string, string> = { news: 'the news slide', statistic: 'the number slide', data: 'the data slide', quote: 'the quote slide', end: 'the closing slide' }
+const FIELD_NAMES: Record<string, string> = { kicker: 'kicker', headline: 'headline', summary: 'summary', subline: 'subline', figure: 'figure', label: 'label', context: 'context', title: 'title', points: 'figures', text: 'quotation', speaker: 'speaker', role: 'role' }
+export function changesBetween(was: Snapshot, now: Snapshot): string[] {
+  const out: string[] = []
+  const carousel = Boolean(was.slides?.length || now.slides?.length)
+  const top = carousel ? (['caption', 'hashtags'] as const) : (['kicker', 'headline', 'subline', 'caption', 'hashtags'] as const)
+  for (const k of top) if (JSON.stringify(was[k]) !== JSON.stringify(now[k])) out.push(`the ${k}`)
+  for (const s of now.slides ?? []) {
+    const old = (was.slides ?? []).find((o) => o.kind === s.kind) as Record<string, unknown> | undefined
+    if (!old) continue
+    const fields = Object.keys(FIELD_NAMES).filter((f) => f in s && JSON.stringify((s as Record<string, unknown>)[f]) !== JSON.stringify(old[f]))
+    if (fields.length) out.push(`${SLIDE_NAMES[s.kind] ?? s.kind} (${fields.map((f) => FIELD_NAMES[f]).join(', ')})`)
+  }
+  return out
+}
+
 export async function revisePost(id: string, instruction: string): Promise<Revision> {
   const steer = instruction.trim()
   if (!steer) throw new ContentError('Say what to change in the post.', 400)
   const post = await readPost(id)
   const { patch, notes } = await rewritePost(post, steer)
   const source = (patch.source as Record<string, unknown> | undefined) ?? post.source
+  const changed = changesBetween(snapshot(post), snapshot({ ...post, ...patch, source } as Revisable))
   const row = {
     ...patch,
-    source: { ...source, before: snapshot(post), steers: [...(post.source.steers ?? []), { text: steer, at: new Date().toISOString() }].slice(-10) },
+    source: { ...source, before: snapshot(post), steers: [...(post.source.steers ?? []), { text: steer, at: new Date().toISOString(), changed, notes }].slice(-20) },
     updatedAt: new Date().toISOString(),
   }
   const { data, error } = await supabase.from('marketing_content').update(row).eq('id', id).select('*').single()
   if (error) throw error
-  return { post: data as ContentPost, notes }
+  return { post: data as ContentPost, notes, changed }
 }
 
 // Back to the words before the last revision.
@@ -906,7 +926,8 @@ export async function undoRevision(id: string): Promise<ContentPost> {
   if (!before) throw new ContentError('There is no revision to undo.', 409)
   const { slides, ...words } = before
   const { before: _b, ...source } = post.source
-  const row = { ...words, source: slides ? { ...source, slides } : source, updatedAt: new Date().toISOString() }
+  const steers = [...(post.source.steers ?? []), { text: 'Undo the last change', at: new Date().toISOString(), changed: ['back to the words before it'] }].slice(-20)
+  const row = { ...words, source: { ...(slides ? { ...source, slides } : source), steers }, updatedAt: new Date().toISOString() }
   const { data, error } = await supabase.from('marketing_content').update(row).eq('id', id).select('*').single()
   if (error) throw error
   return data as ContentPost

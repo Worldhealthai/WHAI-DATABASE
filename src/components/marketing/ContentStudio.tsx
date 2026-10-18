@@ -9,9 +9,9 @@
 // reads it, changes what it likes, copies the caption or posts it straight
 // to LinkedIn, and marks it posted.
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRightLeft, BarChart3, Bookmark, CaseUpper, Check, ChevronDown, ChevronLeft, ChevronRight, Columns2, Copy, Download, Droplet, ExternalLink, FileText, Film, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Milestone, Moon, Newspaper, PenLine, RefreshCw, Send, Shuffle, Sparkles, Square, SquareSplitVertical, StickyNote, Sun, Target, Trash2, Triangle, Undo2, Waves } from 'lucide-react'
+import { ArrowRightLeft, BarChart3, Bookmark, CaseUpper, Check, ChevronDown, ChevronLeft, ChevronRight, Columns2, Copy, MessageSquare, MousePointerClick, Download, Droplet, ExternalLink, Film, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Milestone, Moon, Newspaper, PenLine, RefreshCw, Send, Shuffle, Sparkles, Square, SquareSplitVertical, StickyNote, Sun, Target, Trash2, Triangle, Undo2, Waves } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
@@ -57,7 +57,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; before?: unknown; steers?: { text: string; at: string }[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
+  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; before?: unknown; steers?: { text: string; at: string; changed?: string[]; notes?: string[] }[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -499,7 +499,39 @@ function SlideEditor({ slide, name, onChange }: { slide: SlideWords; name: strin
   )
 }
 
+// A PNG's file name: the page, the post's headline (shortened between
+// words) and, for a slide, its place in the carousel; always ending .png.
+function pngName(post: Post, slide: { n: number; of: number; name?: string } | null): string {
+  const words = post.headline.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim()
+  const short = words.length > 70 ? words.slice(0, 70).replace(/\s+\S*$/, '') : words
+  const brand = BRANDS[brandFor(post.series)].name
+  return `${brand} - ${short || 'post'}${slide ? ` - ${String(slide.n).padStart(2, '0')} of ${slide.of}${slide.name ? ` ${slide.name}` : ''}` : ''}.png`
+}
+
 const PAGES: BrandKey[] = ['pharma', 'health', 'nexus']
+
+// Over the image on hover: it can be clicked to ask for a change there.
+function ClickHint() {
+  return (
+    <span className="pointer-events-none absolute inset-0 flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.45), rgba(0,0,0,0) 40%)' }}>
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium" style={{ background: 'rgba(255,255,255,0.92)', color: '#0B0C10' }}>
+        <MousePointerClick className="w-3.5 h-3.5" /> Click to change something here
+      </span>
+    </span>
+  )
+}
+
+// The parts of what is in view, each a click away from the chat.
+function PartChips({ parts, onPick }: { parts: { label: string; prefix: string }[]; onPick: (t: { label: string; prefix: string }) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+      <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Change:</span>
+      {parts.map((p) => (
+        <button key={p.label} type="button" onClick={() => onPick(p)} className="rounded-full px-2.5 py-0.5 text-[11.5px] hover:underline underline-offset-2" style={{ border: '1px solid var(--line)', color: 'var(--fg-2)' }}>{p.label}</button>
+      ))}
+    </div>
+  )
+}
 
 // Moving a post to another page: Claude rewrites it for that page's
 // readers and files it there as a draft (api/marketing/content/<id>/move).
@@ -582,7 +614,14 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
   const [revising, setRevising] = useState<'revise' | 'undo' | null>(null)
   const [reviseErr, setReviseErr] = useState('')
   const [notes, setNotes] = useState<string[]>([])
+  // What the next instruction is about: a slide or a part of the post,
+  // chosen by clicking it; none for the whole post.
+  const [target, setTarget] = useState<{ label: string; prefix: string } | null>(null)
+  const [asked, setAsked] = useState('')
+  const chat = useRef<HTMLTextAreaElement>(null)
   const [moving, setMoving] = useState(false)
+  const [saving_, setSaving_] = useState<'one' | 'all' | null>(null)
+  const [saveErr, setSaveErr] = useState('')
   const text = `${caption.trim()}\n\n${post.hashtags.join(' ')}`.trim()
   const image = `/api/marketing/content/${post.id}/image?v=${encodeURIComponent(post.updatedAt)}-${v}`
 
@@ -616,18 +655,73 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
     setRevising(undo ? 'undo' : 'revise')
     setReviseErr('')
     setNotes([])
-    const r = await fetch(`/api/marketing/content/${post.id}/revise`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(undo ? { undo: true } : { instruction: steer.trim() }) })
+    const instruction = target ? `${target.prefix}: ${steer.trim()}` : steer.trim()
+    setAsked(undo ? 'Undo the last change' : instruction)
+    const r = await fetch(`/api/marketing/content/${post.id}/revise`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(undo ? { undo: true } : { instruction }) })
     const j = await r.json().catch(() => ({}))
     setRevising(null)
+    setAsked('')
     if (!r.ok || !j?.post) {
       setReviseErr(j?.error || 'The post could not be revised.')
       return
     }
     take(j.post as Post)
     setNotes(Array.isArray(j.notes) ? j.notes : [])
-    if (!undo) setSteer('')
+    if (!undo) {
+      setSteer('')
+      setTarget(null)
+    }
     setV((n) => n + 1)
     onChanged()
+  }
+  // Point the chat at a slide or a part of the post, ready to type.
+  function aim(t: { label: string; prefix: string } | null) {
+    setTarget(t)
+    setTimeout(() => {
+      chat.current?.focus()
+      chat.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }, 0)
+  }
+  const here = carousel ? { label: `${slideNames[slide] ?? 'Slide'} · slide ${slide + 1}`, prefix: `On slide ${slide + 1} (${slideNames[slide] ?? 'slide'})` } : { label: 'The image', prefix: 'On the image' }
+  // The parts that can be pointed at on what is in view.
+  const parts: { label: string; prefix: string }[] = [
+    ...(carousel
+      ? [...(SLIDE_FIELDS[slides[slide]?.kind ?? ''] ?? []).map((f) => f.label), ...(slides[slide]?.kind === 'data' ? ['Figures'] : [])].map((l) => ({ label: l, prefix: `${here.prefix}, the ${l.toLowerCase()}` }))
+      : ['Kicker', 'Headline', 'Subline'].map((l) => ({ label: l, prefix: `On the image, the ${l.toLowerCase()}` }))),
+    { label: 'Caption', prefix: 'In the caption' },
+    { label: 'Hashtags', prefix: 'In the hashtags' },
+  ]
+  // The images saved as PNG files, named here so the name always ends in
+  // .png and the file opens anywhere.
+  async function saveImages(slides: (number | null)[]) {
+    setSaveErr('')
+    for (const n of slides) {
+      const r = await fetch(n === null ? image : `${image}&slide=${n + 1}`, { cache: 'no-store' })
+      const blob = await r.blob()
+      if (!r.ok || blob.type !== 'image/png') {
+        setSaveErr('The image could not be drawn just now. Try again.')
+        return
+      }
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = pngName(post, n === null ? null : { n: n + 1, of: slideCount, name: slideNames[n] })
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+      // A moment between files, so the browser takes each one.
+      if (slides.length > 1) await new Promise((done) => setTimeout(done, 400))
+    }
+  }
+  async function saveOne(n: number | null) {
+    setSaving_('one')
+    await saveImages([n]).catch(() => setSaveErr('The image could not be saved. Try again.'))
+    setSaving_(null)
+  }
+  async function saveAll() {
+    setSaving_('all')
+    await saveImages(Array.from({ length: slideCount }, (_, i) => i)).catch(() => setSaveErr('The images could not be saved. Try again.'))
+    setSaving_(null)
   }
   async function copy() {
     try {
@@ -664,31 +758,46 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
         {/* The image, or the carousel's slides */}
         {carousel ? (
           <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`${image}&slide=${slide + 1}`} alt={`Slide ${slide + 1} of ${slideCount}`} width={1080} height={1350} className="w-full h-auto block" style={{ aspectRatio: '1080 / 1350', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
+            <button type="button" onClick={() => aim(here)} className="group relative block w-full p-0 border-0 bg-transparent cursor-pointer" title="Click to ask Claude to change something on this slide">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`${image}&slide=${slide + 1}`} alt={`Slide ${slide + 1} of ${slideCount}`} width={1080} height={1350} className="w-full h-auto block" style={{ aspectRatio: '1080 / 1350', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
+              <ClickHint />
+            </button>
             <div className="flex items-center gap-2 mt-3">
               <button type="button" className="ws-btn ws-btn-sm" disabled={slide === 0} onClick={() => setSlide((n) => n - 1)} aria-label="Previous slide"><ChevronLeft className="w-3.5 h-3.5" /></button>
               <span className="text-[12.5px] tabular flex-1 text-center" style={{ color: 'var(--fg-3)' }}>{`${slideNames[slide] ?? ''} · ${slide + 1} of ${slideCount}`}</span>
               <button type="button" className="ws-btn ws-btn-sm" disabled={slide >= slideCount - 1} onClick={() => setSlide((n) => n + 1)} aria-label="Next slide"><ChevronRight className="w-3.5 h-3.5" /></button>
             </div>
+            <PartChips parts={parts} onPick={aim} />
             <StyleBar post={post} onChanged={() => { setSlide(0); onChanged() }} />
             <div className="flex items-center gap-2 mt-2">
-              <a href={`/api/marketing/content/${post.id}/carousel?format=png`} className="ws-btn ws-btn-primary ws-btn-sm flex-1 justify-center" title="Every slide as a 1080 × 1350 PNG, in one zip, to upload as the images of a post yourself"><Download className="w-3.5 h-3.5" /> Download images</a>
-              <a href={`/api/marketing/content/${post.id}/carousel`} className="ws-btn ws-btn-sm" title="Every slide as one PDF: what LinkedIn's Add a document takes as a carousel"><FileText className="w-3.5 h-3.5" /> PDF</a>
-              <a href={`${image}&slide=${slide + 1}&download=1`} className="ws-btn ws-btn-sm" title="This slide on its own, as a PNG"><Download className="w-3.5 h-3.5" /></a>
+              <button type="button" onClick={saveAll} disabled={saving_ !== null} className="ws-btn ws-btn-primary ws-btn-sm flex-1 justify-center" title="Every slide as its own 1080 × 1350 PNG image">
+                {saving_ === 'all' ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving {slideCount} images…</> : <><Download className="w-3.5 h-3.5" /> Download all {slideCount} images</>}
+              </button>
+              <button type="button" onClick={() => saveOne(slide)} disabled={saving_ !== null} className="ws-btn ws-btn-sm" title="This slide on its own, as a PNG image">
+                {saving_ === 'one' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} This slide
+              </button>
             </div>
+            {saveErr && <p className="text-[12px] mt-2" style={{ color: 'var(--bad)' }}>{saveErr}</p>}
             {post.source?.dropped?.length ? (
               <p className="text-[11.5px] mt-2" style={{ color: 'var(--fg-4)' }}>{`Left out, as not in the briefing word for word: ${post.source.dropped.join('; ')}.`}</p>
             ) : null}
           </div>
         ) : (
           <div className="p-4" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--line)' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={image} alt="" width={1080} height={1080} className="w-full h-auto block" style={{ aspectRatio: '1 / 1', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
+            <button type="button" onClick={() => aim(here)} className="group relative block w-full p-0 border-0 bg-transparent cursor-pointer" title="Click to ask Claude to change something on the image">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={image} alt="" width={1080} height={1080} className="w-full h-auto block" style={{ aspectRatio: '1 / 1', background: styleOf(post.source) === 'light' ? '#FFFFFF' : '#0A0F1D' }} />
+              <ClickHint />
+            </button>
+            <PartChips parts={parts} onPick={aim} />
             <StyleBar post={post} onChanged={onChanged} />
             <div className="flex items-center gap-2 mt-2">
-              <a href={`${image}&download=1`} className="ws-btn ws-btn-sm flex-1 justify-center" title="1080 × 1080 PNG"><Download className="w-3.5 h-3.5" /> Save the image</a>
+              <button type="button" onClick={() => saveOne(null)} disabled={saving_ !== null} className="ws-btn ws-btn-sm flex-1 justify-center" title="1080 × 1080 PNG image">
+                {saving_ === 'one' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Save the image
+              </button>
             </div>
+            {saveErr && <p className="text-[12px] mt-2" style={{ color: 'var(--bad)' }}>{saveErr}</p>}
           </div>
         )}
 
@@ -727,36 +836,54 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
           <textarea className="ws-input" rows={7} value={caption} onChange={(e) => setCaption(e.target.value)} aria-label="Caption" style={{ resize: 'vertical', lineHeight: 1.5 }} />
           <p className="text-[12.5px] break-words" style={{ color: 'var(--accent-ink)' }}>{post.hashtags.join(' ')}</p>
 
-          {/* Revise with Claude: the team's instruction, the post rewritten and drawn again. */}
+          {/* Ask Claude: the team's instructions and what came of them, as a thread; the post is rewritten and drawn again. */}
           <div className="flex flex-col gap-2 rounded-md p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
-            <label htmlFor={`steer-${post.id}`} className="text-[12.5px] font-medium flex items-center gap-1.5" style={{ color: 'var(--fg-2)' }}><Sparkles className="w-3.5 h-3.5" /> Revise with Claude</label>
+            <span className="text-[12.5px] font-medium flex items-center gap-1.5" style={{ color: 'var(--fg-2)' }}><MessageSquare className="w-3.5 h-3.5" /> Ask Claude to change this post</span>
+            {(post.source?.steers ?? []).slice(-6).map((x, i) => (
+              <div key={`${x.at}-${i}`} className="flex flex-col gap-1">
+                <p className="self-end max-w-[85%] rounded-lg px-3 py-1.5 text-[12.5px]" style={{ background: 'var(--accent-soft)', color: 'var(--fg)' }}>{x.text}</p>
+                <p className="self-start max-w-[85%] rounded-lg px-3 py-1.5 text-[12.5px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--fg-2)' }}>
+                  {x.changed === undefined ? 'Done.' : x.changed.length ? `Changed ${x.changed.join(', ')}.` : 'Nothing needed changing.'}
+                  {x.notes?.length ? <span style={{ color: 'var(--fg-4)' }}>{` Note: ${x.notes.join('; ')}.`}</span> : null}
+                </p>
+              </div>
+            ))}
+            {revising && (
+              <div className="flex flex-col gap-1">
+                <p className="self-end max-w-[85%] rounded-lg px-3 py-1.5 text-[12.5px]" style={{ background: 'var(--accent-soft)', color: 'var(--fg)' }}>{asked}</p>
+                <p className="self-start rounded-lg px-3 py-1.5 text-[12.5px] flex items-center gap-1.5" style={{ border: '1px solid var(--line)', color: 'var(--fg-3)' }}><RefreshCw className="w-3 h-3 animate-spin" /> {revising === 'undo' ? 'Putting it back…' : 'Rewriting and redrawing…'}</p>
+              </div>
+            )}
+            {target && (
+              <span className="self-start inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px]" style={{ background: 'var(--surface-3)', border: '1px solid var(--line)', color: 'var(--fg-2)' }}>
+                <MousePointerClick className="w-3 h-3" /> {target.label}
+                <button type="button" onClick={() => setTarget(null)} aria-label="Change the whole post instead" className="ml-0.5" style={{ color: 'var(--fg-4)' }}>×</button>
+              </span>
+            )}
             <textarea
-              id={`steer-${post.id}`}
+              ref={chat}
               className="ws-input"
               rows={2}
               value={steer}
               onChange={(e) => setSteer(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) revise() }}
-              placeholder={carousel ? 'What to change, e.g. "End on what NHS buyers should check before they buy" or "Lead with the 461 trials"' : 'What to change, e.g. "Mention that early-bird passes close on 30 November" or "Make the headline about the NHS"'}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); revise() } }}
+              placeholder={target ? `What should change on ${target.label.toLowerCase()}?` : carousel ? 'Click a slide or a part above, or just say what to change, e.g. "End on what NHS buyers should check before they buy"' : 'Click the image or a part above, or just say what to change, e.g. "Mention that early-bird passes close on 30 November"'}
               disabled={revising !== null}
               style={{ resize: 'vertical', lineHeight: 1.45 }}
+              aria-label="What to change"
             />
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => revise()} disabled={!steer.trim() || revising !== null} className="ws-btn ws-btn-primary ws-btn-sm">
-                {revising === 'revise' ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Revising…</> : <><Sparkles className="w-3.5 h-3.5" /> Revise</>}
+                <Sparkles className="w-3.5 h-3.5" /> Change it
               </button>
               {post.source?.before ? (
-                <button type="button" onClick={() => revise(true)} disabled={revising !== null} className="ws-btn ws-btn-ghost ws-btn-sm" title="Back to the words before the last revision">
-                  <Undo2 className="w-3.5 h-3.5" /> {revising === 'undo' ? 'Undoing…' : 'Undo last revision'}
+                <button type="button" onClick={() => revise(true)} disabled={revising !== null} className="ws-btn ws-btn-ghost ws-btn-sm" title="Back to the words before the last change">
+                  <Undo2 className="w-3.5 h-3.5" /> Undo last change
                 </button>
               ) : null}
-              <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Facts you give here are used as written; everything else stays true to the source{carousel ? ', and figures are checked against the briefing' : ''}.</span>
+              <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Enter to send. Facts you give are used as written; everything else stays true to the source{carousel ? ', and figures are checked against the briefing' : ''}.</span>
             </div>
             {reviseErr && <p className="text-[12.5px]" style={{ color: 'var(--bad)' }}>{reviseErr}</p>}
-            {notes.length > 0 && <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{`Revised. Note: ${notes.join('; ')}.`}</p>}
-            {post.source?.steers?.length ? (
-              <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }} title={post.source.steers.map((x) => x.text).join('\n')}>{`Last instruction: "${post.source.steers[post.source.steers.length - 1].text}"`}</p>
-            ) : null}
           </div>
           {post.link && <p className="text-[12px] truncate" style={{ color: 'var(--fg-4)' }}>Points to {post.link}</p>}
 
