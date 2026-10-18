@@ -745,7 +745,7 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
 export interface Revision { post: ContentPost; notes: string[] }
 
 type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[] }
-type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: { text: string; at: string }[] } & Record<string, unknown> }
+export type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: { text: string; at: string }[] } & Record<string, unknown> }
 
 const snapshot = (p: Revisable): Snapshot => ({
   kicker: p.kicker,
@@ -775,7 +775,7 @@ function draftOf(p: Revisable): CarouselDraft {
   }
 }
 
-async function readPost(id: string): Promise<Revisable> {
+export async function readPost(id: string): Promise<Revisable> {
   const { data, error } = await supabase.from('marketing_content').select('*').eq('id', id).maybeSingle()
   if (error) throw error
   if (!data) throw new ContentError('No such post.', 404)
@@ -805,16 +805,20 @@ export function mergeSlides(old: Slide[], checked: ReturnType<typeof checkSlides
   return [...kept, ...added].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))
 }
 
-export async function revisePost(id: string, instruction: string): Promise<Revision> {
-  const steer = instruction.trim()
-  if (!steer) throw new ContentError('Say what to change in the post.', 400)
-  const post = await readPost(id)
-  const { photo: _p, photos: _ps, image: _i, logo: _l, style: _s, before: _b, steers: _st, linkedin: _li, slides: _sl, dropped: _d, by: _by, ...material } = post.source
+// A post's words (and slides) rewritten by an instruction, held to its
+// material and checked as when it was written; with `to`, rewritten for
+// another page, ending on that page's link.
+export async function rewritePost(post: Revisable, steer: string, to?: { page: string; link: string | null; facts: Record<string, unknown> }): Promise<{ patch: Record<string, unknown>; notes: string[] }> {
+  const page = to ? to.page : post.edition
+  const link = to ? to.link : post.link
+  const { photo: _p, photos: _ps, image: _i, logo: _l, style: _s, before: _b, steers: _st, linkedin: _li, slides: _sl, dropped: _d, by: _by, movedFrom: _m, ...held } = post.source
+  // On another page, that page's own site, city and date.
+  const material: Record<string, unknown> = { ...held, ...(to?.facts ?? {}) }
   const carousel = Array.isArray(post.source.slides) && post.source.slides.length > 0
   const ask = (current: unknown, more: string[]) =>
     [
-      `Page the post goes out from: ${post.edition}`,
-      post.link ? `Link to end the caption with: ${post.link}` : '',
+      `Page the post goes out from: ${page}`,
+      link ? `Link to end the caption with: ${link}` : '',
       `Post type: ${post.kind}`,
       ...more,
       `The post as it stands:\n${JSON.stringify(current, null, 2)}`,
@@ -847,7 +851,7 @@ export async function revisePost(id: string, instruction: string): Promise<Revis
       title: String(material.title ?? post.headline),
       publishedAt: (material.published_at as string | undefined) ?? null,
       fallbackDate: (material.date as string | undefined) ?? null,
-      link: post.link ?? '',
+      link: link ?? '',
     })
     const slides = mergeSlides(post.source.slides ?? [], checked, d, post.source.pages === 'two-page', notes)
     notes.push(...checked.dropped)
@@ -876,6 +880,14 @@ export async function revisePost(id: string, instruction: string): Promise<Revis
     patch = { kicker: tidy(d.kicker), headline: tidy(d.headline), subline: tidy(d.subline), caption: tidy(d.caption) || post.caption, hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags }
   }
 
+  return { patch, notes }
+}
+
+export async function revisePost(id: string, instruction: string): Promise<Revision> {
+  const steer = instruction.trim()
+  if (!steer) throw new ContentError('Say what to change in the post.', 400)
+  const post = await readPost(id)
+  const { patch, notes } = await rewritePost(post, steer)
   const source = (patch.source as Record<string, unknown> | undefined) ?? post.source
   const row = {
     ...patch,
