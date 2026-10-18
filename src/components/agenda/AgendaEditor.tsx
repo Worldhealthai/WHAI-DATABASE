@@ -85,6 +85,9 @@ function NeedsBadge({ session }: { session: Session }) {
 
 // ── Speaker row ─────────────────────────────────────────────────────────────
 
+// Name · Role · Organisation · Seat · Option · Status · bench · remove
+const SLOT_GRID = 'grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(0,1.25fr)_104px_88px_96px_28px_28px] gap-2 items-center'
+
 function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; lineup: SpeakerRow[]; onChange: (s: SpeakerSlot) => void; onRemove: () => void }) {
   const onLineup = Boolean(slot.lineupRef) || lineup.some((l) => l.name.trim().toLowerCase() === slot.name.trim().toLowerCase())
   // Picking a name from the admin line-up fills the rest in and confirms them.
@@ -94,23 +97,44 @@ function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; line
     else onChange({ ...slot, name, lineupRef: null })
   }
   return (
-    <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.25fr)_minmax(0,1.35fr)_88px_96px_32px] gap-2 items-center">
+    <div className={SLOT_GRID}>
       <span className="relative">
         <input list="agenda-lineup" className="ws-input h-8 text-[13px] w-full pr-6" value={slot.name} placeholder="Name" onChange={(e) => onChange({ ...slot, name: e.target.value })} onBlur={(e) => pickFromLineup(e.target.value)} />
         {onLineup && <Check className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--ok)' }} aria-label="On the admin panel line-up" />}
       </span>
       <input className="ws-input h-8 text-[13px] w-full" value={slot.role} placeholder="Role" onChange={(e) => onChange({ ...slot, role: e.target.value })} />
       <input className="ws-input h-8 text-[13px] w-full" value={slot.org} placeholder="Organisation" onChange={(e) => onChange({ ...slot, org: e.target.value })} />
+      <select
+        className="ws-input h-8 text-[12.5px] py-0 pr-6"
+        value={slot.moderator ? 'moderator' : 'speaker'}
+        onChange={(e) => onChange({ ...slot, moderator: e.target.value === 'moderator' })}
+        aria-label="Seat"
+        title="Which seat they take"
+      >
+        <option value="speaker">Speaker</option>
+        <option value="moderator">Moderator</option>
+      </select>
+      <select
+        className="ws-input h-8 text-[12.5px] py-0 pr-6"
+        value={slot.option ?? ''}
+        onChange={(e) => onChange({ ...slot, option: e.target.value ? Number(e.target.value) : null })}
+        aria-label="Panel preference"
+        title="When a speaker picked several panels: is this session their option 1, 2 or 3?"
+      >
+        <option value="">—</option>
+        <option value="1">Option 1</option>
+        <option value="2">Option 2</option>
+        <option value="3">Option 3</option>
+      </select>
+      <StatusToggle status={slot.status} onChange={(status) => onChange({ ...slot, status })} />
       <button
         type="button"
-        onClick={() => onChange({ ...slot, moderator: !slot.moderator })}
-        className="h-8 rounded-md text-[12px] font-medium transition-colors"
-        style={slot.moderator ? { background: 'var(--accent-soft)', color: 'var(--accent-ink)', border: '1px solid var(--accent-line)' } : { background: 'var(--surface-2)', color: 'var(--fg-4)', border: '1px solid var(--line)' }}
-        title="Moderator / chair"
+        className="ws-btn ws-btn-ghost ws-btn-sm px-0 justify-center"
+        onClick={() => onChange({ ...slot, backup: !slot.backup })}
+        title={slot.backup ? 'Promote onto the panel' : 'Move to backup panellists'}
       >
-        {slot.moderator ? 'Moderator' : 'Speaker'}
+        {slot.backup ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
       </button>
-      <StatusToggle status={slot.status} onChange={(status) => onChange({ ...slot, status })} />
       <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm px-0 justify-center" onClick={onRemove} title="Remove"><X className="w-3.5 h-3.5" /></button>
     </div>
   )
@@ -139,19 +163,34 @@ function SessionView({ session: s }: { session: Session }) {
             {s.points.map((q, i) => <li key={i} className="text-[13px]" style={{ color: 'var(--fg-3)' }}>{q}</li>)}
           </ul>
         )}
-        {!isBreak && s.speakers.length > 0 && (
+        {!isBreak && s.speakers.some((sp) => !sp.backup) && (
           <ul className="mt-3 space-y-1.5">
-            {s.speakers.map((sp) => (
+            {s.speakers.filter((sp) => !sp.backup).map((sp) => (
               <li key={sp.id} className="flex items-start gap-2.5">
                 <StatusPill status={sp.status} />
                 <span className="text-[13.5px] min-w-0" style={{ color: 'var(--fg)' }}>
                   <span className="font-medium">{sp.name || 'Name TBC'}</span>
                   {(sp.role || sp.org) && <span style={{ color: 'var(--fg-3)' }}> · {[sp.role, sp.org].filter(Boolean).join(', ')}</span>}
                   {sp.moderator && <span className="ml-1.5 text-[11px] font-semibold" style={{ color: 'var(--accent-ink)' }}>MODERATOR</span>}
+                  {Boolean(sp.option) && <span className="ml-1.5 text-[11px] font-semibold" style={{ color: 'var(--fg-4)' }}>OPTION {sp.option}</span>}
                 </span>
               </li>
             ))}
           </ul>
+        )}
+        {!isBreak && s.speakers.some((sp) => sp.backup && sp.name.trim()) && (
+          <div className="mt-2.5">
+            <p className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: 'var(--fg-4)' }}>Backup panellists</p>
+            <ul className="mt-1 space-y-1">
+              {s.speakers.filter((sp) => sp.backup && sp.name.trim()).map((sp) => (
+                <li key={sp.id} className="text-[13px]" style={{ color: 'var(--fg-3)' }}>
+                  {sp.name}
+                  {(sp.role || sp.org) && ` · ${[sp.role, sp.org].filter(Boolean).join(', ')}`}
+                  {Boolean(sp.option) && ` · option ${sp.option}`}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {isBreak && s.notes && <p className="text-[13px] mt-1" style={{ color: 'var(--fg-3)' }}>{s.notes}</p>}
       </div>
@@ -168,6 +207,10 @@ function SessionEdit({
   const setSlot = (i: number, slot: SpeakerSlot) => set({ speakers: s.speakers.map((x, k) => (k === i ? slot : x)) })
   const setPoint = (i: number, v: string) => set({ points: s.points.map((x, k) => (k === i ? v : x)) })
   const hasTalk = s.type === 'keynote' || s.type === 'spotlight' || Boolean(s.talkTitle)
+  // Panel seats and the bench are edited as two lists, but stay one array —
+  // the original index keeps every row pointing at its own slot.
+  const mains = s.speakers.map((sp, i) => ({ sp, i })).filter(({ sp }) => !sp.backup)
+  const backups = s.speakers.map((sp, i) => ({ sp, i })).filter(({ sp }) => sp.backup)
 
   return (
     <div className="ws-card" style={isBreak ? { background: 'var(--surface-2)' } : undefined}>
@@ -245,17 +288,38 @@ function SessionEdit({
               </div>
             </div>
             <div className="grid gap-1.5">
-              {s.speakers.length > 0 && (
-                <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.25fr)_minmax(0,1.35fr)_88px_96px_32px] gap-2 text-[11px] uppercase tracking-wide font-semibold px-0.5" style={{ color: 'var(--fg-4)' }}>
-                  <span>Name</span><span>Role</span><span>Organisation</span><span>Seat</span><span>Status</span><span />
+              {mains.length > 0 && (
+                <div className={cn(SLOT_GRID, 'text-[11px] uppercase tracking-wide font-semibold px-0.5')} style={{ color: 'var(--fg-4)' }}>
+                  <span>Name</span><span>Role</span><span>Organisation</span><span>Seat</span><span>Option</span><span>Status</span><span /><span />
                 </div>
               )}
-              {s.speakers.map((sp, i) => (
+              {mains.map(({ sp, i }) => (
                 <SlotRow key={sp.id} slot={sp} lineup={lineup} onChange={(v) => setSlot(i, v)} onRemove={() => set({ speakers: s.speakers.filter((_, k) => k !== i) })} />
               ))}
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <button type="button" className="ws-btn ws-btn-sm" onClick={() => set({ speakers: [...s.speakers, { ...emptySlot(), moderator: sessionNeeds(s).moderators > 0 }] })}><UserPlus className="w-3.5 h-3.5" /> Add {sessionNeeds(s).moderators > 0 ? 'moderator' : 'speaker'}</button>
+              <button type="button" className="ws-btn ws-btn-sm" onClick={() => set({ speakers: [...s.speakers, { ...emptySlot(), moderator: false }] })}><UserPlus className="w-3.5 h-3.5" /> Add speaker</button>
+              {seats.moderators > 0 && (
+                <button type="button" className="ws-btn ws-btn-sm" onClick={() => set({ speakers: [...s.speakers, { ...emptySlot(), moderator: true }] })}><UserPlus className="w-3.5 h-3.5" /> Add moderator</button>
+              )}
+            </div>
+
+            {/* The bench: spare panellists, promoted nearer the event. They
+                never fill a seat or count toward what the session still needs. */}
+            <div className="mt-4">
+              <p className="ws-label">Backup panellists</p>
+              {backups.length === 0 ? (
+                <p className="text-[12.5px]" style={{ color: 'var(--fg-4)' }}>No backups yet. Keep spare panellists here and promote them (↑) nearer the event.</p>
+              ) : (
+                <div className="grid gap-1.5">
+                  {backups.map(({ sp, i }) => (
+                    <SlotRow key={sp.id} slot={sp} lineup={lineup} onChange={(v) => setSlot(i, v)} onRemove={() => set({ speakers: s.speakers.filter((_, k) => k !== i) })} />
+                  ))}
+                </div>
+              )}
+              <div className="mt-2">
+                <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => set({ speakers: [...s.speakers, { ...emptySlot(), backup: true }] })}><UserPlus className="w-3.5 h-3.5" /> Add backup</button>
+              </div>
             </div>
           </div>
         </div>

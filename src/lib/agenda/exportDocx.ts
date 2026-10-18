@@ -55,7 +55,8 @@ function classicSession(s: Session): Paragraph[] {
     out.push(new Paragraph({ numbering: { reference: 'questions', level: 0 }, children: [new TextRun({ text: q, font: CALIBRI, size: 22 })] }))
   }
   // Only named people are written; empty seats become the TBC line below.
-  for (const sp of s.speakers.filter((x) => x.name.trim())) {
+  // Backup panellists are internal planning and never go out in the document.
+  for (const sp of s.speakers.filter((x) => x.name.trim() && !x.backup)) {
     out.push(new Paragraph({ numbering: { reference: 'speakers', level: 0 }, children: classicSpeakerRuns(sp) }))
   }
   const need = sessionNeeds(s)
@@ -136,7 +137,7 @@ function designedSession(s: Session): TableRow {
     for (const q of s.points) body.push(new Paragraph({ numbering: { reference: 'designed-points', level: 0 }, spacing: { after: 20 }, children: [new TextRun({ text: q, font: CALIBRI, size: 19, color: MUTED })] }))
     if (s.speakers.length) {
       body.push(new Paragraph({ spacing: { before: 100, after: 20 }, children: [new TextRun({ text: 'SPEAKERS', font: CALIBRI, size: 15, bold: true, color: MUTED })] }))
-      for (const sp of s.speakers.filter((x) => x.name.trim())) body.push(designedSpeaker(sp))
+      for (const sp of s.speakers.filter((x) => x.name.trim() && !x.backup)) body.push(designedSpeaker(sp))
     }
     const due = needsLabel(sessionNeeds(s))
     if (due) body.push(new Paragraph({ spacing: { before: 60 }, children: [new TextRun({ text: `Still needed: ${due}`, font: CALIBRI, size: 18, bold: true, color: WARN })] }))
