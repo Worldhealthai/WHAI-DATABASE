@@ -11,13 +11,13 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Bookmark, CaseUpper, Check, ChevronDown, ChevronLeft, ChevronRight, Columns2, Copy, Download, Droplet, ExternalLink, FileText, Film, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Milestone, Moon, Newspaper, PenLine, RefreshCw, Send, Shuffle, Sparkles, Square, SquareSplitVertical, StickyNote, Sun, Target, Trash2, Triangle, Undo2, Waves } from 'lucide-react'
+import { ArrowRightLeft, BarChart3, Bookmark, CaseUpper, Check, ChevronDown, ChevronLeft, ChevronRight, Columns2, Copy, Download, Droplet, ExternalLink, FileText, Film, Frame, Image as ImageIcon, LayoutGrid, Layers, Linkedin, Milestone, Moon, Newspaper, PenLine, RefreshCw, Send, Shuffle, Sparkles, Square, SquareSplitVertical, StickyNote, Sun, Target, Trash2, Triangle, Undo2, Waves } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState, Field, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { LogPostModal, Notice, Tone, useEdition } from './shared'
 import { LookGallery } from './LookGallery'
-import { CARD_STYLES, brandFor, photosFor, styleOf, stylesFor, type BrandKey, type CardStyle } from '@/lib/contentBrand'
+import { BRANDS, CARD_STYLES, brandFor, photosFor, styleOf, stylesFor, type BrandKey, type CardStyle } from '@/lib/contentBrand'
 
 type Kind = 'insight' | 'session' | 'speaker' | 'theme' | 'countdown' | 'sponsor' | 'platform' | 'signal' | 'event'
 type Pick = 'auto' | Kind
@@ -193,6 +193,8 @@ export function ContentStudio() {
   const [forDate, setForDate] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // A post just moved to another page, said once at the top of the list.
+  const [moved, setMoved] = useState('')
   const [view, setView] = useState<'all' | 'draft' | 'posted'>('all')
   // A single post, or a LinkedIn carousel from an Insights briefing.
   const [format, setFormat] = useState<'single' | 'carousel'>('single')
@@ -337,6 +339,14 @@ export function ContentStudio() {
             />
           </div>
 
+          {moved && (
+            <div className="ws-card px-4 py-3 mb-3 flex items-start gap-3 text-[13px]" style={{ color: 'var(--fg-2)' }}>
+              <ArrowRightLeft className="w-4 h-4 mt-0.5 shrink-0" style={{ color: 'var(--accent-ink)' }} />
+              <span className="flex-1">{moved}</span>
+              <button type="button" onClick={() => setMoved('')} className="ws-btn ws-btn-ghost ws-btn-sm">Dismiss</button>
+            </div>
+          )}
+
           {q.isLoading ? (
             <p className="text-[13px]" style={{ color: 'var(--fg-3)' }}>Loading…</p>
           ) : shown.length === 0 ? (
@@ -350,6 +360,7 @@ export function ContentStudio() {
                   key={p.id}
                   post={p}
                   onChanged={refresh}
+                  onMoved={setMoved}
                   onRegenerate={() => generate({ kind: p.kind, brief: p.brief ?? '', forDate: p.forDate ?? '', format: p.source?.format === 'carousel' ? 'carousel' : 'single', ref: p.source?.format === 'carousel' ? p.ref : null, style: styleOf(p.source) })}
                   busy={busy}
                 />
@@ -488,7 +499,56 @@ function SlideEditor({ slide, name, onChange }: { slide: SlideWords; name: strin
   )
 }
 
-function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChanged: () => void; onRegenerate: () => void; busy: boolean }) {
+const PAGES: BrandKey[] = ['pharma', 'health', 'nexus']
+
+// Moving a post to another page: Claude rewrites it for that page's
+// readers and files it there as a draft (api/marketing/content/<id>/move).
+function MovePanel({ post, onDone, onClose }: { post: Post; onDone: (message: string, removed: boolean) => void; onClose: () => void }) {
+  const from = brandFor(post.series)
+  const pages = PAGES.filter((b) => b !== from)
+  const [to, setTo] = useState<BrandKey>(pages[0])
+  const [keep, setKeep] = useState(post.status === 'posted')
+  const [note, setNote] = useState('')
+  const [moving, setMoving] = useState(false)
+  const [err, setErr] = useState('')
+  async function move() {
+    setMoving(true)
+    setErr('')
+    const r = await fetch(`/api/marketing/content/${post.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, keep, note: note.trim() || null }) })
+    const j = await r.json().catch(() => ({}))
+    setMoving(false)
+    if (!r.ok) {
+      setErr(j?.error || 'The post could not be moved.')
+      return
+    }
+    const notes: string[] = Array.isArray(j.notes) ? j.notes : []
+    onDone(
+      `"${j.post?.headline || post.headline}" is now a draft on ${j.edition}, rewritten for ${BRANDS[to].name}${j.removed ? ', and it has gone from here' : ', and the original is still here'}. Switch to ${j.edition} to see it.${notes.length ? ` Note: ${notes.join('; ')}.` : ''}`,
+      Boolean(j.removed),
+    )
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-md p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+      <span className="text-[12.5px] font-medium flex items-center gap-1.5" style={{ color: 'var(--fg-2)' }}><ArrowRightLeft className="w-3.5 h-3.5" /> Move to another page</span>
+      <Segmented size="sm" value={to} onChange={setTo} options={pages.map((b) => ({ value: b, label: BRANDS[b].name }))} />
+      <input className="ws-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={`Anything to steer it for ${BRANDS[to].name} (optional), e.g. "Lead with what it means for pharma R&D"`} aria-label="Steer for the new page" disabled={moving} />
+      <label className="flex items-center gap-2 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
+        <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} disabled={moving || post.status === 'posted'} />
+        {post.status === 'posted' ? 'This one was posted, so it stays here too' : `Keep it on ${BRANDS[from].name} as well`}
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={move} disabled={moving} className="ws-btn ws-btn-primary ws-btn-sm">
+          {moving ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Rewriting for {BRANDS[to].name}…</> : <><ArrowRightLeft className="w-3.5 h-3.5" /> {keep ? 'Copy' : 'Move'} to {BRANDS[to].name}</>}
+        </button>
+        <button type="button" onClick={onClose} disabled={moving} className="ws-btn ws-btn-ghost ws-btn-sm">Cancel</button>
+        <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Rewritten for that page’s readers from the same source, filed under its next edition as a draft.</span>
+      </div>
+      {err && <p className="text-[12.5px]" style={{ color: 'var(--bad)' }}>{err}</p>}
+    </div>
+  )
+}
+
+function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post; onChanged: () => void; onMoved: (message: string) => void; onRegenerate: () => void; busy: boolean }) {
   const [caption, setCaption] = useState(post.caption)
   const [headline, setHeadline] = useState(post.headline)
   const [subline, setSubline] = useState(post.subline)
@@ -522,6 +582,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   const [revising, setRevising] = useState<'revise' | 'undo' | null>(null)
   const [reviseErr, setReviseErr] = useState('')
   const [notes, setNotes] = useState<string[]>([])
+  const [moving, setMoving] = useState(false)
   const text = `${caption.trim()}\n\n${post.hashtags.join(' ')}`.trim()
   const image = `/api/marketing/content/${post.id}/image?v=${encodeURIComponent(post.updatedAt)}-${v}`
 
@@ -640,11 +701,20 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
             <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{fmtDay(post.forDate)}</span>
             {post.postUrl && <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-[12.5px] hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>View the post</a>}
             <span className="ml-auto flex items-center gap-1">
+              <button type="button" onClick={() => setMoving((m) => !m)} className="ws-btn ws-btn-ghost ws-btn-sm" title="Rewrite it for another page (World Pharma AI, World Health AI or World Nexus Group) and move it there"><ArrowRightLeft className="w-3.5 h-3.5" /> Move</button>
               <button type="button" onClick={onRegenerate} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm" title="Write it again from the same material"><RefreshCw className={cn('w-3.5 h-3.5', busy && 'animate-spin')} /> Again</button>
               <button type="button" onClick={remove} className="ws-btn ws-btn-ghost ws-btn-sm" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
             </span>
           </div>
 
+          {moving && (
+            <MovePanel
+              post={post}
+              onClose={() => setMoving(false)}
+              onDone={(message) => { setMoving(false); onMoved(message); onChanged() }}
+            />
+          )}
+          {post.source?.movedFrom ? <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{`Moved here from ${(post.source.movedFrom as { edition?: string }).edition ?? 'another page'}.`}</p> : null}
           {carousel && <Tone tone="muted">{post.source?.pages === 'two-page' ? 'Two-page post' : 'Carousel'}</Tone>}
           {carousel && slides[slide] && (
             <SlideEditor slide={slides[slide]} name={`${slideNames[slide] ?? 'Slide'} · slide ${slide + 1}`} onChange={(next) => setSlides((all) => all.map((x, i) => (i === slide ? next : x)))} />
