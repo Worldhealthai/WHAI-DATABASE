@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import JSZip from 'jszip'
 import { supabase } from '@/lib/supabase'
+import { fitText } from '@/lib/contentText'
 import { attachment, renderCarouselPdf, renderSlidePngs, slideFileName, slidesOf, type CarouselPost } from '@/lib/contentCarousel'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const post = data as CarouselPost & { headline: string; edition: string }
   const slides = slidesOf(post)
   if (!slides.length) return NextResponse.json({ error: 'This post is not a carousel.' }, { status: 400 })
-  const title = `${post.edition} - ${post.headline}`.slice(0, 120)
+  const title = fitText(`${post.edition} - ${post.headline}`, 120)
   const headers = { 'Cache-Control': 'private, no-store' }
   if (req.nextUrl.searchParams.get('format') === 'png') {
     const zip = new JSZip()

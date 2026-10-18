@@ -453,6 +453,41 @@ function StyleBar({ post, onChanged }: { post: Post; onChanged: () => void }) {
   )
 }
 
+// A slide's words as saved in the post (lib/contentCarousel's Slide).
+type SlideWords = { kind: string; points?: { figure: string; label: string }[] } & Record<string, unknown>
+
+const SLIDE_FIELDS: Record<string, { key: string; label: string; long?: boolean }[]> = {
+  news: [{ key: 'kicker', label: 'Kicker' }, { key: 'headline', label: 'Headline' }, { key: 'summary', label: 'Summary', long: true }],
+  statistic: [{ key: 'figure', label: 'Figure' }, { key: 'label', label: 'What it measures' }, { key: 'context', label: 'Context', long: true }],
+  data: [{ key: 'title', label: 'Title' }],
+  quote: [{ key: 'text', label: 'Quotation (word for word)', long: true }, { key: 'speaker', label: 'Speaker' }, { key: 'role', label: 'Role' }],
+  end: [{ key: 'headline', label: 'Closing line' }],
+}
+
+// The words on the slide in view, to correct before it goes out.
+function SlideEditor({ slide, name, onChange }: { slide: SlideWords; name: string; onChange: (next: SlideWords) => void }) {
+  const fields = SLIDE_FIELDS[slide.kind] ?? []
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{`The words on ${name}`}</span>
+      {fields.map((f) =>
+        f.long ? (
+          <textarea key={f.key} className="ws-input" rows={2} value={str(slide[f.key])} onChange={(e) => onChange({ ...slide, [f.key]: e.target.value })} placeholder={f.label} aria-label={f.label} style={{ resize: 'vertical', lineHeight: 1.45 }} />
+        ) : (
+          <input key={f.key} className="ws-input" value={str(slide[f.key])} onChange={(e) => onChange({ ...slide, [f.key]: e.target.value })} placeholder={f.label} aria-label={f.label} />
+        ),
+      )}
+      {slide.kind === 'data' && (slide.points ?? []).map((p, i) => (
+        <div key={i} className="grid grid-cols-[1fr_2fr] gap-2">
+          <input className="ws-input" value={p.figure} onChange={(e) => onChange({ ...slide, points: (slide.points ?? []).map((q, j) => (j === i ? { ...q, figure: e.target.value } : q)) })} placeholder="Figure" aria-label={`Figure ${i + 1}`} />
+          <input className="ws-input" value={p.label} onChange={(e) => onChange({ ...slide, points: (slide.points ?? []).map((q, j) => (j === i ? { ...q, label: e.target.value } : q)) })} placeholder="What it measures" aria-label={`Label ${i + 1}`} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChanged: () => void; onRegenerate: () => void; busy: boolean }) {
   const [caption, setCaption] = useState(post.caption)
   const [headline, setHeadline] = useState(post.headline)
@@ -477,7 +512,11 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   const slideNames = (post.source?.slides ?? []).map((x) => ({ news: 'The news', statistic: 'Statistic', data: 'Data', quote: 'Quote', end: 'Read more' } as Record<string, string>)[x.kind] ?? x.kind)
   const slideCount = Math.max(1, slideNames.length)
   const [slide, setSlide] = useState(0)
-  const dirty = caption !== post.caption || headline !== post.headline || subline !== post.subline || kicker !== post.kicker
+  // A carousel's words, slide by slide, as the team corrects them.
+  const [slides, setSlides] = useState<SlideWords[]>(() => ((post.source?.slides ?? []) as SlideWords[]).map((x) => ({ ...x })))
+  const slidesDirty = carousel && JSON.stringify(slides) !== JSON.stringify(post.source?.slides ?? [])
+  const dirty = caption !== post.caption || headline !== post.headline || subline !== post.subline || kicker !== post.kicker || slidesDirty
+  const words = () => ({ caption, headline, subline, kicker, ...(slidesDirty ? { slides } : {}) })
   const text = `${caption.trim()}\n\n${post.hashtags.join(' ')}`.trim()
   const image = `/api/marketing/content/${post.id}/image?v=${encodeURIComponent(post.updatedAt)}-${v}`
 
@@ -486,6 +525,11 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
     const r = await fetch(`/api/marketing/content/${post.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) })
     setSaving(false)
     if (r.ok) {
+      // The slides as saved (house style applied), so they read as unchanged.
+      if (fields.slides) {
+        const saved = ((await r.json().catch(() => ({})))?.post?.source?.slides ?? null) as SlideWords[] | null
+        if (saved) setSlides(saved.map((x) => ({ ...x })))
+      }
       setV((n) => n + 1)
       onChanged()
     }
@@ -501,7 +545,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
   // Approve and post: up on the brand's page now, then marked posted.
   async function approve() {
     if (!liPage) return
-    if (dirty && !(await patch({ caption, headline, subline, kicker }))) return
+    if (dirty && !(await patch(words()))) return
     if (!confirm(`Post this to ${liPage.name} on LinkedIn now?`)) return
     setPosting(true)
     setPostErr('')
@@ -569,6 +613,9 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
           </div>
 
           {carousel && <Tone tone="muted">{post.source?.pages === 'two-page' ? 'Two-page post' : 'Carousel'}</Tone>}
+          {carousel && slides[slide] && (
+            <SlideEditor slide={slides[slide]} name={`${slideNames[slide] ?? 'Slide'} · slide ${slide + 1}`} onChange={(next) => setSlides((all) => all.map((x, i) => (i === slide ? next : x)))} />
+          )}
           <div className={cn('grid sm:grid-cols-[1fr_2fr] gap-2', carousel && 'hidden')}>
             <input className="ws-input" value={kicker} onChange={(e) => setKicker(e.target.value)} placeholder="Kicker" aria-label="Kicker" />
             <input className="ws-input" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline" aria-label="Headline" />
@@ -580,7 +627,7 @@ function PostCard({ post, onChanged, onRegenerate, busy }: { post: Post; onChang
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {dirty ? (
-              <button type="button" onClick={() => patch({ caption, headline, subline, kicker })} disabled={saving} className="ws-btn ws-btn-primary ws-btn-sm">{saving ? 'Saving…' : 'Save changes'}</button>
+              <button type="button" onClick={() => patch(words())} disabled={saving} className="ws-btn ws-btn-primary ws-btn-sm">{saving ? 'Saving…' : 'Save changes'}</button>
             ) : (
               <button type="button" onClick={copy} className="ws-btn ws-btn-sm">{copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy caption</>}</button>
             )}

@@ -26,6 +26,7 @@ import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
 import { eventLook } from '@/lib/portals'
 import { BRANDS, brandFor, nextStyle, photosFor, type BrandKey, type CardStyle } from '@/lib/contentBrand'
 import type { Slide } from '@/lib/contentCarousel'
+import { describeOverruns, fitText, overruns, type Limit } from '@/lib/contentText'
 
 export type ContentKind = 'insight' | 'speaker' | 'session' | 'sponsor' | 'countdown' | 'theme' | 'platform' | 'signal' | 'event'
 export const EVENT_KINDS: ContentKind[] = ['insight', 'session', 'speaker', 'theme', 'countdown', 'sponsor']
@@ -326,7 +327,9 @@ Voice:
 
 The card (the image) carries: a kicker (2 to 4 words, e.g. "Panel discussion", "On the line-up", "42 days to go", "From our Insights desk", "Inside the platform"), a headline (at most 70 characters, one idea, no full stop) and a subline (at most 90 characters: the supporting fact, a name and role, a question, or the date and city). When the brief gives a figure for a number card, the headline is the label of that figure, not the figure itself. The headline is never the briefing's title restated: it is the finding, the figure, the consequence or the question, as the brief's angle asks.
 
-The caption (the post text): 70 to 140 words. The first line must stand on its own, because LinkedIn folds the rest. Short paragraphs, one blank line between them. End with one line that points to the link, as a plain verb phrase ("Book your pass:", "Read the briefing:", "See who's speaking:", "See the platform:") followed by the URL given. Then the hashtags on their own final line: 3 to 5, CamelCase, no spaces, always including the page's own tag (#WorldHealthAI, #WorldPharmaAI or #WorldNexusGroup) and, for an event, the city.`
+The caption (the post text): 70 to 140 words. The first line must stand on its own, because LinkedIn folds the rest. Short paragraphs, one blank line between them. End with one line that points to the link, as a plain verb phrase ("Book your pass:", "Read the briefing:", "See who's speaking:", "See the platform:") followed by the URL given. Then the hashtags on their own final line: 3 to 5, CamelCase, no spaces, always including the page's own tag (#WorldHealthAI, #WorldPharmaAI or #WorldNexusGroup) and, for an event, the city.
+
+Every word is checked before it goes out. Keep each field within its limit (count the characters) as a complete phrase: nothing is ever cut to fit, so a field that runs over comes back to be rewritten. Spell every word in full and correctly, and copy every figure, name and title exactly.`
 
 const SCHEMA = {
   type: 'object',
@@ -365,38 +368,76 @@ function brief(ctx: EditionContext, pick: Choice, extra: string | null, angle: s
   return lines.filter(Boolean).join('\n')
 }
 
-async function write(ctx: EditionContext, pick: Choice, extra: string | null, angle: string | null): Promise<Draft> {
+// The room each of the card's words has: a little over what the voice
+// asks for. A draft that runs over is rewritten, never cut.
+const cardLimits = (d: { kicker?: string; headline?: string; subline?: string }, at = ''): Limit[] => [
+  { field: `${at}kicker`, text: tidy(d.kicker || ''), max: 40 },
+  { field: `${at}headline`, text: tidy(d.headline || ''), max: 90 },
+  { field: `${at}subline`, text: tidy(d.subline || ''), max: 120 },
+]
+
+interface Ask { system: string; schema: Record<string, unknown>; brief: string; maxTokens: number; refused: (category: string | null) => string }
+
+// Claude's draft as JSON. When any of its words run over the room they
+// have, it goes back once with the fields named, to be rewritten whole: a
+// word or a figure is never cut to fit. Still over after that, nothing is
+// saved.
+async function draftWithin<T>(ask: Ask, limits: (d: T) => Limit[]): Promise<T> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
   if (!apiKey) throw new ContentError('ANTHROPIC_API_KEY is not set on the CRM, so nothing can be written.', 400)
   const client = new Anthropic({ apiKey })
-  // Opus 5.5 with the server-side fallback: a benign life-sciences brief can
-  // trip its safety classifiers, and the fallback re-runs it on the model
-  // Anthropic recommends for that category.
-  const res = await client.beta.messages.create({
-    model: process.env.CONTENT_MODEL?.trim() || 'claude-opus-5-5',
-    max_tokens: 8000,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    thinking: { type: 'adaptive' },
-    output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
-    system: VOICE,
-    messages: [{ role: 'user', content: brief(ctx, pick, extra, angle) }],
-  })
-  if (res.stop_reason === 'refusal') {
-    throw new ContentError(`Claude declined to write this one (${res.stop_details?.category ?? 'no category given'}). Try another post type or a different steer.`, 502)
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: ask.brief }]
+  for (let round = 0; ; round++) {
+    // Opus 5.5 with the server-side fallback: a benign life-sciences brief
+    // can trip its safety classifiers, and the fallback re-runs it on the
+    // model Anthropic recommends for that category.
+    const res = await client.beta.messages.create({
+      model: process.env.CONTENT_MODEL?.trim() || 'claude-opus-5-5',
+      max_tokens: ask.maxTokens,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema: ask.schema } },
+      system: ask.system,
+      messages,
+    })
+    if (res.stop_reason === 'refusal') throw new ContentError(ask.refused(res.stop_details?.category ?? null), 502)
+    const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
+    if (!text) throw new ContentError(`Claude answered without any text (${res.stop_reason ?? 'unknown'}).`, 502)
+    let d: T
+    try {
+      d = JSON.parse(text) as T
+    } catch {
+      throw new ContentError('Claude did not answer in the expected shape. Try again.', 502)
+    }
+    const over = overruns(limits(d))
+    if (!over.length) return d
+    if (round >= 1) throw new ContentError(`The draft's words ran over the space on the image twice, so it was not saved rather than cut short (${over.map((l) => l.field).join(', ')}). Try again.`, 502)
+    messages.push(
+      { role: 'assistant', content: text },
+      {
+        role: 'user',
+        content: `These run over the space they have on the image:\n${describeOverruns(over)}\n\nRewrite each of them as a complete phrase within its limit (count the characters). Never cut a word short or drop the end of a figure, never abbreviate a figure the text gives in full, and keep every figure and quotation exact. Return the whole JSON again, with everything else unchanged.`,
+      },
+    )
   }
-  const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
-  if (!text) throw new ContentError(`Claude answered without any text (${res.stop_reason ?? 'unknown'}).`, 502)
-  let draft: Draft
-  try {
-    draft = JSON.parse(text) as Draft
-  } catch {
-    throw new ContentError('Claude did not answer in the expected shape. Try again.', 502)
-  }
+}
+
+async function write(ctx: EditionContext, pick: Choice, extra: string | null, angle: string | null): Promise<Draft> {
+  const draft = await draftWithin<Draft>(
+    {
+      system: VOICE,
+      schema: SCHEMA,
+      brief: brief(ctx, pick, extra, angle),
+      maxTokens: 8000,
+      refused: (category) => `Claude declined to write this one (${category ?? 'no category given'}). Try another post type or a different steer.`,
+    },
+    (d) => cardLimits(d),
+  )
   return {
-    kicker: tidy(draft.kicker).slice(0, 40),
-    headline: tidy(draft.headline).slice(0, 90),
-    subline: tidy(draft.subline).slice(0, 120),
+    kicker: tidy(draft.kicker),
+    headline: tidy(draft.headline),
+    subline: tidy(draft.subline),
     caption: tidy(draft.caption),
     hashtags: (draft.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
   }
@@ -502,8 +543,8 @@ This time you are writing a LinkedIn carousel: a few portrait slides the reader 
 - statistic: the single most striking figure in the piece, as the figure itself exactly as the text gives it ("$311m", "29%", "1,451"), a label saying what it measures (at most 70 characters) and one line of context (at most 140 characters).
 - data: two to four further figures from the piece under a short title (at most 60 characters), each a figure exactly as the text gives it and a label (at most 60 characters). Different figures from the statistic slide.
 - quote: words a named person or organisation said, copied exactly, character for character, from a passage the text puts in quotation marks, with the speaker's name and role as the text gives them. Choose the most telling line, at most 220 characters; you may stop at the end of a sentence but never change a word. If the text quotes nobody, return empty strings.
-- end: a closing headline (at most 70 characters) that gives the reader a reason to read the full briefing.
-Every figure must appear in the text exactly. If the piece has too few figures for a slide, return empty strings (and an empty points list) for it. Never invent or round a figure, never paraphrase inside quotation marks.
+- end: a closing headline (at most 70 characters) that gives the reader a reason to read the full briefing: a complete statement, specific to this piece, of what the briefing gives the people the post is written for (the same readers as the rest of the post, never another party such as the suppliers when the post speaks to buyers), and only what the briefing really holds. Not a vague fragment and not a label for the article, e.g. "The reporting gaps to check before you buy an LLM tool", not "What suppliers should expect evaluators to ask for".
+Keep every field within its limit (count the characters) as a complete phrase: nothing is cut to fit. Every figure must appear in the text exactly, written in full as the text gives it. If the piece has too few figures for a slide, return empty strings (and an empty points list) for it. Never invent or round a figure, never paraphrase inside quotation marks.
 
 The caption: 60 to 120 words, the first line standing on its own, ending with "Read the briefing:" and the link given, then 3 to 5 hashtags on their own line.`
 
@@ -558,6 +599,29 @@ export function figureInText(figure: string, text: string): boolean {
   return nums.every((n) => t.includes(n.replace(/[.,]$/, '')))
 }
 
+export const FIGURE_MAX = 24
+
+// The room each of a carousel's words has: a little over what the voice
+// asks for. Figures have room for the longest a text writes out in full
+// ("EUR 680 million", "$1.2 billion"), and are never shortened.
+export const carouselLimits = (d: Partial<CarouselDraft>): Limit[] => [
+  { field: 'news.kicker', text: tidy(d.news?.kicker || ''), max: 40 },
+  { field: 'news.headline', text: tidy(d.news?.headline || ''), max: 110 },
+  { field: 'news.summary', text: tidy(d.news?.summary || ''), max: 240 },
+  { field: 'statistic.figure', text: tidy(d.statistic?.figure || ''), max: FIGURE_MAX },
+  { field: 'statistic.label', text: tidy(d.statistic?.label || ''), max: 90 },
+  { field: 'statistic.context', text: tidy(d.statistic?.context || ''), max: 170 },
+  { field: 'data.title', text: tidy(d.data?.title || ''), max: 80 },
+  ...(d.data?.points || []).flatMap((p, i) => [
+    { field: `data.points[${i}].figure`, text: tidy(p?.figure || ''), max: FIGURE_MAX },
+    { field: `data.points[${i}].label`, text: tidy(p?.label || ''), max: 80 },
+  ]),
+  { field: 'quote.text', text: (d.quote?.text || '').trim(), max: 260 },
+  { field: 'quote.speaker', text: (d.quote?.speaker || '').trim(), max: 80 },
+  { field: 'quote.role', text: (d.quote?.role || '').trim(), max: 120 },
+  { field: 'end.headline', text: tidy(d.end?.headline || ''), max: 90 },
+]
+
 // The carousel's slides, held to the article: the news slide always; the
 // statistic, the data and the quote only when every figure, and the quote
 // word for word, are in the article's text (else listed in `dropped`); and
@@ -573,28 +637,33 @@ export function checkSlides(
   const extras: Slide[] = []
   const news: Slide = {
     kind: 'news',
-    kicker: tidy(d.news?.kicker || '').slice(0, 40) || 'From our Insights desk',
-    headline: tidy(d.news?.headline || '').slice(0, 110) || o.title,
-    summary: tidy(d.news?.summary || '').slice(0, 240),
+    kicker: fitText(tidy(d.news?.kicker || ''), 40) || 'From our Insights desk',
+    headline: fitText(tidy(d.news?.headline || ''), 110) || o.title,
+    summary: fitText(tidy(d.news?.summary || ''), 240),
     date: o.publishedAt ? new Date(o.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : o.fallbackDate,
   }
+  // A figure is shown whole or not at all: one too long for its slide is
+  // left out, never shortened.
   const statFigure = tidy(d.statistic?.figure || '')
-  if (statFigure && figureInText(statFigure, body)) {
-    extras.push({ kind: 'statistic', figure: statFigure.slice(0, 14), label: tidy(d.statistic.label || '').slice(0, 90), context: tidy(d.statistic.context || '').slice(0, 170), source })
+  if (statFigure.length > FIGURE_MAX) dropped.push(`statistic "${statFigure}" is too long to show`)
+  else if (statFigure && figureInText(statFigure, body)) {
+    extras.push({ kind: 'statistic', figure: statFigure, label: fitText(tidy(d.statistic.label || ''), 90), context: fitText(tidy(d.statistic.context || ''), 170), source })
   } else if (statFigure) dropped.push(`statistic "${statFigure}" is not in the briefing`)
   const points = (d.data?.points || [])
-    .map((p) => ({ figure: tidy(p.figure || '').slice(0, 14), label: tidy(p.label || '').slice(0, 80) }))
-    .filter((p) => p.figure && p.label && p.figure !== statFigure)
+    .map((p) => ({ figure: tidy(p.figure || ''), label: fitText(tidy(p.label || ''), 80) }))
+    .filter((p) => p.figure && p.label && p.figure !== statFigure && p.figure.length <= FIGURE_MAX)
   const kept = points.filter((p) => figureInText(p.figure, body)).slice(0, 4)
   if (points.length > kept.length) dropped.push(`${points.length - kept.length} data point(s) not in the briefing`)
-  if (kept.length >= 2) extras.push({ kind: 'data', title: tidy(d.data.title || '').slice(0, 80) || 'The data', points: kept, source })
+  if (kept.length >= 2) extras.push({ kind: 'data', title: fitText(tidy(d.data.title || ''), 80) || 'The data', points: kept, source })
   else if (kept.length) dropped.push('only one data point checked out, too few for a data slide')
   const quote = (d.quote?.text || '').trim().replace(/^["“]+|["”]+$/g, '')
   const speaker = (d.quote?.speaker || '').trim()
-  if (quote && speaker && plain(body).includes(plain(quote))) {
-    extras.push({ kind: 'quote', text: quote.slice(0, 260), speaker: speaker.slice(0, 80), role: (d.quote.role || '').trim().slice(0, 120), source })
+  // A quotation is never shortened: one too long for the slide is left out.
+  if (quote.length > 260) dropped.push('the quote is too long for its slide')
+  else if (quote && speaker && plain(body).includes(plain(quote))) {
+    extras.push({ kind: 'quote', text: quote, speaker: fitText(speaker, 80), role: fitText((d.quote.role || '').trim(), 120), source })
   } else if (quote) dropped.push('the quote is not word for word in the briefing')
-  const end: Slide = { kind: 'end', headline: tidy(d.end?.headline || '').slice(0, 90) || 'Read the full briefing', link: o.link }
+  const end: Slide = { kind: 'end', headline: fitText(tidy(d.end?.headline || ''), 90) || 'Read the full briefing', link: o.link }
   return { news, extras, end, dropped }
 }
 
@@ -614,9 +683,6 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   const article = await readArticleFull(pick.ref!)
   if (article.body.length < 200) throw new ContentError('The briefing could not be read from worldnexusgroup.com just now, so there is nothing to build slides from. Try again in a minute.', 502)
 
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
-  if (!apiKey) throw new ContentError('ANTHROPIC_API_KEY is not set on the CRM, so nothing can be written.', 400)
-  const client = new Anthropic({ apiKey })
   const src = pick.source as { title?: string; dek?: string; category?: string; published_at?: string }
   const briefText = [
     `Page the post goes out from: ${ctx.brand === 'nexus' ? 'World Nexus Group' : `${ctx.ed.series}, ${ctx.ed.city || ctx.event?.city || ''} ${ctx.ed.year}`.trim()}`,
@@ -628,24 +694,10 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
     opts.brief?.trim() ? `The marketing team's own steer: ${opts.brief.trim()}` : '',
     'Return the carousel as JSON.',
   ].filter(Boolean).join('\n\n')
-  const res = await client.beta.messages.create({
-    model: process.env.CONTENT_MODEL?.trim() || 'claude-opus-5-5',
-    max_tokens: 12000,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    thinking: { type: 'adaptive' },
-    output_config: { effort: 'medium', format: { type: 'json_schema', schema: CAROUSEL_SCHEMA } },
-    system: CAROUSEL_VOICE,
-    messages: [{ role: 'user', content: briefText }],
-  })
-  if (res.stop_reason === 'refusal') throw new ContentError('Claude declined to write this one. Try again, or pick another briefing.', 502)
-  const raw = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
-  let d: CarouselDraft
-  try {
-    d = JSON.parse(raw) as CarouselDraft
-  } catch {
-    throw new ContentError('Claude did not answer in the expected shape. Try again.', 502)
-  }
+  const d = await draftWithin<CarouselDraft>(
+    { system: CAROUSEL_VOICE, schema: CAROUSEL_SCHEMA, brief: briefText, maxTokens: 12000, refused: () => 'Claude declined to write this one. Try again, or pick another briefing.' },
+    carouselLimits,
+  )
 
   // Held to the article: a figure or a quote not in it drops its slide.
   const date = ctx.event?.date ?? null
@@ -664,7 +716,7 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
     forDate: opts.forDate || (await nextFreeDay(ed.label)),
     kicker: slides[0].kind === 'news' ? slides[0].kicker : '',
     headline: slides[0].kind === 'news' ? slides[0].headline : '',
-    subline: slides[0].kind === 'news' ? slides[0].summary.slice(0, 120) : '',
+    subline: slides[0].kind === 'news' ? fitText(slides[0].summary, 120) : '',
     caption: tidy(d.caption),
     hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
     link: pick.link,

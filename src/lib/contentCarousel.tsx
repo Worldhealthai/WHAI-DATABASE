@@ -13,6 +13,7 @@ import { ImageResponse } from 'next/og'
 import { PDFDocument } from 'pdf-lib'
 import { BRANDS, brandFor, photosFor, photosOf, styleOf, type Brand, type CardStyle } from '@/lib/contentBrand'
 import { ArcsGround, BARS_H, BandsGround, BarsGround, BlockGround, FONTS, FrameGround, InitialGround, Kicker, LightGround, Mark, MosaicGround, PhotoGround, RingsGround, SplitGround, TAPE_W, TapeGround, TicksGround, TintGround, Wash, WedgeGround, alpha, barred, clip, loadAssets, onWhite, remoteImage, seedOf, skinFor, tapeText, tickMark, type Assets, type Skin } from '@/lib/contentCard'
+import { fitText } from '@/lib/contentText'
 
 export const SLIDE_W = 1080
 export const SLIDE_H = 1350
@@ -196,12 +197,14 @@ function Body({ slide, s, width = WIDTH, site, kicker = true, summary = true }: 
         </div>
       )
     case 'statistic': {
+      // The figure is always shown whole, on one line: the longer it is,
+      // the smaller it is set, to fit the width.
       const len = slide.figure.length
-      const size = len <= 3 ? 330 : len <= 5 ? 270 : len <= 8 ? 200 : 150
+      const size = Math.min(len <= 3 ? 330 : len <= 5 ? 270 : len <= 8 ? 200 : 150, Math.floor(width / (0.6 * Math.max(1, len))))
       return (
         <div style={{ display: 'flex', flexDirection: 'column', width }}>
           <Kicker text="The number" s={s} size={24} bar={bar} />
-          <span style={{ fontSize: size, fontWeight: 600, lineHeight: 0.95, letterSpacing: -8, color: s.accent, fontVariantNumeric: 'tabular-nums' }}>{slide.figure}</span>
+          <span style={{ fontSize: size, fontWeight: 600, lineHeight: 0.95, letterSpacing: size >= 150 ? -8 : -3, color: s.accent, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{slide.figure}</span>
           <span style={{ fontSize: sized(slide.label, 58), fontWeight: 600, lineHeight: 1.12, letterSpacing: -1.5, marginTop: 36, maxWidth: width, color: s.ink }}>{slide.label}</span>
           {slide.context ? <span style={{ fontSize: 32, lineHeight: 1.4, color: s.muted, marginTop: 26, maxWidth: width - 40 }}>{slide.context}</span> : null}
         </div>
@@ -215,7 +218,7 @@ function Body({ slide, s, width = WIDTH, site, kicker = true, summary = true }: 
           <div style={{ display: 'flex', flexDirection: 'column', width }}>
             {slide.points.map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', borderTop: `1px solid ${s.line}`, padding: '26px 0' }}>
-                <span style={{ width: 330, flexShrink: 0, fontSize: p.figure.length > 8 ? 56 : 72, fontWeight: 600, letterSpacing: -2.5, color: s.accent, fontVariantNumeric: 'tabular-nums' }}>{p.figure}</span>
+                <span style={{ width: 330, flexShrink: 0, fontSize: Math.min(p.figure.length > 8 ? 56 : 72, Math.max(34, Math.floor(310 / (0.6 * p.figure.length)))), fontWeight: 600, letterSpacing: p.figure.length > 8 ? -0.5 : -2.5, color: s.accent, fontVariantNumeric: 'tabular-nums' }}>{p.figure}</span>
                 <span style={{ flex: 1, fontSize: 30, lineHeight: 1.3, color: s.ink }}>{p.label}</span>
               </div>
             ))}
@@ -376,7 +379,7 @@ export async function renderCarouselPdf(post: CarouselPost, title: string): Prom
 // A Content-Disposition for a download whose name may hold any character:
 // an ASCII name for old clients, the full name UTF-8 encoded beside it.
 export function attachment(name: string): string {
-  const clean = name.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120)
+  const clean = fitText(name.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(), 120)
   const ascii = clean.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim() || 'post'
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`
 }
