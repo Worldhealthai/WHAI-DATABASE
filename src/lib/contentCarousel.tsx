@@ -146,10 +146,9 @@ const coverWidth = (style: CardStyle | null) => (style === 'frame' ? FRAME.x - P
 const coverJustify = (style: CardStyle | null): 'center' | 'flex-end' | 'flex-start' =>
   style === 'photo' || style === 'wedge' || style === 'tint' ? 'flex-end' : style === 'mosaic' || style === 'still' || style === 'masthead' || style === 'split' || style === 'ticks' ? 'flex-start' : 'center'
 
-function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null, seed = 0, slide }: { brand: Brand; a: Assets; s: Skin; n: number; total: number; children: React.ReactNode; corner?: 'top' | 'bottom'; cover?: string[] | null; seed?: number; slide: Slide }) {
+function Frame({ brand, a, s, children, corner = 'top', cover = null, seed = 0, slide }: { brand: Brand; a: Assets; s: Skin; children: React.ReactNode; corner?: 'top' | 'bottom'; cover?: string[] | null; seed?: number; slide: Slide }) {
   const full: React.CSSProperties = { position: 'absolute', top: 0, left: 0, width: SLIDE_W, height: SLIDE_H }
   const light = s.on === 'light'
-  const block = s.style === 'block'
   const style = cover ? s.style : null
   const justify = coverJustify(style)
   const width = coverWidth(style)
@@ -165,20 +164,10 @@ function Frame({ brand, a, s, n, total, children, corner = 'top', cover = null, 
       <div style={{ ...full, display: 'flex', flexDirection: 'column', padding: `${PAD}px ${PAD}px ${bottom}px ${left}px` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: measure }}>
           <Mark brand={brand} assets={a} size={0.86} on={s.on} />
-          <span style={{ fontSize: 24, color: style === 'mosaic' ? '#C7CBD6' : s.faint, fontVariantNumeric: 'tabular-nums' }}>{`${n} / ${total}`}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: justify, width, paddingTop: top - PAD, paddingBottom: justify === 'flex-end' ? 70 : 40 }}>{children}</div>
-        {/* On the brand colour the cue keeps to the left, clear of the night disc in the corner. */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: block ? 'flex-start' : 'space-between', width: measure, fontSize: 24, paddingBottom: 60, color: s.faint }}>
+        <div style={{ display: 'flex', alignItems: 'center', width: measure, fontSize: 24, paddingBottom: 60, color: s.faint }}>
           <span>{brand.site}</span>
-          {n < total ? (
-            <span style={{ display: 'flex', alignItems: 'center', color: s.accent, fontWeight: 600, marginLeft: block ? 40 : 0 }}>
-              <span>Swipe</span>
-              <svg width="30" height="24" viewBox="0 0 30 24" style={{ marginLeft: 10 }}>
-                <path d="M2 12h24M17 4l9 8-9 8" fill="none" stroke={s.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          ) : <span />}
         </div>
       </div>
     </div>
@@ -272,7 +261,7 @@ function TicksBody({ slide, s }: { slide: Slide; s: Skin }) {
 
 // The paper's cover: the photo in full colour, the logo over it, and a
 // white sheet over the lower left carrying the words and the cue.
-function PaperCover({ brand, a, s, n, total, slide, photo }: { brand: Brand; a: Assets; s: Skin; n: number; total: number; slide: Slide; photo: string }) {
+function PaperCover({ brand, a, s, slide, photo }: { brand: Brand; a: Assets; s: Skin; slide: Slide; photo: string }) {
   const light = skinFor(brand, 'light')
   const headline = slide.kind === 'news' || slide.kind === 'end' ? slide.headline : slide.kind === 'data' ? slide.title : slide.kind === 'statistic' ? slide.label : slide.text
   const summary = slide.kind === 'news' ? slide.summary : slide.kind === 'statistic' ? slide.context : ''
@@ -287,23 +276,14 @@ function PaperCover({ brand, a, s, n, total, slide, photo }: { brand: Brand; a: 
       <div style={{ position: 'absolute', left: 0, top: 0, width: SLIDE_W, height: 320, background: `linear-gradient(to bottom, ${alpha(brand.night, 0.62)} 0%, ${alpha(brand.night, 0)} 100%)` }} />
       <div style={{ position: 'absolute', left: PAD, top: PAD, width: WIDTH, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Mark brand={brand} assets={a} size={0.86} on="night" />
-        <span style={{ fontSize: 24, color: s.faint, fontVariantNumeric: 'tabular-nums' }}>{`${n} / ${total}`}</span>
       </div>
       <div style={{ position: 'absolute', left: 0, top, width: 760, height: SLIDE_H - top, display: 'flex', flexDirection: 'column', background: '#FFFFFF', padding: `56px 56px 60px ${PAD}px`, color: light.ink }}>
         <Kicker text={slide.kind === 'news' ? slide.kicker : 'From our Insights desk'} s={light} size={24} bar />
         <span style={{ fontSize: sized(headline, 64), fontWeight: 600, lineHeight: 1.06, letterSpacing: -2, maxWidth: width, color: light.ink }}>{headline}</span>
         {summary ? <span style={{ fontSize: 28, lineHeight: 1.4, color: light.muted, marginTop: 28, maxWidth: width }}>{clip(summary, 170)}</span> : null}
         <div style={{ display: 'flex', flexGrow: 1 }} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width, fontSize: 24, color: light.faint }}>
+        <div style={{ display: 'flex', alignItems: 'center', width, fontSize: 24, color: light.faint }}>
           <span>{brand.site}</span>
-          {n < total ? (
-            <span style={{ display: 'flex', alignItems: 'center', color: light.accent, fontWeight: 600 }}>
-              <span>Swipe</span>
-              <svg width="30" height="24" viewBox="0 0 30 24" style={{ marginLeft: 10 }}>
-                <path d="M2 12h24M17 4l9 8-9 8" fill="none" stroke={light.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          ) : <span />}
         </div>
       </div>
       <div style={{ position: 'absolute', left: 0, top: SLIDE_H - 14, width: SLIDE_W, height: 14, background: brand.accent }} />
@@ -334,11 +314,9 @@ export async function renderSlide(post: CarouselPost, index: number, styleOverri
   const s = skinFor(brand, style)
   const on = cover && style !== 'night'
   const width = coverWidth(on ? style : null)
-  const n = i + 1
-  const total = Math.max(1, slides.length)
   const seed = seedOf(slide.kind === 'news' ? slide.headline : '')
   if (on && style === 'paper') {
-    return new ImageResponse(<PaperCover brand={brand} a={a} s={s} n={n} total={total} slide={slide} photo={cover.photos[0]} />, { width: SLIDE_W, height: SLIDE_H, fonts: FONTS(a) })
+    return new ImageResponse(<PaperCover brand={brand} a={a} s={s} slide={slide} photo={cover.photos[0]} />, { width: SLIDE_W, height: SLIDE_H, fonts: FONTS(a) })
   }
   // The split's kicker stands in the colour, the masthead's in the folio,
   // the column's in the margin: the cover draws those.
@@ -346,7 +324,7 @@ export async function renderSlide(post: CarouselPost, index: number, styleOverri
   const summary = true
   return new ImageResponse(
     (
-      <Frame brand={brand} a={a} s={s} n={n} total={total} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={on ? cover.photos : null} seed={seed} slide={slide}>
+      <Frame brand={brand} a={a} s={s} corner={slide.kind === 'statistic' || slide.kind === 'quote' ? 'bottom' : 'top'} cover={on ? cover.photos : null} seed={seed} slide={slide}>
         {on && style === 'ticks' ? <TicksBody slide={slide} s={s} /> : <Body slide={slide} s={s} width={width} site={brand.site} kicker={kicker} summary={summary} />}
       </Frame>
     ),
@@ -378,10 +356,14 @@ export async function renderCarouselPdf(post: CarouselPost, title: string): Prom
 
 // A Content-Disposition for a download whose name may hold any character:
 // an ASCII name for old clients, the full name UTF-8 encoded beside it.
+// The extension always stays on: a long name is shortened before it, so
+// the file still opens as what it is.
 export function attachment(name: string): string {
-  const clean = fitText(name.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim(), 120)
-  const ascii = clean.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim() || 'post'
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`
+  const flat = name.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim()
+  const ext = flat.match(/\.[A-Za-z0-9]{2,4}$/)?.[0] ?? ''
+  const stem = fitText(flat.slice(0, flat.length - ext.length), 120 - ext.length) || 'post'
+  const ascii = stem.replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim() || 'post'
+  return `attachment; filename="${ascii}${ext}"; filename*=UTF-8''${encodeURIComponent(stem + ext)}`
 }
 
 // The name each slide's file takes, by what it is.
