@@ -35,6 +35,14 @@ export async function proxy(req: NextRequest) {
   // authenticates (website registration webhooks, the Nexus admin's
   // "Add to CRM" staging) — those callers have no browser session.
   if (req.nextUrl.pathname.startsWith('/api/')) {
+    // The Production Manager agent reads its event through one read-only
+    // route with a key of its own (AGENT_READ_TOKEN), so it never holds the
+    // shared secret. GET on /api/routine/event only; nothing else opens.
+    const agentKey = (process.env.AGENT_READ_TOKEN || '').trim()
+    const bearer = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
+    if (agentKey && bearer && bearer === agentKey && req.method === 'GET' && req.nextUrl.pathname === '/api/routine/event') {
+      return NextResponse.next()
+    }
     const secret = (process.env.WEBHOOK_SECRET || '').trim()
     const provided = (req.headers.get('x-webhook-secret') || '').trim()
     if (secret && provided && provided === secret) {

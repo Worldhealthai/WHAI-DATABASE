@@ -1,5 +1,7 @@
-// The Production Manager agent's view of an edition, read-only. Like every
-// /api route it needs a CRM session or the shared webhook secret (proxy.ts).
+// The Production Manager agent's view of an edition, read-only. Reached with
+// the agent's own key (Authorization: Bearer AGENT_READ_TOKEN, which opens
+// only this route, GET only) or, like every /api route, a CRM session or the
+// shared webhook secret (proxy.ts).
 //   GET                      → { editions: [...] } (the editions with an agenda)
 //   GET ?edition=<label>     → the agenda in running order with each session's
 //                              seats, who is named (confirmed or TBC) and what is
