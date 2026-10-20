@@ -19,7 +19,7 @@ Copy `.env.example` to `.env.local` for local work; on Vercel set the same names
 | `CRM_DB_SCHEMA` | Where the tables are in that project. Unset (or `public`): the CRM's own project, as it has always been. `crm`: the Nexus project, after the move below |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Only used when `CRM_DB_SCHEMA` is unset and there is no service key (the old behaviour). Never used with `CRM_DB_SCHEMA=crm`; delete it at the switch (step 7 below) |
 | `WEBHOOK_SECRET` | Shared secret for the sites and the Nexus admin calling the CRM (same value as `CRM_WEBHOOK_SECRET` there) |
-| `AGENT_READ_TOKEN` | Optional. The Production Manager agent's key: opens only `GET /api/routine/event` (read-only event status), never the rest of the CRM |
+| `AGENT_READ_TOKEN` | Optional. The key Control Room and its agents read with: opens only `GET /api/routine/event` (event status) and `GET /api/marketing/content/<id>/image` (a post's finished design), never the rest of the CRM |
 | `CRM_ACCESS_PASSWORD` | The CRM's login password |
 | `NEXUS_SITE_URL`, `NEXUS_EVENTS_URL` | Where the Nexus admin is (defaults to worldnexusgroup.com) |
 | `ANTHROPIC_API_KEY` | The Pulse assistant |
