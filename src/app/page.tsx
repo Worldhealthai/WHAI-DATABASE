@@ -1,7 +1,7 @@
 'use client'
 
-// The entrance: every portal's events at once, as trees (series → city →
-// edition), so any event is one click away. Every event has its own colour
+// The entrance: every portal's events at once, as trees (series → city),
+// so any event is one click away; years are switched inside it. Every event has its own colour
 // (London blue, Boston reddish pink, Pharma teal green). The event worked in
 // last is a button at the top.
 
@@ -11,7 +11,7 @@ import { ArrowRight, LogOut } from 'lucide-react'
 import { categoriseEvent, useEventCategories, type EventCategory } from '@/lib/eventCategories'
 import {
   PORTALS, type EventLook, type EventSeries, type PortalKey,
-  defaultYear, editionYears, eventLook, eventSlug, groupSeries, readLastWorkspace, workspaceHref,
+  defaultYear, eventLook, eventSlug, groupSeries, readLastWorkspace, workspaceHref,
 } from '@/lib/portals'
 import { Logo } from '@/components/shell/Sidebar'
 import { ThemeToggle } from '@/components/shell/ThemeToggle'
@@ -51,9 +51,9 @@ async function logout() {
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
 
-// One portal's events as a tree: series → city → editions. A year opens
-// that edition; the city opens the portal's usual one (Sales: next year).
-function PortalTree({ portal, series, counts, now }: { portal: PortalKey; series: EventSeries[]; counts: Counts | null; now: number }) {
+// One portal's events as a tree: series → city. A city opens the portal's
+// usual edition (Sales: next year); the years are switched inside.
+function PortalTree({ portal, series, counts }: { portal: PortalKey; series: EventSeries[]; counts: Counts | null }) {
   const def = PORTALS[portal]
   const summary = (c: EventCategory) => {
     const n = counts?.[c.name]
@@ -82,39 +82,20 @@ function PortalTree({ portal, series, counts, now }: { portal: PortalKey; series
               {s.events.map((c) => {
                 const look = eventLook(c.name)
                 const slug = eventSlug(c.name)
-                const years = editionYears(c).slice().sort()
-                const main = defaultYear(portal, c)
                 return (
                   <li key={c.name} className="relative">
                     {/* the branch from the series line */}
-                    <span aria-hidden className="absolute -left-3 top-[15px] w-2.5" style={{ borderTop: '1px solid var(--line-2)' }} />
-                    <div className="rounded-lg px-2.5 py-2 transition-colors hover:bg-[var(--surface-2)]">
-                      <Link href={workspaceHref(portal, slug, '', main)} className="flex items-center gap-2 group">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: look.accent }} />
-                        <span className="text-[14px] font-semibold group-hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{look.city}</span>
-                        <span className="text-[12px] truncate" style={{ color: 'var(--fg-4)' }}>{summary(c)}</span>
-                        <ArrowRight className="w-3.5 h-3.5 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: look.accent }} />
-                      </Link>
-                      <div className="flex flex-wrap gap-1 mt-1.5 pl-4">
-                        {years.map((y) => {
-                          const past = Number(y) < now
-                          const isMain = y === main
-                          return (
-                            <Link
-                              key={y}
-                              href={workspaceHref(portal, slug, '', y)}
-                              className="inline-flex items-center h-6 px-2 rounded-md text-[12px] font-medium tabular transition-colors"
-                              style={isMain
-                                ? { background: look.accentSoft, color: look.accentInk, border: `1px solid ${look.accentLine}` }
-                                : { color: past ? 'var(--fg-4)' : 'var(--fg-2)', border: '1px solid var(--line)', background: 'var(--surface)' }}
-                              title={`${def.short}: ${c.name} ${y}`}
-                            >
-                              {y}{Number(y) === now + 1 ? ' · next' : ''}
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    </div>
+                    <span aria-hidden className="absolute -left-3 top-1/2 w-2.5" style={{ borderTop: '1px solid var(--line-2)' }} />
+                    <Link
+                      href={workspaceHref(portal, slug, '', defaultYear(portal, c))}
+                      className="group flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-[var(--surface-2)]"
+                      style={{ border: '1px solid var(--line)' }}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: look.accent }} />
+                      <span className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>{look.city}</span>
+                      <span className="text-[12px] truncate" style={{ color: 'var(--fg-4)' }}>{summary(c)}</span>
+                      <ArrowRight className="w-4 h-4 ml-auto shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: look.accent }} />
+                    </Link>
                   </li>
                 )
               })}
@@ -130,7 +111,6 @@ function Entrance() {
   const categories = useEventCategories()
   const counts = useCategoryCounts(categories)
   const series = groupSeries(categories)
-  const now = new Date().getFullYear()
   // Back to the event worked in last, in one click.
   const [last, setLast] = useState<{ href: string; label: string; look: EventLook } | null>(null)
   useEffect(() => {
@@ -157,7 +137,7 @@ function Entrance() {
           <div>
             <p className="text-[12px] font-semibold tracking-[0.14em] uppercase" style={{ color: 'var(--fg-4)' }}>World Nexus Group</p>
             <h1 className="text-[28px] leading-tight mt-1 font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>Where are you working today?</h1>
-            <p className="text-[14px] mt-1" style={{ color: 'var(--fg-3)' }}>Click an event, or a year, to go straight in.</p>
+            <p className="text-[14px] mt-1" style={{ color: 'var(--fg-3)' }}>Click an event to go straight in.</p>
           </div>
           {last && (
             <Link href={last.href} className="ws-btn" style={{ borderColor: last.look.accentLine }}>
@@ -169,7 +149,7 @@ function Entrance() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mt-7 items-start">
           {(Object.keys(PORTALS) as PortalKey[]).map((key) => (
-            <PortalTree key={key} portal={key} series={series} counts={counts} now={now} />
+            <PortalTree key={key} portal={key} series={series} counts={counts} />
           ))}
         </div>
       </main>
