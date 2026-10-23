@@ -53,13 +53,22 @@ export async function GET() {
     if (res.ok) {
       const j = await res.json()
       for (const ev of j?.events ?? []) {
-        add(ev?.label)
-        if (typeof ev?.label === 'string' && ev.label.trim()) {
+        // Named from its series, city and year ("World Health AI Boston
+        // 2026"). Its own label ("World Health AI 2026") leaves the city
+        // out, and the old aliases would read it as the wrong city: the
+        // London 2025 edition came out as "Boston 2025", which then filed
+        // Boston's records under London.
+        const series = typeof ev?.series === 'string' ? ev.series.trim() : ''
+        const city = typeof ev?.city === 'string' ? ev.city.split(',')[0].trim() : ''
+        const evYear = String(ev?.date ?? ev?.label ?? '').match(/\b(20\d{2})\b/)?.[1] ?? null
+        const named = series && city && evYear ? `${series} ${city} ${evYear}` : null
+        if (named) { if (!options.includes(named)) options.push(named) } else add(ev?.label)
+        if (named || (typeof ev?.label === 'string' && ev.label.trim())) {
           meta.push({
-            label: canonicalEventLabel(ev.label.trim()) || ev.label.trim(),
-            series: typeof ev?.series === 'string' ? ev.series : null,
-            city: typeof ev?.city === 'string' ? ev.city : null,
-            year: String(ev?.date ?? ev?.label ?? '').match(/\b(20\d{2})\b/)?.[1] ?? null,
+            label: named || canonicalEventLabel(ev.label.trim()) || ev.label.trim(),
+            series: series || null,
+            city: city || null,
+            year: evYear,
           })
           const day = Date.parse(String(ev?.date ?? ''))
           const year = String(ev?.date ?? ev?.label ?? '').match(/\b(20\d{2})\b/)?.[1]
