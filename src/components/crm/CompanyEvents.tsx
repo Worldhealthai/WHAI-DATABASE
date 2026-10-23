@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarPlus, Check, Loader2 } from 'lucide-react'
 import { StatusBadge } from '@/components/crm/StatusBadge'
-import { useEventOptions } from '@/lib/useEventOptions'
+import { useUpcomingEventOptions } from '@/lib/useEventOptions'
 import { cn } from '@/lib/utils'
 
 interface Edition { id: string; event: string | null; status: string | null }
@@ -19,7 +19,8 @@ export function CompanyEvents({ kind, id }: { kind: 'sponsor' | 'partner'; id: s
   const api = kind === 'sponsor' ? '/api/sponsors' : '/api/partners'
   const detail = kind === 'sponsor' ? '/sponsors' : '/partners'
   const queryClient = useQueryClient()
-  const options = useEventOptions()
+  // Only events still to come are offered.
+  const options = useUpcomingEventOptions()
   const [open, setOpen] = useState(false)
   const [picked, setPicked] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -100,7 +101,7 @@ export function CompanyEvents({ kind, id }: { kind: 'sponsor' | 'partner'; id: s
             Each event gets its own record of this company, starting at Not contacted, with its details and contacts copied across.
           </p>
           {available.length === 0 ? (
-            <p className="text-xs text-slate-500">It is already in every event.</p>
+            <p className="text-xs text-slate-500">It is already in every upcoming event.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-64 overflow-y-auto">
               {available.map((ev) => {

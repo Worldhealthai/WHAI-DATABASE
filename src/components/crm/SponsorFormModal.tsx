@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTierOptions } from '@/lib/useTierOptions'
 import { X, AlertTriangle } from 'lucide-react'
 import type { Sponsor } from '@/types'
-import { useEventOptions } from '@/lib/useEventOptions'
+import { useEventOptions, useUpcomingEventOptions } from '@/lib/useEventOptions'
 import {
   SPONSOR_TIER_OPTIONS,
   SPONSOR_STATUS_OPTIONS,
@@ -69,7 +69,9 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     enabled: isEdit,
   })
   const alreadyIn = new Set((inEvents?.editions ?? []).map((e) => String(e.event ?? '').toLowerCase()))
-  const otherEvents = eventOptions.filter((ev) => ev !== form.event && !alreadyIn.has(ev.toLowerCase()))
+  // Only events still to come are offered.
+  const upcoming = useUpcomingEventOptions()
+  const otherEvents = upcoming.filter((ev) => ev !== form.event && !alreadyIn.has(ev.toLowerCase()))
   const [error, setError] = useState('')
   const [dupMatch, setDupMatch] = useState<{
     id: string; existingName: string; status: string; table: string
