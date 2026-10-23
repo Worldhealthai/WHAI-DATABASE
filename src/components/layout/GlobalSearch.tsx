@@ -53,10 +53,10 @@ export function GlobalSearch() {
     setLoading(true)
     try {
       const [delegatesRes, sponsorsRes, speakersRes, partnersRes] = await Promise.all([
-        fetch(`/api/delegates?query=${encodeURIComponent(q)}&pageSize=5`),
-        fetch(`/api/sponsors?query=${encodeURIComponent(q)}&pageSize=5`),
-        fetch(`/api/speakers?query=${encodeURIComponent(q)}&pageSize=5`),
-        fetch(`/api/partners?query=${encodeURIComponent(q)}&pageSize=5`),
+        fetch(`/api/delegates?query=${encodeURIComponent(q)}&pageSize=30`),
+        fetch(`/api/sponsors?query=${encodeURIComponent(q)}&pageSize=30`),
+        fetch(`/api/speakers?query=${encodeURIComponent(q)}&pageSize=30`),
+        fetch(`/api/partners?query=${encodeURIComponent(q)}&pageSize=30`),
       ])
       const [delegates, sponsors, speakers, partners] = await Promise.all([
         delegatesRes.ok ? delegatesRes.json() : { data: [] },
@@ -65,30 +65,50 @@ export function GlobalSearch() {
         partnersRes.ok ? partnersRes.json() : { data: [] },
       ])
 
-      // Every brand and edition is searched; each result says which event
-      // it is filed under ("… · World Health AI London 2026").
-      const withEvent = (sub: string | null | undefined, ev: string | null | undefined) =>
-        [sub, ev].filter(Boolean).join(' · ') || undefined
+      // Every brand and edition is searched. Someone or some company in
+      // several events has a record per event: they show once, saying how
+      // many events, and open on the record for the soonest event to come
+      // (its page lists the others).
+      const yearOf = (ev: unknown) => Number(String(ev ?? '').match(/\b(20\d{2})\b/)?.[1] || 0)
+      const now = new Date().getFullYear()
+      const rank = (ev: unknown) => { const y = yearOf(ev); return y >= now ? y - now : 1000 + (now - y) }
+      const once = <T extends { event?: string | null }>(rows: T[], key: (r: T) => string) => {
+        const groups = new Map<string, T[]>()
+        for (const r of rows) {
+          const k = key(r).trim().toLowerCase()
+          if (!k) continue
+          groups.set(k, [...(groups.get(k) ?? []), r])
+        }
+        return Array.from(groups.values()).slice(0, 5).map((list) => {
+          const events = Array.from(new Set(list.map((r) => r.event).filter(Boolean))) as string[]
+          const lead = [...list].sort((a, b) => rank(a.event) - rank(b.event))[0]
+          return { lead, events }
+        })
+      }
+      const eventsText = (events: string[]) => (events.length > 1 ? `${events.length} events` : events[0] || '')
+      const withEvents = (sub: string | null | undefined, events: string[]) =>
+        [sub, eventsText(events)].filter(Boolean).join(' · ') || undefined
+      const person = (r: any) => r.email || `${r.firstName ?? ''} ${r.lastName ?? ''} ${r.organization ?? ''}`
       const out: Result[] = [
-        ...(delegates.data ?? []).map((d: any) => ({
+        ...once<any>(delegates.data ?? [], person).map(({ lead: d, events }) => ({
           id: d.id, type: 'delegate' as const, href: `/delegates/${d.id}`,
           label: `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim() || d.email,
-          sub: withEvent(d.organization || d.jobTitle || d.email, d.event),
+          sub: withEvents(d.organization || d.jobTitle || d.email, events),
         })),
-        ...(sponsors.data ?? []).map((s: any) => ({
+        ...once<any>(sponsors.data ?? [], (r) => r.companyName ?? '').map(({ lead: s, events }) => ({
           id: s.id, type: 'sponsor' as const, href: `/sponsors/${s.id}`,
           label: s.companyName,
-          sub: withEvent([s.contactFirstName, s.contactLastName].filter(Boolean).join(' ') || s.contactEmail, s.event),
+          sub: withEvents([s.contactFirstName, s.contactLastName].filter(Boolean).join(' ') || s.contactEmail, events),
         })),
-        ...(speakers.data ?? []).map((s: any) => ({
+        ...once<any>(speakers.data ?? [], person).map(({ lead: s, events }) => ({
           id: s.id, type: 'speaker' as const, href: `/speakers/${s.id}`,
           label: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
-          sub: withEvent(s.organization || s.jobTitle, s.event),
+          sub: withEvents(s.organization || s.jobTitle, events),
         })),
-        ...(partners.data ?? []).map((s: any) => ({
+        ...once<any>(partners.data ?? [], (r) => r.companyName ?? '').map(({ lead: s, events }) => ({
           id: s.id, type: 'partner' as const, href: `/partners/${s.id}`,
           label: s.companyName,
-          sub: withEvent(s.tier, s.event),
+          sub: withEvents(s.tier, events),
         })),
       ]
       setResults(out)

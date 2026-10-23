@@ -4,79 +4,11 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import {
-  ArrowLeft, Edit2, Trash2, Mail, Phone, Linkedin, MapPin, Globe,
-  Briefcase, Tag, Building2, ChevronRight, ChevronLeft, DollarSign, UserPlus, Pencil, Check, ArrowRightLeft, Search, X,
-} from 'lucide-react'
-import { ActivityFeed } from '@/components/crm/ActivityFeed'
-import { StatusBadge } from '@/components/crm/StatusBadge'
+import { ArrowLeft, ArrowRightLeft, Search, X } from 'lucide-react'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
-import { CompanyEvents } from '@/components/crm/CompanyEvents'
+import { CompanyProfile } from '@/components/crm/CompanyProfile'
 import type { Sponsor, SponsorContact } from '@/types'
-import { cn } from '@/lib/utils'
-
-const SPONSOR_STAGES = ['Not Contacted', 'Emailed', 'In Discussion', 'Confirmed']
-
-function PipelineProgress({ currentStatus, accentHex, onStageChange, saving }: {
-  currentStatus: string; accentHex: string; onStageChange: (s: string) => void; saving: boolean
-}) {
-  const isRejected = currentStatus === 'Rejected'
-  const currentIdx = SPONSOR_STAGES.indexOf(currentStatus)
-
-  return (
-    <div className="whai-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pipeline Stage</span>
-        {isRejected && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20 font-medium">
-            Rejected
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-0">
-        {SPONSOR_STAGES.map((stage, i) => {
-          const isDone = currentIdx > i
-          const isCurrent = currentIdx === i
-          return (
-            <div key={stage} className="flex items-center flex-1">
-              <button
-                onClick={() => !saving && onStageChange(stage)}
-                disabled={saving}
-                className={cn(
-                  'flex flex-col items-center gap-1 px-2 py-1.5 rounded-lg transition-all w-full text-center disabled:cursor-not-allowed',
-                  isCurrent ? 'bg-[var(--surface-2)]' : 'hover:bg-[var(--surface)]'
-                )}
-              >
-                <div
-                  className={cn(
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all',
-                    isDone ? 'border-transparent text-[var(--on-accent)]' : isCurrent ? 'border-current' : 'border-slate-700 text-slate-700'
-                  )}
-                  style={isDone ? { background: accentHex } : isCurrent ? { borderColor: accentHex, color: accentHex } : {}}
-                >
-                  {isDone ? <Check className="w-3 h-3" /> : i + 1}
-                </div>
-                <span className={cn(
-                  'text-[10px] font-medium leading-tight whitespace-nowrap',
-                  isCurrent ? 'text-[var(--fg)]' : isDone ? 'text-slate-400' : 'text-slate-600'
-                )}>
-                  {stage}
-                </span>
-              </button>
-              {i < SPONSOR_STAGES.length - 1 && (
-                <div
-                  className="h-0.5 flex-1 shrink-0 transition-all duration-500 mx-1"
-                  style={{ background: isDone ? accentHex : 'var(--line)' }}
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 async function fetchSponsor(id: string) {
   const res = await fetch(`/api/sponsors/${id}`)
@@ -249,250 +181,28 @@ export default function SponsorDetailPage() {
 
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-      <nav className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-sm text-slate-500">
-          <Link href="/sponsors" className="hover:text-[var(--fg)] transition-colors flex items-center gap-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Sponsors
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-slate-300">{sponsor.companyName}</span>
-          {currentIdx >= 0 && (
-            <span className="text-xs text-slate-600 ml-1">{currentIdx + 1} / {navList.length}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Link
-            href={prevItem ? `/sponsors/${prevItem.id}` : '#'}
-            aria-disabled={!prevItem}
-            title={prevItem ? `← ${prevItem.companyName}` : 'No previous'}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
-              prevItem
-                ? 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 hover:bg-[var(--surface-2)]'
-                : 'border-[var(--line)] text-slate-700 pointer-events-none'
-            )}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{prevItem ? prevItem.companyName : 'Previous'}</span>
-            <span className="sm:hidden">Prev</span>
-          </Link>
-          <Link
-            href={nextItem ? `/sponsors/${nextItem.id}` : '#'}
-            aria-disabled={!nextItem}
-            title={nextItem ? `${nextItem.companyName} →` : 'No next'}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
-              nextItem
-                ? 'border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 hover:bg-[var(--surface-2)]'
-                : 'border-[var(--line)] text-slate-700 pointer-events-none'
-            )}
-          >
-            <span className="hidden sm:inline">{nextItem ? nextItem.companyName : 'Next'}</span>
-            <span className="sm:hidden">Next</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </nav>
-
-      <div className="whai-card overflow-hidden">
-        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #f59e0b80 0%, #f59e0b20 60%, transparent 100%)' }} />
-        <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="w-14 h-14 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold shrink-0">
-            {sponsor.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start flex-wrap gap-2 mb-1">
-              <h1 className="text-xl font-bold text-[var(--fg)]">{sponsor.companyName}</h1>
-              {sponsor.tier && <StatusBadge value={sponsor.tier} variant="sponsor_tier" />}
-              <StatusBadge value={sponsor.status} variant="sponsor_status" />
-            </div>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {sponsor.website && (
-                <a href={sponsor.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs hover:bg-amber-500/20 transition-colors">
-                  <Globe className="w-3 h-3" /> {sponsor.website.replace(/^https?:\/\//, '')}
-                </a>
-              )}
-              {(sponsor.city || sponsor.country) && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700/40 border border-slate-700 text-slate-400 text-xs">
-                  <MapPin className="w-3 h-3" /> {[sponsor.city, sponsor.country].filter(Boolean).join(', ')}
-                </span>
-              )}
-              {sponsor.event && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/8 border border-amber-500/15 text-amber-400/80 text-xs">
-                  {sponsor.event}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => setEditOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--line)] text-slate-300 hover:text-[var(--fg)] hover:border-slate-500 text-sm transition-colors">
-              <Edit2 className="w-3.5 h-3.5" /> Edit
-            </button>
-            <button onClick={handleDelete} disabled={deleting} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm transition-colors disabled:opacity-50">
-              <Trash2 className="w-3.5 h-3.5" /> Delete
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Every event this company is in, and adding it to more. */}
-      <CompanyEvents kind="sponsor" id={sponsor.id} />
-
-      <PipelineProgress
-        currentStatus={sponsor.status}
-        accentHex="#f59e0b"
+    <>
+      <CompanyProfile
+        kind="sponsor"
+        company={sponsor}
+        nav={{ prev: prevItem, next: nextItem, index: currentIdx, total: navList.length }}
+        onEdit={() => setEditOpen(true)}
+        onDelete={handleDelete}
+        deleting={deleting}
         onStageChange={handleStageChange}
-        saving={stageSaving}
+        stageSaving={stageSaving}
+        contacts={{
+          onAdd: () => setAddContactOpen(true),
+          onEdit: (c) => setEditingContact(c),
+          onMove: (c, isPrimary) => setMovingContact({ contact: c, isPrimary }),
+          onDelete: async (c) => {
+            if (!confirm('Remove this contact?')) return
+            await fetch(`/api/sponsors/${c.id}`, { method: 'DELETE' })
+            refetch()
+          },
+        }}
+        refetch={refetch}
       />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-4">
-          {/* Sponsorship details */}
-          <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Sponsorship Details</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <DetailField label="Status" value={<StatusBadge value={sponsor.status} variant="sponsor_status" />} />
-              {sponsor.tier && <DetailField label="Tier" value={<StatusBadge value={sponsor.tier} variant="sponsor_tier" />} />}
-              <DetailField
-                label="Sponsorship Value"
-                value={sponsor.valueAmount
-                  ? <span className="font-semibold text-amber-400">{sponsor.valueCurrency ?? 'GBP'} {Number(sponsor.valueAmount).toLocaleString()}</span>
-                  : '—'
-                }
-              />
-              <DetailField label="Added" value={new Date(sponsor.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
-              <DetailField label="Last Updated" value={new Date(sponsor.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
-            </div>
-
-            {sponsor.packageDetails && (
-              <div className="mt-4 pt-4 border-t border-[var(--line)]">
-                <div className="text-xs text-slate-500 mb-2">Package Details</div>
-                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{sponsor.packageDetails}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Primary contact */}
-          {(sponsor.contactFirstName || sponsor.contactLastName || sponsor.contactEmail) && (
-            <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Primary Contact</h2>
-              <div className="space-y-3">
-                {(sponsor.contactFirstName || sponsor.contactLastName) && (
-                  <InfoRow icon={Building2} label="Name">
-                    <span>{[sponsor.contactFirstName, sponsor.contactLastName].filter(Boolean).join(' ')}</span>
-                  </InfoRow>
-                )}
-                {sponsor.contactJobTitle && <InfoRow icon={Briefcase} label="Title"><span>{sponsor.contactJobTitle}</span></InfoRow>}
-                {sponsor.contactEmail && (
-                  <InfoRow icon={Mail} label="Email">
-                    <a href={`mailto:${sponsor.contactEmail}`} className="text-amber-400 hover:underline">{sponsor.contactEmail}</a>
-                  </InfoRow>
-                )}
-                {sponsor.contactPhone && <InfoRow icon={Phone} label="Phone"><span>{sponsor.contactPhone}</span></InfoRow>}
-                {sponsor.contactLinkedinUrl && (
-                  <InfoRow icon={Linkedin} label="LinkedIn">
-                    <a href={sponsor.contactLinkedinUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">View Profile</a>
-                  </InfoRow>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Contacts */}
-          <div className="whai-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-[var(--fg)]">
-                Contacts
-                {sponsor.contacts && sponsor.contacts.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-slate-500">({sponsor.contacts.length + (sponsor.contactFirstName || sponsor.contactLastName ? 1 : 0)})</span>
-                )}
-              </h2>
-              <button
-                onClick={() => setAddContactOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] text-slate-400 hover:text-[var(--fg)] hover:border-slate-500 text-xs transition-colors"
-              >
-                <UserPlus className="w-3.5 h-3.5" /> Add Contact
-              </button>
-            </div>
-            <div className="space-y-3">
-              {/* Embedded primary contact */}
-              {(sponsor.contactFirstName || sponsor.contactLastName || sponsor.contactEmail) && (
-                <ContactCard
-                  name={[sponsor.contactFirstName, sponsor.contactLastName].filter(Boolean).join(' ')}
-                  jobTitle={sponsor.contactJobTitle}
-                  email={sponsor.contactEmail}
-                  phone={sponsor.contactPhone}
-                  linkedinUrl={sponsor.contactLinkedinUrl}
-                  isPrimary
-                  onClick={() => setEditingContact({
-                    id: sponsor.id, companyId: sponsor.id,
-                    contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
-                    contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
-                    contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                    notes: null, createdAt: sponsor.createdAt,
-                  })}
-                  onEdit={() => setEditingContact({
-                    id: sponsor.id, companyId: sponsor.id,
-                    contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
-                    contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
-                    contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                    notes: null, createdAt: sponsor.createdAt,
-                  })}
-                  onMove={() => setMovingContact({
-                    isPrimary: true,
-                    contact: {
-                      id: sponsor.id, companyId: sponsor.id,
-                      contactFirstName: sponsor.contactFirstName, contactLastName: sponsor.contactLastName,
-                      contactEmail: sponsor.contactEmail, contactPhone: sponsor.contactPhone,
-                      contactJobTitle: sponsor.contactJobTitle, contactLinkedinUrl: sponsor.contactLinkedinUrl,
-                      notes: null, createdAt: sponsor.createdAt,
-                    },
-                  })}
-                />
-              )}
-              {/* Linked contacts */}
-              {sponsor.contacts?.map((c) => (
-                <ContactCard
-                  key={c.id}
-                  name={[c.contactFirstName, c.contactLastName].filter(Boolean).join(' ')}
-                  jobTitle={c.contactJobTitle}
-                  email={c.contactEmail}
-                  phone={c.contactPhone}
-                  linkedinUrl={c.contactLinkedinUrl}
-                  onClick={() => setEditingContact(c)}
-                  onEdit={() => setEditingContact(c)}
-                  onMove={() => setMovingContact({ contact: c, isPrimary: false })}
-                  onDelete={async () => {
-                    if (!confirm('Remove this contact?')) return
-                    await fetch(`/api/sponsors/${c.id}`, { method: 'DELETE' })
-                    refetch()
-                  }}
-                />
-              ))}
-              {!sponsor.contactFirstName && !sponsor.contactLastName && !sponsor.contactEmail && (!sponsor.contacts || sponsor.contacts.length === 0) && (
-                <p className="text-sm text-slate-500">No contacts yet. Add the first one.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Notes */}
-          {sponsor.notes && (
-            <div className="whai-card p-5">
-              <h2 className="text-sm font-semibold text-[var(--fg)] mb-3">Notes</h2>
-              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{sponsor.notes}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <div className="whai-card p-5">
-            <h2 className="text-sm font-semibold text-[var(--fg)] mb-4">Activity</h2>
-            <ActivityFeed activities={sponsor.activities ?? []} entityType="sponsor" entityId={id} onActivityAdded={refetch} />
-          </div>
-        </div>
-      </div>
-
       {addContactOpen && (
         <SponsorContactModal
           companyId={id}
@@ -521,56 +231,7 @@ export default function SponsorDetailPage() {
           loading={moveLoading}
         />
       )}
-    </div>
-  )
-}
-
-function ContactCard({ name, jobTitle, email, phone, linkedinUrl, isPrimary, onClick, onEdit, onMove, onDelete }: {
-  name: string; jobTitle?: string | null; email?: string | null
-  phone?: string | null; linkedinUrl?: string | null; isPrimary?: boolean
-  onClick?: () => void; onEdit?: () => void; onMove?: () => void; onDelete?: () => void
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-start gap-3 p-3 rounded-lg bg-[var(--bg)] border border-[var(--line)] transition-colors group/card',
-        onClick && 'cursor-pointer hover:border-amber-500/30 hover:bg-[var(--surface-2)]'
-      )}
-      onClick={onClick}
-    >
-      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
-        {name ? name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() : '?'}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-[var(--fg)]">{name || '—'}</span>
-          {isPrimary && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400/80 border border-amber-500/20">Primary</span>}
-        </div>
-        {jobTitle && <div className="text-xs text-slate-500 mt-0.5">{jobTitle}</div>}
-        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-          {email && <a href={`mailto:${email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-amber-400 hover:underline">{email}</a>}
-          {phone && <span className="text-xs text-slate-400">{phone}</span>}
-          {linkedinUrl && <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-slate-500 hover:text-slate-300">LinkedIn ↗</a>}
-        </div>
-      </div>
-      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-        {onMove && (
-          <button onClick={onMove} className="text-slate-600 hover:text-blue-400 transition-colors p-1" title="Move to another company">
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-          </button>
-        )}
-        {onEdit && (
-          <button onClick={onEdit} className="text-slate-600 hover:text-amber-400 transition-colors p-1">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-        )}
-        {onDelete && (
-          <button onClick={onDelete} className="text-slate-600 hover:text-red-400 transition-colors p-1">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-    </div>
+    </>
   )
 }
 
@@ -657,23 +318,3 @@ function MoveContactModal({ contactName, currentSponsorId, onClose, onMove, load
   )
 }
 
-function InfoRow({ icon: Icon, label, children }: { icon: any; label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3">
-      <Icon className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-slate-500 mb-0.5">{label}</div>
-        <div className="text-sm text-slate-200">{children}</div>
-      </div>
-    </div>
-  )
-}
-
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-xs text-slate-500 mb-1">{label}</div>
-      <div className="text-sm text-slate-200">{value}</div>
-    </div>
-  )
-}
