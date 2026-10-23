@@ -169,7 +169,10 @@ export interface DuplicateGroup {
   records: DuplicateRecord[]
 }
 
-// Every set of 2+ company rows sharing a normalised name, newest activity first.
+// Every set of 2+ company rows sharing a normalised name within one event,
+// newest activity first. The same company in two events is two rows on
+// purpose (each carries that event's stage and value), not a duplicate:
+// merging them would delete one event's record.
 export async function findDuplicateCompanies(table: MergeTable): Promise<DuplicateGroup[]> {
   const { data: companies, error } = await supabase
     .from(table)
@@ -204,8 +207,9 @@ export async function findDuplicateCompanies(table: MergeTable): Promise<Duplica
 
   const byKey = new Map<string, DuplicateRecord[]>()
   for (const r of rows) {
-    const key = normaliseCompanyName(r.companyName)
-    if (!key) continue
+    const name = normaliseCompanyName(r.companyName)
+    if (!name) continue
+    const key = `${name}|${String(r.event ?? '').trim().toLowerCase()}`
     const list = byKey.get(key) ?? []
     list.push({
       ...r,
@@ -221,7 +225,8 @@ export async function findDuplicateCompanies(table: MergeTable): Promise<Duplica
     if (records.length < 2) return
     // Most-progressed record first — it's the one to keep by default.
     records.sort((a, b) => recordWeight(b) - recordWeight(a))
-    groups.push({ key, name: records[0].companyName || key, records })
+    const ev = records[0].event ? ` · ${records[0].event}` : ''
+    groups.push({ key, name: `${records[0].companyName || key}${ev}`, records })
   })
   groups.sort((a, b) => a.name.localeCompare(b.name))
   return groups
