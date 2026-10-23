@@ -12,6 +12,7 @@ import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
+import { CompanyEvents } from '@/components/crm/CompanyEvents'
 import type { Sponsor, SponsorContact } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -334,6 +335,9 @@ export default function SponsorDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Every event this company is in, and adding it to more. */}
+      <CompanyEvents kind="sponsor" id={sponsor.id} />
 
       <PipelineProgress
         currentStatus={sponsor.status}

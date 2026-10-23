@@ -12,6 +12,7 @@ import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { StatusBadge } from '@/components/crm/StatusBadge'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
+import { CompanyEvents } from '@/components/crm/CompanyEvents'
 import type { Sponsor, SponsorContact } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -223,6 +224,9 @@ export default function PartnerDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Every event this company is in, and adding it to more. */}
+      <CompanyEvents kind="partner" id={partner.id} />
 
       {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
