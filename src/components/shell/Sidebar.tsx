@@ -73,22 +73,31 @@ export function Sidebar({ view, onClose }: { view: WorkspaceView; onClose?: () =
           </Link>
         )}
 
-        {/* Editions */}
+        {/* Editions: a year switch, oldest to newest, and a word on the one open */}
         {portal && category && slug && years.length > 0 && (
-          <nav>
-            <p className="ws-label px-2">Editions</p>
-            <div className="flex flex-col gap-0.5">
-              {years.map((y) => {
-                const active = y === year
-                const upcoming = Number(y) > now
-                return (
-                  <Link key={y} href={workspaceHref(portal.key, slug, inWorkspace ? section : '', y)} className="ws-nav-item justify-between" data-active={active} onClick={onClose}>
-                    <span>{y}</span>
-                    {upcoming && <span className="text-[11px] font-normal" style={{ color: 'var(--fg-4)' }}>{y === String(now + 1) ? 'next' : 'planning'}</span>}
-                  </Link>
-                )
-              })}
+          <nav className="px-2">
+            <p className="ws-label">Edition</p>
+            <div className="ws-seg" role="tablist" aria-label="Edition">
+              {[...years].sort().map((y) => (
+                <Link
+                  key={y}
+                  href={workspaceHref(portal.key, slug, inWorkspace ? section : '', y)}
+                  className="ws-seg-item"
+                  role="tab"
+                  aria-selected={y === year}
+                  data-active={y === year}
+                  data-past={Number(y) < now}
+                  onClick={onClose}
+                >
+                  {y}
+                </Link>
+              ))}
             </div>
+            {year && (
+              <p className="text-[11.5px] mt-1.5" style={{ color: 'var(--fg-4)' }}>
+                {Number(year) < now ? 'Past edition' : Number(year) === now ? 'This year' : Number(year) === now + 1 ? 'Next edition' : 'Planning ahead'}
+              </p>
+            )}
           </nav>
         )}
 
