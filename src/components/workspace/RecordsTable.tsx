@@ -94,7 +94,13 @@ function ValueCell({ row, onSave }: { row: Row; onSave: (r: Row, amount: number 
   )
 }
 
-function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onValue: (r: Row, amount: number | null) => Promise<void>, onEdit: (r: Row) => void, busyId: string | null, showEdition: boolean): Column[] {
+// The Edition column: shown for companies (not tied to a year) and while a
+// search covers every edition. A row of this workspace's series reads
+// "London 2027"; one of another brand keeps its series ("World Health AI
+// London 2026"). `extra` adds a control after it (the "Add to 2027" button).
+interface EditionCol { series: string | null; extra?: (r: Row) => React.ReactNode }
+
+function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onValue: (r: Row, amount: number | null) => Promise<void>, onEdit: (r: Row) => void, busyId: string | null, showEdition: EditionCol | null): Column[] {
   const def = KINDS[kind]
   const stageCell = (r: Row) => (
     <span className="relative inline-flex items-center">
@@ -132,8 +138,22 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
     )
   }
   const added: Column = { key: 'createdAt', label: 'Added', sortable: true, width: '90px', render: (r) => <span className="tabular" style={{ color: 'var(--fg-3)' }}>{timeAgo(r.createdAt)}</span> }
-  // "World Health AI London 2027" → "London 2027": the series is the workspace.
-  const edition: Column = { key: 'event', label: 'Edition', sortable: true, width: '130px', render: (r) => <span style={{ color: r.event ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.event ? String(r.event).replace(/^World (Health|Pharma) AI\s*/i, '') : '—'}</span> }
+  // "World Pharma AI London 2027" → "London 2027" when the series is the
+  // workspace's; another brand's edition keeps its name.
+  const editionText = (ev: unknown) => {
+    const label = String(ev ?? '')
+    const series = showEdition?.series
+    return series && label.toLowerCase().startsWith(series.toLowerCase()) ? label.slice(series.length).trim() || label : label
+  }
+  const edition: Column = {
+    key: 'event', label: 'Edition', sortable: true, width: '190px',
+    render: (r) => (
+      <span className="flex flex-col items-start gap-1">
+        <span style={{ color: r.event ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.event ? editionText(r.event) : '—'}</span>
+        {showEdition?.extra?.(r)}
+      </span>
+    ),
+  }
 
   if (kind === 'sponsor' || kind === 'partner') {
     return [
@@ -149,6 +169,7 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
   if (kind === 'speaker') {
     return [
       { key: 'lastName', label: 'Speaker', sortable: true, render: nameCell },
+      ...(showEdition ? [edition] : []),
       { key: 'status', label: 'Stage', sortable: true, width: '190px', render: stageCell },
       { key: 'subType', label: 'Type', sortable: true, width: '130px', render: (r) => <span style={{ color: r.subType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.subType || '—'}</span> },
       { key: 'sessionType', label: 'Session', width: '120px', render: (r) => <span style={{ color: r.sessionType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.sessionType || '—'}</span> },
@@ -158,6 +179,7 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
   }
   return [
     { key: 'lastName', label: 'Delegate', sortable: true, render: nameCell },
+    ...(showEdition ? [edition] : []),
     { key: 'status', label: 'Status', sortable: true, width: '160px', render: stageCell },
     { key: 'subType', label: 'Type', sortable: true, width: '130px', render: (r) => <span style={{ color: r.subType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.subType || '—'}</span> },
     { key: 'ticketType', label: 'Ticket', width: '120px', render: (r) => <span style={{ color: r.ticketType ? 'var(--fg-2)' : 'var(--fg-4)' }}>{r.ticketType || '—'}</span> },
@@ -192,36 +214,31 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   // rarely does for another.
   useEffect(() => { setPage(1) }, [labels.join('|')])
 
+  // A search looks through the whole CRM: every edition of every brand, so
+  // someone filed under World Health AI turns up while working on World
+  // Pharma AI. Without one, people are listed for this edition only.
+  const searchingAll = !allEditions && query.length > 0
+  const scope = allEditions || searchingAll ? [] : labels
+
   const { data, isLoading, isFetching, refetch } = useQuery<{ data: Row[]; total: number; totalPages: number }>({
-    queryKey: ['ws-list', kind, labels, query, status, page, pageSize, sortBy, sortDir],
+    queryKey: ['ws-list', kind, scope, query, status, page, pageSize, sortBy, sortDir],
     queryFn: async () => {
-      const p = listParams(kind, allEditions ? [] : labels, { query, statuses: status ? [status] : undefined, page: String(page), pageSize: String(pageSize), sortBy, sortDir })
+      const p = listParams(kind, scope, { query, statuses: status ? [status] : undefined, page: String(page), pageSize: String(pageSize), sortBy, sortDir })
       const r = await fetch(`${def.api}?${p}`)
       if (!r.ok) throw new Error('list')
       return r.json()
     },
-    enabled: allEditions || labels.length > 0,
+    enabled: allEditions || searchingAll || labels.length > 0,
     placeholderData: (prev) => prev,
   })
 
   const rows = data?.data ?? []
   const total = data?.total ?? 0
 
-  // People belong to an edition, one row per edition. A search also looks
-  // across the other editions, so a 2026 speaker turns up when the team is
-  // working on 2027 and can be added to it from here.
-  const { data: otherData } = useQuery<{ data: Row[] }>({
-    queryKey: ['ws-list-other', kind, query],
-    queryFn: async () => {
-      const p = listParams(kind, [], { query, page: '1', pageSize: '50', sortBy: 'createdAt', sortDir: 'desc' })
-      const r = await fetch(`${def.api}?${p}`)
-      if (!r.ok) throw new Error('list')
-      return r.json()
-    },
-    enabled: !allEditions && query.length > 0,
-  })
+  // People belong to an edition, one row per edition. A row found in
+  // another edition can be copied into this one from the search results.
   const labelSet = new Set(labels.map((l) => l.toLowerCase()))
-  const others = (otherData?.data ?? []).filter((r) => !labelSet.has(String(r.event ?? '').toLowerCase()))
+  const inThisEdition = (r: Row) => labelSet.has(String(r.event ?? '').toLowerCase())
   const [copying, setCopying] = useState<Row | null>(null)
   // A fresh record for this edition with the person's contact details; the
   // pipeline starts again.
@@ -279,7 +296,15 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
     a.click()
   }
 
-  const columns = columnsFor(kind, onStage, onValue, setEditing, busyId, allEditions)
+  const series = category?.name.match(/^World \w+ AI/i)?.[0] ?? null
+  const addToYear = (r: Row) =>
+    year && !inThisEdition(r) ? (
+      <button type="button" onClick={(e) => { e.stopPropagation(); setCopying(r) }} className="ws-btn ws-btn-sm" title={`Start a ${year} record for ${recordName(kind, r)} with the same contact details`}>
+        <CopyPlus className="w-3.5 h-3.5" /> Add to {year}
+      </button>
+    ) : null
+  const columns = columnsFor(kind, onStage, onValue, setEditing, busyId,
+    allEditions ? { series } : searchingAll ? { series, extra: addToYear } : null)
   const preset = category && year ? { event: editionLabel(category.name, year) } : {}
   const saved = () => { setAdding(false); setEditing(null); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }); queryClient.invalidateQueries({ queryKey: ['ws-board'] }) }
 
@@ -310,7 +335,7 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
             ))}
           </div>
           <span className="ml-auto text-[12.5px] tabular whitespace-nowrap" style={{ color: 'var(--fg-3)' }}>
-            {isLoading ? 'Loading…' : `${total.toLocaleString()} ${total === 1 ? 'record' : 'records'}`}{isFetching && !isLoading ? ' · updating' : ''}
+            {isLoading ? 'Loading…' : `${total.toLocaleString()} ${total === 1 ? 'record' : 'records'}${searchingAll ? ' across every event' : ''}`}{isFetching && !isLoading ? ' · updating' : ''}
           </span>
         </div>
 
@@ -364,34 +389,6 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
           </div>
         )}
 
-        {others.length > 0 && (
-          <div className="px-4 py-3" style={{ borderTop: '1px solid var(--line)' }}>
-            <div className="text-[12px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--fg-3)' }}>In other editions</div>
-            <ul className="divide-y" style={{ borderColor: 'var(--line)' }}>
-              {others.map((r) => {
-                const name = recordName(kind, r)
-                return (
-                  <li key={r.id} className="flex flex-wrap items-center gap-3 py-2">
-                    <button type="button" onClick={() => router.push(`${def.detailPath}/${r.id}`)} className="flex items-center gap-3 min-w-0 text-left hover:underline underline-offset-4" title="Open the profile">
-                      <Initials name={name || '?'} size={30} />
-                      <span className="min-w-0">
-                        <span className="block font-medium truncate" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
-                        <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{recordSubtitle(kind, r) || r.email || '—'}</span>
-                      </span>
-                    </button>
-                    <span className="text-[12.5px]" style={{ color: 'var(--fg-2)' }}>{r.event ? String(r.event).replace(/^World (Health|Pharma) AI\s*/i, '') : '—'}</span>
-                    <StagePill kind={kind} status={r.status} />
-                    {year && (
-                      <button type="button" onClick={() => setCopying(r)} className="ws-btn ml-auto" title={`Start a ${year} record for ${name} with the same contact details`}>
-                        <CopyPlus className="w-4 h-4" /> Add to {year}
-                      </button>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        )}
       </div>
 
       {copying && kind === 'speaker' && <SpeakerFormModal title={`Add ${recordName(kind, copying)} to ${year}`} speaker={copyPreset(copying)} onClose={() => setCopying(null)} onSaved={() => { setCopying(null); saved() }} />}

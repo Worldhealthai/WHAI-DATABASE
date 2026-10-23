@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import type { SponsorFilters } from '@/types'
+import { searchFilter } from '@/lib/search'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,12 +36,13 @@ export async function GET(req: NextRequest) {
         .from('partners')
         .select('companyId')
         .not('companyId', 'is', null)
-        .or(`contactFirstName.ilike.%${q}%,contactLastName.ilike.%${q}%,contactEmail.ilike.%${q}%,contactJobTitle.ilike.%${q}%`)
+        .or(searchFilter(q, ['contactFirstName', 'contactLastName', 'contactEmail', 'contactJobTitle']))
 
       const parentIds = [...new Set((linkedMatches ?? []).map((c: any) => c.companyId).filter(Boolean))]
 
       // Build OR: match company-level fields OR be a parent of a matching linked contact
-      const companyFieldMatch = `companyName.ilike.%${q}%,contactFirstName.ilike.%${q}%,contactLastName.ilike.%${q}%,contactEmail.ilike.%${q}%,contactJobTitle.ilike.%${q}%`
+      // The website too ("lybridhealth.com"), and the name ignoring spaces.
+      const companyFieldMatch = searchFilter(q, ['companyName', 'website', 'contactFirstName', 'contactLastName', 'contactEmail', 'contactJobTitle'], ['companyName'])
       if (parentIds.length > 0) {
         query = query.or(`${companyFieldMatch},id.in.(${parentIds.join(',')})`)
       } else {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import type { DelegateFilters } from '@/types'
+import { searchFilter } from '@/lib/search'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     if (filters.query) {
       query = query.or(
-        `firstName.ilike.%${filters.query}%,lastName.ilike.%${filters.query}%,email.ilike.%${filters.query}%,organization.ilike.%${filters.query}%,jobTitle.ilike.%${filters.query}%`
+        searchFilter(filters.query, ['firstName', 'lastName', 'email', 'organization', 'jobTitle'], ['organization'])
       )
     }
     if (filters.statuses?.length) query = query.in('status', filters.statuses)
