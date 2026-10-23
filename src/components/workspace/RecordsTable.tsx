@@ -241,17 +241,6 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   // another edition can be copied into this one from the search results.
   const labelSet = new Set(labels.map((l) => l.toLowerCase()))
   const inThisEdition = (r: Row) => labelSet.has(String(r.event ?? '').toLowerCase())
-  const [copying, setCopying] = useState<Row | null>(null)
-  // A fresh record for this edition with the person's contact details; the
-  // pipeline starts again.
-  const copyPreset = (r: Row): Row => ({
-    firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone,
-    organization: r.organization, jobTitle: r.jobTitle, country: r.country, city: r.city,
-    linkedinUrl: r.linkedinUrl, subType: r.subType,
-    ...(category && year ? { event: editionLabel(category.name, year) } : {}),
-    ...(kind === 'speaker' ? { year: year ? Number(year) : undefined, status: 'Not Contacted' } : {}),
-  })
-
   const onKeyword = (v: string) => {
     setKeyword(v)
     clearTimeout(debounce.current)
@@ -299,10 +288,11 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   }
 
   const series = category?.name.match(/^World \w+ AI/i)?.[0] ?? null
-  // From a search: put a company found in another edition into this one
-  // (a record of its own, contacts copied), or start a person's record here.
+  // From a search: put a company or person found in another edition into
+  // this one (a record of their own: a company's contacts are copied, a
+  // person's details are; the stage starts again).
   const [addingId, setAddingId] = useState<string | null>(null)
-  const addCompanyHere = async (r: Row) => {
+  const addHere = async (r: Row) => {
     if (!category || !year) return
     setAddingId(r.id)
     try {
@@ -320,7 +310,7 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   }
   const addToYear = (r: Row) =>
     year && !inThisEdition(r) ? (
-      <button type="button" disabled={addingId === r.id} onClick={(e) => { e.stopPropagation(); if (isCompany) addCompanyHere(r); else setCopying(r) }} className="ws-btn ws-btn-sm" title={isCompany ? `Add ${recordName(kind, r)} to the ${year} edition, with its contacts` : `Start a ${year} record for ${recordName(kind, r)} with the same contact details`}>
+      <button type="button" disabled={addingId === r.id} onClick={(e) => { e.stopPropagation(); addHere(r) }} className="ws-btn ws-btn-sm" title={isCompany ? `Add ${recordName(kind, r)} to the ${year} edition, with its contacts` : `Add ${recordName(kind, r)} to the ${year} edition, with the same details`}>
         <CopyPlus className="w-3.5 h-3.5" /> Add to {year}
       </button>
     ) : null
@@ -412,8 +402,6 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
 
       </div>
 
-      {copying && kind === 'speaker' && <SpeakerFormModal title={`Add ${recordName(kind, copying)} to ${year}`} speaker={copyPreset(copying)} onClose={() => setCopying(null)} onSaved={() => { setCopying(null); saved() }} />}
-      {copying && kind === 'delegate' && <DelegateFormModal delegate={copyPreset(copying)} onClose={() => setCopying(null)} onSaved={() => { setCopying(null); saved() }} />}
 
       {adding && (kind === 'sponsor' || kind === 'partner') && (
         <SponsorFormModal sponsor={preset} partnerMode={kind === 'partner'} entityLabel={def.label} onClose={() => setAdding(false)} onSaved={saved} />

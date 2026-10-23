@@ -1,34 +1,37 @@
-// GET — every edition this speaker has a record for. The CRM keeps one row
-// per speaker per edition (migration 011), so the rows of one person are
-// matched on their email (case-insensitive), or on first and last name when
-// the record has no email. Newest year first; the record asked for is
-// included.
+// GET: every event this speaker is in. POST { events: string[], status? }:
+// add them to more events. DELETE { events: string[] }: take them out of
+// those events (lib/personEditions).
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { addPersonToEvents, personEditions, removePersonFromEvents, type PersonTable } from '@/lib/personEditions'
 
 export const dynamic = 'force-dynamic'
 
-const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&')
+const TABLE: PersonTable = 'speakers'
+
+const eventsOf = (body: any): string[] => (Array.isArray(body?.events) ? body.events.filter((e: unknown) => typeof e === 'string') : [])
 
 export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
-  try {
-    const { data: me, error } = await supabase.from('speakers').select('id, email, firstName, lastName').eq('id', id).single()
-    if (error || !me) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const found = await personEditions(TABLE, id)
+  if (!found) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(found)
+}
 
-    const cols = 'id, event, year, status, sessionTitle, sessionType, contractStatus, adminLineup, createdAt'
-    let q = supabase.from('speakers').select(cols)
-    const email = typeof me.email === 'string' ? me.email.trim() : ''
-    if (email) q = q.ilike('email', escapeLike(email))
-    else if (me.firstName && me.lastName) q = q.ilike('firstName', escapeLike(me.firstName)).ilike('lastName', escapeLike(me.lastName)).is('email', null)
-    else q = q.eq('id', id)
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  const body = await req.json().catch(() => null)
+  const events = eventsOf(body)
+  if (!events.length) return NextResponse.json({ error: 'Pick at least one event.' }, { status: 400 })
+  const result = await addPersonToEvents(TABLE, id, events, typeof body?.status === 'string' ? body.status : null)
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 404 })
+  return NextResponse.json(result, { status: 201 })
+}
 
-    const { data, error: listErr } = await q
-    if (listErr) throw listErr
-    const rows = (data ?? []).slice().sort((a: any, b: any) => (b.year ?? 0) - (a.year ?? 0) || String(b.event ?? '').localeCompare(String(a.event ?? '')))
-    return NextResponse.json({ data: rows })
-  } catch (err) {
-    console.error('Speaker editions error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  const events = eventsOf(await req.json().catch(() => null))
+  if (!events.length) return NextResponse.json({ error: 'Pick at least one event.' }, { status: 400 })
+  const result = await removePersonFromEvents(TABLE, id, events)
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 404 })
+  return NextResponse.json(result)
 }

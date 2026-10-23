@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
       return NextResponse.json(
-        { error: 'This speaker is already in the CRM for that edition. To add them for another year, open their record and use “Add to another edition”, or pick a different event here.' },
+        { error: 'This speaker is already in the CRM for that edition. To add them for another year, open their record and use “Add to event”, or tick more events in the form.' },
         { status: 409 },
       )
     }

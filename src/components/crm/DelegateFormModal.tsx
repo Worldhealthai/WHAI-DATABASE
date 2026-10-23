@@ -3,13 +3,12 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Delegate } from '@/types'
-import { useEventOptions } from '@/lib/useEventOptions'
+import { PersonEventsField, confirmRemoval, usePersonEvents } from '@/components/crm/PersonEvents'
 import {
   DELEGATE_STATUS_OPTIONS,
   delegateStatusLabel,
   DELEGATE_TICKET_OPTIONS,
   DELEGATE_SOURCE_OPTIONS,
-  EVENT_OPTIONS,
   SUBTYPE_OPTIONS,
   COUNTRY_OPTIONS,
 } from '@/types'
@@ -44,8 +43,10 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
     notes: delegate?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
-  const eventOptions = useEventOptions()
   const [error, setError] = useState('')
+  // The events and years they are in: one record each.
+  const events = usePersonEvents('delegate', delegate)
+  const name = `${form.firstName} ${form.lastName}`.trim()
 
   const set = (key: string, value: string) => setForm((p) => ({ ...p, [key]: value }))
 
@@ -55,23 +56,32 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
       setError('First name and last name are required.')
       return
     }
+    const plan = events.plan(form.event)
+    const check = confirmRemoval(name, plan)
+    if (check.blocked) { setError(check.blocked); return }
+    if (!check.ok) return
     setSaving(true)
     setError('')
     try {
-      const body: any = { ...form }
+      const body: any = { ...form, event: plan.main }
       // Remove empty optional strings
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
-      const res = await fetch(isEdit ? `/api/delegates/${delegate!.id}` : '/api/delegates', {
-        method: isEdit ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        throw new Error(data?.error || 'Failed to save')
+      // A record about to be taken out of its event isn't saved first.
+      let saved: any = delegate
+      if (!plan.removingThis) {
+        const res = await fetch(isEdit ? `/api/delegates/${delegate!.id}` : '/api/delegates', {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => null)
+          throw new Error(data?.error || 'Failed to save')
+        }
+        saved = await res.json()
       }
-      const saved = await res.json()
+      if (!(await events.apply(saved?.id, plan, form.status))) { onClose(); return }
       onSaved(saved)
     } catch (err: any) {
       setError(err?.message && err.message !== 'Failed to save' ? err.message : 'Something went wrong. Please try again.')
@@ -85,7 +95,7 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
       <div className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-2xl my-4">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
-          <h2 className="text-base font-semibold text-[var(--fg)]">{isEdit ? 'Edit Delegate' : 'Add Delegate'}</h2>
+          <h2 className="text-base font-semibold text-[var(--fg)]">{isEdit ? 'Edit delegate' : 'Add delegate'}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-[var(--fg)] transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -98,114 +108,95 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
             </div>
           )}
 
-          {/* Name */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="First Name *">
-              <input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} placeholder="Jane" className={inputCls} required />
-            </Field>
-            <Field label="Last Name *">
-              <input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} placeholder="Smith" className={inputCls} required />
-            </Field>
+          {/* Person */}
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Person</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="First name *">
+                <input value={form.firstName} onChange={(e) => set('firstName', e.target.value)} placeholder="Jane" className={inputCls} required />
+              </Field>
+              <Field label="Last name *">
+                <input value={form.lastName} onChange={(e) => set('lastName', e.target.value)} placeholder="Smith" className={inputCls} required />
+              </Field>
+              <Field label="Job title">
+                <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="Chief Medical Officer" className={inputCls} />
+              </Field>
+              <Field label="Organisation">
+                <input value={form.organization} onChange={(e) => set('organization', e.target.value)} placeholder="Company name" className={inputCls} />
+              </Field>
+              <Field label="Email">
+                <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="jane@example.com" className={inputCls} />
+              </Field>
+              <Field label="Phone">
+                <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+44 7700 000000" className={inputCls} />
+              </Field>
+              <Field label="LinkedIn">
+                <input value={form.linkedinUrl} onChange={(e) => set('linkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." className={inputCls} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Country">
+                  <select value={form.country} onChange={(e) => set('country', e.target.value)} className={inputCls}>
+                    <option value="">Select</option>
+                    {COUNTRY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="City">
+                  <input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="London" className={inputCls} />
+                </Field>
+              </div>
+            </div>
           </div>
 
-          {/* Contact */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Email">
-              <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="jane@example.com" className={inputCls} />
-            </Field>
-            <Field label="Phone">
-              <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+44 7700 000000" className={inputCls} />
-            </Field>
+          {/* Attending: the events, and the stage */}
+          <div className="pt-2 border-t border-[var(--line)]">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Attending</p>
+            <PersonEventsField kind="delegate" events={events} current={form.event} onMove={(ev) => set('event', ev)} inputCls={inputCls} />
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <Field label={isEdit ? 'Stage' : 'Stage in each event'}>
+                <select value={form.status} onChange={(e) => set('status', e.target.value)} className={inputCls}>
+                  {DELEGATE_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{delegateStatusLabel(s)}</option>)}
+                  {/* Legacy statuses (Attended/Waitlisted) stay selectable on rows that already carry them */}
+                  {form.status && !DELEGATE_STATUS_OPTIONS.includes(form.status) && (
+                    <option value={form.status}>{delegateStatusLabel(form.status)}</option>
+                  )}
+                </select>
+              </Field>
+              <Field label="Delegate type">
+                <select value={form.subType} onChange={(e) => set('subType', e.target.value)} className={inputCls}>
+                  <option value="">Select type</option>
+                  {SUBTYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
+              <Field label="Ticket">
+                <select value={form.ticketType} onChange={(e) => set('ticketType', e.target.value)} className={inputCls}>
+                  <option value="">Select ticket</option>
+                  {DELEGATE_TICKET_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
+              <Field label="Source">
+                <select value={form.source} onChange={(e) => set('source', e.target.value)} className={inputCls}>
+                  <option value="">Select source</option>
+                  {DELEGATE_SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              <Field label="Dietary requirements">
+                <input value={form.dietaryRequirements} onChange={(e) => set('dietaryRequirements', e.target.value)} placeholder="e.g. Vegetarian" className={inputCls} />
+              </Field>
+              <Field label="Accessibility needs">
+                <input value={form.accessibilityNeeds} onChange={(e) => set('accessibilityNeeds', e.target.value)} placeholder="e.g. Wheelchair access" className={inputCls} />
+              </Field>
+            </div>
           </div>
 
-          {/* Organisation */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Organisation">
-              <input value={form.organization} onChange={(e) => set('organization', e.target.value)} placeholder="Company name" className={inputCls} />
+          {/* Bio and notes */}
+          <div className="pt-2 border-t border-[var(--line)] space-y-4">
+            <Field label="Bio">
+              <textarea value={form.bio} onChange={(e) => set('bio', e.target.value)} rows={3} placeholder="Short bio..." className={`${inputCls} resize-none`} />
             </Field>
-            <Field label="Job Title">
-              <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="Chief Medical Officer" className={inputCls} />
-            </Field>
-          </div>
-
-          {/* Location */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Country">
-              <select value={form.country} onChange={(e) => set('country', e.target.value)} className={inputCls}>
-                <option value="">Select country</option>
-                {COUNTRY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </Field>
-            <Field label="City">
-              <input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="London" className={inputCls} />
+            <Field label="Notes">
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
             </Field>
           </div>
-
-          {/* Event + Sub-type */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Event">
-              <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
-                <option value="">Select event</option>
-                {(form.event && !eventOptions.includes(form.event) ? [form.event, ...eventOptions] : eventOptions).map((e) => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </Field>
-            <Field label="Delegate Type">
-              <select value={form.subType} onChange={(e) => set('subType', e.target.value)} className={inputCls}>
-                <option value="">Select type</option>
-                {SUBTYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
-          </div>
-
-          {/* CRM */}
-          <div className="grid grid-cols-3 gap-4">
-            <Field label="Status">
-              <select value={form.status} onChange={(e) => set('status', e.target.value)} className={inputCls}>
-                {DELEGATE_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{delegateStatusLabel(s)}</option>)}
-                {/* Legacy statuses (Attended/Waitlisted) stay selectable on rows that already carry them */}
-                {form.status && !DELEGATE_STATUS_OPTIONS.includes(form.status) && (
-                  <option value={form.status}>{delegateStatusLabel(form.status)}</option>
-                )}
-              </select>
-            </Field>
-            <Field label="Ticket Type">
-              <select value={form.ticketType} onChange={(e) => set('ticketType', e.target.value)} className={inputCls}>
-                <option value="">Select type</option>
-                {DELEGATE_TICKET_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
-            <Field label="Source">
-              <select value={form.source} onChange={(e) => set('source', e.target.value)} className={inputCls}>
-                <option value="">Select source</option>
-                {DELEGATE_SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-          </div>
-
-          {/* LinkedIn */}
-          <Field label="LinkedIn URL">
-            <input value={form.linkedinUrl} onChange={(e) => set('linkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." className={inputCls} />
-          </Field>
-
-          {/* Dietary / Accessibility */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Dietary Requirements">
-              <input value={form.dietaryRequirements} onChange={(e) => set('dietaryRequirements', e.target.value)} placeholder="e.g. Vegetarian" className={inputCls} />
-            </Field>
-            <Field label="Accessibility Needs">
-              <input value={form.accessibilityNeeds} onChange={(e) => set('accessibilityNeeds', e.target.value)} placeholder="e.g. Wheelchair access" className={inputCls} />
-            </Field>
-          </div>
-
-          {/* Bio */}
-          <Field label="Bio">
-            <textarea value={form.bio} onChange={(e) => set('bio', e.target.value)} rows={3} placeholder="Short bio..." className={`${inputCls} resize-none`} />
-          </Field>
-
-          {/* Notes */}
-          <Field label="Notes">
-            <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} placeholder="Internal notes..." className={`${inputCls} resize-none`} />
-          </Field>
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--line)]">
@@ -217,7 +208,7 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
               disabled={saving}
               className="px-5 py-2 rounded-lg bg-[var(--teal)] text-[var(--on-accent)] text-sm font-semibold hover:bg-[var(--teal)] disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Delegate'}
+              {saving ? 'Saving…' : isEdit ? 'Save changes' : events.picked.length > 1 ? `Add to ${events.picked.length} events` : 'Add delegate'}
             </button>
           </div>
         </form>
