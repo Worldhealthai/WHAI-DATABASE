@@ -191,7 +191,9 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
 
 export function RecordsTable({ kind }: { kind: RecordKind }) {
   // Companies are not tied to a year; people are.
-  const allEditions = kind === 'sponsor' || kind === 'partner'
+  // Every list is this edition's; a company is in an edition through its
+  // record for it, and can be in several (lib/companyEditions).
+  const isCompany = kind === 'sponsor' || kind === 'partner'
   const ws = useWorkspace()
   const def = KINDS[kind]
   const queryClient = useQueryClient()
@@ -217,8 +219,8 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   // A search looks through the whole CRM: every edition of every brand, so
   // someone filed under World Health AI turns up while working on World
   // Pharma AI. Without one, people are listed for this edition only.
-  const searchingAll = !allEditions && query.length > 0
-  const scope = allEditions || searchingAll ? [] : labels
+  const searchingAll = query.length > 0
+  const scope = searchingAll ? [] : labels
 
   const { data, isLoading, isFetching, refetch } = useQuery<{ data: Row[]; total: number; totalPages: number }>({
     queryKey: ['ws-list', kind, scope, query, status, page, pageSize, sortBy, sortDir],
@@ -228,7 +230,7 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
       if (!r.ok) throw new Error('list')
       return r.json()
     },
-    enabled: allEditions || searchingAll || labels.length > 0,
+    enabled: searchingAll || labels.length > 0,
     placeholderData: (prev) => prev,
   })
 
@@ -287,31 +289,50 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
     const p = new URLSearchParams()
     // The sponsor/partner exports read `event`, the others `events`.
     const key = kind === 'sponsor' || kind === 'partner' ? 'event' : 'events'
-    if (!allEditions) labels.forEach((l) => p.append(key, l))
+    labels.forEach((l) => p.append(key, l))
     if (kind === 'sponsor') KINDS.sponsor.fixedParams.excludeTiers.forEach((t) => p.append('excludeTiers', t))
     if (status) p.append(kind === 'sponsor' || kind === 'partner' ? 'status' : 'statuses', status)
     const a = document.createElement('a')
     a.href = `${def.api}/export?${p}`
-    a.download = `${def.plural.toLowerCase().replace(/[^a-z]+/g, '-')}-${allEditions ? 'all' : year}.csv`
+    a.download = `${def.plural.toLowerCase().replace(/[^a-z]+/g, '-')}-${year}.csv`
     a.click()
   }
 
   const series = category?.name.match(/^World \w+ AI/i)?.[0] ?? null
+  // From a search: put a company found in another edition into this one
+  // (a record of its own, contacts copied), or start a person's record here.
+  const [addingId, setAddingId] = useState<string | null>(null)
+  const addCompanyHere = async (r: Row) => {
+    if (!category || !year) return
+    setAddingId(r.id)
+    try {
+      await fetch(`${def.api}/${r.id}/editions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: [editionLabel(category.name, year)] }),
+      })
+      await refetch()
+      queryClient.invalidateQueries({ queryKey: ['ws-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['ws-board'] })
+    } finally {
+      setAddingId(null)
+    }
+  }
   const addToYear = (r: Row) =>
     year && !inThisEdition(r) ? (
-      <button type="button" onClick={(e) => { e.stopPropagation(); setCopying(r) }} className="ws-btn ws-btn-sm" title={`Start a ${year} record for ${recordName(kind, r)} with the same contact details`}>
+      <button type="button" disabled={addingId === r.id} onClick={(e) => { e.stopPropagation(); if (isCompany) addCompanyHere(r); else setCopying(r) }} className="ws-btn ws-btn-sm" title={isCompany ? `Add ${recordName(kind, r)} to the ${year} edition, with its contacts` : `Start a ${year} record for ${recordName(kind, r)} with the same contact details`}>
         <CopyPlus className="w-3.5 h-3.5" /> Add to {year}
       </button>
     ) : null
   const columns = columnsFor(kind, onStage, onValue, setEditing, busyId,
-    allEditions ? { series } : searchingAll ? { series, extra: addToYear } : null)
+    searchingAll ? { series, extra: addToYear } : null)
   const preset = category && year ? { event: editionLabel(category.name, year) } : {}
   const saved = () => { setAdding(false); setEditing(null); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }); queryClient.invalidateQueries({ queryKey: ['ws-board'] }) }
 
   return (
     <WorkspacePage
       title={def.plural}
-      description={allEditions ? `Every ${kind === 'partner' ? 'partner and media' : 'sponsor'} company, across all editions. The year-by-year work lives in the pipeline.` : `${def.plural} for this edition.`}
+      description={`${def.plural} for this edition. Search to find anyone in the CRM, whichever event they are in.`}
       actions={
         <>
           <button onClick={exportCsv} className="ws-btn" title="Download this list as CSV"><Download className="w-4 h-4" /> Export</button>
@@ -343,8 +364,8 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
         {!isLoading && rows.length === 0 ? (
           <EmptyState
             icon={SearchX}
-            title={query || status ? 'No matches' : allEditions ? `No ${def.plural.toLowerCase()} yet` : `No ${def.plural.toLowerCase()} in the ${year} edition yet`}
-            body={query || status ? 'Try a different search or clear the stage filter.' : allEditions ? `Add the first ${def.label.toLowerCase()}, or start them in the pipeline.` : `Add the first ${def.label.toLowerCase()}, or pick another edition above.`}
+            title={query || status ? 'No matches' : `No ${def.plural.toLowerCase()} in the ${year} edition yet`}
+            body={query || status ? 'Try a different search or clear the stage filter.' : `Add the first ${def.label.toLowerCase()}, or search for one already in the CRM and add it to ${year}.`}
             action={query || status ? <button onClick={() => { setKeyword(''); setQuery(''); setStatus('') }} className="ws-btn">Clear filters</button> : <button onClick={() => setAdding(true)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add {def.label.toLowerCase()}</button>}
           />
         ) : (

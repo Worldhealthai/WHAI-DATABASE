@@ -6,6 +6,7 @@ import { useTierOptions } from '@/lib/useTierOptions'
 import { X, AlertTriangle } from 'lucide-react'
 import type { Sponsor } from '@/types'
 import { useEventOptions, useUpcomingEventOptions } from '@/lib/useEventOptions'
+import { EventPicker } from '@/components/crm/EventPicker'
 import {
   SPONSOR_TIER_OPTIONS,
   SPONSOR_STATUS_OPTIONS,
@@ -53,10 +54,12 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
   })
   const [saving, setSaving] = useState(false)
   const eventOptions = useEventOptions()
-  // More events to put the company into on save, besides the one above:
-  // each gets its own record of the company (lib/companyEditions).
-  const [alsoEvents, setAlsoEvents] = useState<string[]>([])
-  const toggleAlso = (ev: string) => setAlsoEvents((p) => (p.includes(ev) ? p.filter((x) => x !== ev) : [...p, ev]))
+  // The events picked for the company. Adding: the first one is this
+  // record's, each other gets its own record of the company. Editing: this
+  // record keeps its event; the ones picked are added (lib/companyEditions).
+  const [pickedEvents, setPickedEvents] = useState<string[]>(!isEdit && sponsor?.event ? [sponsor.event] : [])
+  const togglePicked = (ev: string) => setPickedEvents((p) => (p.includes(ev) ? p.filter((x) => x !== ev) : [...p, ev]))
+  const [moving, setMoving] = useState(false)
   const queryClient = useQueryClient()
   // Editing: the events the company is already in aren't offered again.
   const { data: inEvents } = useQuery<{ editions: { event: string | null }[] }>({
@@ -68,10 +71,11 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     },
     enabled: isEdit,
   })
-  const alreadyIn = new Set((inEvents?.editions ?? []).map((e) => String(e.event ?? '').toLowerCase()))
-  // Only events still to come are offered.
+  const alreadyIn = (inEvents?.editions ?? []).map((e) => String(e.event ?? '')).filter((ev) => ev && ev.toLowerCase() !== (form.event || '').toLowerCase())
+  // Only events still to come are offered (and, adding from a past
+  // edition's page, that edition too).
   const upcoming = useUpcomingEventOptions()
-  const otherEvents = upcoming.filter((ev) => ev !== form.event && !alreadyIn.has(ev.toLowerCase()))
+  const pickable = !isEdit && sponsor?.event && !upcoming.includes(sponsor.event) ? [sponsor.event, ...upcoming] : upcoming
   const [error, setError] = useState('')
   const [dupMatch, setDupMatch] = useState<{
     id: string; existingName: string; status: string; table: string
@@ -113,9 +117,8 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     if (!form.companyName.trim()) { setError('Company name is required.'); return }
     setSaving(true); setError('')
     try {
-      // Extra events ticked with none picked above: the first one is this record's.
-      const mainEvent = form.event || alsoEvents[0] || ''
-      const extraEvents = alsoEvents.filter((ev) => ev !== mainEvent)
+      const mainEvent = isEdit ? form.event : pickedEvents[0] || ''
+      const extraEvents = (isEdit ? pickedEvents : pickedEvents.slice(1)).filter((ev) => ev !== mainEvent)
       const body: any = {
         ...form,
         event: mainEvent,
@@ -216,40 +219,52 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
           <div className="pt-2 border-t border-[var(--line)]">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Sponsorship</p>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Event">
-                <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
-                  <option value="">Select event</option>
-                  {(form.event && !eventOptions.includes(form.event) ? [form.event, ...eventOptions] : eventOptions).map((e) => <option key={e} value={e}>{e}</option>)}
-                </select>
-              </Field>
+            {/* Events: one or more. Each keeps its own stage and value. */}
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <label className="text-xs font-medium text-slate-400">Events</label>
+                {pickedEvents.length > 0 && (
+                  <span className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
+                    {isEdit ? `Adding to ${pickedEvents.length} more` : `${pickedEvents.length} selected`}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
+                {isEdit
+                  ? 'Add this company to more events. Each event keeps its own stage and value, and gets a copy of the contacts.'
+                  : 'Pick one or more. Each event keeps its own stage and value.'}
+              </p>
+              <EventPicker
+                options={pickable}
+                selected={pickedEvents}
+                onToggle={togglePicked}
+                locked={isEdit ? form.event || null : null}
+                already={isEdit ? alreadyIn : []}
+              />
+              {isEdit && (
+                moving ? (
+                  <div className="flex items-center gap-2 pt-1">
+                    <select value={form.event} onChange={(e) => set('event', e.target.value)} className={inputCls}>
+                      <option value="">No event</option>
+                      {(form.event && !eventOptions.includes(form.event) ? [form.event, ...eventOptions] : eventOptions).map((e) => <option key={e} value={e}>{e}</option>)}
+                    </select>
+                    <button type="button" onClick={() => setMoving(false)} className="text-xs whitespace-nowrap" style={{ color: 'var(--fg-3)' }}>Done</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setMoving(true)} className="text-[11.5px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
+                    Move this record to a different event
+                  </button>
+                )
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-4">
               <Field label="Status">
                 <select value={form.status} onChange={(e) => set('status', e.target.value)} className={inputCls}>
                   {SPONSOR_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
             </div>
-
-            {/* A company can be part of several events: tick any others. */}
-            {otherEvents.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs text-slate-400 mb-2">
-                  Also add to {alsoEvents.length ? <span className="text-[var(--fg)]">({alsoEvents.length})</span> : null}
-                  <span className="text-slate-500"> · each event gets its own record, starting at Not contacted, with the contacts copied</span>
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {otherEvents.map((ev) => {
-                    const on = alsoEvents.includes(ev)
-                    return (
-                      <label key={ev} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${on ? 'border-[var(--teal)] text-[var(--fg)] bg-[var(--surface-2)]' : 'border-[var(--line)] text-slate-300 hover:border-slate-500'}`}>
-                        <input type="checkbox" checked={on} onChange={() => toggleAlso(ev)} className="accent-[var(--teal)]" />
-                        {ev}
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Partner mode: always pick a partner type (keeps it out of sponsors).
                 Sponsor mode: tier only shown once Confirmed. */}

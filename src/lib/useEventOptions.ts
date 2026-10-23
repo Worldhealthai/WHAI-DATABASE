@@ -43,5 +43,8 @@ export function useUpcomingEventOptions(): string[] {
     }
   }, [])
   const past = new Set(state.past.map((p) => p.toLowerCase()))
-  return state.options.filter((o) => !past.has(o.toLowerCase()))
+  // An edition from an earlier year is past even before the list answers.
+  const thisYear = new Date().getFullYear()
+  const earlier = (o: string) => Number(o.match(/\b(20\d{2})\b/)?.[1] || thisYear) < thisYear
+  return state.options.filter((o) => !past.has(o.toLowerCase()) && !earlier(o))
 }
