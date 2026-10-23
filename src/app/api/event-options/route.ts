@@ -27,6 +27,10 @@ export async function GET() {
   // lets the UI group labels into series+city categories with year sub-tabs
   // even when the label itself doesn't carry the city.
   const meta: { label: string; series: string | null; city: string | null; year: string | null }[] = []
+  // Editions whose day has passed, by their canonical "Series City Year"
+  // name. Nexus's date decides (its status can still read "confirmed" the
+  // week after); an edition from an earlier year is past either way.
+  const pastNames = new Set<string>()
 
   try {
     const [d, s, sp] = await Promise.all([
@@ -57,6 +61,11 @@ export async function GET() {
             city: typeof ev?.city === 'string' ? ev.city : null,
             year: String(ev?.date ?? ev?.label ?? '').match(/\b(20\d{2})\b/)?.[1] ?? null,
           })
+          const day = Date.parse(String(ev?.date ?? ''))
+          const year = String(ev?.date ?? ev?.label ?? '').match(/\b(20\d{2})\b/)?.[1]
+          if (Number.isFinite(day) && day < Date.now() - 24 * 3600 * 1000 && ev?.series && ev?.city && year) {
+            pastNames.add(`${ev.series} ${ev.city} ${year}`.toLowerCase())
+          }
         }
       }
     }
@@ -64,5 +73,10 @@ export async function GET() {
     // Nexus unreachable — data-derived list still covers active events
   }
 
-  return NextResponse.json({ options, meta })
+  const thisYear = new Date().getFullYear()
+  const past = options.filter((o) => {
+    const year = Number(o.match(/\b(20\d{2})\b/)?.[1] || 0)
+    return (year && year < thisYear) || pastNames.has(o.toLowerCase())
+  })
+  return NextResponse.json({ options, meta, past })
 }

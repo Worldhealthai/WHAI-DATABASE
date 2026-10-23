@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTierOptions } from '@/lib/useTierOptions'
 import { X, AlertTriangle } from 'lucide-react'
 import type { Sponsor } from '@/types'
-import { useEventOptions } from '@/lib/useEventOptions'
+import { useEventOptions, useUpcomingEventOptions } from '@/lib/useEventOptions'
 import {
   SPONSOR_TIER_OPTIONS,
   SPONSOR_STATUS_OPTIONS,
@@ -52,6 +53,25 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
   })
   const [saving, setSaving] = useState(false)
   const eventOptions = useEventOptions()
+  // More events to put the company into on save, besides the one above:
+  // each gets its own record of the company (lib/companyEditions).
+  const [alsoEvents, setAlsoEvents] = useState<string[]>([])
+  const toggleAlso = (ev: string) => setAlsoEvents((p) => (p.includes(ev) ? p.filter((x) => x !== ev) : [...p, ev]))
+  const queryClient = useQueryClient()
+  // Editing: the events the company is already in aren't offered again.
+  const { data: inEvents } = useQuery<{ editions: { event: string | null }[] }>({
+    queryKey: ['company-events', partnerMode ? 'partner' : 'sponsor', sponsor?.id],
+    queryFn: async () => {
+      const r = await fetch(`${partnerMode ? '/api/partners' : '/api/sponsors'}/${sponsor!.id}/editions`)
+      if (!r.ok) throw new Error('editions')
+      return r.json()
+    },
+    enabled: isEdit,
+  })
+  const alreadyIn = new Set((inEvents?.editions ?? []).map((e) => String(e.event ?? '').toLowerCase()))
+  // Only events still to come are offered.
+  const upcoming = useUpcomingEventOptions()
+  const otherEvents = upcoming.filter((ev) => ev !== form.event && !alreadyIn.has(ev.toLowerCase()))
   const [error, setError] = useState('')
   const [dupMatch, setDupMatch] = useState<{
     id: string; existingName: string; status: string; table: string
@@ -93,8 +113,12 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     if (!form.companyName.trim()) { setError('Company name is required.'); return }
     setSaving(true); setError('')
     try {
+      // Extra events ticked with none picked above: the first one is this record's.
+      const mainEvent = form.event || alsoEvents[0] || ''
+      const extraEvents = alsoEvents.filter((ev) => ev !== mainEvent)
       const body: any = {
         ...form,
+        event: mainEvent,
         valueAmount: form.valueAmount ? parseFloat(form.valueAmount) : null,
         // Partners must always carry a partner tier so they never leak into
         // the sponsors list. Sponsors only get a tier once Confirmed.
@@ -115,6 +139,18 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
         throw new Error(data?.error || 'Failed to save')
       }
       const saved = await res.json()
+      if (saved?.id && extraEvents.length) {
+        const more = await fetch(`${base}/${saved.id}/editions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events: extraEvents }),
+        })
+        if (!more.ok) {
+          const data = await more.json().catch(() => null)
+          throw new Error(`Saved, but not added to the other events: ${data?.error || 'please try again from the company page'}.`)
+        }
+        for (const key of ['company-events', 'ws-list', 'ws-board', 'ws-stats']) queryClient.invalidateQueries({ queryKey: [key] })
+      }
       onSaved(saved)
     } catch (err: any) {
       setError(err?.message && err.message !== 'Failed to save' ? err.message : 'Something went wrong. Please try again.')
@@ -193,6 +229,27 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
                 </select>
               </Field>
             </div>
+
+            {/* A company can be part of several events: tick any others. */}
+            {otherEvents.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs text-slate-400 mb-2">
+                  Also add to {alsoEvents.length ? <span className="text-[var(--fg)]">({alsoEvents.length})</span> : null}
+                  <span className="text-slate-500"> · each event gets its own record, starting at Not contacted, with the contacts copied</span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {otherEvents.map((ev) => {
+                    const on = alsoEvents.includes(ev)
+                    return (
+                      <label key={ev} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${on ? 'border-[var(--teal)] text-[var(--fg)] bg-[var(--surface-2)]' : 'border-[var(--line)] text-slate-300 hover:border-slate-500'}`}>
+                        <input type="checkbox" checked={on} onChange={() => toggleAlso(ev)} className="accent-[var(--teal)]" />
+                        {ev}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Partner mode: always pick a partner type (keeps it out of sponsors).
                 Sponsor mode: tier only shown once Confirmed. */}
