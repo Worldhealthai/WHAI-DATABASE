@@ -5,9 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useTierOptions } from '@/lib/useTierOptions'
 import { X, AlertTriangle } from 'lucide-react'
-import type { Sponsor } from '@/types'
+import type { Sponsor, SponsorContact } from '@/types'
 import { useEventOptions, useUpcomingEventOptions } from '@/lib/useEventOptions'
 import { EventPicker } from '@/components/crm/EventPicker'
+import { KeyContactField } from '@/components/crm/KeyContactField'
 import {
   SPONSOR_TIER_OPTIONS,
   SPONSOR_STATUS_OPTIONS,
@@ -61,6 +62,19 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
   const router = useRouter()
   const togglePicked = (ev: string) => setPickedEvents((p) => (p.includes(ev) ? p.filter((x) => x !== ev) : [...p, ev]))
   const [moving, setMoving] = useState(false)
+  // The company's other contacts, to choose the key contact from; the one
+  // picked is made key on save (set-primary).
+  const [pickedKeyId, setPickedKeyId] = useState<string | null>(null)
+  const { data: withContacts } = useQuery<{ contacts?: SponsorContact[] }>({
+    queryKey: ['company-contacts', partnerMode ? 'partner' : 'sponsor', sponsor?.id],
+    queryFn: async () => {
+      const r = await fetch(`${partnerMode ? '/api/partners' : '/api/sponsors'}/${sponsor!.id}`)
+      if (!r.ok) throw new Error('contacts')
+      return r.json()
+    },
+    enabled: isEdit,
+  })
+  const companyContacts = withContacts?.contacts ?? []
   const queryClient = useQueryClient()
   // Editing: the events the company is already in aren't offered again.
   const { data: inEvents } = useQuery<{ editions: { id: string; event: string | null }[] }>({
@@ -150,6 +164,9 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
           : keepTier ? (form.tier || null) : (isConfirmed ? form.tier || null : null),
       }
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
+      // A contact picked from the list becomes key through set-primary,
+      // which also keeps the old key contact as an ordinary contact.
+      if (pickedKeyId) for (const k of ['contactFirstName', 'contactLastName', 'contactEmail', 'contactPhone', 'contactJobTitle', 'contactLinkedinUrl']) delete body[k]
 
       const base = partnerMode ? '/api/partners' : '/api/sponsors'
       // A record about to be taken out of its event isn't saved first.
@@ -165,6 +182,14 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
           throw new Error(data?.error || 'Failed to save')
         }
         saved = await res.json()
+        if (pickedKeyId && saved?.id) {
+          const key = await fetch(`${base}/${saved.id}/set-primary`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contactId: pickedKeyId }),
+          })
+          if (!key.ok) throw new Error('Saved, but the key contact was not changed. Please try again.')
+        }
       }
       if (saved?.id && extraEvents.length) {
         const more = await fetch(`${base}/${saved.id}/editions`, {
@@ -348,33 +373,19 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
             )}
           </div>
 
-          {/* Primary Contact */}
+          {/* Key contact: pick one of the company's contacts, or add one */}
           <div className="pt-2 border-t border-[var(--line)]">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Primary Contact</p>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="First Name">
-                <input value={form.contactFirstName} onChange={(e) => set('contactFirstName', e.target.value)} placeholder="John" className={inputCls} />
-              </Field>
-              <Field label="Last Name">
-                <input value={form.contactLastName} onChange={(e) => set('contactLastName', e.target.value)} placeholder="Doe" className={inputCls} />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <Field label="Email">
-                <input value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} placeholder="john@company.com" className={inputCls} />
-              </Field>
-              <Field label="Phone">
-                <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="+44 7700 000000" className={inputCls} />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <Field label="Job Title">
-                <input value={form.contactJobTitle} onChange={(e) => set('contactJobTitle', e.target.value)} placeholder="Head of Partnerships" className={inputCls} />
-              </Field>
-              <Field label="LinkedIn URL">
-                <input value={form.contactLinkedinUrl} onChange={(e) => set('contactLinkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." className={inputCls} />
-              </Field>
-            </div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 pt-1">Key contact</p>
+            <KeyContactField
+              value={{
+                contactFirstName: form.contactFirstName, contactLastName: form.contactLastName, contactEmail: form.contactEmail,
+                contactPhone: form.contactPhone, contactJobTitle: form.contactJobTitle, contactLinkedinUrl: form.contactLinkedinUrl,
+              }}
+              onChange={(v) => setForm((p) => ({ ...p, ...v }))}
+              contacts={companyContacts}
+              picked={pickedKeyId}
+              onPick={setPickedKeyId}
+            />
           </div>
 
           {/* Notes */}

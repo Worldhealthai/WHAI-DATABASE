@@ -13,6 +13,7 @@ import {
   Phone, Plus, Trash2, UserPlus, X,
 } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
+import { CopyPopover } from '@/components/crm/CopyPopover'
 import { EventPicker } from '@/components/crm/EventPicker'
 import { KINDS } from '@/lib/recordKinds'
 import { eventLook } from '@/lib/portals'
@@ -263,8 +264,9 @@ function ContactRow({ c, isPrimary, actions }: { c: SponsorContact; isPrimary: b
         </span>
       </button>
       <div className="flex items-center gap-0.5 shrink-0">
-        {c.contactEmail && <a href={`mailto:${c.contactEmail.split(/\s+or\s+|[,;]\s*/)[0]}`} className="ws-btn ws-btn-ghost ws-btn-sm" title={c.contactEmail} aria-label={`Email ${name}`}><Mail className="w-3.5 h-3.5" /></a>}
-        {c.contactPhone && <a href={`tel:${c.contactPhone}`} className="ws-btn ws-btn-ghost ws-btn-sm" title={c.contactPhone} aria-label={`Call ${name}`}><Phone className="w-3.5 h-3.5" /></a>}
+        {/* A pop-up to copy from, not a mailto:/tel: link. */}
+        {c.contactEmail && <CopyPopover label={`${name}'s email`} value={c.contactEmail} title={`Email: ${c.contactEmail}`}><Mail className="w-3.5 h-3.5" /></CopyPopover>}
+        {c.contactPhone && <CopyPopover label={`${name}'s phone`} value={c.contactPhone} title={`Phone: ${c.contactPhone}`}><Phone className="w-3.5 h-3.5" /></CopyPopover>}
         {c.contactLinkedinUrl && <a href={c.contactLinkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm" title="LinkedIn" aria-label={`${name} on LinkedIn`}><Linkedin className="w-3.5 h-3.5" /></a>}
         <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
           <button type="button" onClick={() => actions.onMove(c, isPrimary)} className="ws-btn ws-btn-ghost ws-btn-sm" title="Move to another company" aria-label="Move to another company"><ArrowRightLeft className="w-3.5 h-3.5" /></button>

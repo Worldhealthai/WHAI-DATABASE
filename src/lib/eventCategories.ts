@@ -54,11 +54,9 @@ export function categoriseEvent(
 
   const series = meta?.series?.trim() || (s.includes('pharma') ? 'World Pharma AI' : s.includes('health') ? 'World Health AI' : null)
 
-  let city = meta?.city?.split(',')[0]?.trim() || null
-  if (!city) {
-    if (s.includes('london')) city = 'London'
-    else if (s.includes('boston')) city = 'Boston'
-  }
+  // A city named in the label itself wins: the record says where it is.
+  let city: string | null = s.includes('boston') ? 'Boston' : s.includes('london') ? 'London' : null
+  if (!city) city = meta?.city?.split(',')[0]?.trim() || null
 
   if (series && city) return { category: `${series} ${city}`, year }
   if (series) return { category: series, year }
