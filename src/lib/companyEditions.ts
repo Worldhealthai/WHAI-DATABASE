@@ -65,3 +65,22 @@ export async function addCompanyToEvents(table: CompanyTable, id: string, events
   }
   return { added, skipped }
 }
+
+// Take a company out of events: each event's record of it goes, with the
+// contacts under it (its logged activity goes with it in the database).
+export async function removeCompanyFromEvents(table: CompanyTable, id: string, events: string[]) {
+  const current = await companyEditions(table, id)
+  if (!current) return { error: 'Company not found.' as const }
+  const wanted = new Set(events.map((e) => String(e).trim().toLowerCase()).filter(Boolean))
+  const removed: { event: string; id: string }[] = []
+  for (const ed of current.editions) {
+    if (!ed.event || !wanted.has(ed.event.trim().toLowerCase())) continue
+    const { error: peopleError } = await supabase.from(table).delete().eq('companyId', ed.id)
+    if (peopleError) { console.error(`Contacts not removed from ${ed.event}:`, peopleError); continue }
+    const { error } = await supabase.from(table).delete().eq('id', ed.id)
+    if (error) { console.error(`Could not remove ${current.companyName} from ${ed.event}:`, error); continue }
+    removed.push({ event: ed.event, id: ed.id })
+  }
+  const remaining = current.editions.filter((ed) => !removed.some((r) => r.id === ed.id))
+  return { removed, remaining }
+}

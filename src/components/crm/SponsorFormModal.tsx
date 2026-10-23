@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { useTierOptions } from '@/lib/useTierOptions'
 import { X, AlertTriangle } from 'lucide-react'
 import type { Sponsor } from '@/types'
@@ -10,7 +11,6 @@ import { EventPicker } from '@/components/crm/EventPicker'
 import {
   SPONSOR_TIER_OPTIONS,
   SPONSOR_STATUS_OPTIONS,
-  COUNTRY_OPTIONS,
   CURRENCY_OPTIONS,
   EVENT_OPTIONS,
 } from '@/types'
@@ -41,8 +41,6 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     contactPhone: sponsor?.contactPhone ?? '',
     contactLinkedinUrl: sponsor?.contactLinkedinUrl ?? '',
     contactJobTitle: sponsor?.contactJobTitle ?? '',
-    country: sponsor?.country ?? '',
-    city: sponsor?.city ?? '',
     tier: sponsor?.tier ?? defaultTier ?? (partnerMode ? 'Media Partner' : ''),
     status: sponsor?.status ?? 'Not Contacted',
     event: sponsor?.event ?? '',
@@ -54,15 +52,18 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
   })
   const [saving, setSaving] = useState(false)
   const eventOptions = useEventOptions()
-  // The events picked for the company. Adding: the first one is this
-  // record's, each other gets its own record of the company. Editing: this
-  // record keeps its event; the ones picked are added (lib/companyEditions).
+  // The events the company is to be in. Adding: the first is this record's,
+  // each other gets a record of its own. Editing: it starts as the events
+  // the company is in now; ticking one adds it, unticking one takes the
+  // company out of it (lib/companyEditions).
   const [pickedEvents, setPickedEvents] = useState<string[]>(!isEdit && sponsor?.event ? [sponsor.event] : [])
+  const [pickedReady, setPickedReady] = useState(!isEdit)
+  const router = useRouter()
   const togglePicked = (ev: string) => setPickedEvents((p) => (p.includes(ev) ? p.filter((x) => x !== ev) : [...p, ev]))
   const [moving, setMoving] = useState(false)
   const queryClient = useQueryClient()
   // Editing: the events the company is already in aren't offered again.
-  const { data: inEvents } = useQuery<{ editions: { event: string | null }[] }>({
+  const { data: inEvents } = useQuery<{ editions: { id: string; event: string | null }[] }>({
     queryKey: ['company-events', partnerMode ? 'partner' : 'sponsor', sponsor?.id],
     queryFn: async () => {
       const r = await fetch(`${partnerMode ? '/api/partners' : '/api/sponsors'}/${sponsor!.id}/editions`)
@@ -71,7 +72,13 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     },
     enabled: isEdit,
   })
-  const alreadyIn = (inEvents?.editions ?? []).map((e) => String(e.event ?? '')).filter((ev) => ev && ev.toLowerCase() !== (form.event || '').toLowerCase())
+  const existingEvents = Array.from(new Set((inEvents?.editions ?? []).map((e) => String(e.event ?? '')).filter(Boolean)))
+  // Editing starts from the events the company is in now.
+  useEffect(() => {
+    if (!isEdit || pickedReady || !inEvents) return
+    setPickedEvents(existingEvents)
+    setPickedReady(true)
+  }, [isEdit, pickedReady, inEvents, existingEvents])
   // Only events still to come are offered (and, adding from a past
   // edition's page, that edition too).
   const upcoming = useUpcomingEventOptions()
@@ -117,8 +124,21 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
     if (!form.companyName.trim()) { setError('Company name is required.'); return }
     setSaving(true); setError('')
     try {
+      const lc = (x: string) => x.toLowerCase()
       const mainEvent = isEdit ? form.event : pickedEvents[0] || ''
-      const extraEvents = (isEdit ? pickedEvents : pickedEvents.slice(1)).filter((ev) => ev !== mainEvent)
+      const extraEvents = isEdit
+        ? pickedEvents.filter((ev) => !existingEvents.some((x) => lc(x) === lc(ev)))
+        : pickedEvents.slice(1).filter((ev) => ev !== mainEvent)
+      const removeEvents = isEdit && pickedReady ? existingEvents.filter((ev) => !pickedEvents.some((x) => lc(x) === lc(ev))) : []
+      const removingThis = !!form.event && removeEvents.some((ev) => lc(ev) === lc(form.event))
+      if (isEdit && existingEvents.length > 0 && pickedEvents.length === 0) {
+        setError(`Keep ${form.companyName.trim() || 'the company'} in at least one event, or use Delete to remove it from the CRM.`)
+        setSaving(false)
+        return
+      }
+      if (removeEvents.length && !window.confirm(
+        `Take ${form.companyName.trim() || 'this company'} out of ${removeEvents.join(', ')}?\n\nIts stage, value, notes, contacts and activity for ${removeEvents.length === 1 ? 'that event' : 'those events'} will be deleted. This can't be undone.`
+      )) { setSaving(false); return }
       const body: any = {
         ...form,
         event: mainEvent,
@@ -132,16 +152,20 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
       const base = partnerMode ? '/api/partners' : '/api/sponsors'
-      const res = await fetch(isEdit ? `${base}/${sponsor!.id}` : base, {
-        method: isEdit ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        throw new Error(data?.error || 'Failed to save')
+      // A record about to be taken out of its event isn't saved first.
+      let saved: any = sponsor
+      if (!removingThis) {
+        const res = await fetch(isEdit ? `${base}/${sponsor!.id}` : base, {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => null)
+          throw new Error(data?.error || 'Failed to save')
+        }
+        saved = await res.json()
       }
-      const saved = await res.json()
       if (saved?.id && extraEvents.length) {
         const more = await fetch(`${base}/${saved.id}/editions`, {
           method: 'POST',
@@ -152,8 +176,26 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
           const data = await more.json().catch(() => null)
           throw new Error(`Saved, but not added to the other events: ${data?.error || 'please try again from the company page'}.`)
         }
+      }
+      let goTo: string | null = null
+      if (removeEvents.length) {
+        const out = await fetch(`${base}/${sponsor!.id}/editions`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events: removeEvents }),
+        })
+        const data = await out.json().catch(() => null)
+        if (!out.ok) throw new Error(`Not taken out of ${removeEvents.join(', ')}: ${data?.error || 'please try again'}.`)
+        // This record was one of them: open the company in an event it is still in.
+        if (removingThis) {
+          const next = (data?.remaining ?? [])[0]
+          goTo = next ? `${partnerMode ? '/partners' : '/sponsors'}/${next.id}` : partnerMode ? '/partners' : '/sponsors'
+        }
+      }
+      if (extraEvents.length || removeEvents.length) {
         for (const key of ['company-events', 'ws-list', 'ws-board', 'ws-stats']) queryClient.invalidateQueries({ queryKey: [key] })
       }
+      if (goTo) { onClose(); router.push(goTo); return }
       onSaved(saved)
     } catch (err: any) {
       setError(err?.message && err.message !== 'Failed to save' ? err.message : 'Something went wrong. Please try again.')
@@ -202,17 +244,6 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
                 </span>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <Field label="Country">
-                <select value={form.country} onChange={(e) => set('country', e.target.value)} className={inputCls}>
-                  <option value="">Select country</option>
-                  {COUNTRY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
-              <Field label="City">
-                <input value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="London" className={inputCls} />
-              </Field>
-            </div>
           </div>
 
           {/* Sponsorship */}
@@ -225,21 +256,21 @@ export function SponsorFormModal({ sponsor, defaultTier, entityLabel = 'Sponsor'
                 <label className="text-xs font-medium text-slate-400">Events</label>
                 {pickedEvents.length > 0 && (
                   <span className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
-                    {isEdit ? `Adding to ${pickedEvents.length} more` : `${pickedEvents.length} selected`}
+                    {pickedEvents.length} {pickedEvents.length === 1 ? 'event' : 'events'}
                   </span>
                 )}
               </div>
               <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
                 {isEdit
-                  ? 'Add this company to more events. Each event keeps its own stage and value, and gets a copy of the contacts.'
+                  ? 'Tick to add the company to an event (its contacts are copied); untick to take it out. Each event keeps its own stage and value.'
                   : 'Pick one or more. Each event keeps its own stage and value.'}
               </p>
               <EventPicker
                 options={pickable}
                 selected={pickedEvents}
                 onToggle={togglePicked}
-                locked={isEdit ? form.event || null : null}
-                already={isEdit ? alreadyIn : []}
+                existing={isEdit ? existingEvents : []}
+                current={isEdit ? form.event || null : null}
               />
               {isEdit && (
                 moving ? (
