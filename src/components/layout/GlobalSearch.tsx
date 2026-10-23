@@ -65,26 +65,30 @@ export function GlobalSearch() {
         partnersRes.ok ? partnersRes.json() : { data: [] },
       ])
 
+      // Every brand and edition is searched; each result says which event
+      // it is filed under ("… · World Health AI London 2026").
+      const withEvent = (sub: string | null | undefined, ev: string | null | undefined) =>
+        [sub, ev].filter(Boolean).join(' · ') || undefined
       const out: Result[] = [
         ...(delegates.data ?? []).map((d: any) => ({
           id: d.id, type: 'delegate' as const, href: `/delegates/${d.id}`,
           label: `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim() || d.email,
-          sub: d.organization || d.jobTitle || d.email,
+          sub: withEvent(d.organization || d.jobTitle || d.email, d.event),
         })),
         ...(sponsors.data ?? []).map((s: any) => ({
           id: s.id, type: 'sponsor' as const, href: `/sponsors/${s.id}`,
           label: s.companyName,
-          sub: [s.contactFirstName, s.contactLastName].filter(Boolean).join(' ') || s.contactEmail,
+          sub: withEvent([s.contactFirstName, s.contactLastName].filter(Boolean).join(' ') || s.contactEmail, s.event),
         })),
         ...(speakers.data ?? []).map((s: any) => ({
           id: s.id, type: 'speaker' as const, href: `/speakers/${s.id}`,
           label: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
-          sub: s.organization || s.jobTitle,
+          sub: withEvent(s.organization || s.jobTitle, s.event),
         })),
         ...(partners.data ?? []).map((s: any) => ({
           id: s.id, type: 'partner' as const, href: `/partners/${s.id}`,
           label: s.companyName,
-          sub: s.tier,
+          sub: withEvent(s.tier, s.event),
         })),
       ]
       setResults(out)

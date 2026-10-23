@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { searchFilter } from '@/lib/search'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     if (batch) q = q.eq('importBatch', batch)
     if (query) {
       q = q.or(
-        `firstName.ilike.%${query}%,lastName.ilike.%${query}%,email.ilike.%${query}%,organization.ilike.%${query}%,jobTitle.ilike.%${query}%`
+        searchFilter(query, ['firstName', 'lastName', 'email', 'organization', 'jobTitle'], ['organization'])
       )
     }
 
