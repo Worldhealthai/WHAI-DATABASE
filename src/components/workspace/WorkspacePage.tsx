@@ -23,7 +23,7 @@ export function WorkspacePage({
           icon={CalendarX2}
           title="That event isn’t in the CRM"
           body="Choose one of the events to open its workspace."
-          action={<Link href={portal ? `/?portal=${portal.key}` : '/'} className="ws-btn ws-btn-primary">Choose an event</Link>}
+          action={<Link href="/" className="ws-btn ws-btn-primary">Choose an event</Link>}
         />
       </div>
     )

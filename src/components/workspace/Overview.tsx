@@ -126,43 +126,41 @@ function Recent({ kind, labels }: { kind: RecordKind; labels: string[] }) {
 export function Overview() {
   const ws = useWorkspace()
   const { portal, labels, year } = ws
-  const kinds = (portal?.entities ?? []) as RecordKind[]
-  const a = useKindStats(kinds[0] ?? 'sponsor', labels)
-  const b = useKindStats(kinds[1] ?? 'partner', labels)
-  const loading = a.isLoading || b.isLoading
-
-  const tiles: { label: string; value: React.ReactNode; hint?: React.ReactNode }[] = []
-  if (portal?.key === 'sales') {
-    const s = a.data, p = b.data
-    const confirmed = s?.byStatus['Confirmed'] ?? 0
-    const inPlay = (s?.byStatus['Emailed'] ?? 0) + (s?.byStatus['In Discussion'] ?? 0)
-    const notYet = s?.byStatus['Not Contacted'] ?? 0
-    tiles.push(
-      { label: 'Confirmed sponsors', value: confirmed, hint: s?.value.byStatus['Confirmed'] ? `${formatMoney(s.value.byStatus['Confirmed'], s.value.currency)} confirmed` : 'No value recorded yet' },
-      { label: 'In conversation', value: inPlay, hint: `${s?.byStatus['In Discussion'] ?? 0} in discussion · ${s?.byStatus['Emailed'] ?? 0} emailed` },
-      { label: 'Still to contact', value: notYet, hint: notYet ? 'Leads waiting for a first email' : 'Every lead has been contacted' },
-      { label: 'Partners confirmed', value: p?.byStatus['Confirmed'] ?? 0, hint: `${p?.total ?? 0} partners & media in total` },
-    )
-  } else {
-    const sp = a.data, dl = b.data
-    const confirmed = sp?.byStatus['Speaking Confirmed'] ?? 0
-    const talking = (sp?.byStatus['Invited'] ?? 0) + (sp?.byStatus['Discussing'] ?? 0)
-    const registered = (dl?.byStatus['Registered'] ?? 0) + (dl?.byStatus['Confirmed'] ?? 0)
-    tiles.push(
-      { label: 'Speakers confirmed', value: confirmed, hint: `${sp?.total ?? 0} speaker leads in total` },
-      { label: 'Speakers in conversation', value: talking, hint: `${sp?.byStatus['Discussing'] ?? 0} discussing · ${sp?.byStatus['Invited'] ?? 0} invited` },
-      { label: 'Delegates registered', value: registered, hint: `${dl?.byStatus['Confirmed'] ?? 0} invited to the calendar` },
-      { label: 'Cancelled / no-show', value: (dl?.byStatus['Cancelled'] ?? 0) + (dl?.byStatus['No-show'] ?? 0), hint: `${dl?.byStatus['Rejected'] ?? 0} rejected` },
-    )
+  const kinds: RecordKind[] = ['sponsor', 'partner', 'speaker', 'delegate']
+  const stats: Record<RecordKind, ReturnType<typeof useKindStats>> = {
+    sponsor: useKindStats('sponsor', labels),
+    partner: useKindStats('partner', labels),
+    speaker: useKindStats('speaker', labels),
+    delegate: useKindStats('delegate', labels),
   }
+  const loading = kinds.some((k) => stats[k].isLoading)
+  const s = stats.sponsor.data, p = stats.partner.data, sp = stats.speaker.data, dl = stats.delegate.data
 
-  const empty = !loading && (a.data?.total ?? 0) + (b.data?.total ?? 0) === 0
+  const tiles: { label: string; value: React.ReactNode; hint?: React.ReactNode }[] = [
+    {
+      label: 'Confirmed sponsors',
+      value: s?.byStatus['Confirmed'] ?? 0,
+      hint: s?.value.byStatus['Confirmed']
+        ? `${formatMoney(s.value.byStatus['Confirmed'], s.value.currency)} · ${(s?.byStatus['Emailed'] ?? 0) + (s?.byStatus['In Discussion'] ?? 0)} in conversation`
+        : `${(s?.byStatus['Emailed'] ?? 0) + (s?.byStatus['In Discussion'] ?? 0)} in conversation · ${s?.byStatus['Not Contacted'] ?? 0} to contact`,
+    },
+    { label: 'Partners confirmed', value: p?.byStatus['Confirmed'] ?? 0, hint: `${p?.total ?? 0} partners & media in total` },
+    {
+      label: 'Speakers confirmed',
+      value: sp?.byStatus['Speaking Confirmed'] ?? 0,
+      hint: `${(sp?.byStatus['Invited'] ?? 0) + (sp?.byStatus['Discussing'] ?? 0)} in conversation · ${sp?.total ?? 0} in total`,
+    },
+    {
+      label: 'Delegates registered',
+      value: (dl?.byStatus['Registered'] ?? 0) + (dl?.byStatus['Confirmed'] ?? 0),
+      hint: `${dl?.byStatus['Confirmed'] ?? 0} invited to the calendar`,
+    },
+  ]
+
+  const empty = !loading && kinds.every((k) => (stats[k].data?.total ?? 0) === 0)
 
   return (
-    <WorkspacePage
-      title="Overview"
-      description={portal?.key === 'sales' ? 'Sponsorship and partnerships for this edition.' : 'Speakers and delegates for this edition.'}
-    >
+    <WorkspacePage title="Overview" description="Sponsors, partners, speakers and delegates for this edition.">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {tiles.map((t) => <Stat key={t.label} {...t} loading={loading} />)}
       </div>
@@ -171,22 +169,16 @@ export function Overview() {
 
       {empty && portal && ws.slug && (
         <div className="ws-card mt-4 p-5 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Nothing in the {year} edition yet</p>
-              <p className="text-[13px]" style={{ color: 'var(--fg-3)' }}>
-                {portal.key === 'sales' ? 'Start the pipeline: add the leads you will be chasing for this edition.' : 'Speakers and delegates appear here as they are added or register.'}
-              </p>
-            </div>
+          <div>
+            <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Nothing in the {year} edition yet</p>
+            <p className="text-[13px]" style={{ color: 'var(--fg-3)' }}>Start the pipeline with the sponsors to chase; speakers and delegates appear as they are added or register.</p>
           </div>
-          {portal.key === 'sales' && (
-            <Link href={workspaceHref(portal.key, ws.slug, 'pipeline', year ?? undefined)} className="ws-btn ws-btn-primary">Open the pipeline <ArrowRight className="w-4 h-4" /></Link>
-          )}
+          <Link href={workspaceHref(portal.key, ws.slug, 'pipeline', year ?? undefined)} className="ws-btn ws-btn-primary">Open the pipeline <ArrowRight className="w-4 h-4" /></Link>
         </div>
       )}
 
       <div className="grid lg:grid-cols-2 gap-4 mt-4">
-        {kinds.map((k) => <StageBars key={k} kind={k} stats={k === kinds[0] ? a.data : b.data} loading={loading} />)}
+        {kinds.map((k) => <StageBars key={k} kind={k} stats={stats[k].data} loading={stats[k].isLoading} />)}
       </div>
       <div className="grid lg:grid-cols-2 gap-4 mt-4">
         {kinds.map((k) => <Recent key={k} kind={k} labels={labels} />)}

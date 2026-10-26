@@ -12,7 +12,6 @@ export function Topbar({ view, title, onMenu }: { view: WorkspaceView; title?: s
   const sectionDef = portal?.sections.find((s) => s.path === (section || ''))
 
   const crumbs: { label: string; href?: string; dot?: string }[] = []
-  if (portal) crumbs.push({ label: portal.name, href: `/?portal=${portal.key}` })
   if (portal && slug && look) crumbs.push({ label: `${look.series} ${look.city}`, href: workspaceHref(portal.key, slug, '', year ?? undefined), dot: look.accent })
   if (portal && slug && year) crumbs.push({ label: year, href: workspaceHref(portal.key, slug, '', year) })
   if (inWorkspace && sectionDef) crumbs.push({ label: sectionDef.label })

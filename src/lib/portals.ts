@@ -1,28 +1,26 @@
-// The two portals the CRM opens into, and the events inside each.
-//
-// Sales is where sponsorship and partnership revenue is chased: sponsors,
-// partners & media, and the pipeline for the next edition. Production is the
-// event itself: the speakers being lined up and the delegates in the room.
-// Each also lists the other's people, so both teams see everyone; a portal's
-// overview stays on its own (entities).
-// Both are scoped to one event (series + city) and, inside it, one edition
-// (year) — the same grouping the rest of the CRM already uses for its event
-// tabs, so nothing about how records are stored changes.
+// The CRM opens into one workspace per event: choose the event (series +
+// city) on the entrance, and everything for it is in one place — sales
+// (pipeline, sponsors, partners), people (speakers, delegates), the agenda
+// and marketing. Inside, one edition (year) is open at a time; that is the
+// same grouping the rest of the CRM uses for its event tabs, so nothing
+// about how records are stored changes.
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Award, Network, KanbanSquare, LayoutDashboard, Mic, Users, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine,
+  Award, Network, KanbanSquare, LayoutDashboard, Mic, Users, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
 
-export type PortalKey = 'sales' | 'production' | 'marketing'
+export type PortalKey = 'event'
 
 export interface PortalSection {
   key: string
   label: string
   icon: LucideIcon
-  /** Path under /{portal}/{event}; empty string is the overview */
+  /** Path under /event/{event}; empty string is the overview */
   path: string
+  /** The heading it sits under in the sidebar */
+  group?: string
 }
 
 export interface PortalDef {
@@ -31,66 +29,35 @@ export interface PortalDef {
   short: string
   tagline: string
   description: string
-  /** CSS variable names for this portal's accent */
+  /** CSS variable names for the accent */
   accent: { fill: string; ink: string; soft: string; line: string }
   sections: PortalSection[]
-  /** The record kinds this portal works with */
+  /** The record kinds the overview sums up */
   entities: ('sponsor' | 'partner' | 'speaker' | 'delegate')[]
 }
 
 export const PORTALS: Record<PortalKey, PortalDef> = {
-  sales: {
-    key: 'sales',
-    name: 'Sales CRM',
-    short: 'Sales',
-    tagline: 'Sponsors, partners & the pipeline',
-    description:
-      'Every sponsorship and partnership conversation, by event and by year — and the pipeline of leads to chase for the next edition.',
-    accent: { fill: 'var(--sales)', ink: 'var(--sales-ink)', soft: 'var(--sales-soft)', line: 'var(--sales-line)' },
+  event: {
+    key: 'event',
+    name: 'Event',
+    short: 'Event',
+    tagline: 'Sales, people, agenda & marketing',
+    description: 'Everything for one event, by year: sponsors and partners, speakers and delegates, the agenda, and the LinkedIn posts.',
+    accent: { fill: 'var(--accent)', ink: 'var(--accent-ink)', soft: 'var(--accent-soft)', line: 'var(--accent-line)' },
     sections: [
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
-      { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline' },
-      { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors' },
-      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners' },
-      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers' },
-      { key: 'delegates', label: 'Delegates', icon: Users, path: 'delegates' },
-      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda' },
+      { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline', group: 'Sales' },
+      { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors', group: 'Sales' },
+      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners', group: 'Sales' },
+      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers', group: 'People' },
+      { key: 'delegates', label: 'Delegates', icon: Users, path: 'delegates', group: 'People' },
+      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda', group: 'Programme' },
+      { key: 'marketing', label: 'Marketing overview', icon: Sparkles, path: 'marketing', group: 'Marketing' },
+      { key: 'speaker-posts', label: 'Speaker posts', icon: Megaphone, path: 'speaker-posts', group: 'Marketing' },
+      { key: 'sponsor-posts', label: 'Sponsor posts', icon: Building2, path: 'sponsor-posts', group: 'Marketing' },
+      { key: 'content', label: 'Content', icon: PenLine, path: 'content', group: 'Marketing' },
     ],
-    entities: ['sponsor', 'partner'],
-  },
-  production: {
-    key: 'production',
-    name: 'Production CRM',
-    short: 'Production',
-    tagline: 'Speakers & delegates',
-    description:
-      'The people on stage and in the room: speaker outreach through to confirmation, and every delegate registration, by event and by year.',
-    accent: { fill: 'var(--prod)', ink: 'var(--prod-ink)', soft: 'var(--prod-soft)', line: 'var(--prod-line)' },
-    sections: [
-      { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
-      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers' },
-      { key: 'delegates', label: 'Delegates', icon: Users, path: 'delegates' },
-      { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors' },
-      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners' },
-      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda' },
-    ],
-    entities: ['speaker', 'delegate'],
-  },
-  marketing: {
-    key: 'marketing',
-    name: 'Marketing CRM',
-    short: 'Marketing',
-    tagline: 'LinkedIn posts for speakers & sponsors',
-    description:
-      'Who has agreed to a welcome post, who has had one, and how many posts each sponsor package still owes — by event and by year.',
-    accent: { fill: 'var(--mkt)', ink: 'var(--mkt-ink)', soft: 'var(--mkt-soft)', line: 'var(--mkt-line)' },
-    sections: [
-      { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
-      { key: 'speakers', label: 'Speaker posts', icon: Megaphone, path: 'speakers' },
-      { key: 'sponsors', label: 'Sponsor posts', icon: Building2, path: 'sponsors' },
-      { key: 'content', label: 'Content', icon: PenLine, path: 'content' },
-    ],
-    entities: ['speaker', 'sponsor'],
+    entities: ['sponsor', 'partner', 'speaker', 'delegate'],
   },
 }
 
@@ -100,8 +67,12 @@ export const TOOLS: PortalSection[] = [
 ]
 
 export function isPortalKey(v: string | null | undefined): v is PortalKey {
-  return v === 'sales' || v === 'production' || v === 'marketing'
+  return v === 'event'
 }
+
+// The three portals the CRM had before (Sales, Production, Marketing), as a
+// remembered workspace or an old link may still name them.
+const OLD_PORTALS = new Set(['sales', 'production', 'marketing'])
 
 // ── Events ────────────────────────────────────────────────────────────────────
 
@@ -147,13 +118,12 @@ export function editionYears(category: EventCategory): string[] {
   return Array.from(years).sort((a, b) => Number(b) - Number(a))
 }
 
-// Where a portal lands by default inside an event: Sales starts on next
-// year's pipeline (that is the work in front of the team); Production on the
-// nearest edition with anything in it, else this year.
-export function defaultYear(portal: PortalKey, category: EventCategory): string {
+// The edition an event opens on: the newest one with anything in it, up to
+// next year (so a finished edition hands over to the next once its first
+// records arrive), else this year.
+export function defaultYear(_portal: PortalKey, category: EventCategory): string {
   const now = new Date().getFullYear()
-  if (portal === 'sales') return String(now + 1)
-  const withData = category.years.filter((y) => Number(y) <= now + 1)
+  const withData = category.years.filter((y) => Number(y) <= now + 1).sort()
   if (withData.length) return withData[withData.length - 1]
   return String(now)
 }
@@ -241,14 +211,10 @@ export function groupSeries(categories: EventCategory[]): EventSeries[] {
   return list
 }
 
-// A record's kind → the portal that owns it, for the sidebar when someone
-// opens an old-style page (a sponsor profile, the speakers list) directly.
+// Pages outside a workspace (a sponsor profile, an old list) still sit in
+// the event workspace, for the sidebar.
 export function portalForPath(pathname: string): PortalKey | null {
-  if (pathname.startsWith('/sales')) return 'sales'
-  if (pathname.startsWith('/production')) return 'production'
-  if (pathname.startsWith('/marketing')) return 'marketing'
-  if (pathname.startsWith('/sponsors') || pathname.startsWith('/partners')) return 'sales'
-  if (pathname.startsWith('/speakers') || pathname.startsWith('/delegates')) return 'production'
+  if (/^\/(event|sales|production|marketing|sponsors|partners|speakers|delegates)(\/|$)/.test(pathname)) return 'event'
   return null
 }
 
@@ -266,7 +232,7 @@ export function readLastWorkspace(): LastWorkspace | null {
     const raw = localStorage.getItem(LAST_KEY)
     if (!raw) return null
     const v = JSON.parse(raw)
-    if (isPortalKey(v?.portal) && typeof v?.event === 'string') return v as LastWorkspace
+    if ((isPortalKey(v?.portal) || OLD_PORTALS.has(v?.portal)) && typeof v?.event === 'string') return { ...v, portal: 'event' } as LastWorkspace
   } catch {
     /* ignore */
   }
