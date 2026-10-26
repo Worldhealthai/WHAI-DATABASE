@@ -3,6 +3,8 @@
 // Sales is where sponsorship and partnership revenue is chased: sponsors,
 // partners & media, and the pipeline for the next edition. Production is the
 // event itself: the speakers being lined up and the delegates in the room.
+// Each also lists the other's people, so both teams see everyone; a portal's
+// overview stays on its own (entities).
 // Both are scoped to one event (series + city) and, inside it, one edition
 // (year) — the same grouping the rest of the CRM already uses for its event
 // tabs, so nothing about how records are stored changes.
@@ -50,6 +52,8 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
       { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline' },
       { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors' },
       { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners' },
+      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers' },
+      { key: 'delegates', label: 'Delegates', icon: Users, path: 'delegates' },
       { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda' },
     ],
     entities: ['sponsor', 'partner'],
@@ -66,6 +70,8 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
       { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers' },
       { key: 'delegates', label: 'Delegates', icon: Users, path: 'delegates' },
+      { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors' },
+      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners' },
       { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda' },
     ],
     entities: ['speaker', 'delegate'],
