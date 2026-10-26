@@ -3,7 +3,7 @@
 import { Suspense } from 'react'
 import { WorkspaceProvider } from '@/lib/workspace'
 
-export default function SalesLayout({ children }: { children: React.ReactNode }) {
+export default function EventLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={null}>
       <WorkspaceProvider>{children}</WorkspaceProvider>

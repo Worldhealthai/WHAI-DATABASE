@@ -2,6 +2,7 @@
 
 import { AgendaEditor } from '@/components/agenda/AgendaEditor'
 
-export default function ProductionAgendaPage() {
+// One agenda per edition: the running order, with Edit to change it.
+export default function AgendaPage() {
   return <AgendaEditor mode="edit" />
 }

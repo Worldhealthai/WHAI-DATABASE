@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronRight, LogOut, X } from 'lucide-react'
-import { TOOLS, eventLook, workspaceHref } from '@/lib/portals'
+import { TOOLS, eventLook, workspaceHref, type PortalSection } from '@/lib/portals'
 import type { WorkspaceView } from '@/lib/workspace'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -17,7 +17,7 @@ async function logout() {
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <Link href="/" className="flex items-center gap-2.5" title="Choose a portal">
+    <Link href="/" className="flex items-center gap-2.5" title="Choose an event">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/wng-emblem.png" alt="World Nexus Group" width={30} height={30} className="shrink-0" />
       {!compact && (
@@ -28,6 +28,17 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       )}
     </Link>
   )
+}
+
+// The sections in order, each run of the same heading together.
+function groupSections(sections: PortalSection[]) {
+  const out: { group?: string; sections: PortalSection[] }[] = []
+  for (const s of sections) {
+    const last = out[out.length - 1]
+    if (last && last.group === s.group) last.sections.push(s)
+    else out.push({ group: s.group, sections: [s] })
+  }
+  return out
 }
 
 export function Sidebar({ view, onClose }: { view: WorkspaceView; onClose?: () => void }) {
@@ -48,28 +59,20 @@ export function Sidebar({ view, onClose }: { view: WorkspaceView; onClose?: () =
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-6">
-        {/* Where we are, and the two ways to go somewhere else */}
-        {portal ? (
+        {/* Where we are, and the way to another event */}
+        {portal && look ? (
           <div className="px-2">
-            <p className="text-[11px] font-medium" style={{ color: 'var(--fg-4)' }}>{portal.name}</p>
-            {look ? (
-              <p className="text-[14px] font-semibold mt-1 leading-snug pl-3 relative" style={{ color: 'var(--fg)' }}>
-                <span className="absolute left-0 top-0.5 bottom-0.5 w-[3px] rounded-full" style={{ background: look.accent }} />
-                {look.series}
-                <span className="block text-[12.5px] font-medium" style={{ color: look.accentInk }}>{look.city}</span>
-              </p>
-            ) : (
-              <p className="text-[13px] mt-0.5" style={{ color: 'var(--fg-3)' }}>No event chosen</p>
-            )}
-            <div className="flex items-center gap-3 mt-2 text-[12px]">
-              <Link href={`/?portal=${portal.key}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>Change event</Link>
-              <Link href="/" className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>Change portal</Link>
-            </div>
+            <p className="text-[14px] font-semibold leading-snug pl-3 relative" style={{ color: 'var(--fg)' }}>
+              <span className="absolute left-0 top-0.5 bottom-0.5 w-[3px] rounded-full" style={{ background: look.accent }} />
+              {look.series}
+              <span className="block text-[12.5px] font-medium" style={{ color: look.accentInk }}>{look.city}</span>
+            </p>
+            <Link href="/" className="inline-block mt-2 text-[12px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>Change event</Link>
           </div>
         ) : (
           <Link href="/" className="px-2 block">
-            <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Choose a portal</p>
-            <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Sales or Production, then an event.</p>
+            <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Choose an event</p>
+            <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Everything for it is in one place.</p>
           </Link>
         )}
 
@@ -101,27 +104,31 @@ export function Sidebar({ view, onClose }: { view: WorkspaceView; onClose?: () =
           </nav>
         )}
 
-        {/* Sections */}
+        {/* Sections, under their headings (Sales, People, Programme, Marketing) */}
         {portal && slug && (
-          <nav>
-            <p className="ws-label px-2">{portal.short}</p>
-            <div className="flex flex-col gap-0.5">
-              {portal.sections.map((s) => {
-                const active = inWorkspace && (section || '') === s.path
-                const Icon = s.icon
-                return (
-                  <Link key={s.key} href={workspaceHref(portal.key, slug, s.path, year ?? undefined)} className="ws-nav-item" data-active={active} onClick={onClose}>
-                    <Icon className="w-4 h-4 shrink-0" style={{ color: active ? 'var(--fg)' : 'var(--fg-4)' }} />
-                    {s.label}
-                    {active && <ChevronRight className="w-3.5 h-3.5 ml-auto" style={{ color: 'var(--fg-4)' }} />}
-                  </Link>
-                )
-              })}
-            </div>
+          <nav className="flex flex-col gap-4">
+            {groupSections(portal.sections).map(({ group, sections }) => (
+              <div key={group ?? 'top'}>
+                {group && <p className="ws-label px-2">{group}</p>}
+                <div className="flex flex-col gap-0.5">
+                  {sections.map((s) => {
+                    const active = inWorkspace && (section || '') === s.path
+                    const Icon = s.icon
+                    return (
+                      <Link key={s.key} href={workspaceHref(portal.key, slug, s.path, year ?? undefined)} className="ws-nav-item" data-active={active} onClick={onClose}>
+                        <Icon className="w-4 h-4 shrink-0" style={{ color: active ? 'var(--fg)' : 'var(--fg-4)' }} />
+                        {s.label}
+                        {active && <ChevronRight className="w-3.5 h-3.5 ml-auto" style={{ color: 'var(--fg-4)' }} />}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
         )}
 
-        {/* Tools — the same in every portal */}
+        {/* Tools — the same for every event */}
         <nav>
           <p className="ws-label px-2">Tools</p>
           <div className="flex flex-col gap-0.5">

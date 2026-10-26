@@ -1,8 +1,8 @@
 'use client'
 
-// Where the admin is in the CRM: which portal, which event, which edition.
+// Where the admin is in the CRM: which event, which edition, which section.
 //
-// Read from the URL (/{portal}/{event-slug}/{section}?year=YYYY) and, on
+// Read from the URL (/event/{event-slug}/{section}?year=YYYY) and, on
 // pages outside a workspace (a sponsor profile, the import tool), from the
 // last workspace visited — so the sidebar keeps showing the editions and
 // sections the admin came from, and "back" always has somewhere to go.
@@ -33,7 +33,7 @@ export interface WorkspaceView {
   href: (section?: string, year?: string) => string
 }
 
-const WORKSPACE_RX = /^\/(sales|production|marketing)\/([^/]+)(?:\/([^/?#]+))?/
+const WORKSPACE_RX = /^\/(event)\/([^/]+)(?:\/([^/?#]+))?/
 
 export function useWorkspaceFromUrl(): WorkspaceView {
   const pathname = usePathname()

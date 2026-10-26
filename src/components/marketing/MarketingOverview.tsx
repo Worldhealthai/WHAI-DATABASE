@@ -46,7 +46,7 @@ export function MarketingOverview() {
             <div className="ws-card">
               <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--line)' }}>
                 <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>Speakers still to welcome</p>
-                <Link href={href('speakers')} className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>Speaker posts <ArrowRight className="w-3.5 h-3.5" /></Link>
+                <Link href={href('speaker-posts')} className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>Speaker posts <ArrowRight className="w-3.5 h-3.5" /></Link>
               </div>
               {!loading && todo.length === 0 ? (
                 <EmptyState icon={Megaphone} title="Everyone is welcomed" body={speakers.length ? 'Every consenting speaker has had their post.' : `No speakers on the ${year} line-up yet.`} className="py-10" />
@@ -73,7 +73,7 @@ export function MarketingOverview() {
             <div className="ws-card">
               <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--line)' }}>
                 <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>Sponsors owed posts</p>
-                <Link href={href('sponsors')} className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>Sponsor posts <ArrowRight className="w-3.5 h-3.5" /></Link>
+                <Link href={href('sponsor-posts')} className="inline-flex items-center gap-1 text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>Sponsor posts <ArrowRight className="w-3.5 h-3.5" /></Link>
               </div>
               {!loading && owed.length === 0 ? (
                 <EmptyState icon={Megaphone} title="Nothing owed" body={sponsors.length ? 'Every sponsor package has had its posts.' : `No sponsors on the ${year} event yet.`} className="py-10" />

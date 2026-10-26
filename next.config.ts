@@ -12,6 +12,18 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Sales, Production and Marketing became one workspace per event: old
+  // links and bookmarks land on the same page there (the ?year= is kept).
+  async redirects() {
+    return [
+      { source: '/marketing/:event/speakers', destination: '/event/:event/speaker-posts', permanent: false },
+      { source: '/marketing/:event/sponsors', destination: '/event/:event/sponsor-posts', permanent: false },
+      { source: '/marketing/:event/content', destination: '/event/:event/content', permanent: false },
+      { source: '/marketing/:event', destination: '/event/:event/marketing', permanent: false },
+      { source: '/:portal(sales|production)/:event/:section', destination: '/event/:event/:section', permanent: false },
+      { source: '/:portal(sales|production)/:event', destination: '/event/:event', permanent: false },
+    ]
+  },
 }
 
 // Refuse to build with database settings that could never work (for example

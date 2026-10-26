@@ -2,7 +2,7 @@
 
 // The frame around every screen.
 //
-// Login and the entrance (portal → event) render bare: they are full-screen
+// Login and the entrance (choose an event) render bare: they are full-screen
 // moments, not pages inside the app. Everything else gets the sidebar (where
 // you are, the editions, the sections, the tools) and the top bar (the trail
 // back out, search). The old-style pages — profiles, import, triage — live
@@ -39,10 +39,10 @@ const TITLES: [RegExp, string][] = [
 // the import tool, an old bookmark). They now land in the workspace for the
 // event the admin was last in, so the old list never reappears.
 const OLD_LISTS: Record<string, { portal: PortalKey; section: string }> = {
-  '/sponsors': { portal: 'sales', section: 'sponsors' },
-  '/partners': { portal: 'sales', section: 'partners' },
-  '/speakers': { portal: 'production', section: 'speakers' },
-  '/delegates': { portal: 'production', section: 'delegates' },
+  '/sponsors': { portal: 'event', section: 'sponsors' },
+  '/partners': { portal: 'event', section: 'partners' },
+  '/speakers': { portal: 'event', section: 'speakers' },
+  '/delegates': { portal: 'event', section: 'delegates' },
 }
 
 function Frame({ children }: { children: React.ReactNode }) {

@@ -2,6 +2,6 @@
 
 import { Overview } from '@/components/workspace/Overview'
 
-export default function ProductionOverviewPage() {
+export default function EventOverviewPage() {
   return <Overview />
 }
