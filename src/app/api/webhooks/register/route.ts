@@ -205,6 +205,61 @@ export async function POST(req: NextRequest) {
       return sel
     }
 
+    // ── action: "update" ──────────────────────────────────────────────────
+    // The admin panel corrected a booking (a name, company, email…): the
+    // same correction on the contact's CRM record. `match` names the record
+    // as it was ({ type, email, event }, before the edit); only the fields
+    // sent are written, and nothing is created. A rejected solution provider
+    // filed as a sponsor lead (sponsor webhook, "Rejected delegate booking")
+    // is corrected there too.
+    if (body.action === 'update') {
+      const match = (body.match ?? {}) as { type?: string; email?: string; event?: string }
+      const matchEmail = String(match.email || '').trim().toLowerCase() || email
+      const matchEvent = (match.event ? canonicalEventLabel(match.event, year) : null) ?? common.event
+      if (!matchEmail) {
+        return NextResponse.json({ ok: true, updated: 0, message: 'No email to match.' }, { status: 200, headers: CORS_HEADERS })
+      }
+      const matchTable = match.type === 'speaker' ? 'speakers' : match.type === 'delegate' ? 'delegates' : table
+      const fields: Record<string, unknown> = {}
+      if (firstName) fields.firstName = firstName
+      if (lastName) fields.lastName = lastName
+      if (email) fields.email = email
+      for (const k of ['phone', 'organization', 'jobTitle', 'subType'] as const) {
+        if (body[k] !== undefined) fields[k] = body[k] || null
+      }
+      let updated = 0
+      let sel = supabase.from(matchTable).select('id').ilike('email', escapeLike(matchEmail))
+      if (matchEvent) sel = sel.ilike('event', escapeLike(matchEvent))
+      const { data: found, error: findErr } = await sel.limit(5)
+      if (findErr) throw findErr
+      for (const row of found ?? []) {
+        const { error: updErr } = await supabase.from(matchTable).update(fields).eq('id', row.id)
+        if (updErr) throw updErr
+        updated++
+      }
+      // The sponsor lead made from a rejected booking, if there is one.
+      let leadSel = supabase
+        .from('sponsors')
+        .select('id, companyId')
+        .ilike('contactEmail', escapeLike(matchEmail))
+        .ilike('tags', '%Rejected delegate booking%')
+      if (matchEvent) leadSel = leadSel.ilike('event', escapeLike(matchEvent))
+      const { data: leads } = await leadSel.limit(5)
+      for (const lead of leads ?? []) {
+        const leadFields: Record<string, unknown> = {}
+        if (firstName) leadFields.contactFirstName = firstName
+        if (lastName) leadFields.contactLastName = lastName
+        if (email) leadFields.contactEmail = email
+        if (body.phone !== undefined) leadFields.contactPhone = body.phone || null
+        if (body.jobTitle !== undefined) leadFields.contactJobTitle = body.jobTitle || null
+        if (!lead.companyId && body.organization) leadFields.companyName = String(body.organization)
+        const { error: leadErr } = await supabase.from('sponsors').update(leadFields).eq('id', lead.id)
+        if (leadErr) throw leadErr
+        updated++
+      }
+      return NextResponse.json({ ok: true, updated }, { status: 200, headers: CORS_HEADERS })
+    }
+
     // ── action: "delete" ──────────────────────────────────────────────────
     // The website calls this when an admin permanently deletes a registration.
     // Remove the matching contact from this table by email.
