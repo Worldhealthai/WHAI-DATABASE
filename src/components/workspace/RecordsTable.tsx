@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronUp, ChevronsUpDown, CopyPlus, Download, Pencil, Plus, Search, SearchX } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, CopyPlus, Download, Pencil, Plus, Search, SearchX, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, STATUS_OPTIONS, changeStage, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
@@ -22,6 +22,7 @@ import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
 import { EmptyState, Initials, StageDot, StagePill, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
+import { ImportToEventModal } from './ImportToEventModal'
 
 type Row = Record<string, any>
 
@@ -208,6 +209,8 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [adding, setAdding] = useState(false)
+  // Scraped contacts into this edition (sponsors and speakers).
+  const [importing, setImporting] = useState(false)
   const [editing, setEditing] = useState<Row | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -326,6 +329,9 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
       actions={
         <>
           <button onClick={exportCsv} className="ws-btn" title="Download this list as CSV"><Download className="w-4 h-4" /> Export</button>
+          {(kind === 'sponsor' || kind === 'speaker') && preset.event && (
+            <button onClick={() => setImporting(true)} className="ws-btn" title={`Import a sheet of contacts into ${preset.event}`}><Upload className="w-4 h-4" /> Import</button>
+          )}
           <button onClick={() => setAdding(true)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add {def.label.toLowerCase()}</button>
         </>
       }
@@ -414,6 +420,9 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
       )}
       {editing && kind === 'speaker' && <SpeakerFormModal speaker={editing} onClose={() => setEditing(null)} onSaved={saved} />}
       {editing && kind === 'delegate' && <DelegateFormModal delegate={editing} onClose={() => setEditing(null)} onSaved={saved} />}
+      {importing && (kind === 'sponsor' || kind === 'speaker') && preset.event && (
+        <ImportToEventModal kind={kind} event={preset.event} onClose={() => setImporting(false)} onDone={saved} />
+      )}
     </WorkspacePage>
   )
 }
