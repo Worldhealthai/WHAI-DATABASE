@@ -23,6 +23,10 @@ const EVENT_ALIASES: Record<string, string> = {
   'world health ai 2026': 'World Health AI London 2026',
   'world health ai 2027': 'World Health AI London 2027',
   'world pharma ai 2027': 'World Pharma AI London 2027',
+  // There is no Pharma London 2026: its records moved to 2027
+  // (migration 013), and anything still arriving for it goes there too.
+  'world pharma ai 2026': 'World Pharma AI London 2027',
+  'world pharma ai london 2026': 'World Pharma AI London 2027',
 }
 
 export function canonicalEventLabel(label: string | null | undefined, year?: number | null): string | null {
