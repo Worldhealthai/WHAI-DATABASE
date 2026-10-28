@@ -12,6 +12,12 @@
 -- move too; one already in 2027 keeps that row and gains the 2026 row's
 -- activity. Safe to re-run: once nothing is filed under 2026 it does nothing.
 
+-- Where the CRM's tables are: the crm schema of the Nexus project since the
+-- move (CRM_DB_SCHEMA=crm), else public in the CRM's own project. Without
+-- this, in the Nexus project "sponsors" would be the website's own sponsors
+-- table. A schema that isn't there is skipped, so it runs in either.
+set search_path to crm, public;
+
 create or replace function pg_temp.move_company_edition(t text, act text, f text, dest text) returns void
 language plpgsql as $fn$
 declare
