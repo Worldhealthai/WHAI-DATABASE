@@ -113,7 +113,10 @@ export function labelsForEdition(category: EventCategory, year: string): string[
 export function editionYears(category: EventCategory): string[] {
   const now = new Date().getFullYear()
   const years = new Set<string>(category.years)
-  years.add(String(now))
+  // This year only when the event has nothing yet (an edition with no
+  // records is not offered: World Pharma AI has no 2026); next year always,
+  // for its pipeline.
+  if (!years.size) years.add(String(now))
   years.add(String(now + 1))
   return Array.from(years).sort((a, b) => Number(b) - Number(a))
 }

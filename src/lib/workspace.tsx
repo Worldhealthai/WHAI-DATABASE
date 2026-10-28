@@ -63,7 +63,10 @@ export function useWorkspaceFromUrl(): WorkspaceView {
     let year: string | null = null
     if (category && portal) {
       const remembered = last && last.event === slug ? last.year : undefined
-      year = (m ? yearParam : null) ?? remembered ?? defaultYear(portal.key, category)
+      // A year the event no longer has (a remembered one, or an old link) is
+      // not brought back: the event opens on its default edition instead.
+      const asked = (m ? yearParam : null) ?? remembered
+      year = asked && years.includes(asked) ? asked : defaultYear(portal.key, category)
       if (!years.includes(year)) years.push(year)
     }
     const labels = category && year ? labelsForEdition(category, year) : []
