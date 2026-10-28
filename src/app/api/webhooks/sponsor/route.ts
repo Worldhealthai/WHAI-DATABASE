@@ -14,6 +14,13 @@ export const dynamic = 'force-dynamic'
 // overwrites a different person's details: when the company already has
 // another primary contact, it is filed as one of the company's contacts.
 //
+// With "lead": true it files a sales lead instead: a delegate booking the
+// Nexus admin rejected because the person sells to the audience (a solution
+// provider). The company is added to this edition's sponsors as Not
+// Contacted, with the person as its contact (job title and phone included);
+// a company already there keeps its stage and gains the person as a
+// contact if they are new to it. Nothing is marked confirmed or onboarded.
+//
 // POST /api/webhooks/sponsor
 // Headers: x-webhook-secret: <WEBHOOK_SECRET env var>
 // Body: {
@@ -24,6 +31,9 @@ export const dynamic = 'force-dynamic'
 //   "linkedinPostsDue": 2, "onboardedAt": "2026-09-19T…",
 //   "source": "worldnexusgroup.com sponsor onboarding"
 // }
+// A lead: { "lead": true, "companyName", "event", "year", "contactFirstName",
+//   "contactLastName", "contactEmail", "contactPhone", "contactJobTitle",
+//   "source" }
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -107,6 +117,8 @@ export async function POST(req: NextRequest) {
       if (score >= MATCH_THRESHOLD && (!best || score > best.score)) best = { row, score }
     }
 
+    if (body?.lead === true) return await fileLead(body, companyName, event, email, best?.row ?? null)
+
     const marketing: Record<string, unknown> = {
       linkedinPostsDue: due,
       onboardedAt: body?.onboardedAt || new Date().toISOString(),
@@ -188,4 +200,59 @@ export async function POST(req: NextRequest) {
     console.error('sponsor webhook error:', error)
     return NextResponse.json({ error: 'Internal server error', detail: String(error?.message || error).slice(0, 300) }, { status: 500, headers: CORS_HEADERS })
   }
+}
+
+// A rejected delegate booking from a solution provider, filed as a sales
+// lead for the edition (see the note at the top).
+async function fileLead(body: Record<string, unknown>, companyName: string, event: string, email: string | null, company: Row | null) {
+  const contact: Record<string, unknown> = {}
+  if (body.contactFirstName) contact.contactFirstName = String(body.contactFirstName)
+  if (body.contactLastName) contact.contactLastName = String(body.contactLastName)
+  if (email) contact.contactEmail = email
+  if (body.contactPhone) contact.contactPhone = String(body.contactPhone)
+  if (body.contactJobTitle) contact.contactJobTitle = String(body.contactJobTitle)
+  const source = String(body.source || 'rejected delegate booking').slice(0, 120)
+  const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const who = [`${contact.contactFirstName ?? ''} ${contact.contactLastName ?? ''}`.trim(), contact.contactJobTitle].filter(Boolean).join(', ')
+  const note = `[Lead · ${source} · ${stamp}]${who ? ` ${who}` : ''}`
+  const tags = 'Rejected delegate booking'
+
+  if (!company) {
+    const { data, error } = await supabase
+      .from('sponsors')
+      .insert({ companyName, status: 'Not Contacted', event, tier: null, tags, notes: note, ...contact })
+      .select('id')
+      .single()
+    if (error) throw error
+    return NextResponse.json({ ok: true, created: true, id: data?.id, event }, { status: 201, headers: CORS_HEADERS })
+  }
+
+  // Already a company in this edition: its stage and primary contact stay.
+  // The person is added as one of its contacts unless they are on it already.
+  if (hasPerson(contact) && !samePerson(company, contact)) {
+    const { data: contacts, error: contactsErr } = await supabase
+      .from('sponsors')
+      .select('id, contactFirstName, contactLastName, contactEmail')
+      .eq('companyId', company.id)
+    if (contactsErr) throw contactsErr
+    if (!((contacts || []) as Person[]).some((c) => samePerson(c, contact))) {
+      const { error } = hasPerson(company)
+        ? await supabase.from('sponsors').insert({
+            companyId: company.id,
+            companyName: company.companyName || companyName,
+            ...contact,
+            status: 'Not Contacted',
+            event: company.event || event,
+            tags,
+          })
+        : await supabase.from('sponsors').update(contact).eq('id', company.id)
+      if (error) throw error
+    }
+  }
+  if (!(company.notes || '').includes(note)) {
+    const notes = [company.notes, note].filter(Boolean).join('\n\n')
+    const { error } = await supabase.from('sponsors').update({ notes, updatedAt: new Date().toISOString() }).eq('id', company.id)
+    if (error) throw error
+  }
+  return NextResponse.json({ ok: true, created: false, id: company.id, event }, { headers: CORS_HEADERS })
 }
