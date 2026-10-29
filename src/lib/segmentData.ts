@@ -81,11 +81,14 @@ export async function loadContacts(events: string[]): Promise<SegmentContact[]> 
   }
   for (const r of delegates) {
     const email = s(r.email)?.toLowerCase() ?? null
-    const isPaid = (!!email && paid.has(email)) || /paid/i.test(String(r.tags ?? '')) || /paid/i.test(String(r.ticketType ?? ''))
+    const isPaid = (!!email && paid.has(email)) || /paid/i.test(String(r.tags ?? '')) || /paid|^ticket$|^sponsor$/i.test(String(r.ticketType ?? '').trim())
+    // Their own answer (Company type) wins over the rule.
+    const declared = s(r.subType)
+    const firm = declared === 'Solution Provider' || declared === 'End User' ? declared : firmographicByRule('Delegate', isPaid)
     out.push({
       relationship: 'Delegate', table: 'delegates', id: r.id, recordId: r.id, company: s(r.organization), firstName: s(r.firstName), lastName: s(r.lastName),
       email, phone: s(r.phone), jobTitle: s(r.jobTitle), linkedinUrl: s(r.linkedinUrl), status: r.status ?? null,
-      selfDeclared: s(r.subType), paid: isPaid, firmographic: firmographicByRule('Delegate', isPaid), country: s(r.country), updatedAt: r.updatedAt ?? null,
+      selfDeclared: declared, paid: isPaid, firmographic: firm, country: s(r.country), updatedAt: r.updatedAt ?? null,
     })
   }
   return out

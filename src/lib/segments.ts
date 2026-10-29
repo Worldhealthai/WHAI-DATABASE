@@ -9,9 +9,10 @@
 // The rules, in one place so they can be changed (docs/audit/README.md):
 //   Sponsors tab   → Solution Provider; tag Sponsor
 //   Speakers tab   → End User;          tag Speaker
-//   Delegates tab  → Solution Provider when paid (a Nexus booking paid by
-//                    card, or "paid" in tags or ticket type), else End User;
-//                    tag Delegate
+//   Delegates tab  → their Company type when set; otherwise Solution
+//                    Provider when paid (a Nexus booking paid by card, a
+//                    Ticket or Sponsor pass, or "paid" in tags), else End
+//                    User; tag Delegate
 // A company with both labels is a Solution Provider, marked as a conflict
 // for a human look.
 

@@ -67,6 +67,7 @@ const TICKET_TYPE_COLORS: Record<string, string> = {
   'VIP':           'bg-amber-500/15 text-amber-400 border-amber-500/30',
   'Speaker':       'bg-purple-500/15 text-purple-400 border-purple-500/30',
   'Sponsor':       'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  'Ticket':        'bg-amber-500/15 text-amber-400 border-amber-500/30',
   'Press':         'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
   'Complimentary': 'bg-green-500/15 text-green-400 border-green-500/30',
   'Virtual':       'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',

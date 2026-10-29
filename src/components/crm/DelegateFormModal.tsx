@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Delegate } from '@/types'
 import { PersonEventsField, confirmRemoval, usePersonEvents } from '@/components/crm/PersonEvents'
+import { usePersonRoles } from '@/components/crm/PersonRoles'
 import {
   DELEGATE_STATUS_OPTIONS,
   delegateStatusLabel,
   DELEGATE_TICKET_OPTIONS,
   DELEGATE_SOURCE_OPTIONS,
   SUBTYPE_OPTIONS,
+  TAKING_PART_OPTIONS,
   COUNTRY_OPTIONS,
 } from '@/types'
 
@@ -50,6 +52,14 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
 
   const set = (key: string, value: string) => setForm((p) => ({ ...p, [key]: value }))
 
+  // Speaking is a speaker record in the same event: read it from there, and
+  // make one on save when it is switched on.
+  const roles = usePersonRoles({ email: delegate?.email, firstName: delegate?.firstName, lastName: delegate?.lastName, organization: delegate?.organization })
+  const speakerNow = (roles.data?.roles ?? []).find((r) => r.kind === 'speaker' && (r.event ?? '') === (delegate?.event ?? ''))
+  const [takingPart, setTakingPart] = useState<string | null>(null)
+  const part = takingPart ?? (speakerNow ? 'Speaking' : 'Attending')
+  const isProvider = form.subType === 'Solution Provider'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.firstName.trim() || !form.lastName.trim()) {
@@ -64,6 +74,8 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
     setError('')
     try {
       const body: any = { ...form, event: plan.main }
+      // End Users hold no pass; a legacy value is kept until someone changes it.
+      if (!isProvider && DELEGATE_TICKET_OPTIONS.includes(body.ticketType)) body.ticketType = ''
       // Remove empty optional strings
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
@@ -82,6 +94,24 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
         saved = await res.json()
       }
       if (!(await events.apply(saved?.id, plan, form.status))) { onClose(); return }
+      // Speaking: a speaker record in each event they are in (one already
+      // there is left as it is).
+      if (part === 'Speaking' && !speakerNow) {
+        const year = (ev: string | null) => Number(String(ev ?? '').match(/\b(20\d{2})\b/)?.[1]) || null
+        const speakingAt = isEdit ? (plan.removingThis ? [] : [plan.main]) : events.picked.length ? events.picked : [plan.main]
+        for (const ev of speakingAt) {
+          const res = await fetch('/api/speakers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              firstName: body.firstName, lastName: body.lastName, email: body.email, phone: body.phone, linkedinUrl: body.linkedinUrl,
+              organization: body.organization, jobTitle: body.jobTitle, country: body.country, city: body.city, bio: body.bio,
+              subType: body.subType, event: ev || null, year: year(ev), status: 'Speaking Confirmed',
+            }),
+          })
+          if (!res.ok && res.status !== 409) throw new Error('Saved, but the speaker record could not be made. Add them in Speakers.')
+        }
+      }
       onSaved(saved)
     } catch (err: any) {
       setError(err?.message && err.message !== 'Failed to save' ? err.message : 'Something went wrong. Please try again.')
@@ -161,17 +191,28 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
                   )}
                 </select>
               </Field>
-              <Field label="Delegate type">
+              <Field label="Company type">
                 <select value={form.subType} onChange={(e) => set('subType', e.target.value)} className={inputCls}>
                   <option value="">Select type</option>
                   {SUBTYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </Field>
-              <Field label="Ticket">
-                <select value={form.ticketType} onChange={(e) => set('ticketType', e.target.value)} className={inputCls}>
-                  <option value="">Select ticket</option>
-                  {DELEGATE_TICKET_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+              {/* Only Solution Providers hold a pass (End Users attend free). */}
+              {isProvider || (form.ticketType && !DELEGATE_TICKET_OPTIONS.includes(form.ticketType)) ? (
+                <Field label="Pass">
+                  <select value={form.ticketType} onChange={(e) => set('ticketType', e.target.value)} className={inputCls}>
+                    <option value="">Select pass</option>
+                    {DELEGATE_TICKET_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {form.ticketType && !DELEGATE_TICKET_OPTIONS.includes(form.ticketType) && <option value={form.ticketType}>{form.ticketType} (old)</option>}
+                  </select>
+                </Field>
+              ) : null}
+              <Field label="Taking part">
+                <select value={part} onChange={(e) => setTakingPart(e.target.value)} className={inputCls}>
+                  {TAKING_PART_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
+                {part === 'Speaking' && !speakerNow && <p className="text-[11.5px] text-slate-400">A speaker record is made for them in the same event.</p>}
+                {part === 'Attending' && speakerNow && <p className="text-[11.5px] text-slate-400">Their speaker record stays; remove it in Speakers if they are no longer speaking.</p>}
               </Field>
               <Field label="Source">
                 <select value={form.source} onChange={(e) => set('source', e.target.value)} className={inputCls}>

@@ -79,15 +79,18 @@ export const delegateStatusLabel = (s: string | null | undefined): string =>
 export const partnerConsentLabel = (v: boolean | null | undefined): string =>
   v === true ? 'Yes' : v === false ? 'No' : ''
 
+// The pass a Solution Provider holds: part of a sponsorship, a paid ticket,
+// or complimentary. End Users don't pay, so they have none. (Older records
+// may still carry Standard, VIP, Press and so on; they show as they are.)
 export const DELEGATE_TICKET_OPTIONS = [
-  'Standard',
-  'VIP',
-  'Speaker',
   'Sponsor',
-  'Press',
+  'Ticket',
   'Complimentary',
-  'Virtual',
 ]
+
+// Whether someone is in the audience or on the programme. Speaking is a
+// speaker record in the same event, so it is read from there.
+export const TAKING_PART_OPTIONS = ['Attending', 'Speaking'] as const
 
 export const DELEGATE_SOURCE_OPTIONS = [
   'Website',
