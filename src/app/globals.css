@@ -791,27 +791,6 @@
 .crm-dir:hover { color: var(--fg); border-color: var(--line-3); }
 .crm-dir[data-active='true'] { background: var(--deep); color: var(--on-deep); border-color: transparent; }
 
-/* ── The entrance: a plain list of the events, by series ───────────────── */
-.ent-list { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--glass-shadow); overflow: hidden; }
-.ent-series { padding: 14px 20px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-4); background: var(--surface-2); border-top: 1px solid var(--line); }
-.ent-series:first-child { border-top: 0; }
-.ent-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line); }
-.ent-row:hover { background: var(--surface-2); }
-.ent-years { display: flex; gap: 2px; }
-.ent-years a {
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-3);
-  border: 1px solid transparent;
-}
-.ent-years a:hover { color: var(--fg); border-color: var(--line-2); background: var(--surface); }
-.ent-years a[data-current='true'] { color: var(--fg); font-weight: 600; border-color: var(--line-2); background: var(--surface); }
-
 /* ── Glass on the controls (October 2026: "a little bit of oomph") ───────
    Cards stay solid and quiet; what you press is frosted glass in pill
    form: buttons, the menu, switches, chips and the edition years. A soft
@@ -850,8 +829,7 @@
 /* Buttons: frosted pills */
 .ws-btn:not(.ws-btn-primary):not(.ws-btn-ghost),
 .crm-switch,
-.crm-dir,
-.ent-years a[data-current='true'] {
+.crm-dir {
   background: var(--btn-glass);
   -webkit-backdrop-filter: blur(10px) saturate(160%);
   backdrop-filter: blur(10px) saturate(160%);
@@ -914,27 +892,111 @@
 /* Chips (filters) as pills, the chosen one glass */
 .ws-chip[data-active='true'] { background: var(--btn-glass-hover); border-color: var(--btn-rim); box-shadow: var(--btn-shadow); }
 
-/* Entrance: the editions as pills */
-.ent-years a { border-radius: 999px; }
 
-/* Entrance in glass: the list is a frosted panel over the teal wash, each
-   event a row that lights up in its colour, the editions on a pill track. */
-.ent-list {
-  border-radius: 18px;
-  background: var(--btn-glass);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
-  border: 1px solid var(--btn-rim);
-  outline: 1px solid var(--btn-edge);
-  outline-offset: -1px;
-  box-shadow: var(--btn-shadow), 0 18px 40px -24px rgba(15, 59, 63, 0.35);
+/* ── The entrance (the version Ali preferred, October 2026) ─────────────
+   Its own glass: the series as frosted panels over a field of soft sea
+   colours, set on .ent-page only, so the rest of the CRM keeps its solid
+   cards. */
+.ent-page {
+  --glass-fill: linear-gradient(140deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.36) 100%);
+  --glass-fill-strong: linear-gradient(140deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.55) 100%);
+  --glass-rim: rgba(255, 255, 255, 0.7);
+  --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.95), 0 1px 2px rgba(15, 59, 63, 0.06);
+  --glass-blur: blur(16px) saturate(170%);
 }
-.ent-series { background: transparent; padding: 16px 22px 6px; border-top: 1px solid var(--line); }
-.ent-series:first-child { border-top: 0; }
-.ent-row { border-top: 0; margin: 0 8px 6px; padding: 12px 14px; border-radius: 12px; border: 1px solid transparent; transition: background 120ms ease, border-color 120ms ease; }
-.ent-row:hover { background: var(--btn-glass-hover); border-color: var(--btn-rim); box-shadow: var(--btn-shadow); }
-.ent-dot { width: 10px; height: 10px; border-radius: 999px; flex-shrink: 0; background: var(--acc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 18%, transparent); }
-.ent-years { gap: 2px; padding: 3px; border-radius: 999px; background: var(--seg-track); border: 1px solid var(--line); box-shadow: inset 0 1px 2px rgba(15, 59, 63, 0.06); }
-.ent-years a { height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid transparent; background: transparent; outline: 0; box-shadow: none; }
-.ent-years a:hover { background: transparent; border-color: transparent; color: var(--fg); }
-.ent-years a[data-current='true'] { background: var(--btn-glass-hover); border-color: var(--btn-rim); outline: 0; box-shadow: var(--btn-shadow); color: var(--fg); font-weight: 600; }
+:root[data-theme='dark'] .ent-page {
+  --glass-fill: linear-gradient(140deg, rgba(40, 52, 70, 0.55) 0%, rgba(22, 30, 44, 0.42) 100%);
+  --glass-fill-strong: linear-gradient(140deg, rgba(44, 56, 76, 0.78) 0%, rgba(26, 34, 50, 0.7) 100%);
+  --glass-rim: rgba(255, 255, 255, 0.12);
+  --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.ent-page .crm-field {
+  background:
+    radial-gradient(42% 46% at 8% 6%, rgba(77, 196, 182, 0.55), transparent 70%),
+    radial-gradient(36% 40% at 92% 10%, rgba(120, 186, 230, 0.5), transparent 70%),
+    radial-gradient(40% 44% at 78% 88%, rgba(170, 214, 196, 0.6), transparent 70%),
+    radial-gradient(34% 40% at 20% 92%, rgba(196, 186, 240, 0.4), transparent 70%),
+    #eef3f3;
+}
+:root[data-theme='dark'] .ent-page .crm-field {
+  background:
+    radial-gradient(42% 46% at 8% 6%, rgba(20, 120, 112, 0.5), transparent 70%),
+    radial-gradient(36% 40% at 92% 10%, rgba(40, 80, 160, 0.45), transparent 70%),
+    radial-gradient(40% 44% at 78% 88%, rgba(16, 90, 84, 0.5), transparent 70%),
+    radial-gradient(34% 40% at 20% 92%, rgba(80, 60, 150, 0.35), transparent 70%),
+    #0b1118;
+}
+.ent-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+}
+/* A thin line of the series colour along the top edge, fading out */
+.ent-panel::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--acc), transparent);
+  opacity: 0.8;
+}
+.ent-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.8);
+}
+.ent-row {
+  border-radius: 20px;
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-rim);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.ent-row:hover { border-color: var(--acc); }
+.ent-year {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid var(--glass-rim);
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.ent-year:hover { color: var(--fg); border-color: var(--acc); }
+.ent-year[data-current='true'] { color: var(--fg); font-weight: 600; background: var(--acc-soft); border-color: transparent; }
+.ent-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+  color: var(--fg-2);
+}
+.ent-continue:hover { color: var(--fg); }
