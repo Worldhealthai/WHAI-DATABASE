@@ -29,7 +29,7 @@ export function StagePill({ kind, status, className = '' }: { kind: RecordKind; 
   const def = KINDS[kind]
   const stage = def.stages.find((s) => s.status === status)
   return (
-    <span className={cn('inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[12px] font-medium whitespace-nowrap', className)} style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
+    <span className={cn('inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[12px] font-medium whitespace-nowrap', className)} style={{ background: 'var(--surface-2)', color: 'var(--fg-2)' }}>
       <StageDot hex={stage?.hex ?? 'var(--line-3)'} />
       {stage?.label ?? def.statusLabel(status)}
     </span>
@@ -69,7 +69,7 @@ export function Segmented<T extends string>({
   options, value, onChange, size = 'md',
 }: { options: { value: T; label: React.ReactNode; hint?: string }[]; value: T; onChange: (v: T) => void; size?: 'sm' | 'md' }) {
   return (
-    <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+    <div className="inline-flex items-center gap-0.5 p-[3px] rounded-[9px]" style={{ background: 'var(--surface-3)' }}>
       {options.map((o) => {
         const active = o.value === value
         return (

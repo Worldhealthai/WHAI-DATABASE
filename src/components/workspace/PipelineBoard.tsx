@@ -14,7 +14,7 @@ import { KINDS, changeStage, listParams, type RecordKind, type Stage } from '@/l
 import { editionLabel } from '@/lib/portals'
 import { useTierOptions } from '@/lib/useTierOptions'
 import { CURRENCY_OPTIONS, PARTNER_TYPE_OPTIONS } from '@/types'
-import { EmptyState, Field, Initials, Modal, Segmented, StageDot, formatMoney, timeAgo } from './ui'
+import { EmptyState, Field, Modal, Segmented, StageDot, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 
 type Lead = Record<string, any>
@@ -275,23 +275,23 @@ function LeadCard({ lead, kind, dragging, onDragStart, onDragEnd }: {
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className={cn('block rounded-xl p-3.5 transition-all cursor-grab active:cursor-grabbing select-none', dragging && 'opacity-40 scale-[0.98]')}
-      style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--line-3)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)' }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)' }}
+      className={cn('block rounded-[10px] px-3 py-2.5 transition-all cursor-grab active:cursor-grabbing select-none', dragging && 'opacity-40 scale-[0.98]')}
+      style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--line-3)' }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--line)' }}
+      title={`Updated ${timeAgo(lead.updatedAt)}`}
     >
-      <div className="flex items-start gap-2.5">
-        <Initials name={lead.companyName || '?'} size={34} />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13.5px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{lead.companyName}</p>
-          <p className="text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{contact || lead.contactEmail || 'No contact yet'}</p>
-        </div>
+      {/* The company and what it is worth, then who and which package. */}
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[13.5px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{lead.companyName}</p>
+        {lead.valueAmount ? (
+          <span className="text-[12.5px] font-semibold tabular shrink-0" style={{ color: 'var(--fg)' }}>{formatMoney(lead.valueAmount, lead.valueCurrency || 'GBP')}</span>
+        ) : null}
       </div>
-      <div className="flex items-center justify-between gap-2 mt-3">
-        <span className="text-[12px] truncate" style={{ color: lead.tier ? 'var(--fg-3)' : 'var(--fg-4)' }}>{lead.tier || 'No package yet'}</span>
-        <span className="text-[12.5px] font-semibold tabular" style={{ color: lead.valueAmount ? 'var(--fg)' : 'var(--fg-4)' }}>{formatMoney(lead.valueAmount, lead.valueCurrency || 'GBP')}</span>
-      </div>
-      <p className="text-[11px] mt-2.5" style={{ color: 'var(--fg-4)' }}>Updated {timeAgo(lead.updatedAt)}</p>
+      <p className="text-[12px] truncate mt-0.5" style={{ color: 'var(--fg-3)' }}>
+        {contact || lead.contactEmail || 'No contact yet'}
+        {lead.tier ? <span style={{ color: 'var(--fg-4)' }}> · {lead.tier}</span> : null}
+      </p>
     </Link>
   )
 }
@@ -312,8 +312,8 @@ function Column({
       style={{
         flex: stage.negative ? '0 0 200px' : '1 1 240px',
         minWidth: stage.negative ? 200 : 232,
-        background: over ? 'var(--surface-3)' : 'var(--surface-2)',
-        border: `1px solid ${over ? 'var(--line-3)' : 'var(--line)'}`,
+        background: over ? 'var(--surface-3)' : 'color-mix(in srgb, var(--surface-3) 55%, var(--bg))',
+        border: `1px solid ${over ? 'var(--line-3)' : 'transparent'}`,
       }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overStage !== stage.status) setOverStage(stage.status) }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverStage(null) }}
@@ -323,11 +323,11 @@ function Column({
         <div className="flex items-center gap-2 min-w-0">
           <StageDot hex={stage.hex} />
           <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{stage.label}</p>
-          <span className="text-[11.5px] font-medium tabular px-1.5 py-0.5 rounded-md" style={{ background: 'var(--surface)', color: 'var(--fg-3)', border: '1px solid var(--line)' }}>{leads.length}</span>
+          <span className="text-[12px] font-medium tabular" style={{ color: 'var(--fg-4)' }}>{leads.length}</span>
         </div>
         {value > 0 && <span className="text-[12px] font-semibold tabular" style={{ color: 'var(--fg-2)' }}>{formatMoney(value, currency)}</span>}
       </div>
-      <div className="flex-1 flex flex-col gap-2 px-2.5 pb-2.5">
+      <div className="flex-1 flex flex-col gap-1.5 px-2 pb-2">
         {leads.map((l) => (
           <LeadCard
             key={l.id}

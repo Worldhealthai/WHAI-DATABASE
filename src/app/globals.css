@@ -19,19 +19,19 @@
 @layer base {
   :root {
     /* Page + surfaces */
-    --bg: #f5f8fa;
+    --bg: #f6f7f9;
     --surface: #ffffff;
-    --surface-2: #f2f5f8;
-    --surface-3: #e8edf2;
-    --line: #e4e9ef;
-    --line-2: #d0d9e3;
-    --line-3: #b7c3d1;
+    --surface-2: #f3f5f7;
+    --surface-3: #eaedf1;
+    --line: #e9ecf0;
+    --line-2: #dce1e7;
+    --line-3: #c2cad4;
 
     /* Type — every step clears 4.5:1 on white */
-    --fg: #1f2d3d;
-    --fg-2: #33475b;
-    --fg-3: #536b85;
-    --fg-4: #6a7f97;
+    --fg: #17202c;
+    --fg-2: #364252;
+    --fg-3: #556274;
+    --fg-4: #687586;
 
     /* Brand teal, darkened enough to read on white */
     --teal: #0b7a96;
@@ -82,9 +82,9 @@
     --bad: #c0392b;
     --bad-soft: #fbe5e2;
 
-    --shadow-sm: 0 1px 2px rgba(31, 45, 61, 0.06), 0 1px 1px rgba(31, 45, 61, 0.03);
-    --shadow-md: 0 6px 18px rgba(31, 45, 61, 0.08), 0 1px 2px rgba(31, 45, 61, 0.05);
-    --shadow-lg: 0 18px 44px rgba(31, 45, 61, 0.14);
+    --shadow-sm: 0 1px 2px rgba(23, 32, 44, 0.04);
+    --shadow-md: 0 8px 24px rgba(23, 32, 44, 0.08), 0 1px 2px rgba(23, 32, 44, 0.04);
+    --shadow-lg: 0 20px 48px rgba(23, 32, 44, 0.14);
     --radius: 10px;
 
     /* shadcn-style HSL tokens the older components still use */
@@ -112,18 +112,18 @@
   }
 
   [data-theme='dark'] {
-    --bg: #0b1220;
-    --surface: #111a2b;
-    --surface-2: #182236;
-    --surface-3: #1f2b42;
-    --line: #1f2b3f;
-    --line-2: #2b3a52;
-    --line-3: #3a4b66;
+    --bg: #0e131b;
+    --surface: #151b25;
+    --surface-2: #1b2230;
+    --surface-3: #232b3a;
+    --line: #222a37;
+    --line-2: #2e3746;
+    --line-3: #424c5d;
 
-    --fg: #e8eef6;
-    --fg-2: #c7d2e0;
-    --fg-3: #97a7bc;
-    --fg-4: #7d8ea6;
+    --fg: #e6eaf0;
+    --fg-2: #c3cad5;
+    --fg-3: #9aa4b3;
+    --fg-4: #808b9b;
 
     --teal: #22c7e8;
     --teal-strong: #22c7e8;
@@ -305,7 +305,6 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 12px;
-    box-shadow: var(--shadow-sm);
   }
   .ws-input {
     width: 100%;
@@ -351,20 +350,19 @@
   .ws-chip {
     @apply inline-flex items-center gap-1.5 whitespace-nowrap;
     height: 28px;
-    padding: 0 11px;
-    border-radius: 999px;
-    font-size: 12px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 12.5px;
     font-weight: 500;
     color: var(--fg-3);
-    background: var(--surface);
-    border: 1px solid var(--line-2);
+    background: transparent;
+    border: 1px solid transparent;
     transition: all 120ms ease;
   }
-  .ws-chip:hover { color: var(--fg); border-color: var(--line-3); }
+  .ws-chip:hover { color: var(--fg); background: var(--surface-2); }
   .ws-chip[data-active='true'] {
     color: var(--fg);
     background: var(--surface-3);
-    border-color: var(--line-3);
   }
   /* A segmented switch (the sidebar's edition years). */
   .ws-seg {
@@ -418,34 +416,37 @@
   }
   .ws-nav-item {
     @apply flex items-center gap-2.5 w-full text-left;
-    height: 36px;
+    height: 32px;
     padding: 0 10px;
     border-radius: 8px;
     font-size: 13.5px;
     font-weight: 500;
-    color: var(--fg-2);
+    color: var(--fg-3);
+    border: 1px solid transparent;
     transition: background 120ms ease, color 120ms ease;
   }
-  .ws-nav-item:hover { background: var(--surface-2); color: var(--fg); }
+  .ws-nav-item svg { color: var(--fg-4); }
+  .ws-nav-item:hover { background: var(--surface-3); color: var(--fg); }
   .ws-nav-item[data-active='true'] {
-    background: var(--surface-3);
+    background: var(--surface);
+    border-color: var(--line);
     color: var(--fg);
     font-weight: 600;
+    box-shadow: var(--shadow-sm);
   }
+  .ws-nav-item[data-active='true'] svg { color: var(--accent); }
   .ws-table th {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--fg-3);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-4);
     text-align: left;
-    padding: 10px 14px;
+    padding: 10px 16px;
     border-bottom: 1px solid var(--line);
-    background: var(--surface-2);
+    background: var(--surface);
     white-space: nowrap;
   }
   .ws-table td {
-    padding: 12px 14px;
+    padding: 11px 16px;
     border-bottom: 1px solid var(--line);
     font-size: 13.5px;
     color: var(--fg);
@@ -456,6 +457,109 @@
   .ws-table tbody tr { transition: background 100ms ease; }
   .ws-table tbody tr:hover { background: var(--surface-2); }
   .ws-table tbody tr:last-child td { border-bottom: none; }
+}
+
+/* ── The frame: sidebar, top bar, page header ─────────────────────────────
+   The sidebar and top bar sit on the page's own grey, without borders, so
+   the white cards of the content are the only surfaces the eye meets. */
+.crm-side { background: var(--bg); border-right: 1px solid var(--line); }
+.crm-side-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-4);
+  padding: 0 10px;
+  margin: 0 0 4px;
+}
+.crm-top {
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.crm-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 340px;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition: border-color 120ms ease;
+}
+.crm-switch:hover { border-color: var(--line-3); }
+.crm-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 260px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+}
+.crm-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.crm-menu-item:hover { background: var(--surface-2); }
+.crm-years {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--surface-3);
+}
+.crm-years a {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+  transition: background 120ms ease, color 120ms ease;
+}
+.crm-years a[data-past='true'] { color: var(--fg-4); }
+.crm-years a:hover { color: var(--fg); }
+.crm-years a[data-active='true'] {
+  color: var(--fg);
+  font-weight: 600;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.crm-title {
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+.crm-sub {
+  margin-top: 4px;
+  max-width: 64ch;
+  font-size: 13.5px;
+  color: var(--fg-3);
+}
+@media (max-width: 640px) {
+  .crm-switch { max-width: 52vw; padding: 0 8px 0 10px; }
+  .crm-years a { padding: 0 7px; font-size: 12.5px; }
+  .crm-title { font-size: 20px; }
 }
 
 /* ── Motion ─────────────────────────────────────────────────────────────── */
