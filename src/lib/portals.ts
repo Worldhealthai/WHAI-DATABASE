@@ -45,8 +45,8 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
     tagline: 'Sales, people, agenda & marketing',
     description: 'Everything for one event, by year: sponsors and partners, speakers and delegates, the agenda, and the LinkedIn posts.',
     accent: { fill: 'var(--accent)', ink: 'var(--accent-ink)', soft: 'var(--accent-soft)', line: 'var(--accent-line)' },
-    // The directory first (every company and every person the CRM knows,
-    // across all events), then the work for this edition: selling, the
+    // Companies first (every company in this series, with its people), then
+    // the work for this edition: selling, the
     // programme (production), the event's registrations, and marketing
     // (with the partners and media). Each kind of
     // record has one place: its board, with a List view of the same records
@@ -54,7 +54,7 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
     // the board's Board/List switch; see LIST_OF).
     sections: [
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
-      { key: 'companies', label: 'Companies', icon: Building, path: 'companies', group: 'Directory' },
+      { key: 'companies', label: 'Companies', icon: Building, path: 'companies' },
       { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline', group: 'Sales' },
       { key: 'production', label: 'Speakers', icon: Mic, path: 'production', group: 'Production' },
       // The agenda on its own, so it is always in sight.
@@ -72,6 +72,10 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
 
 // The list views and the board they belong to.
 export const LIST_OF: Record<string, string> = { sponsors: 'pipeline', speakers: 'production', delegates: 'registrations', people: 'companies', 'hit-list': 'pipeline' }
+
+// Directory: every company in every event, from the button beside search
+// (not one of the areas).
+export const DIRECTORY_PATH = 'directory'
 
 export const TOOLS: PortalSection[] = [
   { key: 'import', label: 'Import', icon: Upload, path: '/import' },

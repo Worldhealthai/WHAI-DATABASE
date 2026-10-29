@@ -1,18 +1,19 @@
 'use client'
 
 // One place per kind of record, seen two ways: the board (the pipeline,
-// by stage) or the list (the table, to search, filter and export). Sales
-// holds sponsors and partners, Production the speakers.
+// by stage) or the list (the table, to search, filter and export). For
+// partners (Marketing). Sponsors and speakers have the board only: their
+// list is Companies, where anyone can be added to a pipeline.
 
 import Link from 'next/link'
 import { KanbanSquare, List } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { workspaceHref } from '@/lib/portals'
 
-type Kind = 'sponsor' | 'partner' | 'speaker'
+type Kind = 'partner'
 
-const BOARD: Record<Kind, string> = { sponsor: 'pipeline', partner: 'pipeline?kind=partner', speaker: 'production' }
-const LIST: Record<Kind, string> = { sponsor: 'sponsors', partner: 'partners', speaker: 'speakers' }
+const BOARD: Record<Kind, string> = { partner: 'pipeline?kind=partner' }
+const LIST: Record<Kind, string> = { partner: 'partners' }
 
 export function ViewSwitch({ kind, view }: { kind: Kind; view: 'board' | 'list' }) {
   const { portal, slug, year } = useWorkspace()

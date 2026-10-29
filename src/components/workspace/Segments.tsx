@@ -10,11 +10,11 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Building2, ChevronDown, ChevronRight, Mail, Phone, Search, Target, Users } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, Building2, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
-import { editionYears, eventLook, groupSeries, labelsForEdition } from '@/lib/portals'
+import { editionLabel, editionYears, eventLook, groupSeries, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
 import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
@@ -30,7 +30,7 @@ interface Segments {
 const PATH: Record<string, string> = { sponsors: '/sponsors', speakers: '/speakers', delegates: '/delegates', partners: '/partners' }
 const TAG_ORDER: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
 
-type Scope = 'series' | 'edition'
+type Scope = 'series' | 'edition' | 'all'
 
 // Every edition of every event in the open series: World Health AI is
 // London and Boston, World Pharma AI its own.
@@ -48,15 +48,16 @@ function useSegments(scope: Scope = 'edition') {
   const series = useSeriesLabels()
   const labels = scope === 'series' ? series : edition
   return useQuery<Segments>({
-    queryKey: ['ws-segments', labels],
+    queryKey: ['ws-segments', scope === 'all' ? 'all' : labels],
     queryFn: async () => {
       const p = new URLSearchParams()
-      labels.forEach((l) => p.append('events', l))
+      if (scope === 'all') p.set('scope', 'all')
+      else labels.forEach((l) => p.append('events', l))
       const r = await fetch(`/api/segments?${p}`)
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.error || 'segments')
       return r.json()
     },
-    enabled: labels.length > 0,
+    enabled: scope === 'all' || labels.length > 0,
     staleTime: 60_000,
   })
 }
@@ -81,10 +82,64 @@ function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) =
   return <Segmented size="sm" value={value} onChange={onChange} options={[{ value: 'series', label: `All ${series}` }, { value: 'edition', label: `${year} edition` }]} />
 }
 
+// Into this year's pipelines, from here: a company into Sales (a sponsor
+// lead, Not contacted), a person into Production (a speaker, Not
+// contacted). Someone already in the year's pipeline shows its stage.
+function usePipelineAdd() {
+  const { category, year, labels } = useWorkspace()
+  const qc = useQueryClient()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [done, setDone] = useState<Set<string>>(new Set())
+  const event = category && year ? editionLabel(category.name, year) : null
+  const inYear = (r: { event?: string | null }) => !!r.event && labels.some((l) => l.toLowerCase() === r.event!.toLowerCase())
+  const post = async (key: string, url: string, body: Record<string, unknown>) => {
+    setBusy(key)
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok && res.status !== 409) throw new Error((await res.json().catch(() => null))?.error || 'Could not add it.')
+      setDone((d) => new Set(d).add(key))
+      qc.invalidateQueries({ queryKey: ['ws-segments'] })
+      qc.invalidateQueries({ queryKey: ['ws-board'] })
+      qc.invalidateQueries({ queryKey: ['ws-stats'] })
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not add it.')
+    } finally {
+      setBusy(null)
+    }
+  }
+  const split = (name: string) => { const [f, ...rest] = name.trim().split(/\s+/); return { firstName: f || name, lastName: rest.join(' ') } }
+  return {
+    year, event, busy, done, inYear,
+    addCompany: (a: Account) => {
+      const lead = a.best
+      const n = lead ? split(lead.name) : { firstName: '', lastName: '' }
+      return post(`company:${a.key}`, '/api/sponsors', {
+        companyName: a.name, event, status: 'Not Contacted', website: a.website, country: a.country, tags: 'Added from Companies',
+        contactFirstName: n.firstName || null, contactLastName: n.lastName || null, contactEmail: lead?.email ?? null, contactPhone: lead?.phone ?? null, contactJobTitle: lead?.jobTitle ?? null,
+      })
+    },
+    addSpeaker: (m: Member, company: string) => post(`speaker:${m.key}`, '/api/speakers', {
+      ...split(m.name || m.email || 'Unnamed'), email: m.email, phone: m.phone, jobTitle: m.jobTitle,
+      organization: company, event, year: Number(year) || null, status: 'Not Contacted',
+    }),
+  }
+}
+type PipelineAdd = ReturnType<typeof usePipelineAdd>
+
+function AddButton({ label, busy, done, onClick }: { label: string; busy: boolean; done: boolean; onClick: () => void }) {
+  if (done) return <span className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap" style={{ color: 'var(--ok)' }}><Check className="w-3.5 h-3.5" /> Added</span>
+  return (
+    <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 whitespace-nowrap" style={{ color: 'var(--accent-ink)' }}>
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} {label}
+    </button>
+  )
+}
+
+const NO_COMPANY_NAME = 'No company given'
 const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q)
 
 // A company's people, under its row.
-function Members({ members, query }: { members: Member[]; query: string }) {
+function Members({ members, query, company, add }: { members: Member[]; query: string; company: string; add?: PipelineAdd }) {
   return (
     <ul className="flex flex-col">
       {members.map((m) => {
@@ -102,6 +157,9 @@ function Members({ members, query }: { members: Member[]; query: string }) {
                 </Link>
               ))}
             </span>
+            {add?.event && !m.records.some((r) => r.relationship === 'Speaker' && add.inYear(r)) && (
+              <AddButton label="Speaker pipeline" busy={add.busy === `speaker:${m.key}`} done={add.done.has(`speaker:${m.key}`)} onClick={() => add.addSpeaker(m, company === NO_COMPANY_NAME ? '' : company)} />
+            )}
           </li>
         )
       })}
@@ -194,8 +252,11 @@ const PAGE = 50
 
 // ── Companies ────────────────────────────────────────────────────────────────
 
-export function CompaniesView() {
-  const [scope, setScope] = useState<Scope>('series')
+// Companies (the series, or the edition), or with `everything` the
+// Directory: every company in every event.
+export function CompaniesView({ everything = false }: { everything?: boolean }) {
+  const [picked, setScope] = useState<Scope>('series')
+  const scope: Scope = everything ? 'all' : picked
   const { data, isLoading, error } = useSegments(scope)
   const { category } = useWorkspace()
   const series = category ? eventLook(category.name).series : ''
@@ -212,15 +273,16 @@ export function CompaniesView() {
       (!q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
   }, [data, type, tag, conflicts, q])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
+  const add = usePipelineAdd()
   const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
   return (
     <WorkspacePage
-      title="Companies"
-      description={scope === 'series'
+      title={everything ? 'Directory' : 'Companies'}
+      description={everything ? 'Every company in the CRM, across every event, each once with its people. Search a person to find them under their company.' : scope === 'series'
         ? `Every company at ${series || 'this series'}, once, across every edition, with its people. Search a person to find them under their company.`
         : 'Every company in this edition, once, with its people.'}
-      actions={<ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />}
+      actions={everything ? undefined : <ScopeSwitch value={picked} onChange={(v) => { setScope(v); setPage(1) }} />}
     >
       <Summary data={data} loading={isLoading} />
       <div className="ws-card overflow-hidden">
@@ -236,15 +298,15 @@ export function CompaniesView() {
          rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body="Try another filter, or clear the search." /> : (
           <div className="overflow-x-auto">
             <div className="min-w-[900px]">
-              <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
-                <span>Company</span><span>Type</span><span>Roles</span><span>Events</span><span>Sponsor stage</span><span className="text-right">People</span><span className="text-right">Updated</span>
+              <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
+                <span>Company</span><span>Type</span><span>Roles</span><span>Events</span><span>{add.year} sales</span><span className="text-right">People</span><span className="text-right">Updated</span>
               </div>
               {shown.map((a) => {
                 const found = q ? (a.members ?? []).filter((m) => matches(m, q)) : []
                 const expanded = open.has(a.key) || found.length > 0
                 return (
                   <div key={a.key} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
+                    <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
                       <span className="flex items-center gap-2 min-w-0">
                         <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -260,11 +322,17 @@ export function CompaniesView() {
                       <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>
                       <span><Tags tags={a.tags} /></span>
                       <span className="min-w-0 truncate"><Events events={a.events ?? []} /></span>
-                      <span className="text-[13px] truncate" style={{ color: a.sponsorStage ? 'var(--fg-2)' : 'var(--fg-4)' }}>{a.sponsorStage ?? '—'}{a.valueAmount ? <span style={{ color: 'var(--fg-4)' }}> · {formatMoney(a.valueAmount)}</span> : null}</span>
+                      {(() => {
+                        // This year's sponsor record, if the company has one.
+                        const rec = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
+                        if (rec) return <Link href={`${PATH[rec.table]}/${rec.id}`} className="text-[13px] truncate hover:underline underline-offset-4" style={{ color: 'var(--fg-2)' }}>{rec.status ?? 'In the pipeline'}</Link>
+                        if (a.key === '__none' || !add.event) return <span className="text-[13px]" style={{ color: 'var(--fg-4)' }}>—</span>
+                        return <span><AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} /></span>
+                      })()}
                       <span className="text-right tabular text-[13.5px]">{a.people}</span>
                       <span className="text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
                     </div>
-                    {expanded && <Members members={found.length && !open.has(a.key) ? found : a.members ?? []} query={q} />}
+                    {expanded && <Members members={found.length && !open.has(a.key) ? found : a.members ?? []} query={q} company={a.name} add={add} />}
                   </div>
                 )
               })}

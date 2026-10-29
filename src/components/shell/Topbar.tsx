@@ -7,9 +7,9 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { Check, ChevronDown, LayoutGrid, LogOut, Menu } from 'lucide-react'
+import { BookUser, Check, ChevronDown, LayoutGrid, LogOut, Menu } from 'lucide-react'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
-import { LIST_OF, TOOLS, defaultYear, eventLook, eventSlug, workspaceHref, type PortalSection } from '@/lib/portals'
+import { DIRECTORY_PATH, LIST_OF, TOOLS, defaultYear, eventLook, eventSlug, workspaceHref, type PortalSection } from '@/lib/portals'
 import type { WorkspaceView } from '@/lib/workspace'
 import { Logo } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
@@ -155,6 +155,17 @@ export function Topbar({ view, title, onMenu }: { view: WorkspaceView; title?: s
           </nav>
         ) : <span />}
         <div className="flex items-center justify-end gap-1.5">
+          {portal && slug && (
+            <Link
+              href={workspaceHref(portal.key, slug, DIRECTORY_PATH, year ?? undefined)}
+              className="crm-dir"
+              data-active={current === DIRECTORY_PATH}
+              aria-current={current === DIRECTORY_PATH ? 'page' : undefined}
+              title="Every company in every event"
+            >
+              <BookUser className="w-4 h-4" /> <span className="hidden sm:inline">Directory</span>
+            </Link>
+          )}
           <GlobalSearch />
           <span className="hidden lg:inline-flex"><ThemeToggle /></span>
           <button onClick={logout} className="ws-btn ws-btn-ghost ws-btn-sm hidden lg:inline-flex" title="Log out" aria-label="Log out">

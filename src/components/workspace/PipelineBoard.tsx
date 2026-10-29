@@ -445,7 +445,7 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
       wide
       actions={
         <>
-          <ViewSwitch kind={kind} view="board" />
+          {kind === 'partner' && <ViewSwitch kind={kind} view="board" />}
           {!production && <Segmented
             size="sm"
             value={kind}
