@@ -1,7 +1,8 @@
 'use client'
 
-// The directory (lib/segments): every company in the open series (World
-// Health AI: London and Boston; World Pharma AI) or just the open edition,
+// The directory (lib/segments): every company at the open event, across
+// all its editions (Boston shows Boston only, London London only), or just
+// the open edition; the Directory button has every event,
 // each labelled Solution Provider or End User, with its people inside it and
 // what each does at our events (Delegate, Speaker, Sponsor). A person is
 // found by searching here, under their company; the search in the top bar
@@ -14,7 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Building2, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
-import { editionLabel, editionYears, eventLook, groupSeries, labelsForEdition } from '@/lib/portals'
+import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
 import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
@@ -32,15 +33,11 @@ const TAG_ORDER: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
 
 type Scope = 'series' | 'edition' | 'all'
 
-// Every edition of every event in the open series: World Health AI is
-// London and Boston, World Pharma AI its own.
+// Every edition of the open event (World Health AI Boston: its 2026, 2027…),
+// and nothing of the series' other events: London's records stay in London.
 function useSeriesLabels(): string[] {
-  const { category, categories } = useWorkspace()
-  return useMemo(() => {
-    if (!category) return []
-    const series = groupSeries(categories).find((x) => x.name === eventLook(category.name).series)
-    return Array.from(new Set((series?.events ?? [category]).flatMap((c) => editionYears(c).flatMap((y) => labelsForEdition(c, y)))))
-  }, [category, categories])
+  const { category } = useWorkspace()
+  return useMemo(() => (category ? Array.from(new Set(editionYears(category).flatMap((y) => labelsForEdition(category, y)))) : []), [category])
 }
 
 function useSegments(scope: Scope = 'edition') {
@@ -75,11 +72,11 @@ function Events({ events }: { events: string[] }) {
   )
 }
 
-// The whole series (the directory) or just the open edition.
+// Every edition of the open event, or just the open edition.
 function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) => void }) {
   const { year, category } = useWorkspace()
-  const series = category ? eventLook(category.name).series : 'series'
-  return <Segmented size="sm" value={value} onChange={onChange} options={[{ value: 'series', label: `All ${series}` }, { value: 'edition', label: `${year} edition` }]} />
+  const look = category ? eventLook(category.name) : null
+  return <Segmented size="sm" value={value} onChange={onChange} options={[{ value: 'series', label: look ? `All ${look.short} ${look.city}` : 'All years' }, { value: 'edition', label: `${year} edition` }]} />
 }
 
 // Into this year's pipelines, from here: a company into Sales (a sponsor
@@ -259,7 +256,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const scope: Scope = everything ? 'all' : picked
   const { data, isLoading, error } = useSegments(scope)
   const { category } = useWorkspace()
-  const series = category ? eventLook(category.name).series : ''
+  const event = category ? `${eventLook(category.name).series} ${eventLook(category.name).city}` : ''
   const [type, setType] = useState<'all' | Firmographic>('all')
   const [conflicts, setConflicts] = useState(false)
   const [query, setQuery] = useState('')
@@ -279,7 +276,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
     <WorkspacePage
       title={everything ? 'Directory' : 'Companies'}
       description={everything ? 'Every company in the CRM, across every event, each once with its people. Search a person to find them under their company.' : scope === 'series'
-        ? `Every company at ${series || 'this series'}, once, across every edition, with its people. Search a person to find them under their company.`
+        ? `Every company at ${event || 'this event'}, once, across all its editions, with its people. Search a person to find them under their company.`
         : 'Every company in this edition, once, with its people.'}
       actions={everything ? undefined : <ScopeSwitch value={picked} onChange={(v) => { setScope(v); setPage(1) }} />}
     >
