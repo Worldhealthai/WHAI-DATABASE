@@ -5,7 +5,7 @@
 // area's own tabs. On phones the sections are in the drawer.
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { BookUser, Check, ChevronDown, LayoutGrid, LogOut, Menu } from 'lucide-react'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
@@ -111,6 +111,46 @@ function groupsOf(view: WorkspaceView) {
   return out
 }
 
+// The areas as pills on a frosted track, with one glass pill that slides to
+// the open area (measured from the links, so it fits each label).
+function AreaPills({ items }: { items: { key: string; label: string; href: string; active: boolean }[] }) {
+  const nav = useRef<HTMLElement>(null)
+  const [pill, setPill] = useState<{ x: number; w: number } | null>(null)
+  const [ready, setReady] = useState(false)
+  // The area clicked moves the pill at once, before its page has loaded.
+  const [clicked, setClicked] = useState<{ key: string; from: string | null } | null>(null)
+  const current = items.find((i) => i.active)?.key ?? null
+  const activeKey = clicked && clicked.from === current ? clicked.key : current
+  useLayoutEffect(() => {
+    const place = () => {
+      const el = nav.current?.querySelector<HTMLElement>(`a[data-key="${activeKey}"]`)
+      setPill(el ? { x: el.offsetLeft, w: el.offsetWidth } : null)
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [activeKey])
+  // Slide only after the first placement, so it does not fly in on load.
+  useEffect(() => { if (pill && !ready) requestAnimationFrame(() => setReady(true)) }, [pill, ready])
+  return (
+    <nav ref={nav} className="crm-pills hidden lg:flex relative" aria-label="Areas">
+      {pill && <span className="crm-pill-glass" data-ready={ready} aria-hidden="true" style={{ transform: `translateX(${pill.x}px)`, width: pill.w }} />}
+      {items.map((i) => (
+        <Link
+          key={i.key}
+          href={i.href}
+          data-key={i.key}
+          data-active={i.key === activeKey}
+          aria-current={i.active ? 'page' : undefined}
+          onClick={() => setClicked({ key: i.key, from: current })}
+        >
+          <span className="relative">{i.label}</span>
+        </Link>
+      ))}
+    </nav>
+  )
+}
+
 async function logout() {
   try {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -142,17 +182,9 @@ export function Topbar({ view, title, onMenu }: { view: WorkspaceView; title?: s
           <Logo compact />
         </div>
         {portal && slug ? (
-          <nav className="crm-pills hidden lg:flex" aria-label="Areas">
-            {groups.map((g) => {
-              const active = g === activeGroup
-              return (
-                <Link key={g.key} href={href(g.sections[0])} data-active={active} aria-current={active ? 'page' : undefined}>
-                  {active && <span className="crm-pill-bg" aria-hidden="true" />}
-                  <span className="relative">{g.label}</span>
-                </Link>
-              )
-            })}
-          </nav>
+          <AreaPills
+            items={groups.map((g) => ({ key: g.key, label: g.label, href: href(g.sections[0]), active: g === activeGroup }))}
+          />
         ) : <span />}
         <div className="flex items-center justify-end gap-1.5">
           {portal && slug && (
