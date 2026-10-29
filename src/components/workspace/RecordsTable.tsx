@@ -130,7 +130,7 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
         title={`Edit ${name || def.label.toLowerCase()}`}
         className="group/name flex items-center gap-3 min-w-0 text-left -ml-1 pl-1 pr-2 py-0.5 rounded-lg transition-colors hover:bg-[var(--surface-3)]"
       >
-        <Initials name={name || '?'} size={34} />
+        <Initials name={name || '?'} size={30} />
         <span className="min-w-0">
           <span className="block font-medium truncate group-hover/name:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
           <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{recordSubtitle(kind, r) || (r.email ?? r.contactEmail ?? '—')}</span>
@@ -325,7 +325,7 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
   return (
     <WorkspacePage
       title={def.plural}
-      description={`${def.plural} for this edition. Search to find anyone in the CRM, whichever event they are in.`}
+      description={`Everyone in the ${year} edition. Search looks across every event.`}
       actions={
         <>
           <button onClick={exportCsv} className="ws-btn" title="Download this list as CSV"><Download className="w-4 h-4" /> Export</button>
