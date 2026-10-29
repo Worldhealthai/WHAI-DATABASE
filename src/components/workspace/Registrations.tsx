@@ -3,9 +3,9 @@
 // Event → Registrations: the edition's bookings exactly as the Nexus admin
 // panel lists them (GET /api/registrations reads its registrations table,
 // in the same database): Approved first, with Pending, Rejected and
-// Cancelled as queues, and attending or speaking. One more queue, Added in
-// the CRM, holds the people filed here with no booking behind them
-// (imported, typed in, moved from an enquiry). Every row opens its CRM
+// Cancelled as queues, and attending or speaking: nothing else, so it reads
+// as the admin panel does (people the CRM has without a booking, such as
+// speakers being invited, are in the boards). Every row opens its CRM
 // record. Approving and rejecting stay in the admin panel; the speaker
 // board shows the speakers still waiting as its Applied column.
 
@@ -40,7 +40,7 @@ export const bookingName = (b: Booking) => `${b.first_name ?? ''} ${b.last_name 
 
 function useBookings() {
   const { labels } = useWorkspace()
-  return useQuery<{ data: Booking[]; added: Booking[]; admin: string }>({
+  return useQuery<{ data: Booking[]; admin: string }>({
     queryKey: ['ws-registrations', labels],
     queryFn: async () => {
       const p = new URLSearchParams()
@@ -65,13 +65,12 @@ export function usePendingBookings() {
 // The pass, as the CRM files it (lib/crm on the Nexus side).
 const pass = (b: Booking) => b.pass ?? (/^sponsor /i.test(b.inquiry_type || '') ? 'Sponsor' : bookingCompanyType(b) === 'Solution Provider' ? (b.payment_status === 'paid' ? 'Ticket' : 'Complimentary') : null)
 
-type Queue = 'approved' | 'pending' | 'rejected' | 'cancelled' | 'crm'
+type Queue = 'approved' | 'pending' | 'rejected' | 'cancelled'
 const QUEUES: { key: Queue; label: string }[] = [
   { key: 'approved', label: 'Approved' },
   { key: 'pending', label: 'Pending' },
   { key: 'rejected', label: 'Rejected' },
   { key: 'cancelled', label: 'Cancelled' },
-  { key: 'crm', label: 'Added in the CRM' },
 ]
 const PAGE = 50
 
@@ -84,8 +83,8 @@ export function RegistrationsView() {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
 
-  const all = useMemo(() => [...(data?.data ?? []), ...(data?.added ?? [])], [data])
-  const inQueue = (b: Booking, q: Queue) => (q === 'crm' ? b.status === 'crm' : b.status === q)
+  const all = useMemo(() => data?.data ?? [], [data])
+  const inQueue = (b: Booking, q: Queue) => b.status === q
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return all.filter((b) =>
@@ -99,7 +98,7 @@ export function RegistrationsView() {
   return (
     <WorkspacePage
       title="Registrations"
-      description={`Everyone coming to the ${year} edition, as the admin panel lists them, plus anyone added in the CRM. Approve and reject in the admin panel; it updates here.`}
+      description={`Everyone who booked for the ${year} edition, as the admin panel lists them. Approve and reject in the admin panel; it updates here.`}
       actions={data?.admin ? <a href={data.admin} target="_blank" rel="noopener noreferrer" className="ws-btn"><ExternalLink className="w-4 h-4" /> Open the admin panel</a> : null}
     >
       <div className="ws-card overflow-hidden">
@@ -125,7 +124,7 @@ export function RegistrationsView() {
          rows.length === 0 ? <EmptyState icon={ClipboardList} title="No one here" body={query ? 'Try another search.' : 'Nobody in this queue for the edition.'} /> : (
           <div className="overflow-x-auto">
             <table className="ws-table w-full min-w-[900px]">
-              <thead><tr><th>Person</th><th>Company</th><th>Type</th><th>Pass</th><th>Stage</th><th className="text-right">{queue === 'crm' ? 'Added' : 'Booked'}</th></tr></thead>
+              <thead><tr><th>Person</th><th>Company</th><th>Type</th><th>Pass</th><th>Stage</th><th className="text-right">Booked</th></tr></thead>
               <tbody>
                 {shown.map((b) => {
                   const name = bookingName(b)
