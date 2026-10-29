@@ -3,11 +3,11 @@
 // The frame around every screen.
 //
 // Login and the entrance (choose an event) render bare: they are full-screen
-// moments, not pages inside the app. Everything else gets the sidebar (where
-// you are, the editions, the sections, the tools) and the top bar (the trail
-// back out, search). The old-style pages — profiles, import, triage — live
-// inside the same frame, with the sidebar still showing the workspace the
-// admin came from.
+// moments, not pages inside the app. Everything else gets the top bar: the
+// areas as pill tabs and search, then the event and edition with the area's
+// own tabs (on phones the sections open in a drawer). Profiles, import and
+// triage live inside the same frame, still showing the workspace the admin
+// came from.
 
 import { Suspense, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
@@ -70,10 +70,8 @@ function Frame({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block sticky top-0 h-screen">
-        <Sidebar view={view} />
-      </div>
+      {/* The colour the glass is seen through */}
+      <div className="crm-field" aria-hidden="true" />
 
       {/* Mobile drawer */}
       {menuOpen && (
@@ -85,7 +83,7 @@ function Frame({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="relative z-[1] flex-1 min-w-0 flex flex-col">
         <DatabaseNotice />
         <Topbar view={view} title={title} onMenu={() => setMenuOpen(true)} />
         <main className="flex-1 min-w-0">{children}</main>

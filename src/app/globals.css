@@ -87,6 +87,13 @@
     --shadow-lg: 0 20px 48px rgba(23, 32, 44, 0.14);
     --radius: 10px;
 
+    /* The deep sea teal of the active tab, the journey's boat and the wave */
+    --deep: #0f3b3f;
+    --deep-2: #165257;
+    --on-deep: #ffffff;
+    --glass: rgba(255, 255, 255, 0.72);
+    --glass-line: rgba(255, 255, 255, 0.9);
+
     /* shadcn-style HSL tokens the older components still use */
     --background: 204 33% 97%;
     --foreground: 213 32% 18%;
@@ -167,6 +174,12 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.55);
+
+    --deep: #d9f1ec;
+    --deep-2: #a9ddd3;
+    --on-deep: #0b1f22;
+    --glass: rgba(24, 31, 43, 0.72);
+    --glass-line: rgba(255, 255, 255, 0.06);
 
     --background: 221 49% 8%;
     --foreground: 213 40% 94%;
@@ -302,9 +315,12 @@
 
   /* New workspace primitives */
   .ws-card {
-    background: var(--surface);
+    background: var(--glass);
+    -webkit-backdrop-filter: saturate(1.5) blur(16px);
+    backdrop-filter: saturate(1.5) blur(16px);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 16px;
+    box-shadow: inset 0 1px 0 var(--glass-line), 0 1px 2px rgba(15, 59, 63, 0.04), 0 8px 28px -12px rgba(15, 59, 63, 0.12);
   }
   .ws-input {
     width: 100%;
@@ -700,7 +716,206 @@
 }
 :root[data-theme='dark'] .look-sheen { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent); }
 
+/* ── Top bar: the areas as pills, then the area's own tabs ─────────────── */
+.crm-context { border-top: 1px solid var(--line); }
+.crm-pills {
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--line);
+}
+.crm-pills a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-3);
+  transition: color 160ms ease;
+}
+.crm-pills a:hover { color: var(--fg); }
+.crm-pills a[data-active='true'] { color: var(--on-deep); }
+.crm-pill-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--deep);
+  animation: crm-pill-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes crm-pill-in { from { opacity: 0; transform: scale(0.86); } to { opacity: 1; transform: none; } }
+.crm-tabs {
+  align-self: stretch;
+  align-items: stretch;
+  gap: 4px;
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+.crm-tabs a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--fg-3);
+}
+.crm-tabs a:hover { color: var(--fg); }
+.crm-tabs a[data-active='true'] { color: var(--fg); font-weight: 600; }
+.crm-tabs a[data-active='true']::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--deep);
+  animation: crm-tab-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:root[data-theme='dark'] .crm-tabs a[data-active='true']::after { background: var(--teal); }
+@keyframes crm-tab-in { from { transform: scaleX(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ── The wave band over Overview and Pipeline ──────────────────────────── */
+.crm-wave {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(15, 59, 63, 0.92) 0%, rgba(19, 74, 79, 0.86) 55%, rgba(12, 50, 54, 0.92) 100%);
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.22);
+  color: #f2fbf9;
+}
+.crm-wave-k { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(214, 240, 235, 0.7); font-weight: 600; }
+
+/* ── The journey: a dashed route through the stages, a marker on it ────── */
+.crm-journey { position: relative; }
+.crm-journey > svg { display: block; width: 100%; overflow: visible; }
+.crm-journey .route-ahead { stroke: var(--line-3); stroke-dasharray: 2 7; stroke-linecap: round; fill: none; }
+.crm-journey .route-done {
+  stroke: var(--deep);
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1100ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+:root[data-theme='dark'] .crm-journey .route-done { stroke: var(--teal); }
+.crm-journey .boat { transition: offset-distance 1100ms cubic-bezier(0.65, 0, 0.35, 1); }
+.crm-journey .stop { cursor: pointer; }
+.crm-journey .stop:disabled { cursor: wait; }
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-pill-bg, .crm-tabs a::after { animation: none !important; }
+  .crm-journey .route-done, .crm-journey .boat { transition: none !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .anim-fade-up, .anim-fade-in, .anim-scale-in, .anim-zoom-away, .anim-slide-out-left, .anim-rise, .ev-wash, .ev-tile[data-picked='true'], .look-sheen { animation: none !important; }
   .ev-tile, .look-tile { transition: none; }
 }
+
+/* ── Glass ─────────────────────────────────────────────────────────────────
+   Liquid glass, as on the phone: surfaces you can see the colour through,
+   frosted, with a bright rim of light along the top edge. It needs colour
+   behind it to read, so the app sits on a slow field of soft sea colours
+   (.crm-field, fixed behind every screen and still: nothing animates
+   behind the glass, so scrolling stays smooth). Unlayered so it wins over the
+   component defaults above. */
+:root {
+  --glass-fill: linear-gradient(140deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.36) 100%);
+  --glass-fill-strong: linear-gradient(140deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.55) 100%);
+  --glass-rim: rgba(255, 255, 255, 0.7);
+  --glass-edge: rgba(15, 59, 63, 0.08);
+  --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.95), 0 1px 2px rgba(15, 59, 63, 0.06);
+  --glass-blur: blur(16px) saturate(170%);
+  --glass-hover: rgba(255, 255, 255, 0.45);
+}
+:root[data-theme='dark'] {
+  --glass-fill: linear-gradient(140deg, rgba(40, 52, 70, 0.55) 0%, rgba(22, 30, 44, 0.42) 100%);
+  --glass-fill-strong: linear-gradient(140deg, rgba(44, 56, 76, 0.78) 0%, rgba(26, 34, 50, 0.7) 100%);
+  --glass-rim: rgba(255, 255, 255, 0.12);
+  --glass-edge: rgba(0, 0, 0, 0.3);
+  --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --glass-hover: rgba(255, 255, 255, 0.05);
+}
+
+.crm-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 46% at 8% 6%, rgba(77, 196, 182, 0.55), transparent 70%),
+    radial-gradient(36% 40% at 92% 10%, rgba(120, 186, 230, 0.5), transparent 70%),
+    radial-gradient(40% 44% at 78% 88%, rgba(170, 214, 196, 0.6), transparent 70%),
+    radial-gradient(34% 40% at 20% 92%, rgba(196, 186, 240, 0.4), transparent 70%),
+    radial-gradient(30% 30% at 50% 48%, rgba(250, 226, 200, 0.35), transparent 70%),
+    #eef3f3;
+}
+:root[data-theme='dark'] .crm-field {
+  background:
+    radial-gradient(42% 46% at 8% 6%, rgba(20, 120, 112, 0.5), transparent 70%),
+    radial-gradient(36% 40% at 92% 10%, rgba(40, 80, 160, 0.45), transparent 70%),
+    radial-gradient(40% 44% at 78% 88%, rgba(16, 90, 84, 0.5), transparent 70%),
+    radial-gradient(34% 40% at 20% 92%, rgba(80, 60, 150, 0.35), transparent 70%),
+    #0b1118;
+}
+
+.ws-card,
+.crm-switch,
+.crm-menu,
+.crm-pills,
+.crm-years {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+}
+.ws-card { border-radius: 20px; outline: 1px solid var(--glass-edge); outline-offset: 0; }
+.crm-menu { background: var(--glass-fill-strong); border-radius: 16px; }
+.crm-switch { border-radius: 999px; padding: 0 12px 0 14px; }
+.crm-years { border-radius: 999px; padding: 3px; }
+.crm-years a { border-radius: 999px; }
+.crm-years a[data-active='true'] { background: var(--glass-fill-strong); box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.9), 0 2px 8px -2px rgba(15, 59, 63, 0.2); }
+.ws-table tbody tr:hover { background: var(--glass-hover); }
+.ws-table th { background: transparent; }
+
+/* The top bar: clear glass over the field, the areas centred in it */
+.crm-top {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18));
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--glass-rim);
+}
+:root[data-theme='dark'] .crm-top { background: linear-gradient(180deg, rgba(20, 28, 40, 0.6), rgba(14, 20, 30, 0.4)); }
+.crm-context { border-top: 1px solid var(--glass-rim); }
+.crm-pills { padding: 5px; margin-left: 0; box-shadow: var(--glass-shadow); }
+.crm-pills a { height: 34px; padding: 0 17px; }
+.crm-pill-bg { box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.25); }
+
+
+/* The Directory button beside search: every company in every event */
+.crm-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-2);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+}
+.crm-dir:hover { color: var(--fg); }
+.crm-dir[data-active='true'] { background: var(--deep); color: var(--on-deep); border-color: transparent; }

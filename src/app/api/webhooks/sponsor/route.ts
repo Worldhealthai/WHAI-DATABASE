@@ -31,6 +31,11 @@ export const dynamic = 'force-dynamic'
 //   "linkedinPostsDue": 2, "onboardedAt": "2026-09-19T…",
 //   "source": "worldnexusgroup.com sponsor onboarding"
 // }
+// Optional, on an onboarding: "speaker": { "firstName", "lastName", "email",
+//   "jobTitle" } — the person the sponsor's form nominated for its speaking
+//   slot, added as one of the company's contacts (tag "Sponsor speaker")
+//   unless they are on it already. Their speaker record comes from the
+//   register webhook.
 // A lead: { "lead": true, "companyName", "event", "year", "contactFirstName",
 //   "contactLastName", "contactEmail", "contactPhone", "contactJobTitle",
 //   "source" }
@@ -74,6 +79,31 @@ function samePerson(a: Person, b: Person): boolean {
   if (e1 && e2) return e1 === e2
   const n1 = nameKey(a)
   return Boolean(n1) && n1 === nameKey(b)
+}
+
+// The sponsor's speaker, as one of the company's contacts (the company row
+// itself when that is them). Best-effort: the onboarding is already filed.
+async function addSpeakerContact(raw: unknown, company: { id: string; companyName: string; event: string }) {
+  if (!raw || typeof raw !== 'object') return
+  const r = raw as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  const person = {
+    contactFirstName: str(r.firstName),
+    contactLastName: str(r.lastName),
+    contactEmail: str(r.email)?.toLowerCase() ?? null,
+    contactJobTitle: str(r.jobTitle),
+  }
+  if (!hasPerson(person)) return
+  const { data: rows, error } = await supabase
+    .from('sponsors')
+    .select('id, contactFirstName, contactLastName, contactEmail')
+    .or(`id.eq.${company.id},companyId.eq.${company.id}`)
+  if (error) { console.warn('sponsor webhook: speaker contact lookup failed:', error.message); return }
+  if (((rows || []) as Person[]).some((c) => samePerson(c, person))) return
+  const { error: insErr } = await supabase.from('sponsors').insert({
+    companyId: company.id, companyName: company.companyName, event: company.event, status: 'Confirmed', tags: 'Sponsor speaker', ...person,
+  })
+  if (insErr) console.warn('sponsor webhook: speaker contact not added:', insErr.message)
 }
 
 // Nexus writes editions as "World Health AI · London · 2026"; the CRM stores
@@ -179,6 +209,7 @@ export async function POST(req: NextRequest) {
         })
         if (contactErr) throw contactErr
       }
+      await addSpeakerContact(body?.speaker, { id: company.id, companyName: company.companyName || companyName, event: company.event || event })
       return NextResponse.json({ ok: true, created: false, id: company.id, event }, { headers: CORS_HEADERS })
     }
 
@@ -195,6 +226,7 @@ export async function POST(req: NextRequest) {
     let { data, error } = await supabase.from('sponsors').insert({ ...record, ...marketing }).select('id').single()
     if (error && missingColumn(error)) ({ data, error } = await supabase.from('sponsors').insert(record).select('id').single())
     if (error) throw error
+    if (data?.id) await addSpeakerContact(body?.speaker, { id: data.id, companyName, event })
     return NextResponse.json({ ok: true, created: true, id: data?.id, event }, { status: 201, headers: CORS_HEADERS })
   } catch (error: any) {
     console.error('sponsor webhook error:', error)

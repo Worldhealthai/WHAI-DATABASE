@@ -18,6 +18,7 @@ export const dynamic = 'force-dynamic'
 //   "event": "World Health AI London 2026" | "World Health AI Boston 2025"
 //            (legacy "UK Forum" / "US Forum" still accepted — normalised on arrival),
 //   "subType": "End User" | "Solution Provider", "year": 2026,
+//   "ticketType": "Sponsor" | "Ticket" | "Complimentary",  // delegates: the pass
 //   "linkedinUrl": "...", "notes": "...",
 //   // Marketing (speakers): consent to a LinkedIn welcome post, and the
 //   // headshot and bio the post needs
@@ -132,6 +133,10 @@ export async function POST(req: NextRequest) {
       // outreach here had reached.
       if (lineup) { marketing.adminLineup = true; marketing.status = 'Speaking Confirmed' }
     }
+    // A delegate's pass (Sponsor, Ticket or Complimentary for a Solution
+    // Provider), when the site sends one; it rides with the marketing fields
+    // so a contact already here takes it too.
+    if (type === 'delegate' && typeof body.ticketType === 'string' && body.ticketType.trim()) marketing.ticketType = body.ticketType.trim()
 
     // Consent to share name, job title and organisation with the event's
     // sponsors and partners, delegates and speakers alike. Written only when
@@ -154,7 +159,7 @@ export async function POST(req: NextRequest) {
     const table = type === 'speaker' ? 'speakers' : 'delegates'
     const record = type === 'speaker'
       ? { ...common, status: 'Not Contacted', tags: lineup ? 'Admin panel' : 'Website Registration', year, ...marketing, ...consent }
-      : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration', ...consent }
+      : { ...common, status: 'Registered', source: 'Website', tags: 'Website Registration', ...marketing, ...consent }
 
     // Before migration 005 the marketing columns do not exist, and before 009
     // the partnerConsent column: retry a write without whichever is missing
@@ -298,6 +303,7 @@ export async function POST(req: NextRequest) {
       for (const k of ['phone', 'organization', 'jobTitle', 'subType'] as const) {
         if (body[k] !== undefined) fields[k] = body[k] || null
       }
+      if (matchTable === 'delegates' && body.ticketType !== undefined) fields.ticketType = body.ticketType || null
       let updated = 0
       let sel = supabase.from(matchTable).select('id').ilike('email', escapeLike(matchEmail))
       if (matchEvent) sel = sel.ilike('event', escapeLike(matchEvent))

@@ -7,8 +7,8 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Award, Network, KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles,
-  Building, Contact, Target, Ticket,
+  KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles,
+  Building, ClipboardList, Network,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
 
@@ -45,28 +45,37 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
     tagline: 'Sales, people, agenda & marketing',
     description: 'Everything for one event, by year: sponsors and partners, speakers and delegates, the agenda, and the LinkedIn posts.',
     accent: { fill: 'var(--accent)', ink: 'var(--accent-ink)', soft: 'var(--accent-soft)', line: 'var(--accent-line)' },
-    // Two layers: the directory (companies by who they are, people by what
-    // they do at the event), then the work: selling, the programme and
-    // attendance, and marketing. The tabs underneath stay as they were.
+    // Companies first (every company in this series, with its people), then
+    // the work for this edition: selling, the
+    // programme (production), the event's registrations, and marketing
+    // (with the partners and media). Each kind of
+    // record has one place: its board, with a List view of the same records
+    // (sponsors, partners and speakers keep their list paths, reached from
+    // the board's Board/List switch; see LIST_OF).
     sections: [
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
-      { key: 'companies', label: 'Companies', icon: Building, path: 'companies', group: 'Directory' },
-      { key: 'people', label: 'People', icon: Contact, path: 'people', group: 'Directory' },
-      { key: 'hit-list', label: 'Hit list', icon: Target, path: 'hit-list', group: 'Sales' },
+      { key: 'companies', label: 'Companies', icon: Building, path: 'companies' },
       { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline', group: 'Sales' },
-      { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors', group: 'Sales' },
-      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners', group: 'Sales' },
-      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers', group: 'Event' },
-      { key: 'delegates', label: 'Delegates', icon: Ticket, path: 'delegates', group: 'Event' },
-      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda', group: 'Event' },
+      { key: 'production', label: 'Speakers', icon: Mic, path: 'production', group: 'Production' },
+      // The agenda on its own, so it is always in sight.
+      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda' },
+      { key: 'registrations', label: 'Registrations', icon: ClipboardList, path: 'registrations', group: 'Event' },
       { key: 'marketing', label: 'Marketing overview', icon: Sparkles, path: 'marketing', group: 'Marketing' },
       { key: 'speaker-posts', label: 'Speaker posts', icon: Megaphone, path: 'speaker-posts', group: 'Marketing' },
       { key: 'sponsor-posts', label: 'Sponsor posts', icon: Building2, path: 'sponsor-posts', group: 'Marketing' },
       { key: 'content', label: 'Content', icon: PenLine, path: 'content', group: 'Marketing' },
+      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners', group: 'Marketing' },
     ],
     entities: ['sponsor', 'partner', 'speaker', 'delegate'],
   },
 }
+
+// The list views and the board they belong to.
+export const LIST_OF: Record<string, string> = { sponsors: 'pipeline', speakers: 'production', delegates: 'registrations', people: 'companies', 'hit-list': 'pipeline' }
+
+// Directory: every company in every event, from the button beside search
+// (not one of the areas).
+export const DIRECTORY_PATH = 'directory'
 
 export const TOOLS: PortalSection[] = [
   { key: 'import', label: 'Import', icon: Upload, path: '/import' },

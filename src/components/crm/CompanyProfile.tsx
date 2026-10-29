@@ -12,6 +12,7 @@ import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials
 import { KINDS } from '@/lib/recordKinds'
 import type { Sponsor, SponsorContact } from '@/types'
 import { MoveRecordButton } from './MoveRecordButton'
+import { PersonRolesLine } from './PersonRoles'
 
 type Kind = 'sponsor' | 'partner'
 type Company = Sponsor & { activities: any[]; contacts: SponsorContact[] }
@@ -138,7 +139,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
             ) : (
               <ul>
                 {people.map(({ c, isPrimary }) => (
-                  <ContactRow key={`${c.id}-${isPrimary}`} c={c} isPrimary={isPrimary} actions={contacts} />
+                  <ContactRow key={`${c.id}-${isPrimary}`} kind={kind} companyName={company.companyName} c={c} isPrimary={isPrimary} actions={contacts} />
                 ))}
               </ul>
             )}
@@ -161,11 +162,12 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
   )
 }
 
-function ContactRow({ c, isPrimary, actions }: { c: SponsorContact; isPrimary: boolean; actions: ContactActions }) {
+function ContactRow({ kind, companyName, c, isPrimary, actions }: { kind: Kind; companyName: string | null; c: SponsorContact; isPrimary: boolean; actions: ContactActions }) {
   const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ') || c.contactEmail || 'Unnamed'
   return (
     <li className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-[var(--surface-2)]" style={{ borderTop: '1px solid var(--line)' }}>
-      <button type="button" onClick={() => actions.onEdit(c)} className="flex items-center gap-3 min-w-0 flex-1 text-left">
+      <div className="min-w-0 flex-1">
+      <button type="button" onClick={() => actions.onEdit(c)} className="flex items-center gap-3 min-w-0 w-full text-left">
         <span className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--fg-2)' }}>{initials(name)}</span>
         <span className="min-w-0">
           <span className="flex items-center gap-2">
@@ -175,6 +177,14 @@ function ContactRow({ c, isPrimary, actions }: { c: SponsorContact; isPrimary: b
           {c.contactJobTitle && <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{c.contactJobTitle}</span>}
         </span>
       </button>
+      {/* Where else this person is: their speaker or delegate record. */}
+      <div className="pl-12">
+        <PersonRolesLine
+          self={{ kind, id: c.id }}
+          person={{ email: c.contactEmail, firstName: c.contactFirstName, lastName: c.contactLastName, organization: companyName }}
+        />
+      </div>
+      </div>
       <div className="flex items-center gap-0.5 shrink-0">
         {/* A pop-up to copy from, not a mailto:/tel: link. */}
         {c.contactEmail && <CopyPopover label={`${name}'s email`} value={c.contactEmail} title={`Email: ${c.contactEmail}`}><Mail className="w-3.5 h-3.5" /></CopyPopover>}

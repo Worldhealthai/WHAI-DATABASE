@@ -1,15 +1,18 @@
 'use client'
 
-// The bar over every screen: which event and edition is open (and the way
-// to another), then search. It is the one place either is chosen; the
-// sidebar is only the sections.
+// The bar over every screen: the areas as pill tabs, search; then which
+// event and edition is open (the one place either is chosen) and the open
+// area's own tabs. On phones the sections are in the drawer.
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, LayoutGrid, Menu } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { BookUser, Check, ChevronDown, LayoutGrid, LogOut, Menu } from 'lucide-react'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
-import { defaultYear, eventLook, eventSlug, workspaceHref } from '@/lib/portals'
+import { DIRECTORY_PATH, LIST_OF, TOOLS, defaultYear, eventLook, eventSlug, workspaceHref, type PortalSection } from '@/lib/portals'
 import type { WorkspaceView } from '@/lib/workspace'
+import { Logo } from './Sidebar'
+import { ThemeToggle } from './ThemeToggle'
 
 function EventSwitcher({ view }: { view: WorkspaceView }) {
   const { portal, category, section, inWorkspace, categories } = view
@@ -86,19 +89,106 @@ function Editions({ view }: { view: WorkspaceView }) {
   )
 }
 
+// Which section a page belongs to: the workspace's own, or for a profile
+// (/sponsors/…) the section its list lives in.
+// A list view counts as its board (LIST_OF).
+function activeSection(view: WorkspaceView, pathname: string): string | null {
+  const section = view.inWorkspace ? view.section || '' : pathname.match(/^\/(sponsors|partners|speakers|delegates)(\/|$)/)?.[1] ?? null
+  return section !== null ? LIST_OF[section] ?? section : null
+}
+
+// The groups, in order: Overview on its own, then Directory, Sales, Event,
+// Marketing (from the portal's sections), then the tools.
+function groupsOf(view: WorkspaceView) {
+  const out: { key: string; label: string; sections: PortalSection[] }[] = []
+  for (const s of view.portal?.sections ?? []) {
+    const key = s.group ?? s.label
+    const last = out[out.length - 1]
+    if (last && last.key === key) last.sections.push(s)
+    else out.push({ key, label: key, sections: [s] })
+  }
+  out.push({ key: 'Tools', label: 'Tools', sections: TOOLS })
+  return out
+}
+
+async function logout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' })
+  } finally {
+    window.location.assign('/login')
+  }
+}
+
+// Two rows, like a booking dashboard: the groups as pill tabs with search
+// beside them, then the open event and edition with the group's own tabs.
+// Phones keep the drawer (<Sidebar>) for the sections.
 export function Topbar({ view, title, onMenu }: { view: WorkspaceView; title?: string; onMenu: () => void }) {
+  const pathname = usePathname()
+  const { portal, slug, year } = view
+  const current = activeSection(view, pathname)
+  const groups = groupsOf(view)
+  const isTool = TOOLS.some((t) => pathname.startsWith(t.path))
+  const activeGroup = groups.find((g) => (g.key === 'Tools' ? isTool : !isTool && g.sections.some((s) => s.path === current)))
+  const href = (s: PortalSection) => (TOOLS.includes(s) ? s.path : portal && slug ? workspaceHref(portal.key, slug, s.path, year ?? undefined) : '/')
+
   return (
-    <header className="crm-top sticky top-0 z-40 h-14 shrink-0 flex items-center gap-2 sm:gap-3 px-3 lg:px-6">
-      <button onClick={onMenu} className="ws-btn ws-btn-ghost ws-btn-sm lg:hidden -ml-1" aria-label="Open menu">
-        <Menu className="w-5 h-5" />
-      </button>
-      <EventSwitcher view={view} />
-      <Editions view={view} />
-      {title && !view.inWorkspace && (
-        <span className="hidden md:inline text-[13px] truncate" style={{ color: 'var(--fg-3)' }}>/ {title}</span>
-      )}
-      <div className="ml-auto flex items-center gap-2">
-        <GlobalSearch />
+    <header className="crm-top sticky top-0 z-40 shrink-0">
+      {/* Logo | the areas, centred | search */}
+      <div className="h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3 px-3 lg:px-6">
+        <div className="flex items-center gap-2">
+          <button onClick={onMenu} className="ws-btn ws-btn-ghost ws-btn-sm lg:hidden -ml-1" aria-label="Open menu">
+            <Menu className="w-5 h-5" />
+          </button>
+          <Logo compact />
+        </div>
+        {portal && slug ? (
+          <nav className="crm-pills hidden lg:flex" aria-label="Areas">
+            {groups.map((g) => {
+              const active = g === activeGroup
+              return (
+                <Link key={g.key} href={href(g.sections[0])} data-active={active} aria-current={active ? 'page' : undefined}>
+                  {active && <span className="crm-pill-bg" aria-hidden="true" />}
+                  <span className="relative">{g.label}</span>
+                </Link>
+              )
+            })}
+          </nav>
+        ) : <span />}
+        <div className="flex items-center justify-end gap-1.5">
+          {portal && slug && (
+            <Link
+              href={workspaceHref(portal.key, slug, DIRECTORY_PATH, year ?? undefined)}
+              className="crm-dir"
+              data-active={current === DIRECTORY_PATH}
+              aria-current={current === DIRECTORY_PATH ? 'page' : undefined}
+              title="Every company in every event"
+            >
+              <BookUser className="w-4 h-4" /> <span className="hidden sm:inline">Directory</span>
+            </Link>
+          )}
+          <GlobalSearch />
+          <span className="hidden lg:inline-flex"><ThemeToggle /></span>
+          <button onClick={logout} className="ws-btn ws-btn-ghost ws-btn-sm hidden lg:inline-flex" title="Log out" aria-label="Log out">
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      <div className="crm-context h-12 flex items-center gap-2 sm:gap-3 px-3 lg:px-6">
+        <EventSwitcher view={view} />
+        <Editions view={view} />
+        {activeGroup && activeGroup.sections.length > 1 ? (
+          <nav className="crm-tabs hidden lg:flex" aria-label={activeGroup.label}>
+            {activeGroup.sections.map((s) => {
+              const active = TOOLS.includes(s) ? pathname.startsWith(s.path) : s.path === current
+              return (
+                <Link key={s.key} href={href(s)} data-active={active} aria-current={active ? 'page' : undefined}>{s.label}</Link>
+              )
+            })}
+          </nav>
+        ) : null}
+        {title && !view.inWorkspace && (
+          <span className="hidden md:inline text-[13px] truncate ml-auto" style={{ color: 'var(--fg-3)' }}>{activeGroup ? `${activeGroup.label} · ` : ''}{title}</span>
+        )}
       </div>
     </header>
   )

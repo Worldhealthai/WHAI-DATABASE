@@ -13,6 +13,7 @@ import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials
 import { KINDS } from '@/lib/recordKinds'
 import { partnerConsentLabel, type Delegate, type Speaker } from '@/types'
 import { MoveRecordButton } from './MoveRecordButton'
+import { PersonRolesCard } from './PersonRoles'
 
 type Props = {
   nav: ProfileNav
@@ -113,8 +114,8 @@ export function PersonProfile(props: Props) {
             </>
           ) : (
             <>
-              <Fact label="Ticket" value={props.person.ticketType || '—'} />
-              <Fact label="Delegate type" value={props.person.subType || '—'} />
+              <Fact label="Company type" value={props.person.subType || '—'} />
+              <Fact label="Pass" value={props.person.ticketType || '—'} />
               <Fact label="Source" value={props.person.source || '—'} />
               <Fact label="Shares with sponsors" value={yesNo(props.person.partnerConsent)} />
               <Fact label="Dietary" value={props.person.dietaryRequirements || '—'} />
@@ -156,10 +157,16 @@ export function PersonProfile(props: Props) {
           )}
         </div>
 
-        <section className="ws-card p-5 self-start">
+        <div className="space-y-4 self-start">
+          <PersonRolesCard
+            self={{ kind, id: person.id }}
+            person={{ email: person.email, firstName: person.firstName, lastName: person.lastName, organization: person.organization }}
+          />
+          <section className="ws-card p-5">
           <h2 className="text-[15px] font-semibold mb-3" style={{ color: 'var(--fg)' }}>Activity</h2>
           <ActivityFeed activities={person.activities ?? []} entityType={kind} entityId={person.id} onActivityAdded={refetch} />
-        </section>
+          </section>
+        </div>
       </div>
     </div>
   )
