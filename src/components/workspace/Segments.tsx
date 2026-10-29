@@ -137,6 +137,29 @@ const NO_COMPANY_NAME = 'No company given'
 // contact of a sponsoring company.
 const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact' }
 
+// Filters on the people inside companies: job title words, seniority, and
+// how they take part.
+const SENIORITY: { key: string; label: string; rx: RegExp }[] = [
+  { key: 'c', label: 'C-level', rx: /\b(chief|ceo|cto|cio|cmo|coo|cfo|cdo|cmio|ccio|cno|cso|cpo|cco|president|founder|co-founder|managing director)\b/i },
+  { key: 'vp', label: 'VP', rx: /\b(vp|svp|evp|vice president)\b/i },
+  { key: 'director', label: 'Director', rx: /\bdirector\b/i },
+  { key: 'head', label: 'Head of', rx: /\bhead\b/i },
+  { key: 'manager', label: 'Manager', rx: /\bmanager\b/i },
+  { key: 'clinical', label: 'Clinical', rx: /\b(consultant|clinician|clinical|doctor|dr|nurse|surgeon|physician|gp|pharmacist)\b/i },
+]
+type Doing = '' | 'Attending' | 'Speaking' | 'Company contact'
+interface PersonFilter { title: string; seniority: string; doing: Doing }
+const personFilterOn = (f: PersonFilter) => !!(f.title.trim() || f.seniority || f.doing)
+function personPasses(m: Member, f: PersonFilter): boolean {
+  const job = (m.jobTitle || '').toLowerCase()
+  const words = f.title.split(',').map((w) => w.trim().toLowerCase()).filter(Boolean)
+  if (words.length && !words.some((w) => job.includes(w))) return false
+  const level = SENIORITY.find((x) => x.key === f.seniority)
+  if (level && !level.rx.test(m.jobTitle || '')) return false
+  if (f.doing && !m.records.some((r) => DOING[r.relationship] === f.doing)) return false
+  return true
+}
+
 const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q)
 
 // A company's people, under its row.
@@ -226,7 +249,7 @@ function Summary({ data, loading }: { data?: Segments; loading: boolean }) {
   )
 }
 
-function Toolbar({ children, query, setQuery, placeholder, count }: { children?: React.ReactNode; query: string; setQuery: (v: string) => void; placeholder: string; count: number }) {
+function Toolbar({ children, query, setQuery, placeholder, count, people }: { children?: React.ReactNode; query: string; setQuery: (v: string) => void; placeholder: string; count: number; people?: number | null }) {
   return (
     <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--line)' }}>
       <label className="relative flex-1 min-w-[200px] max-w-[360px]">
@@ -234,7 +257,7 @@ function Toolbar({ children, query, setQuery, placeholder, count }: { children?:
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={placeholder} className="ws-input" style={{ paddingLeft: 34 }} />
       </label>
       {children}
-      <span className="ml-auto text-[12.5px] tabular" style={{ color: 'var(--fg-4)' }}>{count.toLocaleString()} shown</span>
+      <span className="ml-auto text-[12.5px] tabular" style={{ color: 'var(--fg-4)' }}>{count.toLocaleString()} shown{people != null ? ` · ${people.toLocaleString()} ${people === 1 ? 'person' : 'people'}` : ''}</span>
     </div>
   )
 }
@@ -266,12 +289,22 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState<Set<string>>(new Set())
+  const [pf, setPf] = useState<PersonFilter>({ title: '', seniority: '', doing: '' })
+  const setP = (patch: Partial<PersonFilter>) => { setPf((x) => ({ ...x, ...patch })); setPage(1) }
   const q = query.trim().toLowerCase()
+  const filtering = personFilterOn(pf)
+  // The people a company shows for the search and the people filters: all
+  // of them when neither is set.
+  const peopleOf = useMemo(() => (a: Account) => {
+    const nameHit = !!q && a.name.toLowerCase().includes(q)
+    return (a.members ?? []).filter((m) => personPasses(m, pf) && (!q || nameHit || matches(m, q)))
+  }, [q, pf])
   const rows = useMemo(() => {
     return (data?.accounts ?? []).filter((a) =>
       (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) &&
-      (!q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
-  }, [data, type, conflicts, q])
+      (filtering ? peopleOf(a).length > 0 : !q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
+  }, [data, type, conflicts, q, filtering, peopleOf])
+  const peopleCount = useMemo(() => (filtering || q ? rows.reduce((n, a) => n + peopleOf(a).length, 0) : null), [rows, filtering, q, peopleOf])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
   const add = usePipelineAdd()
   const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
@@ -286,12 +319,29 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
     >
       <Summary data={data} loading={isLoading} />
       <div className="ws-card overflow-hidden">
-        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length}>
+        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length} people={peopleCount}>
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
           <button type="button" className="ws-chip" data-active={conflicts} onClick={() => { setConflicts(!conflicts); setPage(1) }}>
             <AlertTriangle className="w-3.5 h-3.5" /> To check
           </button>
         </Toolbar>
+        {/* The people inside: by job title, seniority and how they take part */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
+          <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>People</span>
+          <input
+            value={pf.title}
+            onChange={(e) => setP({ title: e.target.value })}
+            placeholder="Job title contains… (e.g. CIO, digital)"
+            className="ws-input !w-[290px] !py-1.5"
+            aria-label="Job title contains"
+          />
+          {SENIORITY.map((x) => (
+            <button key={x.key} type="button" className="ws-chip" data-active={pf.seniority === x.key} onClick={() => setP({ seniority: pf.seniority === x.key ? '' : x.key })}>{x.label}</button>
+          ))}
+          <Segmented size="sm" value={pf.doing || 'any'} onChange={(v) => setP({ doing: v === 'any' ? '' : (v as Doing) })}
+            options={[{ value: 'any', label: 'Anyone' }, { value: 'Attending', label: 'Attending' }, { value: 'Speaking', label: 'Speaking' }, { value: 'Company contact', label: 'Contacts' }]} />
+          {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ title: '', seniority: '', doing: '' })}>Clear</button>}
+        </div>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the companies" body={(error as Error).message} /> :
          isLoading ? <Skeleton /> :
          rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body="Try another filter, or clear the search." /> : (
@@ -301,7 +351,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                 <span>Company</span><span>Type</span><span>Events</span><span>{add.year} sales</span><span className="text-right">People</span><span className="text-right">Updated</span>
               </div>
               {shown.map((a) => {
-                const found = q ? (a.members ?? []).filter((m) => matches(m, q)) : []
+                const found = q || filtering ? peopleOf(a) : []
                 const expanded = open.has(a.key) || found.length > 0
                 return (
                   <div key={a.key} style={{ borderBottom: '1px solid var(--line)' }}>
@@ -335,7 +385,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                       <span className="text-right tabular text-[13.5px]">{a.people}</span>
                       <span className="text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
                     </div>
-                    {expanded && <Members members={found.length && !open.has(a.key) ? found : a.members ?? []} query={q} company={a.name} add={add} />}
+                    {expanded && <Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} />}
                   </div>
                 )
               })}
