@@ -13,6 +13,7 @@ import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials
 import { KINDS } from '@/lib/recordKinds'
 import { partnerConsentLabel, type Delegate, type Speaker } from '@/types'
 import { TypeRoleButton, roleLabel } from './TypeRoleButton'
+import { EnquiryCard } from './EnquiryCard'
 import { PersonRolesCard } from './PersonRoles'
 
 type Props = {
@@ -148,6 +149,8 @@ export function PersonProfile(props: Props) {
               </div>
             )}
           </section>
+
+          <EnquiryCard kind={kind} id={person.id} />
 
           {person.notes && (
             <section className="ws-card p-5">
