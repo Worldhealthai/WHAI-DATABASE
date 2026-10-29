@@ -20,6 +20,7 @@ import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
 import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
+import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 
 interface Segments {
   accounts: Account[]
@@ -137,27 +138,15 @@ const NO_COMPANY_NAME = 'No company given'
 // contact of a sponsoring company.
 const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact' }
 
-// Filters on the people inside companies: job title words, seniority, and
-// how they take part.
-const SENIORITY: { key: string; label: string; rx: RegExp }[] = [
-  { key: 'c', label: 'C-level', rx: /\b(chief|ceo|cto|cio|cmo|coo|cfo|cdo|cmio|ccio|cno|cso|cpo|cco|president|founder|co-founder|managing director)\b/i },
-  { key: 'vp', label: 'VP', rx: /\b(vp|svp|evp|vice president)\b/i },
-  { key: 'director', label: 'Director', rx: /\bdirector\b/i },
-  { key: 'head', label: 'Head of', rx: /\bhead\b/i },
-  { key: 'manager', label: 'Manager', rx: /\bmanager\b/i },
-  { key: 'clinical', label: 'Clinical', rx: /\b(consultant|clinician|clinical|doctor|dr|nurse|surgeon|physician|gp|pharmacist)\b/i },
-]
+// Filters on the people inside companies: job titles (TitleFilter: words
+// or exact titles, any of them) and how they take part.
 type Doing = '' | 'Attending' | 'Speaking' | 'Company contact'
-interface PersonFilter { title: string; seniority: string; doing: Doing }
-const personFilterOn = (f: PersonFilter) => !!(f.title.trim() || f.seniority || f.doing)
+interface PersonFilter { titles: TitleToken[]; doing: Doing }
+const personFilterOn = (f: PersonFilter) => !!(f.titles.length || f.doing)
+const doingPasses = (m: Member, f: PersonFilter) => !f.doing || m.records.some((r) => DOING[r.relationship] === f.doing)
 function personPasses(m: Member, f: PersonFilter): boolean {
-  const job = (m.jobTitle || '').toLowerCase()
-  const words = f.title.split(',').map((w) => w.trim().toLowerCase()).filter(Boolean)
-  if (words.length && !words.some((w) => job.includes(w))) return false
-  const level = SENIORITY.find((x) => x.key === f.seniority)
-  if (level && !level.rx.test(m.jobTitle || '')) return false
-  if (f.doing && !m.records.some((r) => DOING[r.relationship] === f.doing)) return false
-  return true
+  if (f.titles.length && !f.titles.some((t) => tokenMatches(m.jobTitle, t))) return false
+  return doingPasses(m, f)
 }
 
 const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q)
@@ -289,7 +278,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState<Set<string>>(new Set())
-  const [pf, setPf] = useState<PersonFilter>({ title: '', seniority: '', doing: '' })
+  const [pf, setPf] = useState<PersonFilter>({ titles: [], doing: '' })
   const setP = (patch: Partial<PersonFilter>) => { setPf((x) => ({ ...x, ...patch })); setPage(1) }
   const q = query.trim().toLowerCase()
   const filtering = personFilterOn(pf)
@@ -304,6 +293,24 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
       (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) &&
       (filtering ? peopleOf(a).length > 0 : !q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
   }, [data, type, conflicts, q, filtering, peopleOf])
+  // Every job title among the companies in view (by type and the other
+  // people filter), with how many people hold it: what the title filter
+  // offers.
+  const titleCounts = useMemo(() => {
+    const m = new Map<string, { title: string; count: number }>()
+    for (const a of data?.accounts ?? []) {
+      if ((type !== 'all' && a.firmographic !== type) || (conflicts && !a.conflict)) continue
+      for (const p of a.members ?? []) {
+        const t = (p.jobTitle || '').replace(/\s+/g, ' ').trim()
+        if (!t || !doingPasses(p, pf)) continue
+        const k = t.toLowerCase()
+        const e = m.get(k) ?? { title: t, count: 0 }
+        e.count++
+        m.set(k, e)
+      }
+    }
+    return Array.from(m.values()).sort((x, y) => y.count - x.count || x.title.localeCompare(y.title))
+  }, [data, type, conflicts, pf])
   const peopleCount = useMemo(() => (filtering || q ? rows.reduce((n, a) => n + peopleOf(a).length, 0) : null), [rows, filtering, q, peopleOf])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
   const add = usePipelineAdd()
@@ -318,7 +325,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
       actions={everything ? undefined : <ScopeSwitch value={picked} onChange={(v) => { setScope(v); setPage(1) }} />}
     >
       <Summary data={data} loading={isLoading} />
-      <div className="ws-card overflow-hidden">
+      <div className="ws-card">
         <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length} people={peopleCount}>
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
           <button type="button" className="ws-chip" data-active={conflicts} onClick={() => { setConflicts(!conflicts); setPage(1) }}>
@@ -328,19 +335,10 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
         {/* The people inside: by job title, seniority and how they take part */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
           <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>People</span>
-          <input
-            value={pf.title}
-            onChange={(e) => setP({ title: e.target.value })}
-            placeholder="Job title contains… (e.g. CIO, digital)"
-            className="ws-input !w-[290px] !py-1.5"
-            aria-label="Job title contains"
-          />
-          {SENIORITY.map((x) => (
-            <button key={x.key} type="button" className="ws-chip" data-active={pf.seniority === x.key} onClick={() => setP({ seniority: pf.seniority === x.key ? '' : x.key })}>{x.label}</button>
-          ))}
+          <TitleFilter titles={titleCounts} tokens={pf.titles} onChange={(titles) => setP({ titles })} />
           <Segmented size="sm" value={pf.doing || 'any'} onChange={(v) => setP({ doing: v === 'any' ? '' : (v as Doing) })}
             options={[{ value: 'any', label: 'Anyone' }, { value: 'Attending', label: 'Attending' }, { value: 'Speaking', label: 'Speaking' }, { value: 'Company contact', label: 'Contacts' }]} />
-          {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ title: '', seniority: '', doing: '' })}>Clear</button>}
+          {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ titles: [], doing: '' })}>Clear</button>}
         </div>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the companies" body={(error as Error).message} /> :
          isLoading ? <Skeleton /> :
