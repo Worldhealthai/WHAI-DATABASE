@@ -12,6 +12,7 @@ import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials
 import { KINDS } from '@/lib/recordKinds'
 import type { Sponsor, SponsorContact } from '@/types'
 import { PersonRolesLine } from './PersonRoles'
+import { EnquiryCard } from './EnquiryCard'
 
 type Kind = 'sponsor' | 'partner'
 type Company = Sponsor & { activities: any[]; contacts: SponsorContact[] }
@@ -142,6 +143,8 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
               </ul>
             )}
           </section>
+
+          <EnquiryCard kind={kind} id={company.id} />
 
           {company.notes && (
             <section className="ws-card p-5">
