@@ -10,7 +10,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import type { PersonRole } from '@/app/api/people/roles/route'
 
-const LABEL: Record<PersonRole['kind'], string> = { speaker: 'Speaker', delegate: 'Delegate', sponsor: 'Sponsor contact', partner: 'Partner contact' }
+// How they take part in each record: speaking, attending, or a contact of a
+// sponsoring (or partner) company.
+const LABEL: Record<PersonRole['kind'], string> = { speaker: 'Speaking', delegate: 'Attending', sponsor: 'Company contact', partner: 'Partner contact' }
 const PATH: Record<PersonRole['kind'], string> = { speaker: '/speakers', delegate: '/delegates', sponsor: '/sponsors', partner: '/partners' }
 
 // "World Pharma AI London 2027" → "WPAI London 2027"
