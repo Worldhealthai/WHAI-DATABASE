@@ -47,7 +47,9 @@ function parseRaw(contact: { rawData?: string | null }): Record<string, unknown>
   try { return JSON.parse(contact.rawData ?? '{}') ?? {} } catch { return {} }
 }
 
-export async function assignStagedContact(id: string, assignAs: AssignAs, status?: unknown) {
+// subType: what the person is, when the team chose it (Solution Provider or
+// End User); otherwise read from the booking's attendee type, if any.
+export async function assignStagedContact(id: string, assignAs: AssignAs, status?: unknown, chosenSubType?: unknown) {
   const { data: contact, error: fetchError } = await supabase.from('staged_contacts').select('*').eq('id', id).single()
   if (fetchError || !contact) return { error: 'Staged contact not found', status: 404 as const }
 
@@ -60,6 +62,7 @@ export async function assignStagedContact(id: string, assignAs: AssignAs, status
     if (at.includes('end_user') || at.includes('end-user')) subType = 'End User'
     else if (at.includes('solution_provider') || at.includes('solution-provider')) subType = 'Solution Provider'
   }
+  if (chosenSubType === 'Solution Provider' || chosenSubType === 'End User') subType = chosenSubType
   const eventYear = Number(event?.match(/\b(20\d{2})\b/)?.[1] || 0) || new Date().getFullYear()
 
   // The stage the team chose when moving it, else the section's first: an

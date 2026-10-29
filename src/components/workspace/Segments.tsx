@@ -133,6 +133,10 @@ function AddButton({ label, busy, done, onClick }: { label: string; busy: boolea
 }
 
 const NO_COMPANY_NAME = 'No company given'
+// How a person takes part, in the CRM's terms: speaking, attending, or a
+// contact of a sponsoring company.
+const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact' }
+
 const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q)
 
 // A company's people, under its row.
@@ -150,7 +154,7 @@ function Members({ members, query, company, add }: { members: Member[]; query: s
             <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
               {m.records.map((r, i) => (
                 <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                  {r.relationship}{r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
+                  {DOING[r.relationship]}{r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
                 </Link>
               ))}
             </span>
@@ -205,7 +209,7 @@ function Summary({ data, loading }: { data?: Segments; loading: boolean }) {
     { label: 'Companies', value: t?.accounts, hint: `${t?.people ?? 0} people` },
     { label: 'Solution providers', value: t?.solutionProviders, hint: 'Sell to our audience' },
     { label: 'End users', value: t?.endUsers, hint: 'Buy from them' },
-    { label: 'In more than one role', value: t?.multiTag, hint: `${t?.conflicts ?? 0} companies to check` },
+    { label: 'To check', value: t?.conflicts, hint: 'Their people disagree on the type' },
   ]
   return (
     <div className="ws-card grid grid-cols-2 xl:grid-cols-4 mb-4">
@@ -293,15 +297,15 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
          rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body="Try another filter, or clear the search." /> : (
           <div className="overflow-x-auto">
             <div className="min-w-[900px]">
-              <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
-                <span>Company</span><span>Type</span><span>Roles</span><span>Events</span><span>{add.year} sales</span><span className="text-right">People</span><span className="text-right">Updated</span>
+              <div className="grid grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
+                <span>Company</span><span>Type</span><span>Events</span><span>{add.year} sales</span><span className="text-right">People</span><span className="text-right">Updated</span>
               </div>
               {shown.map((a) => {
                 const found = q ? (a.members ?? []).filter((m) => matches(m, q)) : []
                 const expanded = open.has(a.key) || found.length > 0
                 return (
                   <div key={a.key} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
+                    <div className="grid grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
                       <span className="flex items-center gap-2 min-w-0">
                         <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -320,7 +324,6 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         </Link>
                       </span>
                       <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>
-                      <span><Tags tags={a.tags} /></span>
                       <span className="min-w-0 truncate"><Events events={a.events ?? []} /></span>
                       {(() => {
                         // This year's sponsor record, if the company has one.
@@ -401,7 +404,7 @@ export function PeopleView() {
                       <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
                         {p.records.map((r, i) => (
                           <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                            {r.relationship}{scope === 'series' && r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
+                            {DOING[r.relationship]}{scope === 'series' && r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
                           </Link>
                         ))}
                       </span>

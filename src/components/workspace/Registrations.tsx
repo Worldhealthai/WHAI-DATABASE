@@ -3,7 +3,7 @@
 // Event → Registrations: the edition's bookings exactly as the Nexus admin
 // panel lists them (GET /api/registrations reads its registrations table,
 // in the same database): Approved first, with Pending, Rejected and
-// Cancelled as queues, and Delegates or Speakers. One more queue, Added in
+// Cancelled as queues, and attending or speaking. One more queue, Added in
 // the CRM, holds the people filed here with no booking behind them
 // (imported, typed in, moved from an enquiry). Every row opens its CRM
 // record. Approving and rejecting stay in the admin panel; the speaker
@@ -113,7 +113,7 @@ export function RegistrationsView() {
               label: <span className="inline-flex items-center gap-1.5">{q.label}<span className="tabular" style={{ color: q.key === 'pending' && count('pending') ? 'var(--warn)' : 'var(--fg-4)' }}>{count(q.key)}</span></span>,
             }))}
           />
-          <Segmented size="sm" value={who} onChange={(v) => { setWho(v); reset() }} options={[{ value: 'all', label: 'All' }, { value: 'delegate', label: 'Delegates' }, { value: 'speaker', label: 'Speakers' }]} />
+          <Segmented size="sm" value={who} onChange={(v) => { setWho(v); reset() }} options={[{ value: 'all', label: 'All' }, { value: 'delegate', label: 'Attending' }, { value: 'speaker', label: 'Speaking' }]} />
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); reset() }} options={[{ value: 'all', label: 'Any company' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
           <label className="relative flex-1 min-w-[180px] max-w-[300px] ml-auto">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--fg-4)' }} />
@@ -125,7 +125,7 @@ export function RegistrationsView() {
          rows.length === 0 ? <EmptyState icon={ClipboardList} title="No one here" body={query ? 'Try another search.' : 'Nobody in this queue for the edition.'} /> : (
           <div className="overflow-x-auto">
             <table className="ws-table w-full min-w-[900px]">
-              <thead><tr><th>Person</th><th>Company</th><th>Attending as</th><th>Pass</th><th>Stage</th><th className="text-right">{queue === 'crm' ? 'Added' : 'Booked'}</th></tr></thead>
+              <thead><tr><th>Person</th><th>Company</th><th>Type</th><th>Pass</th><th>Stage</th><th className="text-right">{queue === 'crm' ? 'Added' : 'Booked'}</th></tr></thead>
               <tbody>
                 {shown.map((b) => {
                   const name = bookingName(b)
@@ -152,7 +152,7 @@ export function RegistrationsView() {
                         )}
                       </td>
                       <td className="text-[13px] truncate max-w-[200px]" style={{ color: 'var(--fg-2)' }}>{b.company || '—'}</td>
-                      <td className="text-[13px] whitespace-nowrap" style={{ color: 'var(--fg-2)' }}>{isSpeakerBooking(b) ? 'Speaker' : 'Delegate'}{bookingCompanyType(b) ? <span style={{ color: 'var(--fg-4)' }}> · {bookingCompanyType(b)}</span> : null}</td>
+                      <td className="text-[13px] whitespace-nowrap" style={{ color: 'var(--fg-2)' }}>{bookingCompanyType(b) ?? '—'}<span style={{ color: 'var(--fg-4)' }}> · {isSpeakerBooking(b) ? 'Speaking' : 'Attending'}</span></td>
                       <td className="text-[13px]" style={{ color: pass(b) ? 'var(--fg-2)' : 'var(--fg-4)' }}>{pass(b) ?? '—'}</td>
                       <td className="text-[12.5px] whitespace-nowrap" style={{ color: b.crm ? 'var(--fg-2)' : 'var(--fg-4)' }}>{b.crm?.status ?? (b.status === 'approved' ? 'Not filed yet' : '—')}</td>
                       <td className="text-right text-[12.5px] whitespace-nowrap" style={{ color: 'var(--fg-4)' }}>{timeAgo(b.created_at)}</td>

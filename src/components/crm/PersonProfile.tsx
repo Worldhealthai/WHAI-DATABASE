@@ -12,7 +12,7 @@ import { CopyPopover } from '@/components/crm/CopyPopover'
 import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money, type ProfileNav } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { partnerConsentLabel, type Delegate, type Speaker } from '@/types'
-import { MoveRecordButton } from './MoveRecordButton'
+import { TypeRoleButton, roleLabel } from './TypeRoleButton'
 import { PersonRolesCard } from './PersonRoles'
 
 type Props = {
@@ -53,7 +53,7 @@ export function PersonProfile(props: Props) {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{def.label}</p>
+            <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{roleLabel(kind, person.subType)}{person.subType ? ` · ${person.subType}` : ''}</p>
             <h1 className="text-[22px] font-semibold leading-tight tracking-tight truncate" style={{ color: 'var(--fg)' }}>{name}</h1>
             {(person.jobTitle || person.organization) && (
               <p className="text-[13.5px] mt-0.5 truncate" style={{ color: 'var(--fg-2)' }}>
@@ -71,7 +71,7 @@ export function PersonProfile(props: Props) {
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
-            <MoveRecordButton kind={kind} id={person.id} name={name || 'this person'} />
+            <TypeRoleButton kind={kind} id={person.id} name={name || 'this person'} subType={person.subType} />
             <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>
               {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
             </button>
