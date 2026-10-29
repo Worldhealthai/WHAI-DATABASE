@@ -56,6 +56,7 @@ export interface SegmentContact {
   table: 'sponsors' | 'speakers' | 'delegates'
   id: string               // the row (a sponsor contact row links to its company row)
   recordId: string         // the record to open: the company row for sponsors
+  event?: string | null
   company: string | null
   firstName: string | null
   lastName: string | null
@@ -85,7 +86,8 @@ export interface Person {
   tags: Relationship[]
   firmographic: Firmographic | null    // their company's
   selfDeclared: string | null
-  records: { relationship: Relationship; table: string; id: string; status: string | null }[]
+  records: { relationship: Relationship; table: string; id: string; status: string | null; event?: string | null }[]
+  events: string[]         // every event they are in
   updatedAt: string | null
 }
 
@@ -104,6 +106,7 @@ export interface Account {
   website: string | null
   country: string | null
   best: { name: string; jobTitle: string | null; email: string | null; phone: string | null } | null
+  events: string[]
   completeness: number
   updatedAt: string | null
   // The record to open for it: the sponsor company if there is one, else
@@ -123,7 +126,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     const name = `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim()
     const p = byPerson.get(key) ?? {
       key, name, email: c.email, phone: null, jobTitle: null, company: null, companyKey: null,
-      tags: [], firmographic: null, selfDeclared: null, records: [], updatedAt: null,
+      tags: [], firmographic: null, selfDeclared: null, records: [], events: [], updatedAt: null,
     }
     p.name ||= name
     p.email ||= c.email
@@ -132,7 +135,8 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     if (!p.company && c.company) { p.company = c.company; p.companyKey = companyKey(c.company) }
     p.selfDeclared ||= c.selfDeclared
     if (!p.tags.includes(c.relationship)) p.tags.push(c.relationship)
-    p.records.push({ relationship: c.relationship, table: c.table, id: c.recordId, status: c.status })
+    p.records.push({ relationship: c.relationship, table: c.table, id: c.recordId, status: c.status, event: c.event ?? null })
+    if (c.event && !p.events.includes(c.event)) p.events.push(c.event)
     p.updatedAt = latest(p.updatedAt, c.updatedAt)
     byPerson.set(key, p)
   }
@@ -187,6 +191,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
       country: country as string | null,
       best: best ? { name: `${best.firstName || ''} ${best.lastName || ''}`.trim() || best.email || '', jobTitle: best.jobTitle, email: best.email, phone: best.phone } : null,
       completeness,
+      events: Array.from(new Set(cs.map((c) => c.event).filter((e): e is string => !!e))),
       updatedAt,
       open: lead ? { table: 'sponsors', id: lead.recordId } : { table: cs[0].table, id: cs[0].recordId },
     })

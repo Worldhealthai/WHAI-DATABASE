@@ -3,11 +3,14 @@
 // The pipeline: every lead for one edition, laid out by stage, dragged from
 // one to the next as the conversation moves. Made for the next edition —
 // the leads to chase for 2027 go in here before a single one has replied.
+// Sales works sponsors and partners; Production the same board for the
+// speakers, from first invitation to confirmed on the programme.
 
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Award, KanbanSquare, Network, Plus } from 'lucide-react'
+import { Award, KanbanSquare, Mic, Network, Plus } from 'lucide-react'
+import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, changeStage, listParams, type RecordKind, type Stage } from '@/lib/recordKinds'
@@ -19,7 +22,8 @@ import { WaveBand } from './WaveBand'
 import { WorkspacePage } from './WorkspacePage'
 
 type Lead = Record<string, any>
-type BoardKind = 'sponsor' | 'partner'
+type BoardKind = 'sponsor' | 'partner' | 'speaker'
+type CompanyKind = 'sponsor' | 'partner'
 
 function useBoard(kind: BoardKind, labels: string[]) {
   return useQuery<{ data: Lead[] }>({
@@ -57,7 +61,7 @@ const contactName = (c: { contactFirstName?: string | null; contactLastName?: st
 
 function QuickAddLead({
   kind, eventLabel, stage, existing, onClose, onSaved,
-}: { kind: BoardKind; eventLabel: string; stage: string; existing: Lead[]; onClose: () => void; onSaved: () => void }) {
+}: { kind: CompanyKind; eventLabel: string; stage: string; existing: Lead[]; onClose: () => void; onSaved: () => void }) {
   const tiers = useTierOptions()
   const def = KINDS[kind]
   const [known, setKnown] = useState<Known[]>([])
@@ -270,6 +274,8 @@ function LeadCard({ lead, kind, dragging, onDragStart, onDragEnd }: {
   onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void
 }) {
   const contact = `${lead.contactFirstName ?? ''} ${lead.contactLastName ?? ''}`.trim()
+  const speaker = kind === 'speaker'
+  const name = speaker ? `${lead.firstName ?? ''} ${lead.lastName ?? ''}`.trim() || lead.email || 'Unnamed' : lead.companyName
   return (
     <Link
       href={`${KINDS[kind].detailPath}/${lead.id}`}
@@ -277,22 +283,32 @@ function LeadCard({ lead, kind, dragging, onDragStart, onDragEnd }: {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn('block rounded-[10px] px-3 py-2.5 transition-all cursor-grab active:cursor-grabbing select-none', dragging && 'opacity-40 scale-[0.98]')}
-      style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}
+      style={{ background: 'var(--glass-fill-strong)', border: '1px solid var(--glass-rim)', boxShadow: 'var(--glass-shadow)' }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--line-3)' }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--line)' }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--glass-rim)' }}
       title={`Updated ${timeAgo(lead.updatedAt)}`}
     >
-      {/* The company and what it is worth, then who and which package. */}
+      {/* The company and what it is worth, then who and which package; for a
+          speaker, who and from where, then the session. */}
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[13.5px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{lead.companyName}</p>
+        <p className="text-[13.5px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{name}</p>
         {lead.valueAmount ? (
           <span className="text-[12.5px] font-semibold tabular shrink-0" style={{ color: 'var(--fg)' }}>{formatMoney(lead.valueAmount, lead.valueCurrency || 'GBP')}</span>
         ) : null}
       </div>
-      <p className="text-[12px] truncate mt-0.5" style={{ color: 'var(--fg-3)' }}>
-        {contact || lead.contactEmail || 'No contact yet'}
-        {lead.tier ? <span style={{ color: 'var(--fg-4)' }}> · {lead.tier}</span> : null}
-      </p>
+      {speaker ? (
+        <>
+          <p className="text-[12px] truncate mt-0.5" style={{ color: 'var(--fg-3)' }}>{[lead.jobTitle, lead.organization].filter(Boolean).join(' · ') || 'No organisation yet'}</p>
+          {(lead.sessionTitle || lead.subType) && (
+            <p className="text-[11.5px] truncate mt-1" style={{ color: 'var(--fg-4)' }}>{lead.sessionTitle || lead.subType}</p>
+          )}
+        </>
+      ) : (
+        <p className="text-[12px] truncate mt-0.5" style={{ color: 'var(--fg-3)' }}>
+          {contact || lead.contactEmail || 'No contact yet'}
+          {lead.tier ? <span style={{ color: 'var(--fg-4)' }}> · {lead.tier}</span> : null}
+        </p>
+      )}
     </Link>
   )
 }
@@ -313,8 +329,9 @@ function Column({
       style={{
         flex: stage.negative ? '0 0 200px' : '1 1 240px',
         minWidth: stage.negative ? 200 : 232,
-        background: over ? 'var(--surface-3)' : 'color-mix(in srgb, var(--surface-3) 55%, var(--bg))',
-        border: `1px solid ${over ? 'var(--line-3)' : 'transparent'}`,
+        background: over ? 'var(--glass-hover)' : 'color-mix(in srgb, var(--surface) 26%, transparent)',
+        border: `1px solid ${over ? 'var(--line-3)' : 'var(--glass-rim)'}`,
+        backdropFilter: 'blur(14px)',
       }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overStage !== stage.status) setOverStage(stage.status) }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverStage(null) }}
@@ -356,11 +373,12 @@ function Column({
 
 // ── Board ────────────────────────────────────────────────────────────────────
 
-export function PipelineBoard() {
+export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production' }) {
   const ws = useWorkspace()
+  const production = mode === 'production'
   const queryClient = useQueryClient()
   const { labels, category, year } = ws
-  const [kind, setKind] = useState<BoardKind>('sponsor')
+  const [kind, setKind] = useState<BoardKind>(production ? 'speaker' : 'sponsor')
   const [dragId, setDragId] = useState<string | null>(null)
   const [overStage, setOverStage] = useState<string | null>(null)
   const [adding, setAdding] = useState<string | null>(null) // stage to add into
@@ -400,15 +418,20 @@ export function PipelineBoard() {
   }
 
   const empty = !isLoading && leads.length === 0
+  const noun = production ? 'speaker' : kind === 'partner' ? 'partner' : 'lead'
+  const saved = () => { setAdding(null); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }); queryClient.invalidateQueries({ queryKey: ['ws-list', kind] }) }
+  const year4 = Number(year) || null
 
   return (
     <WorkspacePage
-      title="Pipeline"
-      description={`Drag a card to the stage the conversation has reached. Every move is logged on the ${kind}'s profile.`}
+      title={production ? 'Speaker pipeline' : 'Pipeline'}
+      description={production
+        ? 'Every speaker for the edition, from first invitation to confirmed on the programme. Drag a card on as the conversation moves; every move is logged on their profile.'
+        : `Drag a card to the stage the conversation has reached. Every move is logged on the ${kind}'s profile.`}
       wide
       actions={
         <>
-          <Segmented
+          {!production && <Segmented
             size="sm"
             value={kind}
             onChange={(k) => setKind(k)}
@@ -416,8 +439,8 @@ export function PipelineBoard() {
               { value: 'sponsor', label: <span className="inline-flex items-center gap-1.5"><Award className="w-3.5 h-3.5" /> Sponsors</span> },
               { value: 'partner', label: <span className="inline-flex items-center gap-1.5"><Network className="w-3.5 h-3.5" /> Partners</span> },
             ]}
-          />
-          <button onClick={() => setAdding(def.stages[0].status)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add {kind === 'partner' ? 'partner' : 'lead'}</button>
+          />}
+          <button onClick={() => setAdding(def.stages[0].status)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add {noun}</button>
         </>
       }
     >
@@ -425,7 +448,11 @@ export function PipelineBoard() {
       <div className="mb-4">
         <WaveBand
           loading={isLoading}
-          items={[
+          items={production ? [
+            { label: `Speakers in the ${year} pipeline`, value: leads.length, hint: `${byStage['Not Contacted']?.length ?? 0} still to invite` },
+            { label: 'In conversation', value: (byStage['Invited']?.length ?? 0) + (byStage['Discussing']?.length ?? 0), hint: `${byStage['Invited']?.length ?? 0} invited · ${byStage['Discussing']?.length ?? 0} discussing` },
+            { label: 'Confirmed', value: byStage['Speaking Confirmed']?.length ?? 0, hint: `${leads.filter((l) => l.status === 'Speaking Confirmed' && l.sessionTitle).length} with a session` },
+          ] : [
             { label: `${kind === 'partner' ? 'Partners' : 'Leads'} in the ${year} pipeline`, value: leads.length },
             { label: 'Open', value: formatMoney(openValue, currency), hint: `${(byStage['Emailed']?.length ?? 0) + (byStage['In Discussion']?.length ?? 0)} in conversation` },
             { label: 'Confirmed', value: formatMoney(wonValue, currency), hint: `${byStage['Confirmed']?.length ?? 0} signed` },
@@ -436,10 +463,12 @@ export function PipelineBoard() {
       {empty ? (
         <div className="ws-card">
           <EmptyState
-            icon={KanbanSquare}
-            title={`Start the ${year} ${kind === 'partner' ? 'partner list' : 'pipeline'}`}
-            body={`Nothing for ${eventLabel} yet. Add the ${kind === 'partner' ? 'partners' : 'companies'} you will be chasing — type a name and anyone already in the database is filled in for you.`}
-            action={<button onClick={() => setAdding(def.stages[0].status)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add the first {kind === 'partner' ? 'partner' : 'lead'}</button>}
+            icon={production ? Mic : KanbanSquare}
+            title={`Start the ${year} ${production ? 'speaker pipeline' : kind === 'partner' ? 'partner list' : 'pipeline'}`}
+            body={production
+              ? `Nothing for ${eventLabel} yet. Add the speakers you want on the programme; applications from the website land here too.`
+              : `Nothing for ${eventLabel} yet. Add the ${kind === 'partner' ? 'partners' : 'companies'} you will be chasing — type a name and anyone already in the database is filled in for you.`}
+            action={<button onClick={() => setAdding(def.stages[0].status)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add the first {noun}</button>}
           />
         </div>
       ) : (
@@ -462,16 +491,23 @@ export function PipelineBoard() {
         </div>
       )}
 
-      {adding && eventLabel && (
+      {adding && eventLabel && (kind === 'speaker' ? (
+        <SpeakerFormModal
+          speaker={{ event: eventLabel, year: year4 ?? undefined, status: adding }}
+          title="Add speaker"
+          onClose={() => setAdding(null)}
+          onSaved={saved}
+        />
+      ) : (
         <QuickAddLead
           kind={kind}
           eventLabel={eventLabel}
           stage={adding}
           existing={leads}
           onClose={() => setAdding(null)}
-          onSaved={() => { setAdding(null); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }); queryClient.invalidateQueries({ queryKey: ['ws-list', kind] }) }}
+          onSaved={saved}
         />
-      )}
+      ))}
     </WorkspacePage>
   )
 }

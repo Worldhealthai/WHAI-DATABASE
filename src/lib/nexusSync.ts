@@ -7,7 +7,7 @@ type Row = Record<string, any>
 
 const FIELDS = ['firstName', 'lastName', 'email', 'phone', 'organization', 'jobTitle'] as const
 
-function nexusBase(): string {
+export function nexusBase(): string {
   const explicit = process.env.NEXUS_BASE_URL?.trim()
   if (explicit) return explicit.replace(/\/+$/, '')
   try {

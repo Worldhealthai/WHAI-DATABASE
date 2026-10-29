@@ -1,8 +1,9 @@
 'use client'
 
-// The edition in two layers (lib/segments): Companies (who the company is:
-// Solution Provider or End User), People (what each person does at the
-// event: Delegate, Speaker, Sponsor, several at once) and the Hit list (the
+// The directory in two layers (lib/segments): Companies (who the company
+// is: Solution Provider or End User) and People (what each person does at
+// our events: Delegate, Speaker, Sponsor, several at once), across every
+// event by default or for the open edition; and the edition's Hit list (the
 // Solution Providers most worth a call today). Read from the three tabs as
 // they are; nothing here changes a record.
 
@@ -27,20 +28,42 @@ interface Segments {
 const PATH: Record<string, string> = { sponsors: '/sponsors', speakers: '/speakers', delegates: '/delegates', partners: '/partners' }
 const TAG_ORDER: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
 
-function useSegments() {
+type Scope = 'all' | 'edition'
+
+function useSegments(scope: Scope = 'edition') {
   const { labels } = useWorkspace()
   return useQuery<Segments>({
-    queryKey: ['ws-segments', labels],
+    queryKey: ['ws-segments', scope === 'all' ? 'all' : labels],
     queryFn: async () => {
       const p = new URLSearchParams()
-      labels.forEach((l) => p.append('events', l))
+      if (scope === 'all') p.set('scope', 'all')
+      else labels.forEach((l) => p.append('events', l))
       const r = await fetch(`/api/segments?${p}`)
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.error || 'segments')
       return r.json()
     },
-    enabled: labels.length > 0,
+    enabled: scope === 'all' || labels.length > 0,
     staleTime: 60_000,
   })
+}
+
+// "World Pharma AI London 2027" → "WPAI London 2027"
+const shortEvent = (e: string) => e.replace(/^World Health AI/i, 'WHAI').replace(/^World Pharma AI/i, 'WPAI')
+
+function Events({ events }: { events: string[] }) {
+  if (!events.length) return <span style={{ color: 'var(--fg-4)' }}>—</span>
+  const sorted = [...events].sort((a, b) => (b.match(/20\d{2}/)?.[0] ?? '').localeCompare(a.match(/20\d{2}/)?.[0] ?? '') || a.localeCompare(b))
+  return (
+    <span className="text-[12px] whitespace-nowrap" style={{ color: 'var(--fg-3)' }} title={sorted.join('\n')}>
+      {sorted.slice(0, 2).map(shortEvent).join(', ')}{sorted.length > 2 ? <span style={{ color: 'var(--fg-4)' }}> +{sorted.length - 2}</span> : null}
+    </span>
+  )
+}
+
+// All events (the directory) or just the open edition.
+function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) => void }) {
+  const { year } = useWorkspace()
+  return <Segmented size="sm" value={value} onChange={onChange} options={[{ value: 'all', label: 'All events' }, { value: 'edition', label: `${year} edition` }]} />
 }
 
 // ── Small marks ──────────────────────────────────────────────────────────────
@@ -129,7 +152,8 @@ const PAGE = 50
 // ── Companies ────────────────────────────────────────────────────────────────
 
 export function CompaniesView() {
-  const { data, isLoading, error } = useSegments()
+  const [scope, setScope] = useState<Scope>('all')
+  const { data, isLoading, error } = useSegments(scope)
   const [type, setType] = useState<'all' | Firmographic>('all')
   const [tag, setTag] = useState<Relationship | ''>('')
   const [conflicts, setConflicts] = useState(false)
@@ -144,7 +168,11 @@ export function CompaniesView() {
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
 
   return (
-    <WorkspacePage title="Companies" description="Every company in this edition, once, across sponsors, speakers and delegates.">
+    <WorkspacePage
+      title="Companies"
+      description={scope === 'all' ? 'Every company the CRM knows, once, across every event: sponsors, speakers and delegates.' : 'Every company in this edition, once, across sponsors, speakers and delegates.'}
+      actions={<ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />}
+    >
       <Summary data={data} loading={isLoading} />
       <div className="ws-card overflow-hidden">
         <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or contacts…" count={rows.length}>
@@ -158,8 +186,8 @@ export function CompaniesView() {
          isLoading ? <Skeleton /> :
          rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body="Try another filter, or clear the search." /> : (
           <div className="overflow-x-auto">
-            <table className="ws-table w-full min-w-[860px]">
-              <thead><tr><th>Company</th><th>Type</th><th>Roles at the event</th><th>Sponsor stage</th><th className="text-right">People</th><th>Data</th><th className="text-right">Updated</th></tr></thead>
+            <table className="ws-table w-full min-w-[980px]">
+              <thead><tr><th>Company</th><th>Type</th><th>Roles</th><th>Events</th><th>Sponsor stage</th><th className="text-right">People</th><th>Data</th><th className="text-right">Updated</th></tr></thead>
               <tbody>
                 {shown.map((a) => (
                   <tr key={a.key} className="cursor-pointer">
@@ -174,6 +202,7 @@ export function CompaniesView() {
                     </td>
                     <td><TypeBadge type={a.firmographic} conflict={a.conflict} /></td>
                     <td><Tags tags={a.tags} /></td>
+                    <td><Events events={a.events ?? []} /></td>
                     <td className="text-[13px]" style={{ color: a.sponsorStage ? 'var(--fg-2)' : 'var(--fg-4)' }}>{a.sponsorStage ?? '—'}{a.valueAmount ? <span style={{ color: 'var(--fg-4)' }}> · {formatMoney(a.valueAmount)}</span> : null}</td>
                     <td className="text-right tabular">{a.people}</td>
                     <td><Completeness value={a.completeness} /></td>
@@ -193,7 +222,8 @@ export function CompaniesView() {
 // ── People ───────────────────────────────────────────────────────────────────
 
 export function PeopleView() {
-  const { data, isLoading, error } = useSegments()
+  const [scope, setScope] = useState<Scope>('all')
+  const { data, isLoading, error } = useSegments(scope)
   const [tag, setTag] = useState<Relationship | ''>('')
   const [multi, setMulti] = useState(false)
   const [type, setType] = useState<'all' | Firmographic>('all')
@@ -208,20 +238,24 @@ export function PeopleView() {
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
 
   return (
-    <WorkspacePage title="People" description="Everyone in this edition, once, with every role they have at the event.">
+    <WorkspacePage
+      title="People"
+      description={scope === 'all' ? 'Everyone the CRM knows, once, with every role they have had at any of our events.' : 'Everyone in this edition, once, with every role they have at the event.'}
+      actions={<ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />}
+    >
       <Summary data={data} loading={isLoading} />
       <div className="ws-card overflow-hidden">
         <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search people, emails or companies…" count={rows.length}>
+          <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
           <TagFilter value={tag} onChange={(v) => { setTag(v); setPage(1) }} />
           <button type="button" className="ws-chip" data-active={multi} onClick={() => { setMulti(!multi); setPage(1) }}>In more than one role</button>
-          <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'Any company' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
         </Toolbar>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the people" body={(error as Error).message} /> :
          isLoading ? <Skeleton /> :
          rows.length === 0 ? <EmptyState icon={Users} title="No one matches" body="Try another filter, or clear the search." /> : (
           <div className="overflow-x-auto">
             <table className="ws-table w-full min-w-[820px]">
-              <thead><tr><th>Person</th><th>Company</th><th>Roles at the event</th><th>Company type</th><th>Where they are</th></tr></thead>
+              <thead><tr><th>Person</th><th>Company</th><th>Company type</th><th>Roles</th><th>Where they are</th></tr></thead>
               <tbody>
                 {shown.map((p) => (
                   <tr key={p.key}>
@@ -235,13 +269,13 @@ export function PeopleView() {
                       </Link>
                     </td>
                     <td className="text-[13px] truncate max-w-[220px]" style={{ color: 'var(--fg-2)' }}>{p.company || '—'}</td>
-                    <td><Tags tags={p.tags} /></td>
                     <td><TypeBadge type={p.firmographic} /></td>
+                    <td><Tags tags={p.tags} /></td>
                     <td>
                       <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
                         {p.records.map((r, i) => (
                           <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                            {r.relationship}{r.status ? `: ${r.status}` : ''}
+                            {r.relationship}{scope === 'all' && r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
                           </Link>
                         ))}
                       </span>

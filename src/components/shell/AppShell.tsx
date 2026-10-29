@@ -70,6 +70,8 @@ function Frame({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+      {/* The colour the glass is seen through */}
+      <div className="crm-field" aria-hidden="true" />
 
       {/* Mobile drawer */}
       {menuOpen && (
@@ -81,7 +83,7 @@ function Frame({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="relative z-[1] flex-1 min-w-0 flex flex-col">
         <DatabaseNotice />
         <Topbar view={view} title={title} onMenu={() => setMenuOpen(true)} />
         <main className="flex-1 min-w-0">{children}</main>

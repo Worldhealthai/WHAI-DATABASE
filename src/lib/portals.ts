@@ -8,7 +8,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Award, Network, KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles,
-  Building, Contact, Target, Ticket,
+  Building, Contact, Target, Ticket, ClipboardList, Workflow,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
 
@@ -45,9 +45,10 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
     tagline: 'Sales, people, agenda & marketing',
     description: 'Everything for one event, by year: sponsors and partners, speakers and delegates, the agenda, and the LinkedIn posts.',
     accent: { fill: 'var(--accent)', ink: 'var(--accent-ink)', soft: 'var(--accent-soft)', line: 'var(--accent-line)' },
-    // Two layers: the directory (companies by who they are, people by what
-    // they do at the event), then the work: selling, the programme and
-    // attendance, and marketing. The tabs underneath stay as they were.
+    // The directory first (every company and every person the CRM knows,
+    // across all events), then the work for this edition: selling, the
+    // programme (production), the event as the admin panel runs it, and
+    // marketing.
     sections: [
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
       { key: 'companies', label: 'Companies', icon: Building, path: 'companies', group: 'Directory' },
@@ -56,9 +57,11 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
       { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline', group: 'Sales' },
       { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors', group: 'Sales' },
       { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners', group: 'Sales' },
-      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers', group: 'Event' },
+      { key: 'production', label: 'Speaker pipeline', icon: Workflow, path: 'production', group: 'Production' },
+      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers', group: 'Production' },
+      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda', group: 'Production' },
+      { key: 'registrations', label: 'Registrations', icon: ClipboardList, path: 'registrations', group: 'Event' },
       { key: 'delegates', label: 'Delegates', icon: Ticket, path: 'delegates', group: 'Event' },
-      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda', group: 'Event' },
       { key: 'marketing', label: 'Marketing overview', icon: Sparkles, path: 'marketing', group: 'Marketing' },
       { key: 'speaker-posts', label: 'Speaker posts', icon: Megaphone, path: 'speaker-posts', group: 'Marketing' },
       { key: 'sponsor-posts', label: 'Sponsor posts', icon: Building2, path: 'sponsor-posts', group: 'Marketing' },

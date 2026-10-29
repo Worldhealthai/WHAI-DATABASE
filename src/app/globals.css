@@ -211,12 +211,7 @@
     background: var(--bg);
   }
   body {
-    /* A faint sea-glass wash at the top, so the glass cards read as glass */
-    background:
-      radial-gradient(1200px 520px at 12% -8%, color-mix(in srgb, var(--teal) 9%, transparent), transparent 70%),
-      radial-gradient(900px 480px at 100% 0%, color-mix(in srgb, var(--deep-2) 10%, transparent), transparent 70%),
-      var(--bg);
-    background-attachment: fixed;
+    background: var(--bg);
     color: var(--fg);
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-size: 14px;
@@ -795,7 +790,10 @@
   position: relative;
   overflow: hidden;
   border-radius: 20px;
-  background: linear-gradient(135deg, #0f3b3f 0%, #134a4f 55%, #0c3236 100%);
+  background: linear-gradient(135deg, rgba(15, 59, 63, 0.92) 0%, rgba(19, 74, 79, 0.86) 55%, rgba(12, 50, 54, 0.92) 100%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.28), 0 22px 44px -22px rgba(15, 59, 63, 0.55);
   color: #f2fbf9;
 }
 .crm-wave svg { position: absolute; left: 0; bottom: 0; width: 200%; height: 38%; pointer-events: none; }
@@ -828,4 +826,99 @@
 @media (prefers-reduced-motion: reduce) {
   .anim-fade-up, .anim-fade-in, .anim-scale-in, .anim-zoom-away, .anim-slide-out-left, .anim-rise, .ev-wash, .ev-tile[data-picked='true'], .look-sheen { animation: none !important; }
   .ev-tile, .look-tile { transition: none; }
+}
+
+/* ── Glass ─────────────────────────────────────────────────────────────────
+   Liquid glass, as on the phone: surfaces you can see the colour through,
+   frosted, with a bright rim of light along the top edge. It needs colour
+   behind it to read, so the app sits on a slow field of soft sea colours
+   (.crm-field, fixed behind every screen). Unlayered so it wins over the
+   component defaults above. */
+:root {
+  --glass-fill: linear-gradient(140deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.36) 100%);
+  --glass-fill-strong: linear-gradient(140deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.55) 100%);
+  --glass-rim: rgba(255, 255, 255, 0.7);
+  --glass-edge: rgba(15, 59, 63, 0.08);
+  --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.95), inset 0 -1px 0.5px rgba(255, 255, 255, 0.35), 0 1px 2px rgba(15, 59, 63, 0.05), 0 18px 40px -18px rgba(15, 59, 63, 0.28);
+  --glass-blur: blur(30px) saturate(190%);
+  --glass-hover: rgba(255, 255, 255, 0.45);
+}
+:root[data-theme='dark'] {
+  --glass-fill: linear-gradient(140deg, rgba(40, 52, 70, 0.55) 0%, rgba(22, 30, 44, 0.42) 100%);
+  --glass-fill-strong: linear-gradient(140deg, rgba(44, 56, 76, 0.78) 0%, rgba(26, 34, 50, 0.7) 100%);
+  --glass-rim: rgba(255, 255, 255, 0.12);
+  --glass-edge: rgba(0, 0, 0, 0.3);
+  --glass-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.14), inset 0 -1px 0.5px rgba(255, 255, 255, 0.04), 0 18px 40px -18px rgba(0, 0, 0, 0.6);
+  --glass-hover: rgba(255, 255, 255, 0.05);
+}
+
+.crm-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 46% at 8% 6%, rgba(77, 196, 182, 0.55), transparent 70%),
+    radial-gradient(36% 40% at 92% 10%, rgba(120, 186, 230, 0.5), transparent 70%),
+    radial-gradient(40% 44% at 78% 88%, rgba(170, 214, 196, 0.6), transparent 70%),
+    radial-gradient(34% 40% at 20% 92%, rgba(196, 186, 240, 0.4), transparent 70%),
+    radial-gradient(30% 30% at 50% 48%, rgba(250, 226, 200, 0.35), transparent 70%),
+    #eef3f3;
+  filter: saturate(1.1);
+}
+.crm-field::after {
+  content: '';
+  position: absolute;
+  inset: -10%;
+  background:
+    radial-gradient(28% 32% at 30% 30%, rgba(46, 170, 160, 0.28), transparent 70%),
+    radial-gradient(26% 30% at 70% 60%, rgba(90, 150, 220, 0.24), transparent 70%);
+  animation: crm-drift 38s ease-in-out infinite alternate;
+}
+@keyframes crm-drift { from { transform: translate3d(-4%, -2%, 0) scale(1); } to { transform: translate3d(5%, 4%, 0) scale(1.08); } }
+:root[data-theme='dark'] .crm-field {
+  background:
+    radial-gradient(42% 46% at 8% 6%, rgba(20, 120, 112, 0.5), transparent 70%),
+    radial-gradient(36% 40% at 92% 10%, rgba(40, 80, 160, 0.45), transparent 70%),
+    radial-gradient(40% 44% at 78% 88%, rgba(16, 90, 84, 0.5), transparent 70%),
+    radial-gradient(34% 40% at 20% 92%, rgba(80, 60, 150, 0.35), transparent 70%),
+    #0b1118;
+}
+:root[data-theme='dark'] .crm-field::after { opacity: 0.6; }
+
+.ws-card,
+.crm-switch,
+.crm-menu,
+.crm-pills,
+.crm-years {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+}
+.ws-card { border-radius: 20px; outline: 1px solid var(--glass-edge); outline-offset: 0; }
+.crm-menu { background: var(--glass-fill-strong); border-radius: 16px; }
+.crm-switch { border-radius: 999px; padding: 0 12px 0 14px; }
+.crm-years { border-radius: 999px; padding: 3px; }
+.crm-years a { border-radius: 999px; }
+.crm-years a[data-active='true'] { background: var(--glass-fill-strong); box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.9), 0 2px 8px -2px rgba(15, 59, 63, 0.2); }
+.ws-table tbody tr:hover { background: var(--glass-hover); }
+.ws-table th { background: transparent; }
+
+/* The top bar: clear glass over the field, the areas centred in it */
+.crm-top {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18));
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--glass-rim);
+}
+:root[data-theme='dark'] .crm-top { background: linear-gradient(180deg, rgba(20, 28, 40, 0.6), rgba(14, 20, 30, 0.4)); }
+.crm-context { border-top: 1px solid var(--glass-rim); }
+.crm-pills { padding: 5px; margin-left: 0; box-shadow: var(--glass-shadow); }
+.crm-pills a { height: 34px; padding: 0 17px; }
+.crm-pill-bg { box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.25), 0 8px 18px -8px rgba(15, 59, 63, 0.7); }
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-field::after { animation: none; }
 }

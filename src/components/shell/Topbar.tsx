@@ -133,12 +133,15 @@ export function Topbar({ view, title, onMenu }: { view: WorkspaceView; title?: s
 
   return (
     <header className="crm-top sticky top-0 z-40 shrink-0">
-      <div className="h-14 flex items-center gap-2 sm:gap-3 px-3 lg:px-6">
-        <button onClick={onMenu} className="ws-btn ws-btn-ghost ws-btn-sm lg:hidden -ml-1" aria-label="Open menu">
-          <Menu className="w-5 h-5" />
-        </button>
-        <Logo compact />
-        {portal && slug && (
+      {/* Logo | the areas, centred | search */}
+      <div className="h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3 px-3 lg:px-6">
+        <div className="flex items-center gap-2">
+          <button onClick={onMenu} className="ws-btn ws-btn-ghost ws-btn-sm lg:hidden -ml-1" aria-label="Open menu">
+            <Menu className="w-5 h-5" />
+          </button>
+          <Logo compact />
+        </div>
+        {portal && slug ? (
           <nav className="crm-pills hidden lg:flex" aria-label="Areas">
             {groups.map((g) => {
               const active = g === activeGroup
@@ -150,8 +153,8 @@ export function Topbar({ view, title, onMenu }: { view: WorkspaceView; title?: s
               )
             })}
           </nav>
-        )}
-        <div className="ml-auto flex items-center gap-1.5">
+        ) : <span />}
+        <div className="flex items-center justify-end gap-1.5">
           <GlobalSearch />
           <span className="hidden lg:inline-flex"><ThemeToggle /></span>
           <button onClick={logout} className="ws-btn ws-btn-ghost ws-btn-sm hidden lg:inline-flex" title="Log out" aria-label="Log out">
