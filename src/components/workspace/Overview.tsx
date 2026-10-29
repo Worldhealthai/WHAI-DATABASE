@@ -10,6 +10,7 @@ import { useWorkspace } from '@/lib/workspace'
 import { KINDS, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
 import { workspaceHref } from '@/lib/portals'
 import { Initials, Segmented, StageDot, StagePill, formatMoney, timeAgo } from './ui'
+import { WaveBand } from './WaveBand'
 import { WorkspacePage } from './WorkspacePage'
 import { AgendaSummary } from '@/components/agenda/AgendaSummary'
 
@@ -191,20 +192,8 @@ export function Overview() {
 
   return (
     <WorkspacePage title="Overview" description={`How the ${year} edition is going.`}>
-      {/* The four numbers that matter, in one strip */}
-      <div className="ws-card grid grid-cols-2 xl:grid-cols-4">
-        {tiles.map((t, i) => (
-          <div key={t.label} className={`px-5 py-4 min-w-0 ${i % 2 ? 'border-l' : ''} ${i >= 2 ? 'border-t xl:border-t-0' : ''} ${i === 2 ? 'xl:border-l' : ''}`} style={{ borderColor: 'var(--line)' }}>
-            <p className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{t.label}</p>
-            {loading ? (
-              <div className="h-7 w-14 rounded-md mt-2 animate-pulse" style={{ background: 'var(--surface-3)' }} />
-            ) : (
-              <p className="text-[26px] leading-none mt-2 tabular font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>{t.value}</p>
-            )}
-            {t.hint && <p className="text-[12px] mt-2 truncate" style={{ color: 'var(--fg-4)' }}>{t.hint}</p>}
-          </div>
-        ))}
-      </div>
+      {/* The four numbers that matter, on the wave band */}
+      <WaveBand kicker={`${year} edition`} items={tiles} loading={loading} />
 
       {empty && portal && ws.slug && (
         <div className="ws-card mt-4 p-5 flex flex-wrap items-center justify-between gap-4">

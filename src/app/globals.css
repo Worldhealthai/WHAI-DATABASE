@@ -87,6 +87,13 @@
     --shadow-lg: 0 20px 48px rgba(23, 32, 44, 0.14);
     --radius: 10px;
 
+    /* The deep sea teal of the active tab, the journey's boat and the wave */
+    --deep: #0f3b3f;
+    --deep-2: #165257;
+    --on-deep: #ffffff;
+    --glass: rgba(255, 255, 255, 0.72);
+    --glass-line: rgba(255, 255, 255, 0.9);
+
     /* shadcn-style HSL tokens the older components still use */
     --background: 204 33% 97%;
     --foreground: 213 32% 18%;
@@ -168,6 +175,12 @@
     --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.55);
 
+    --deep: #d9f1ec;
+    --deep-2: #a9ddd3;
+    --on-deep: #0b1f22;
+    --glass: rgba(24, 31, 43, 0.72);
+    --glass-line: rgba(255, 255, 255, 0.06);
+
     --background: 221 49% 8%;
     --foreground: 213 40% 94%;
     --card: 219 44% 12%;
@@ -198,7 +211,12 @@
     background: var(--bg);
   }
   body {
-    background: var(--bg);
+    /* A faint sea-glass wash at the top, so the glass cards read as glass */
+    background:
+      radial-gradient(1200px 520px at 12% -8%, color-mix(in srgb, var(--teal) 9%, transparent), transparent 70%),
+      radial-gradient(900px 480px at 100% 0%, color-mix(in srgb, var(--deep-2) 10%, transparent), transparent 70%),
+      var(--bg);
+    background-attachment: fixed;
     color: var(--fg);
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-size: 14px;
@@ -302,9 +320,12 @@
 
   /* New workspace primitives */
   .ws-card {
-    background: var(--surface);
+    background: var(--glass);
+    -webkit-backdrop-filter: saturate(1.5) blur(16px);
+    backdrop-filter: saturate(1.5) blur(16px);
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 16px;
+    box-shadow: inset 0 1px 0 var(--glass-line), 0 1px 2px rgba(15, 59, 63, 0.04), 0 8px 28px -12px rgba(15, 59, 63, 0.12);
   }
   .ws-input {
     width: 100%;
@@ -699,6 +720,110 @@
   animation: ws-sheen 1.3s linear infinite;
 }
 :root[data-theme='dark'] .look-sheen { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent); }
+
+/* ── Top bar: the areas as pills, then the area's own tabs ─────────────── */
+.crm-context { border-top: 1px solid var(--line); }
+.crm-pills {
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--line);
+}
+.crm-pills a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-3);
+  transition: color 160ms ease;
+}
+.crm-pills a:hover { color: var(--fg); }
+.crm-pills a[data-active='true'] { color: var(--on-deep); }
+.crm-pill-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--deep);
+  box-shadow: 0 6px 16px -6px rgba(15, 59, 63, 0.5);
+  animation: crm-pill-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes crm-pill-in { from { opacity: 0; transform: scale(0.86); } to { opacity: 1; transform: none; } }
+.crm-tabs {
+  align-self: stretch;
+  align-items: stretch;
+  gap: 4px;
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+  overflow-x: auto;
+}
+.crm-tabs a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--fg-3);
+}
+.crm-tabs a:hover { color: var(--fg); }
+.crm-tabs a[data-active='true'] { color: var(--fg); font-weight: 600; }
+.crm-tabs a[data-active='true']::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--deep);
+  animation: crm-tab-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:root[data-theme='dark'] .crm-tabs a[data-active='true']::after { background: var(--teal); }
+@keyframes crm-tab-in { from { transform: scaleX(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ── The wave band over Overview and Pipeline ──────────────────────────── */
+.crm-wave {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0f3b3f 0%, #134a4f 55%, #0c3236 100%);
+  color: #f2fbf9;
+}
+.crm-wave svg { position: absolute; left: 0; bottom: 0; width: 200%; height: 38%; pointer-events: none; }
+.crm-wave .w1 { animation: crm-wave 18s linear infinite; opacity: 0.22; }
+.crm-wave .w2 { animation: crm-wave 26s linear infinite reverse; opacity: 0.14; }
+.crm-wave .w3 { animation: crm-wave 34s linear infinite; opacity: 0.07; }
+@keyframes crm-wave { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.crm-wave-k { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(214, 240, 235, 0.7); font-weight: 600; }
+
+/* ── The journey: a dashed route through the stages, a marker on it ────── */
+.crm-journey { position: relative; }
+.crm-journey > svg { display: block; width: 100%; overflow: visible; }
+.crm-journey .route-ahead { stroke: var(--line-3); stroke-dasharray: 2 7; stroke-linecap: round; fill: none; }
+.crm-journey .route-done {
+  stroke: var(--deep);
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1100ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+:root[data-theme='dark'] .crm-journey .route-done { stroke: var(--teal); }
+.crm-journey .boat { transition: offset-distance 1100ms cubic-bezier(0.65, 0, 0.35, 1); }
+.crm-journey .stop { cursor: pointer; }
+.crm-journey .stop:disabled { cursor: wait; }
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-wave .w1, .crm-wave .w2, .crm-wave .w3, .crm-pill-bg, .crm-tabs a::after { animation: none !important; }
+  .crm-journey .route-done, .crm-journey .boat { transition: none !important; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .anim-fade-up, .anim-fade-in, .anim-scale-in, .anim-zoom-away, .anim-slide-out-left, .anim-rise, .ev-wash, .ev-tile[data-picked='true'], .look-sheen { animation: none !important; }

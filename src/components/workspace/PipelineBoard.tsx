@@ -15,6 +15,7 @@ import { editionLabel } from '@/lib/portals'
 import { useTierOptions } from '@/lib/useTierOptions'
 import { CURRENCY_OPTIONS, PARTNER_TYPE_OPTIONS } from '@/types'
 import { EmptyState, Field, Modal, Segmented, StageDot, formatMoney, timeAgo } from './ui'
+import { WaveBand } from './WaveBand'
 import { WorkspacePage } from './WorkspacePage'
 
 type Lead = Record<string, any>
@@ -420,12 +421,16 @@ export function PipelineBoard() {
         </>
       }
     >
-      {/* Totals strip */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 text-[13px]">
-        <span style={{ color: 'var(--fg-3)' }}><strong className="tabular" style={{ color: 'var(--fg)' }}>{leads.length}</strong> {kind === 'partner' ? 'partners' : 'leads'} in the {year} pipeline</span>
-        <span style={{ color: 'var(--fg-3)' }}>Open <strong className="tabular" style={{ color: 'var(--fg)' }}>{formatMoney(openValue, currency)}</strong></span>
-        <span style={{ color: 'var(--fg-3)' }}>Confirmed <strong className="tabular" style={{ color: 'var(--ok)' }}>{formatMoney(wonValue, currency)}</strong></span>
-        {isLoading && <span style={{ color: 'var(--fg-4)' }}>Loading…</span>}
+      {/* Totals, on the wave band */}
+      <div className="mb-4">
+        <WaveBand
+          loading={isLoading}
+          items={[
+            { label: `${kind === 'partner' ? 'Partners' : 'Leads'} in the ${year} pipeline`, value: leads.length },
+            { label: 'Open', value: formatMoney(openValue, currency), hint: `${(byStage['Emailed']?.length ?? 0) + (byStage['In Discussion']?.length ?? 0)} in conversation` },
+            { label: 'Confirmed', value: formatMoney(wonValue, currency), hint: `${byStage['Confirmed']?.length ?? 0} signed` },
+          ]}
+        />
       </div>
 
       {empty ? (

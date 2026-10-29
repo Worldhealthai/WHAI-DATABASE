@@ -4,7 +4,7 @@
 // (CompanyProfile) and the people pages (PersonProfile): the stage bar, a
 // fact, the events the record is in as tabs, and the page's back/next nav.
 
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Loader2, Plus, X } from 'lucide-react'
@@ -68,49 +68,169 @@ export function Fact({ label, value, strong }: { label: string; value: React.Rea
 // The stages as one bar: done ones filled, the current one marked, a click
 // moves the record there. The negative ones (Rejected, Cancelled…) sit
 // apart; clicking the one it is at reopens it.
+// The stages as a journey: a dashed route curving through a stop per stage,
+// the stretch behind drawn solid, and a marker that glides along it to the
+// current stage (and from there to the next one picked). Each stop moves the
+// record there; Rejected and the like sit apart at the end, as buttons.
+const ROUTE_H = 64
+const PAD = 18
+
+function routeOf(width: number, n: number) {
+  const pts = Array.from({ length: n }, (_, i) => ({
+    x: n === 1 ? width / 2 : PAD + (i * (width - 2 * PAD)) / (n - 1),
+    // A gentle swell: alternate stops sit a little higher.
+    y: ROUTE_H / 2 + (i % 2 === 0 ? 9 : -9),
+  }))
+  let d = `M ${pts[0].x} ${pts[0].y}`
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]
+    const b = pts[i]
+    const mx = (a.x + b.x) / 2
+    d += ` C ${mx} ${a.y} ${mx} ${b.y} ${b.x} ${b.y}`
+  }
+  return { pts, d }
+}
+
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+
 export function StageBar({ kind, status, accent, disabled, onChange }: { kind: RecordKind; status: string; accent: string; disabled: boolean; onChange: (s: string) => void }) {
   const stages = KINDS[kind].stages.filter((s) => !s.negative)
   const negative = KINDS[kind].stages.filter((s) => s.negative)
   const idx = stages.findIndex((s) => s.status === status)
   const closed = negative.some((s) => s.status === status)
+  const target = closed ? 0 : Math.max(0, idx)
+
+  const boxRef = useRef<HTMLDivElement>(null)
+  const pathRef = useRef<SVGPathElement>(null)
+  const [width, setWidth] = useState(0)
+  const [lengths, setLengths] = useState<number[] | null>(null)
+  // The marker: how far along the route, and where that is and which way it faces.
+  const [boat, setBoat] = useState<{ len: number; x: number; y: number; angle: number } | null>(null)
+  const posRef = useRef(0)
+
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const route = width > 0 ? routeOf(width, stages.length) : null
+
+  // Where each stop falls along the route, measured once it is drawn.
+  useLayoutEffect(() => {
+    const path = pathRef.current
+    if (!path || !route) return
+    const total = path.getTotalLength()
+    const out: number[] = []
+    let L = 0
+    for (const p of route.pts) {
+      // Walk forward to the point nearest this stop.
+      while (L < total && path.getPointAtLength(L).x < p.x - 0.5) L += 2
+      out.push(Math.min(L, total))
+    }
+    out[0] = 0
+    out[out.length - 1] = total
+    setLengths(out)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route?.d])
+
+  // Glide to the stage (straight there when motion is reduced).
+  useEffect(() => {
+    const path = pathRef.current
+    if (!lengths || !path) return
+    const total = path.getTotalLength()
+    const place = (len: number) => {
+      const a = path.getPointAtLength(len)
+      const b = path.getPointAtLength(Math.min(len + 1, total))
+      const c = len + 1 > total ? path.getPointAtLength(Math.max(0, len - 1)) : a
+      const angle = len + 1 > total ? Math.atan2(a.y - c.y, a.x - c.x) : Math.atan2(b.y - a.y, b.x - a.x)
+      posRef.current = len
+      setBoat({ len, x: a.x, y: a.y, angle: (angle * 180) / Math.PI })
+    }
+    const to = lengths[target] ?? 0
+    const from = Math.min(posRef.current, total)
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (still || Math.abs(from - to) < 0.5) { place(to); return }
+    let raf = 0
+    const t0 = performance.now()
+    const dur = Math.min(1400, 500 + Math.abs(to - from) * 1.6)
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / dur)
+      place(from + (to - from) * ease(t))
+      if (t < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [lengths, target])
+
+  const pos = boat?.len ?? 0
+  const ink = closed ? 'var(--fg-4)' : accent
+
   return (
-    <div className="flex items-stretch gap-2 flex-wrap sm:flex-nowrap">
-      <div className="flex-1 grid gap-1.5 min-w-[240px]" style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}>
-        {stages.map((s, i) => {
-          const done = !closed && idx > i
-          const current = !closed && idx === i
-          return (
-            <button
-              key={s.status}
-              type="button"
-              disabled={disabled}
-              onClick={() => onChange(s.status)}
-              className="group flex flex-col gap-1.5 text-left disabled:cursor-wait"
-              title={`Move to ${s.label}`}
-            >
-              <span className="h-1.5 rounded-full transition-colors" style={{ background: done || current ? accent : 'var(--surface-3)', opacity: done ? 0.55 : 1 }} />
-              <span className="flex items-start gap-1 text-[12px] leading-tight transition-colors min-w-0" style={{ color: current ? 'var(--fg)' : done ? 'var(--fg-2)' : 'var(--fg-4)', fontWeight: current ? 600 : 500 }}>
-                {done && <Check className="w-3 h-3 shrink-0 mt-px" style={{ color: accent }} />}
-                <span className="group-hover:underline underline-offset-4 min-w-0">{s.label}</span>
-              </span>
-            </button>
-          )
-        })}
+    <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
+      <div ref={boxRef} className="crm-journey flex-1 min-w-[260px]">
+        <svg height={ROUTE_H} aria-hidden="true">
+          {route && (
+            <>
+              <path ref={pathRef} d={route.d} className="route-ahead" strokeWidth={2} />
+              <path d={route.d} className="route-done" strokeWidth={2.5} strokeDasharray={`${pos} 100000`} style={closed ? { stroke: 'var(--fg-4)' } : undefined} />
+              {route.pts.map((p, i) => {
+                const passed = !closed && i <= idx
+                return <circle key={i} cx={p.x} cy={p.y} r={i === target && !closed ? 0 : 4.5} fill={passed ? ink : 'var(--surface)'} stroke={passed ? ink : 'var(--line-3)'} strokeWidth={1.5} />
+              })}
+              {boat && (
+                <g transform={`translate(${boat.x} ${boat.y})`}>
+                  <circle r={13} fill={closed ? 'var(--fg-4)' : 'var(--deep)'} opacity={0.14} />
+                  <g transform={`rotate(${boat.angle})`}>
+                    <circle r={9} fill={closed ? 'var(--fg-4)' : 'var(--deep)'} />
+                    <path d="M -3 -3.5 L 3 0 L -3 3.5" fill="none" stroke="var(--on-deep)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                  </g>
+                </g>
+              )}
+            </>
+          )}
+        </svg>
+        {/* The stops: each a button to move the record there. */}
+        <div className="relative h-9">
+          {route?.pts.map((p, i) => {
+            const s = stages[i]
+            const current = !closed && i === idx
+            const done = !closed && i < idx
+            // The end labels line up with the route's ends; the rest centre on their stop.
+            const place: React.CSSProperties = i === 0 ? { left: 0 } : i === stages.length - 1 ? { right: 0 } : { left: p.x, transform: 'translateX(-50%)' }
+            return (
+              <button
+                key={s.status}
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(s.status)}
+                className="stop group absolute top-0 flex items-center gap-1 text-[12px] leading-tight whitespace-nowrap disabled:cursor-wait"
+                style={{ ...place, color: current ? 'var(--fg)' : done ? 'var(--fg-2)' : 'var(--fg-4)', fontWeight: current ? 600 : 500 }}
+                title={`Move to ${s.label}`}
+              >
+                {done && <Check className="w-3 h-3 shrink-0" style={{ color: accent }} />}
+                <span className="group-hover:underline underline-offset-4">{s.label}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
       <div className="flex items-center gap-1.5 self-center">
         {negative.map((s) => {
-          const at = s.status === status
+          const here = s.status === status
           return (
             <button
               key={s.status}
               type="button"
               disabled={disabled}
-              onClick={() => onChange(at ? stages[0].status : s.status)}
+              onClick={() => onChange(here ? stages[0].status : s.status)}
               className="ws-btn ws-btn-sm"
-              style={at ? { color: 'var(--bad)', borderColor: 'var(--bad)' } : { color: 'var(--fg-3)' }}
-              title={at ? `${s.label}: click to reopen` : `Mark as ${s.label.toLowerCase()}`}
+              style={here ? { color: 'var(--bad)', borderColor: 'var(--bad)' } : { color: 'var(--fg-3)' }}
+              title={here ? `${s.label}: click to reopen` : `Mark as ${s.label.toLowerCase()}`}
             >
-              {at ? <><X className="w-3.5 h-3.5" /> {s.label}</> : s.label}
+              {here ? <><X className="w-3.5 h-3.5" /> {s.label}</> : s.label}
             </button>
           )
         })}
