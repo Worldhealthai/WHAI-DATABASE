@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
+import { syncContactToNexus } from '@/lib/nexusSync'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const params = await props.params
   try {
     const body = await req.json()
+    // As it was, so a corrected name or email can reach the admin panel.
+    const { data: before } = await supabase.from('delegates').select('*').eq('id', params.id).maybeSingle()
     const { data, error } = await supabase
       .from('delegates')
       .update(body)
@@ -41,6 +44,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       .single()
 
     if (error) throw error
+    after(() => syncContactToNexus(before, data))
     return NextResponse.json(data)
   } catch (error) {
     console.error('Delegate PATCH error:', error)
