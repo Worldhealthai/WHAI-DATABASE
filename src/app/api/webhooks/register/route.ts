@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkDatabase, supabase } from '@/lib/supabase'
 import { canonicalEventLabel } from '@/types'
+import { companySimilarity } from '@/lib/companyMatch'
 
 export const dynamic = 'force-dynamic'
 
@@ -205,6 +206,76 @@ export async function POST(req: NextRequest) {
       return sel
     }
 
+    // The same person under another email: the same first and last name in
+    // this edition, at the same company (a prospect imported with one
+    // address who registers with another). Their record is the one used.
+    const org = typeof body.organization === 'string' ? body.organization.trim() : ''
+    const sameNameAtCompany = async (): Promise<{ id: string; email: string | null; event: string | null; notes: string | null } | null> => {
+      if (!firstName || !lastName || !org) return null
+      let q = supabase.from(table).select('id, email, event, organization, notes').ilike('firstName', escapeLike(firstName)).ilike('lastName', escapeLike(lastName))
+      if (common.event) q = q.ilike('event', escapeLike(common.event))
+      const { data } = await q.limit(10)
+      const hit = (data ?? []).find((r: { organization: string | null }) => r.organization && companySimilarity(org, r.organization) >= 0.9)
+      return (hit as { id: string; email: string | null; event: string | null; notes: string | null }) ?? null
+    }
+    // Keep the address they registered with on the record they already had.
+    const noteOtherEmail = (row: { email: string | null; notes: string | null }) =>
+      email && row.email && row.email.toLowerCase() !== email && !(row.notes || '').includes(email)
+        ? { notes: [row.notes, `Also registered as ${email}.`].filter(Boolean).join('\n') }
+        : {}
+
+    // ── action: "submitted" ───────────────────────────────────────────────
+    // Someone registered on a website and waits for review in the admin
+    // panel. Nothing is created (that happens on approval); the registration
+    // is logged on the timeline of whoever already has that email here, in
+    // any section, and on their company if it is a sponsor or partner, so
+    // the team sees a prospect has come in by themselves. `note` is the line
+    // to log; `registrationId` stops a repeat being logged twice.
+    if (body.action === 'submitted') {
+      const note = String(body.note || '').trim().slice(0, 600)
+      const regId = String(body.registrationId || '').trim()
+      if (!note) return NextResponse.json({ error: 'note is required' }, { status: 400, headers: CORS_HEADERS })
+      const fk: Record<string, string> = { delegate: 'delegateId', speaker: 'speakerId', sponsor: 'sponsorId', partner: 'partnerId' }
+      const targets: { kind: string; id: string }[] = []
+      if (email) {
+        for (const [kind, table] of [['delegate', 'delegates'], ['speaker', 'speakers']] as const) {
+          const { data } = await supabase.from(table).select('id').ilike('email', escapeLike(email)).limit(20)
+          for (const r of data ?? []) targets.push({ kind, id: r.id })
+        }
+        for (const [kind, table] of [['sponsor', 'sponsors'], ['partner', 'partners']] as const) {
+          const { data } = await supabase.from(table).select('id, "companyId"').ilike('contactEmail', escapeLike(email)).limit(20)
+          for (const r of (data ?? []) as { id: string; companyId: string | null }[]) targets.push({ kind, id: r.companyId || r.id })
+        }
+      }
+      // Their company, by name, in the same event.
+      const org = String(body.organization || '').trim()
+      if (org && common.event) {
+        for (const [kind, table] of [['sponsor', 'sponsors'], ['partner', 'partners']] as const) {
+          const { data } = await supabase.from(table).select('id, "companyName"').is('companyId', null).eq('event', common.event)
+          for (const r of (data ?? []) as { id: string; companyName: string | null }[]) {
+            if (r.companyName && companySimilarity(org, r.companyName) >= 0.9) targets.push({ kind, id: r.id })
+          }
+        }
+      }
+      const seen = new Set<string>()
+      let logged = 0
+      for (const t of targets) {
+        const key = `${t.kind}:${t.id}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        if (regId) {
+          const { data: dup } = await supabase.from('activities').select('id').eq(fk[t.kind], t.id).eq('type', 'registration').ilike('metadata', `%${regId}%`).limit(1)
+          if (dup?.length) continue
+        }
+        const { error: actErr } = await supabase.from('activities').insert({
+          entityType: t.kind, [fk[t.kind]]: t.id, type: 'registration', content: note,
+          metadata: JSON.stringify({ registrationId: regId || null, email }), createdBy: 'Website registration',
+        })
+        if (!actErr) logged++
+      }
+      return NextResponse.json({ ok: true, matched: seen.size, logged }, { status: 200, headers: CORS_HEADERS })
+    }
+
     // ── action: "update" ──────────────────────────────────────────────────
     // The admin panel corrected a booking (a name, company, email…): the
     // same correction on the contact's CRM record. `match` names the record
@@ -305,6 +376,15 @@ export async function POST(req: NextRequest) {
           )
         }
       }
+      const twin = await sameNameAtCompany()
+      if (twin) {
+        const { error: twinErr } = await writeWithFallback(
+          { ...(type === 'speaker' && /cancel|reject/i.test(statusOverride) ? { status: statusOverride, adminLineup: false } : { status: statusOverride }), ...noteOtherEmail(twin), ...consentFor(twin.event) },
+          (r) => supabase.from(table).update(r).eq('id', twin.id),
+        )
+        if (twinErr) throw twinErr
+        return NextResponse.json({ ok: true, updated: true, id: twin.id, status: statusOverride }, { status: 200, headers: CORS_HEADERS })
+      }
       const { data: createdRow, error: insErr } = await writeWithFallback<{ id: string }>(
         { ...record, status: statusOverride },
         (r) => supabase.from(table).insert(r).select('id').single(),
@@ -365,6 +445,21 @@ export async function POST(req: NextRequest) {
           { status: 200, headers: CORS_HEADERS },
         )
       }
+    }
+
+    // The same name at the same company, under another email: that record,
+    // with what the registration brings (the line-up, consent).
+    const twin = await sameNameAtCompany()
+    if (twin) {
+      const updates = { ...marketing, ...noteOtherEmail(twin), ...consentFor(twin.event) }
+      if (Object.keys(updates).length) {
+        const { error: twinErr } = await writeWithFallback(updates, (r) => supabase.from(table).update(r).eq('id', twin.id))
+        if (twinErr && !isMissingMarketingColumn(twinErr) && !isMissingConsentColumn(twinErr)) throw twinErr
+      }
+      return NextResponse.json(
+        { ok: true, duplicate: true, id: twin.id, message: 'Same name at the same company under another email: used that record.' },
+        { status: 200, headers: CORS_HEADERS },
+      )
     }
 
     const { data, error } = await writeWithFallback<{ id: string }>(record, (r) => supabase.from(table).insert(r).select('id').single())

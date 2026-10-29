@@ -5,12 +5,25 @@
 // stages and assigns in one go.
 import { supabase } from '@/lib/supabase'
 import { canonicalEventLabel } from '@/types'
-import { isEnquiry, teamNoteFromStaged, teamNoteSource } from '@/lib/inboxNote'
+import { teamNoteFromStaged, teamNoteSource } from '@/lib/inboxNote'
 import { upsertInboxNoteActivity } from '@/lib/inboxNoteActivity'
 
 export const ASSIGN_AS = ['delegate', 'speaker', 'sponsor', 'partner'] as const
 export type AssignAs = (typeof ASSIGN_AS)[number]
 export const isAssignAs = (v: unknown): v is AssignAs => typeof v === 'string' && (ASSIGN_AS as readonly string[]).includes(v)
+
+// The stages a contact can be filed at, per section; the first is where it
+// lands unless the person moving it chooses another.
+export const ASSIGN_STAGES: Record<AssignAs, string[]> = {
+  sponsor: ['Not Contacted', 'Emailed', 'In Discussion', 'Confirmed'],
+  partner: ['Not Contacted', 'Emailed', 'In Discussion', 'Confirmed'],
+  speaker: ['Not Contacted', 'Invited', 'Discussing', 'Speaking Confirmed'],
+  delegate: ['Registered', 'Confirmed'],
+}
+export function assignStage(assignAs: AssignAs, status: unknown): string {
+  const options = ASSIGN_STAGES[assignAs]
+  return typeof status === 'string' && options.includes(status) ? status : options[0]
+}
 
 const cap = (s: string) => s.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 
@@ -34,7 +47,7 @@ function parseRaw(contact: { rawData?: string | null }): Record<string, unknown>
   try { return JSON.parse(contact.rawData ?? '{}') ?? {} } catch { return {} }
 }
 
-export async function assignStagedContact(id: string, assignAs: AssignAs) {
+export async function assignStagedContact(id: string, assignAs: AssignAs, status?: unknown) {
   const { data: contact, error: fetchError } = await supabase.from('staged_contacts').select('*').eq('id', id).single()
   if (fetchError || !contact) return { error: 'Staged contact not found', status: 404 as const }
 
@@ -49,9 +62,9 @@ export async function assignStagedContact(id: string, assignAs: AssignAs) {
   }
   const eventYear = Number(event?.match(/\b(20\d{2})\b/)?.[1] || 0) || new Date().getFullYear()
 
-  // Enquiries from the admin panels arrive mid-conversation (already
-  // replied to), not cold; imports start at the top of the pipeline.
-  const fromEnquiry = isEnquiry(contact)
+  // The stage the team chose when moving it, else the section's first: an
+  // enquiry is never put further along the pipeline on its own.
+  const stage = assignStage(assignAs, status)
 
   const person = {
     firstName: contact.firstName, lastName: contact.lastName, email: contact.email, phone: contact.phone,
@@ -65,12 +78,12 @@ export async function assignStagedContact(id: string, assignAs: AssignAs) {
     contactPhone: contact.phone, contactLinkedinUrl: contact.linkedinUrl, contactJobTitle: contact.jobTitle,
     country: contact.country, city: contact.city, tags: contact.tags, notes: contact.notes,
     event,
-    status: fromEnquiry ? 'In Discussion' : 'Not Contacted',
+    status: stage,
   }
 
   const target =
-    assignAs === 'delegate' ? { table: 'delegates', record: { ...person, status: 'Registered', event, subType } }
-    : assignAs === 'speaker' ? { table: 'speakers', record: { ...person, status: fromEnquiry ? 'Discussing' : 'Not Contacted', event, subType, year: eventYear } }
+    assignAs === 'delegate' ? { table: 'delegates', record: { ...person, status: stage, event, subType } }
+    : assignAs === 'speaker' ? { table: 'speakers', record: { ...person, status: stage, event, subType, year: eventYear } }
     : assignAs === 'partner' ? { table: 'partners', record: { ...company, tier: 'Association Partner' } }
     : { table: 'sponsors', record: company }
 

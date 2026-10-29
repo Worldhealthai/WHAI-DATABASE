@@ -11,6 +11,7 @@ import { CopyPopover } from '@/components/crm/CopyPopover'
 import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import type { Sponsor, SponsorContact } from '@/types'
+import { MoveRecordButton } from './MoveRecordButton'
 
 type Kind = 'sponsor' | 'partner'
 type Company = Sponsor & { activities: any[]; contacts: SponsorContact[] }
@@ -88,6 +89,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+            <MoveRecordButton kind={kind} id={company.id} name={company.companyName || 'this company'} contacts={people.length} />
             <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>
               {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
             </button>
