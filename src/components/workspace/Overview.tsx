@@ -9,9 +9,10 @@ import { ArrowRight } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
 import { workspaceHref } from '@/lib/portals'
-import { Initials, Segmented, StageDot, StagePill, formatMoney, timeAgo } from './ui'
+import { Initials, Segmented, StagePill, formatMoney, timeAgo } from './ui'
 import { WaveBand } from './WaveBand'
 import { WorkspacePage } from './WorkspacePage'
+import type { Account } from '@/lib/segments'
 import { AgendaSummary } from '@/components/agenda/AgendaSummary'
 
 interface Stats {
@@ -49,54 +50,153 @@ function useRecent(kind: RecordKind, labels: string[]) {
   })
 }
 
-// Each stage's colour in the overview's bars: won green, lost red, not yet
-// contacted a pale grey, and the stages in play the event's colour,
-// stronger the further along they are.
-function stageColours(kind: RecordKind): Record<string, string> {
-  const stages = KINDS[kind].stages
-  const live = stages.filter((s) => !s.negative && s.hex !== 'var(--ok)' && s.hex !== 'var(--line-3)')
-  const out: Record<string, string> = {}
-  for (const s of stages) {
-    if (s.negative) out[s.status] = s.hex === 'var(--bad)' ? 'color-mix(in srgb, var(--bad) 70%, var(--surface))' : 'var(--line-2)'
-    else if (s.hex === 'var(--ok)') out[s.status] = 'var(--ok)'
-    else if (s.hex === 'var(--line-3)') out[s.status] = 'var(--line-2)'
-    else {
-      const i = live.indexOf(s)
-      out[s.status] = `color-mix(in srgb, var(--accent) ${35 + Math.round((45 * (i + 1)) / Math.max(1, live.length))}%, var(--surface))`
-    }
-  }
-  return out
+// Conversations gone quiet: the sponsors and speakers in play (emailed or
+// in discussion; invited or discussing) whose record has not moved for the
+// longest, oldest first, to chase.
+const QUIET: { kind: RecordKind; statuses: string[]; title: string; section: string }[] = [
+  { kind: 'sponsor', statuses: ['Emailed', 'In Discussion'], title: 'Sponsors', section: 'pipeline' },
+  { kind: 'speaker', statuses: ['Invited', 'Discussing'], title: 'Speakers', section: 'production' },
+]
+const daysSince = (d: string | null | undefined) => (d ? Math.floor((Date.now() - new Date(d).getTime()) / 864e5) : null)
+
+function useQuiet(kind: RecordKind, statuses: string[], labels: string[]) {
+  return useQuery<{ data: Record<string, any>[]; total: number }>({
+    queryKey: ['ws-quiet', kind, labels],
+    queryFn: async () => {
+      const p = listParams(kind, labels, { page: '1', pageSize: '5', sortBy: 'updatedAt', sortDir: 'asc', statuses })
+      const r = await fetch(`${KINDS[kind].api}?${p}`)
+      if (!r.ok) throw new Error('quiet')
+      return r.json()
+    },
+    enabled: labels.length > 0,
+    staleTime: 30_000,
+  })
 }
 
-// One row per kind: a single bar split by stage, the counts beneath it.
-function StageRow({ kind, stats, loading, href }: { kind: RecordKind; stats?: Stats; loading: boolean; href: string }) {
-  const def = KINDS[kind]
-  const total = stats?.total ?? 0
-  const colours = stageColours(kind)
+function FollowUps({ labels }: { labels: string[] }) {
+  const ws = useWorkspace()
+  const lists = [useQuiet('sponsor', QUIET[0].statuses, labels), useQuiet('speaker', QUIET[1].statuses, labels)]
   return (
-    <Link href={href} className="block py-4 first:pt-1 last:pb-1 group">
-      <div className="flex items-baseline justify-between gap-3 mb-2">
-        <span className="text-[13.5px] font-semibold group-hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{def.plural}</span>
-        <span className="text-[12.5px] tabular" style={{ color: 'var(--fg-4)' }}>
-          {loading ? '' : `${total} in total${def.hasValue && stats?.value.total ? ` · ${formatMoney(stats.value.total, stats.value.currency)}` : ''}`}
-        </span>
-      </div>
-      <div className="flex h-2 rounded-full overflow-hidden gap-px" style={{ background: 'var(--surface-3)' }}>
-        {!loading && total > 0 && def.stages.map((s) => {
-          const n = stats?.byStatus[s.status] ?? 0
-          return n ? <span key={s.status} style={{ width: `${(n / total) * 100}%`, background: colours[s.status] }} title={`${s.label}: ${n}`} /> : null
+    <div className="ws-card px-5 py-4">
+      <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Follow up</p>
+      <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--fg-3)' }}>Conversations that have gone quiet longest.</p>
+      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4 mt-3">
+        {QUIET.map((q, i) => {
+          const { data, isLoading } = lists[i]
+          const rows = data?.data ?? []
+          return (
+            <div key={q.kind} className="min-w-0">
+              <div className="flex items-baseline justify-between mb-1">
+                <span className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-4)' }}>{q.title}</span>
+                {ws.portal && ws.slug && (
+                  <Link href={workspaceHref(ws.portal.key, ws.slug, q.section, ws.year ?? undefined)} className="text-[12px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
+                    {data?.total ?? 0} in play
+                  </Link>
+                )}
+              </div>
+              {isLoading ? (
+                <div className="flex flex-col gap-1.5">{[0, 1, 2].map((k) => <div key={k} className="h-9 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />)}</div>
+              ) : rows.length === 0 ? (
+                <p className="text-[12.5px] py-2" style={{ color: 'var(--fg-4)' }}>Nothing waiting.</p>
+              ) : (
+                <ul>
+                  {rows.map((r) => {
+                    const days = daysSince(r.updatedAt)
+                    return (
+                      <li key={r.id}>
+                        <Link href={`${KINDS[q.kind].detailPath}/${r.id}`} className="flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg transition-colors hover:bg-[var(--surface-2)]">
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-medium truncate" style={{ color: 'var(--fg)' }}>{recordName(q.kind, r) || 'Unnamed'}</span>
+                            <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }}>{KINDS[q.kind].statusLabel(r.status)}</span>
+                          </span>
+                          {days !== null && (
+                            <span className="text-[12px] tabular shrink-0" style={{ color: days >= 14 ? 'var(--warn)' : 'var(--fg-4)' }}>{days === 0 ? 'today' : `${days}d`}</span>
+                          )}
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          )
         })}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-        {def.stages.map((s) => (
-          <span key={s.status} className="inline-flex items-center gap-1.5 text-[12px]" style={{ color: 'var(--fg-3)' }}>
-            <StageDot hex={colours[s.status]} />
-            {s.label}
-            <span className="tabular font-medium" style={{ color: 'var(--fg)' }}>{loading ? '·' : stats?.byStatus[s.status] ?? 0}</span>
-          </span>
-        ))}
+    </div>
+  )
+}
+
+// Who is coming: the people attending or speaking, by their company's type,
+// and the end-user organisations sending the most (lib/segments, the same
+// data as Companies).
+function WhosComing({ labels }: { labels: string[] }) {
+  const ws = useWorkspace()
+  const { data, isLoading } = useQuery<{ accounts: Account[] }>({
+    queryKey: ['ws-segments', labels],
+    queryFn: async () => {
+      const p = new URLSearchParams()
+      labels.forEach((l) => p.append('events', l))
+      const r = await fetch(`/api/segments?${p}`)
+      if (!r.ok) throw new Error('segments')
+      return r.json()
+    },
+    enabled: labels.length > 0,
+    staleTime: 60_000,
+  })
+  let eu = 0, sp = 0
+  const orgs: { name: string; n: number; href: string }[] = []
+  for (const a of data?.accounts ?? []) {
+    const coming = (a.members ?? []).filter((m) => m.records.some((r) => r.relationship === 'Delegate' || r.relationship === 'Speaker')).length
+    if (!coming) continue
+    if (a.firmographic === 'End User') { eu += coming; orgs.push({ name: a.name, n: coming, href: `/${a.open.table}/${a.open.id}` }) }
+    else sp += coming
+  }
+  orgs.sort((x, y) => y.n - x.n)
+  const total = eu + sp
+  const pct = total ? Math.round((eu / total) * 100) : 0
+  return (
+    <div className="ws-card px-5 py-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Who&rsquo;s coming</p>
+        {ws.portal && ws.slug && (
+          <Link href={workspaceHref(ws.portal.key, ws.slug, 'companies', ws.year ?? undefined)} className="text-[12px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>Companies</Link>
+        )}
       </div>
-    </Link>
+      {isLoading ? (
+        <div className="h-24 mt-3 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      ) : total === 0 ? (
+        <p className="text-[12.5px] mt-2" style={{ color: 'var(--fg-4)' }}>No one attending or speaking yet.</p>
+      ) : (
+        <>
+          <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--fg-3)' }}>
+            {total} attending or speaking: <span className="font-semibold" style={{ color: 'var(--fg)' }}>{pct}% end users</span>
+          </p>
+          <div className="flex h-2 rounded-full overflow-hidden gap-px mt-3" style={{ background: 'var(--surface-3)' }}>
+            <span style={{ width: `${pct}%`, background: 'var(--accent)' }} title={`End users: ${eu}`} />
+            <span style={{ width: `${100 - pct}%`, background: 'var(--line-3)' }} title={`Solution providers: ${sp}`} />
+          </div>
+          <div className="flex gap-4 mt-2 text-[12px]" style={{ color: 'var(--fg-3)' }}>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }} />End users <span className="tabular font-medium" style={{ color: 'var(--fg)' }}>{eu}</span></span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--line-3)' }} />Solution providers <span className="tabular font-medium" style={{ color: 'var(--fg)' }}>{sp}</span></span>
+          </div>
+          {orgs.length > 0 && (
+            <>
+              <p className="text-[12px] font-semibold uppercase tracking-wider mt-4 mb-1" style={{ color: 'var(--fg-4)' }}>Top end-user organisations</p>
+              <ul>
+                {orgs.slice(0, 6).map((o) => (
+                  <li key={o.name}>
+                    <Link href={o.href} className="flex items-center justify-between gap-3 py-1.5 px-2 -mx-2 rounded-lg transition-colors hover:bg-[var(--surface-2)]">
+                      <span className="text-[13px] truncate" style={{ color: 'var(--fg)' }}>{o.name}</span>
+                      <span className="text-[12px] tabular shrink-0" style={{ color: 'var(--fg-3)' }}>{o.n}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 
@@ -188,7 +288,6 @@ export function Overview() {
 
   const empty = !loading && kinds.every((k) => (stats[k].data?.total ?? 0) === 0)
 
-  const sectionHref = (k: RecordKind) => (portal && ws.slug ? workspaceHref(portal.key, ws.slug, k === 'partner' ? 'partners' : `${k}s`, year ?? undefined) : '#')
 
   return (
     <WorkspacePage title="Overview" description={`How the ${year} edition is going.`}>
@@ -206,11 +305,9 @@ export function Overview() {
       )}
 
       <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-4 mt-4 items-start">
-        <div className="ws-card px-5 py-4">
-          <p className="text-[14px] font-semibold mb-1" style={{ color: 'var(--fg)' }}>By stage</p>
-          <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
-            {kinds.map((k) => <StageRow key={k} kind={k} stats={stats[k].data} loading={stats[k].isLoading} href={sectionHref(k)} />)}
-          </div>
+        <div className="flex flex-col gap-4 min-w-0">
+          <FollowUps labels={labels} />
+          <WhosComing labels={labels} />
         </div>
         <div className="flex flex-col gap-4 min-w-0">
           <AgendaSummary />
