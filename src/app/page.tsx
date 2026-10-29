@@ -1,17 +1,18 @@
 'use client'
 
-// The entrance: every event at once, as trees (series → city), so any
-// event is one click away; years are switched inside it. Every event has its own colour
-// (London blue, Boston reddish pink, Pharma teal green). The event worked in
-// last is a button at the top.
+// The entrance: the two series as glass panels over the sea-colour field,
+// each with its events inside as rows, so any event is one click away, and
+// its editions as chips that open that year directly. Every event has its
+// own colour (London blue, Boston reddish pink, Pharma teal green). The
+// event worked in last is a pill at the top.
 
-import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight, LogOut } from 'lucide-react'
 import { useEventCategories } from '@/lib/eventCategories'
 import {
   type EventLook, type EventSeries,
-  defaultYear, eventLook, eventSlug, groupSeries, readLastWorkspace, workspaceHref,
+  defaultYear, editionYears, eventLook, eventSlug, groupSeries, readLastWorkspace, workspaceHref,
 } from '@/lib/portals'
 import { Logo } from '@/components/shell/Sidebar'
 import { ThemeToggle } from '@/components/shell/ThemeToggle'
@@ -20,49 +21,52 @@ async function logout() {
   try { await fetch('/api/auth/logout', { method: 'POST' }) } finally { window.location.assign('/login') }
 }
 
-// A branch of the tree: the trunk down the left (stopping at the last item)
-// and a tick across to the item, `at` px from the item's top.
-function Branch({ last, at, className, children }: { last: boolean; at: number; className: string; children: ReactNode }) {
+// One series: a glass panel with its mark, then each event as a row (opens
+// its current edition) with the editions as chips (open that year).
+function SeriesPanel({ series }: { series: EventSeries }) {
+  const now = new Date().getFullYear()
   return (
-    <li className={`relative pl-6 ${className}`}>
-      <span aria-hidden className="absolute left-0 top-0 w-px" style={{ background: 'var(--line-2)', height: last ? at : '100%' }} />
-      <span aria-hidden className="absolute left-0 w-5 h-px" style={{ background: 'var(--line-2)', top: at }} />
-      {children}
-    </li>
-  )
-}
-
-// One series as a tree: the series card is the root, its events branch out
-// below it as large buttons. An event opens on its current edition; the
-// years are switched inside.
-function SeriesTree({ series }: { series: EventSeries }) {
-  return (
-    <section>
-      <div className="ws-card overflow-hidden">
-        <div className="h-1" style={{ background: series.look.accent }} />
-        <div className="px-5 py-4 flex items-center gap-3">
-          <span className="inline-flex items-center justify-center h-10 px-2.5 rounded-lg text-[13px] font-bold shrink-0" style={{ background: series.look.accentSoft, color: series.look.accentInk }}>{series.short}</span>
-          <span className="min-w-0">
-            <span className="block text-[17px] font-semibold leading-tight" style={{ color: 'var(--fg)' }}>{series.name}</span>
-            {series.blurb && <span className="block text-[12.5px] truncate" style={{ color: 'var(--fg-3)' }}>{series.blurb}</span>}
-          </span>
-        </div>
+    <section className="ent-panel" style={{ ['--acc' as string]: series.look.accent }}>
+      <div className="flex items-center gap-4 px-6 pt-6 pb-5">
+        <span className="ent-mark" style={{ color: series.look.accentInk, background: series.look.accentSoft }}>{series.short}</span>
+        <span className="min-w-0">
+          <span className="block text-[20px] font-semibold leading-tight" style={{ color: 'var(--fg)', letterSpacing: '-0.015em' }}>{series.name}</span>
+          {series.blurb && <span className="block text-[13px] mt-0.5" style={{ color: 'var(--fg-3)' }}>{series.blurb}</span>}
+        </span>
       </div>
-      <ul className="ml-7">
-        {series.events.map((c, j) => {
+      <ul className="flex flex-col gap-2 px-3 pb-3">
+        {series.events.map((c) => {
           const look = eventLook(c.name)
+          const current = defaultYear('event', c)
+          const years = editionYears(c).slice().sort()
+          const slug = eventSlug(c.name)
           return (
-            <Branch key={c.name} last={j === series.events.length - 1} at={38} className="pt-2.5">
-              <Link
-                href={workspaceHref('event', eventSlug(c.name), '', defaultYear('event', c))}
-                className="group flex items-center gap-3 h-14 px-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-sm transition-colors hover:border-[var(--acc)] hover:bg-[var(--acc-soft)]"
-                style={{ ['--acc' as string]: look.accentLine, ['--acc-soft' as string]: look.accentSoft }}
-              >
-                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: look.accent }} />
-                <span className="text-[16px] font-semibold" style={{ color: 'var(--fg)' }}>{look.city}</span>
-                <ArrowRight className="w-5 h-5 ml-auto shrink-0 transition-transform group-hover:translate-x-1" style={{ color: look.accent }} />
+            <li key={c.name} className="ent-row" style={{ ['--acc' as string]: look.accent, ['--acc-soft' as string]: look.accentSoft }}>
+              <Link href={workspaceHref('event', slug, '', current)} className="group flex items-center gap-3 px-4 pt-3.5 pb-2">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: look.accent, boxShadow: `0 0 0 4px ${look.accentSoft}` }} />
+                <span className="min-w-0">
+                  <span className="block text-[17px] font-semibold leading-tight" style={{ color: 'var(--fg)' }}>{look.city}</span>
+                  {look.country && <span className="block text-[12px]" style={{ color: 'var(--fg-4)' }}>{look.country}</span>}
+                </span>
+                <span className="ml-auto inline-flex items-center gap-1.5 text-[12.5px] font-medium" style={{ color: look.accentInk }}>
+                  Open {current}
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </span>
               </Link>
-            </Branch>
+              <div className="flex flex-wrap gap-1.5 px-4 pb-3.5 pl-[42px]">
+                {years.map((y) => (
+                  <Link
+                    key={y}
+                    href={workspaceHref('event', slug, '', y)}
+                    className="ent-year"
+                    data-current={y === current}
+                    title={Number(y) < now ? 'Past edition' : Number(y) === now ? 'This year' : 'Upcoming edition'}
+                  >
+                    {y}
+                  </Link>
+                ))}
+              </div>
+            </li>
           )
         })}
       </ul>
@@ -85,8 +89,10 @@ function Entrance() {
   }, [categories])
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
-      <header className="flex items-center justify-between px-6 lg:px-10 h-16">
+    <div className="relative min-h-screen flex flex-col">
+      {/* The colour the glass is seen through, as inside the app */}
+      <div className="crm-field" aria-hidden="true" />
+      <header className="relative z-[1] flex items-center justify-between px-6 lg:px-10 h-16">
         <Logo />
         <div className="flex items-center gap-1">
           <ThemeToggle />
@@ -94,23 +100,25 @@ function Entrance() {
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-6 lg:px-10 pt-6 pb-20">
-        <div className="flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-[12px] font-semibold tracking-[0.14em] uppercase" style={{ color: 'var(--fg-4)' }}>World Nexus Group</p>
-            <h1 className="text-[28px] leading-tight mt-1 font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>Which event are you working on?</h1>
-            <p className="text-[14px] mt-1" style={{ color: 'var(--fg-3)' }}>Everything for it is in one place: sales, speakers, delegates, the agenda and marketing.</p>
-          </div>
-          {last && (
-            <Link href={last.href} className="ws-btn" style={{ borderColor: last.look.accentLine }}>
-              <span className="w-2 h-2 rounded-full" style={{ background: last.look.accent }} />
-              <span style={{ color: 'var(--fg-3)' }}>Continue:</span> {last.label} <ArrowRight className="w-4 h-4" />
-            </Link>
-          )}
-        </div>
+      <main className="relative z-[1] flex-1 w-full max-w-5xl mx-auto px-5 lg:px-10 pt-8 sm:pt-14 pb-20 flex flex-col items-center">
+        <p className="text-[11.5px] font-semibold tracking-[0.18em] uppercase" style={{ color: 'var(--fg-3)' }}>World Nexus Group CRM</p>
+        <h1 className="text-[30px] sm:text-[40px] leading-[1.1] mt-2 font-semibold text-center" style={{ color: 'var(--fg)', letterSpacing: '-0.03em' }}>
+          Which event are you working on?
+        </h1>
+        <p className="text-[14.5px] mt-3 text-center max-w-xl" style={{ color: 'var(--fg-3)' }}>
+          Everything for it is in one place: sales, speakers, the agenda, registrations and marketing.
+        </p>
+        {last && (
+          <Link href={last.href} className="ent-continue mt-6">
+            <span className="w-2 h-2 rounded-full" style={{ background: last.look.accent }} />
+            <span style={{ color: 'var(--fg-3)' }}>Continue</span>
+            <span className="font-semibold" style={{ color: 'var(--fg)' }}>{last.label}</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        )}
 
-        <div className="grid md:grid-cols-2 gap-5 mt-7 items-start max-w-4xl">
-          {series.map((s) => <SeriesTree key={s.name} series={s} />)}
+        <div className="grid md:grid-cols-2 gap-5 mt-10 w-full items-start">
+          {series.map((s) => <SeriesPanel key={s.name} series={s} />)}
         </div>
       </main>
     </div>
@@ -119,7 +127,7 @@ function Entrance() {
 
 export default function EntrancePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen" style={{ background: 'var(--bg)' }} />}>
+    <Suspense fallback={<div className="min-h-screen"><div className="crm-field" aria-hidden="true" /></div>}>
       <Entrance />
     </Suspense>
   )

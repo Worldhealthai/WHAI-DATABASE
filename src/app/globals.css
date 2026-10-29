@@ -919,3 +919,79 @@
 }
 .crm-dir:hover { color: var(--fg); }
 .crm-dir[data-active='true'] { background: var(--deep); color: var(--on-deep); border-color: transparent; }
+
+/* ── The entrance: series as glass panels, events as rows inside ─────────── */
+.ent-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+}
+/* A thin line of the series colour along the top edge, fading out */
+.ent-panel::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--acc), transparent);
+  opacity: 0.8;
+}
+.ent-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.8);
+}
+.ent-row {
+  border-radius: 20px;
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-rim);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.ent-row:hover { border-color: var(--acc); }
+.ent-year {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid var(--glass-rim);
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.ent-year:hover { color: var(--fg); border-color: var(--acc); }
+.ent-year[data-current='true'] { color: var(--fg); font-weight: 600; background: var(--acc-soft); border-color: transparent; }
+.ent-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+  color: var(--fg-2);
+}
+.ent-continue:hover { color: var(--fg); }
