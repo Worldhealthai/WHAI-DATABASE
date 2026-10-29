@@ -7,8 +7,8 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Award, Network, KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles,
-  Building, Contact, Target, Ticket, ClipboardList, Workflow,
+  KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles,
+  Building, ClipboardList, Network,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
 
@@ -47,29 +47,31 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
     accent: { fill: 'var(--accent)', ink: 'var(--accent-ink)', soft: 'var(--accent-soft)', line: 'var(--accent-line)' },
     // The directory first (every company and every person the CRM knows,
     // across all events), then the work for this edition: selling, the
-    // programme (production), the event as the admin panel runs it, and
-    // marketing.
+    // programme (production), the event's registrations, and marketing
+    // (with the partners and media). Each kind of
+    // record has one place: its board, with a List view of the same records
+    // (sponsors, partners and speakers keep their list paths, reached from
+    // the board's Board/List switch; see LIST_OF).
     sections: [
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
       { key: 'companies', label: 'Companies', icon: Building, path: 'companies', group: 'Directory' },
-      { key: 'people', label: 'People', icon: Contact, path: 'people', group: 'Directory' },
-      { key: 'hit-list', label: 'Hit list', icon: Target, path: 'hit-list', group: 'Sales' },
       { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline', group: 'Sales' },
-      { key: 'sponsors', label: 'Sponsors', icon: Award, path: 'sponsors', group: 'Sales' },
-      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners', group: 'Sales' },
-      { key: 'production', label: 'Speaker pipeline', icon: Workflow, path: 'production', group: 'Production' },
-      { key: 'speakers', label: 'Speakers', icon: Mic, path: 'speakers', group: 'Production' },
-      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda', group: 'Production' },
+      { key: 'production', label: 'Speakers', icon: Mic, path: 'production', group: 'Production' },
+      // The agenda on its own, so it is always in sight.
+      { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda' },
       { key: 'registrations', label: 'Registrations', icon: ClipboardList, path: 'registrations', group: 'Event' },
-      { key: 'delegates', label: 'Delegates', icon: Ticket, path: 'delegates', group: 'Event' },
       { key: 'marketing', label: 'Marketing overview', icon: Sparkles, path: 'marketing', group: 'Marketing' },
       { key: 'speaker-posts', label: 'Speaker posts', icon: Megaphone, path: 'speaker-posts', group: 'Marketing' },
       { key: 'sponsor-posts', label: 'Sponsor posts', icon: Building2, path: 'sponsor-posts', group: 'Marketing' },
       { key: 'content', label: 'Content', icon: PenLine, path: 'content', group: 'Marketing' },
+      { key: 'partners', label: 'Partners & media', icon: Network, path: 'partners', group: 'Marketing' },
     ],
     entities: ['sponsor', 'partner', 'speaker', 'delegate'],
   },
 }
+
+// The list views and the board they belong to.
+export const LIST_OF: Record<string, string> = { sponsors: 'pipeline', speakers: 'production', delegates: 'registrations', people: 'companies', 'hit-list': 'pipeline' }
 
 export const TOOLS: PortalSection[] = [
   { key: 'import', label: 'Import', icon: Upload, path: '/import' },

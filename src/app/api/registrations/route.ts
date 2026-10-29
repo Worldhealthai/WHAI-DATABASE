@@ -1,7 +1,10 @@
 // GET /api/registrations?events=<label>&events=… — the edition's bookings
 // as the Nexus admin panel holds them (its registrations table, in the same
-// database), each with the CRM record it is filed as. Read only: approving,
-// rejecting and editing stay in the admin panel, which syncs here.
+// database), each with the CRM record it is filed as; then `added`: the
+// edition's delegates and speakers added in the CRM itself (imported, typed
+// in, moved from an enquiry) with no booking behind them. Read only:
+// approving, rejecting and editing bookings stay in the admin panel, which
+// syncs here.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { canonicalEventLabel } from '@/types'
@@ -47,11 +50,18 @@ export async function GET(req: NextRequest) {
 
     // The CRM record each booking is filed as, by email within the edition.
     const filed = new Map<string, { kind: 'speaker' | 'delegate'; id: string; status: string | null }>()
+    const records: (Record<string, any> & { kind: 'speaker' | 'delegate' })[] = []
     for (const [kind, table] of [['speaker', 'speakers'], ['delegate', 'delegates']] as const) {
       for (let from = 0; ; from += 1000) {
-        const { data, error } = await supabase.from(table).select('id, email, status').in('event', events).range(from, from + 999)
+        const { data, error } = await supabase
+          .from(table)
+          .select('id, email, status, "firstName", "lastName", organization, "jobTitle", "subType", "createdAt"' + (kind === 'delegate' ? ', "ticketType"' : ''))
+          .in('event', events)
+          .order('id')
+          .range(from, from + 999)
         if (error) throw error
-        for (const r of data ?? []) {
+        for (const r of (data ?? []) as unknown as Record<string, any>[]) {
+          records.push({ ...r, kind })
           const e = String(r.email || '').trim().toLowerCase()
           if (e && !filed.has(`${kind}:${e}`)) filed.set(`${kind}:${e}`, { kind, id: r.id, status: r.status ?? null })
         }
@@ -64,7 +74,17 @@ export async function GET(req: NextRequest) {
       const crm = e ? filed.get(`${speaker ? 'speaker' : 'delegate'}:${e}`) ?? filed.get(`${speaker ? 'delegate' : 'speaker'}:${e}`) ?? null : null
       return { ...r, edition: editionOf(r), crm }
     })
-    return NextResponse.json({ data, admin: `${nexusBase()}/admin/registrations` })
+    // In the CRM with no booking for the edition.
+    const booked = new Set(mine.map((r) => String(r.email || '').trim().toLowerCase()).filter(Boolean))
+    const added = records
+      .filter((r) => { const e = String(r.email || '').trim().toLowerCase(); return !e || !booked.has(e) })
+      .map((r) => ({
+        id: `${r.kind}:${r.id}`, first_name: r.firstName, last_name: r.lastName, email: r.email, company: r.organization,
+        job_position: r.jobTitle, status: 'crm', attendee_type: `${r.kind}${r.subType === 'Solution Provider' ? '_solution_provider' : r.subType === 'End User' ? '_end_user' : ''}`,
+        inquiry_type: null, payment_status: null, pass: r.ticketType ?? null, created_at: r.createdAt,
+        crm: { kind: r.kind, id: r.id, status: r.status ?? null },
+      }))
+    return NextResponse.json({ data, added, admin: `${nexusBase()}/admin/registrations` })
   } catch (error: any) {
     return NextResponse.json({ error: String(error?.message || error).slice(0, 300) }, { status: 500 })
   }

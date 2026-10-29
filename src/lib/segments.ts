@@ -107,12 +107,27 @@ export interface Account {
   country: string | null
   best: { name: string; jobTitle: string | null; email: string | null; phone: string | null } | null
   events: string[]
+  // Its people, each once, with their roles and records.
+  members: Member[]
   completeness: number
   updatedAt: string | null
   // The record to open for it: the sponsor company if there is one, else
   // its first person's.
   open: { table: string; id: string }
 }
+
+export interface Member {
+  key: string
+  name: string
+  email: string | null
+  phone: string | null
+  jobTitle: string | null
+  tags: Relationship[]
+  records: { relationship: Relationship; table: string; id: string; status: string | null; event?: string | null }[]
+}
+
+// People who gave no company are listed together under this name.
+export const NO_COMPANY = 'No company given'
 
 const STAGE_RANK: Record<string, number> = { 'Not Contacted': 1, Emailed: 2, 'In Discussion': 3, Confirmed: 4, Rejected: 0 }
 const latest = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ? a : b)
@@ -144,7 +159,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
   // Companies: one per normalised name, labelled by the rules.
   const byCompany = new Map<string, { contacts: SegmentContact[] }>()
   for (const c of contacts) {
-    const k = companyKey(c.company)
+    const k = companyKey(c.company) ?? (c.firstName || c.lastName || c.email ? '__none' : null)
     if (!k) continue
     const g = byCompany.get(k) ?? { contacts: [] }
     g.contacts.push(c)
@@ -175,9 +190,21 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
       15 * Number(has((c) => c.firstName || c.lastName)) + 20 * Number(has((c) => c.email)) + 15 * Number(has((c) => c.phone)) +
       10 * Number(has((c) => c.jobTitle)) + 10 * Number(!!website) + 5 * Number(!!country) + 5 * Number(has((c) => c.linkedinUrl)) +
       10 * Number(people >= 2) + 5 * Number(!!(tier || valueAmount)) + 5 * Number(recent)
+    const members = new Map<string, Member>()
+    for (const c of cs) {
+      const pk = personKey(c.email, c.firstName, c.lastName, c.company)
+      if (!pk) continue
+      const m = members.get(pk) ?? { key: pk, name: `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim() || c.email || '', email: c.email, phone: null, jobTitle: null, tags: [], records: [] }
+      m.email ||= c.email
+      m.phone ||= c.phone
+      m.jobTitle ||= c.jobTitle
+      if (!m.tags.includes(c.relationship)) m.tags.push(c.relationship)
+      m.records.push({ relationship: c.relationship, table: c.table, id: c.recordId, status: c.status, event: c.event ?? null })
+      members.set(pk, m)
+    }
     accounts.push({
       key,
-      name: cs.map((c) => (c.company || '').trim()).sort((a, b) => b.length - a.length)[0],
+      name: key === '__none' ? NO_COMPANY : cs.map((c) => (c.company || '').trim()).sort((a, b) => b.length - a.length)[0],
       firmographic: labels.has('Solution Provider') ? 'Solution Provider' : 'End User',
       conflict: labels.size > 1,
       decidedBy,
@@ -192,6 +219,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
       best: best ? { name: `${best.firstName || ''} ${best.lastName || ''}`.trim() || best.email || '', jobTitle: best.jobTitle, email: best.email, phone: best.phone } : null,
       completeness,
       events: Array.from(new Set(cs.map((c) => c.event).filter((e): e is string => !!e))),
+      members: Array.from(members.values()).sort((a, b) => a.name.localeCompare(b.name)),
       updatedAt,
       open: lead ? { table: 'sponsors', id: lead.recordId } : { table: cs[0].table, id: cs[0].recordId },
     })

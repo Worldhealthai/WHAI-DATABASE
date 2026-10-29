@@ -1,18 +1,20 @@
 'use client'
 
-// The directory in two layers (lib/segments): Companies (who the company
-// is: Solution Provider or End User) and People (what each person does at
-// our events: Delegate, Speaker, Sponsor, several at once), across every
-// event by default or for the open edition; and the edition's Hit list (the
-// Solution Providers most worth a call today). Read from the three tabs as
-// they are; nothing here changes a record.
+// The directory (lib/segments): every company in the open series (World
+// Health AI: London and Boston; World Pharma AI) or just the open edition,
+// each labelled Solution Provider or End User, with its people inside it and
+// what each does at our events (Delegate, Speaker, Sponsor). A person is
+// found by searching here, under their company; the search in the top bar
+// looks across every event. Also the edition's Hit list. Read from the
+// tabs as they are; nothing here changes a record.
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Building2, Mail, Phone, Search, Target, Users } from 'lucide-react'
+import { AlertTriangle, Building2, ChevronDown, ChevronRight, Mail, Phone, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
-import type { Account, Firmographic, Person, Relationship } from '@/lib/segments'
+import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
+import { editionYears, eventLook, groupSeries, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
 import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
@@ -28,21 +30,33 @@ interface Segments {
 const PATH: Record<string, string> = { sponsors: '/sponsors', speakers: '/speakers', delegates: '/delegates', partners: '/partners' }
 const TAG_ORDER: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
 
-type Scope = 'all' | 'edition'
+type Scope = 'series' | 'edition'
+
+// Every edition of every event in the open series: World Health AI is
+// London and Boston, World Pharma AI its own.
+function useSeriesLabels(): string[] {
+  const { category, categories } = useWorkspace()
+  return useMemo(() => {
+    if (!category) return []
+    const series = groupSeries(categories).find((x) => x.name === eventLook(category.name).series)
+    return Array.from(new Set((series?.events ?? [category]).flatMap((c) => editionYears(c).flatMap((y) => labelsForEdition(c, y)))))
+  }, [category, categories])
+}
 
 function useSegments(scope: Scope = 'edition') {
-  const { labels } = useWorkspace()
+  const edition = useWorkspace().labels
+  const series = useSeriesLabels()
+  const labels = scope === 'series' ? series : edition
   return useQuery<Segments>({
-    queryKey: ['ws-segments', scope === 'all' ? 'all' : labels],
+    queryKey: ['ws-segments', labels],
     queryFn: async () => {
       const p = new URLSearchParams()
-      if (scope === 'all') p.set('scope', 'all')
-      else labels.forEach((l) => p.append('events', l))
+      labels.forEach((l) => p.append('events', l))
       const r = await fetch(`/api/segments?${p}`)
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.error || 'segments')
       return r.json()
     },
-    enabled: scope === 'all' || labels.length > 0,
+    enabled: labels.length > 0,
     staleTime: 60_000,
   })
 }
@@ -60,10 +74,39 @@ function Events({ events }: { events: string[] }) {
   )
 }
 
-// All events (the directory) or just the open edition.
+// The whole series (the directory) or just the open edition.
 function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) => void }) {
-  const { year } = useWorkspace()
-  return <Segmented size="sm" value={value} onChange={onChange} options={[{ value: 'all', label: 'All events' }, { value: 'edition', label: `${year} edition` }]} />
+  const { year, category } = useWorkspace()
+  const series = category ? eventLook(category.name).series : 'series'
+  return <Segmented size="sm" value={value} onChange={onChange} options={[{ value: 'series', label: `All ${series}` }, { value: 'edition', label: `${year} edition` }]} />
+}
+
+const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q)
+
+// A company's people, under its row.
+function Members({ members, query }: { members: Member[]; query: string }) {
+  return (
+    <ul className="flex flex-col">
+      {members.map((m) => {
+        const hit = !!query && matches(m, query)
+        return (
+          <li key={m.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
+            <Link href={`${PATH[m.records[0].table]}/${m.records[0].id}`} className="min-w-0 flex-1">
+              <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
+              <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{[m.jobTitle, m.email].filter(Boolean).length ? ` · ${[m.jobTitle, m.email].filter(Boolean).join(' · ')}` : ''}</span>
+            </Link>
+            <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
+              {m.records.map((r, i) => (
+                <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
+                  {r.relationship}{r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
+                </Link>
+              ))}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
 // ── Small marks ──────────────────────────────────────────────────────────────
@@ -152,30 +195,36 @@ const PAGE = 50
 // ── Companies ────────────────────────────────────────────────────────────────
 
 export function CompaniesView() {
-  const [scope, setScope] = useState<Scope>('all')
+  const [scope, setScope] = useState<Scope>('series')
   const { data, isLoading, error } = useSegments(scope)
+  const { category } = useWorkspace()
+  const series = category ? eventLook(category.name).series : ''
   const [type, setType] = useState<'all' | Firmographic>('all')
   const [tag, setTag] = useState<Relationship | ''>('')
   const [conflicts, setConflicts] = useState(false)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const q = query.trim().toLowerCase()
   const rows = useMemo(() => {
-    const q = query.trim().toLowerCase()
     return (data?.accounts ?? []).filter((a) =>
       (type === 'all' || a.firmographic === type) && (!tag || a.tags.includes(tag)) && (!conflicts || a.conflict) &&
-      (!q || a.name.toLowerCase().includes(q) || (a.best?.name || '').toLowerCase().includes(q) || (a.best?.email || '').includes(q)))
-  }, [data, type, tag, conflicts, query])
+      (!q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
+  }, [data, type, tag, conflicts, q])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
+  const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
   return (
     <WorkspacePage
       title="Companies"
-      description={scope === 'all' ? 'Every company the CRM knows, once, across every event: sponsors, speakers and delegates.' : 'Every company in this edition, once, across sponsors, speakers and delegates.'}
+      description={scope === 'series'
+        ? `Every company at ${series || 'this series'}, once, across every edition, with its people. Search a person to find them under their company.`
+        : 'Every company in this edition, once, with its people.'}
       actions={<ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />}
     >
       <Summary data={data} loading={isLoading} />
       <div className="ws-card overflow-hidden">
-        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or contacts…" count={rows.length}>
+        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length}>
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
           <TagFilter value={tag} onChange={(v) => { setTag(v); setPage(1) }} />
           <button type="button" className="ws-chip" data-active={conflicts} onClick={() => { setConflicts(!conflicts); setPage(1) }}>
@@ -186,31 +235,40 @@ export function CompaniesView() {
          isLoading ? <Skeleton /> :
          rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body="Try another filter, or clear the search." /> : (
           <div className="overflow-x-auto">
-            <table className="ws-table w-full min-w-[980px]">
-              <thead><tr><th>Company</th><th>Type</th><th>Roles</th><th>Events</th><th>Sponsor stage</th><th className="text-right">People</th><th>Data</th><th className="text-right">Updated</th></tr></thead>
-              <tbody>
-                {shown.map((a) => (
-                  <tr key={a.key} className="cursor-pointer">
-                    <td>
-                      <Link href={`${PATH[a.open.table]}/${a.open.id}`} className="flex items-center gap-3 min-w-0">
-                        <Initials name={a.name} size={30} />
-                        <span className="min-w-0">
-                          <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>
-                          <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td><TypeBadge type={a.firmographic} conflict={a.conflict} /></td>
-                    <td><Tags tags={a.tags} /></td>
-                    <td><Events events={a.events ?? []} /></td>
-                    <td className="text-[13px]" style={{ color: a.sponsorStage ? 'var(--fg-2)' : 'var(--fg-4)' }}>{a.sponsorStage ?? '—'}{a.valueAmount ? <span style={{ color: 'var(--fg-4)' }}> · {formatMoney(a.valueAmount)}</span> : null}</td>
-                    <td className="text-right tabular">{a.people}</td>
-                    <td><Completeness value={a.completeness} /></td>
-                    <td className="text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="min-w-[900px]">
+              <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
+                <span>Company</span><span>Type</span><span>Roles</span><span>Events</span><span>Sponsor stage</span><span className="text-right">People</span><span className="text-right">Updated</span>
+              </div>
+              {shown.map((a) => {
+                const found = q ? (a.members ?? []).filter((m) => matches(m, q)) : []
+                const expanded = open.has(a.key) || found.length > 0
+                return (
+                  <div key={a.key} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <div className="grid grid-cols-[minmax(0,2.2fr)_150px_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
+                          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </button>
+                        <Link href={`${PATH[a.open.table]}/${a.open.id}`} className="flex items-center gap-3 min-w-0">
+                          <Initials name={a.name} size={30} />
+                          <span className="min-w-0">
+                            <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>
+                            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
+                          </span>
+                        </Link>
+                      </span>
+                      <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>
+                      <span><Tags tags={a.tags} /></span>
+                      <span className="min-w-0 truncate"><Events events={a.events ?? []} /></span>
+                      <span className="text-[13px] truncate" style={{ color: a.sponsorStage ? 'var(--fg-2)' : 'var(--fg-4)' }}>{a.sponsorStage ?? '—'}{a.valueAmount ? <span style={{ color: 'var(--fg-4)' }}> · {formatMoney(a.valueAmount)}</span> : null}</span>
+                      <span className="text-right tabular text-[13.5px]">{a.people}</span>
+                      <span className="text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
+                    </div>
+                    {expanded && <Members members={found.length && !open.has(a.key) ? found : a.members ?? []} query={q} />}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
         {rows.length > PAGE && <div className="px-4 py-3"><Pagination page={page} totalPages={Math.ceil(rows.length / PAGE)} total={rows.length} pageSize={PAGE} onPage={setPage} onPageSize={() => {}} /></div>}
@@ -222,7 +280,7 @@ export function CompaniesView() {
 // ── People ───────────────────────────────────────────────────────────────────
 
 export function PeopleView() {
-  const [scope, setScope] = useState<Scope>('all')
+  const [scope, setScope] = useState<Scope>('series')
   const { data, isLoading, error } = useSegments(scope)
   const [tag, setTag] = useState<Relationship | ''>('')
   const [multi, setMulti] = useState(false)
@@ -240,7 +298,7 @@ export function PeopleView() {
   return (
     <WorkspacePage
       title="People"
-      description={scope === 'all' ? 'Everyone the CRM knows, once, with every role they have had at any of our events.' : 'Everyone in this edition, once, with every role they have at the event.'}
+      description={scope === 'series' ? 'Everyone in the series, once, with every role they have had at any of our events.' : 'Everyone in this edition, once, with every role they have at the event.'}
       actions={<ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />}
     >
       <Summary data={data} loading={isLoading} />
@@ -275,7 +333,7 @@ export function PeopleView() {
                       <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
                         {p.records.map((r, i) => (
                           <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                            {r.relationship}{scope === 'all' && r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
+                            {r.relationship}{scope === 'series' && r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
                           </Link>
                         ))}
                       </span>

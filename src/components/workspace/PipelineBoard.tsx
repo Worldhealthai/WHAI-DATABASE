@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Award, KanbanSquare, Mic, Network, Plus } from 'lucide-react'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { cn } from '@/lib/utils'
+import { useSearchParams } from 'next/navigation'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, changeStage, listParams, type RecordKind, type Stage } from '@/lib/recordKinds'
 import { editionLabel } from '@/lib/portals'
@@ -19,6 +20,8 @@ import { useTierOptions } from '@/lib/useTierOptions'
 import { CURRENCY_OPTIONS, PARTNER_TYPE_OPTIONS } from '@/types'
 import { EmptyState, Field, Modal, Segmented, StageDot, formatMoney, timeAgo } from './ui'
 import { WaveBand } from './WaveBand'
+import { ViewSwitch } from './ViewSwitch'
+import { bookingCompanyType, bookingName, isSpeakerBooking, usePendingBookings } from './Registrations'
 import { WorkspacePage } from './WorkspacePage'
 
 type Lead = Record<string, any>
@@ -342,7 +345,14 @@ function Column({
           <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{stage.label}</p>
           <span className="text-[12px] font-medium tabular" style={{ color: 'var(--fg-4)' }}>{leads.length}</span>
         </div>
-        {value > 0 && <span className="text-[12px] font-semibold tabular" style={{ color: 'var(--fg-2)' }}>{formatMoney(value, currency)}</span>}
+        <div className="flex items-center gap-1.5">
+          {value > 0 && <span className="text-[12px] font-semibold tabular" style={{ color: 'var(--fg-2)' }}>{formatMoney(value, currency)}</span>}
+          {!stage.negative && (
+            <button type="button" onClick={() => onAdd(stage.status)} className="ws-btn ws-btn-ghost ws-btn-sm !h-6 !px-1.5" title={`Add to ${stage.label}`} aria-label={`Add to ${stage.label}`}>
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 flex flex-col gap-1.5 px-2 pb-2">
         {leads.map((l) => (
@@ -377,7 +387,12 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
   const production = mode === 'production'
   const queryClient = useQueryClient()
   const { labels, category, year } = ws
-  const [kind, setKind] = useState<BoardKind>(production ? 'speaker' : 'sponsor')
+  const asked = useSearchParams().get('kind')
+  const [kind, setKind] = useState<BoardKind>(production ? 'speaker' : asked === 'partner' ? 'partner' : 'sponsor')
+  // Speaker applications still waiting in the admin panel: the board's
+  // first column, to read (they are approved or rejected there).
+  const { pending, admin } = usePendingBookings()
+  const applied = production ? pending.filter(isSpeakerBooking) : []
   const [dragId, setDragId] = useState<string | null>(null)
   const [overStage, setOverStage] = useState<string | null>(null)
   const [adding, setAdding] = useState<string | null>(null) // stage to add into
@@ -430,6 +445,7 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
       wide
       actions={
         <>
+          <ViewSwitch kind={kind} view="board" />
           {!production && <Segmented
             size="sm"
             value={kind}
@@ -472,6 +488,24 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
         </div>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4 lg:-mx-6 lg:px-6">
+          {production && applied.length > 0 && (
+            <div className="flex flex-col rounded-2xl min-h-[420px]" style={{ flex: '0 0 220px', minWidth: 220, background: 'color-mix(in srgb, var(--surface) 26%, transparent)', border: '1px dashed var(--line-3)' }}>
+              <div className="flex items-center justify-between px-3.5 pt-3.5 pb-2">
+                <p className="text-[13px] font-semibold" style={{ color: 'var(--fg)' }}>Applied <span className="font-medium tabular" style={{ color: 'var(--fg-4)' }}>{applied.length}</span></p>
+                {admin && <a href={admin} target="_blank" rel="noopener noreferrer" className="text-[12px] hover:underline underline-offset-4" style={{ color: 'var(--accent-ink)' }}>Review</a>}
+              </div>
+              <p className="px-3.5 pb-2 text-[11.5px]" style={{ color: 'var(--fg-4)' }}>Waiting for approval in the admin panel.</p>
+              <div className="flex-1 flex flex-col gap-1.5 px-2 pb-2">
+                {applied.map((b) => (
+                  <div key={b.id} className="rounded-[10px] px-3 py-2.5" style={{ background: 'var(--glass-fill-strong)', border: '1px solid var(--glass-rim)' }}>
+                    <p className="text-[13.5px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{bookingName(b)}</p>
+                    <p className="text-[12px] truncate mt-0.5" style={{ color: 'var(--fg-3)' }}>{[b.job_position, b.company].filter(Boolean).join(' · ') || b.email}</p>
+                    {bookingCompanyType(b) && <p className="text-[11.5px] truncate mt-1" style={{ color: 'var(--fg-4)' }}>{bookingCompanyType(b)}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {def.stages.map((s) => (
             <Column
               key={s.status}

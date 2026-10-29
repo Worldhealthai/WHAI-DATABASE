@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Check, ChevronDown, LayoutGrid, LogOut, Menu } from 'lucide-react'
 import { GlobalSearch } from '@/components/layout/GlobalSearch'
-import { TOOLS, defaultYear, eventLook, eventSlug, workspaceHref, type PortalSection } from '@/lib/portals'
+import { LIST_OF, TOOLS, defaultYear, eventLook, eventSlug, workspaceHref, type PortalSection } from '@/lib/portals'
 import type { WorkspaceView } from '@/lib/workspace'
 import { Logo } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
@@ -91,10 +91,10 @@ function Editions({ view }: { view: WorkspaceView }) {
 
 // Which section a page belongs to: the workspace's own, or for a profile
 // (/sponsors/…) the section its list lives in.
+// A list view counts as its board (LIST_OF).
 function activeSection(view: WorkspaceView, pathname: string): string | null {
-  if (view.inWorkspace) return view.section || ''
-  const m = pathname.match(/^\/(sponsors|partners|speakers|delegates)(\/|$)/)
-  return m ? m[1] : null
+  const section = view.inWorkspace ? view.section || '' : pathname.match(/^\/(sponsors|partners|speakers|delegates)(\/|$)/)?.[1] ?? null
+  return section !== null ? LIST_OF[section] ?? section : null
 }
 
 // The groups, in order: Overview on its own, then Directory, Sales, Event,

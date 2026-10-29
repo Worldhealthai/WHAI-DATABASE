@@ -22,6 +22,7 @@ import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
 import { EmptyState, Initials, StageDot, StagePill, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
+import { ViewSwitch } from './ViewSwitch'
 import { ImportToEventModal } from './ImportToEventModal'
 
 type Row = Record<string, any>
@@ -328,6 +329,7 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
       description={`Everyone in the ${year} edition. Search looks across every event.`}
       actions={
         <>
+          {kind !== 'delegate' && <ViewSwitch kind={kind} view="list" />}
           <button onClick={exportCsv} className="ws-btn" title="Download this list as CSV"><Download className="w-4 h-4" /> Export</button>
           {(kind === 'sponsor' || kind === 'speaker') && preset.event && (
             <button onClick={() => setImporting(true)} className="ws-btn" title={`Import a sheet of contacts into ${preset.event}`}><Upload className="w-4 h-4" /> Import</button>
