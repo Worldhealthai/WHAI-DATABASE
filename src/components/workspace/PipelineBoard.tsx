@@ -331,7 +331,6 @@ function Column({
         minWidth: stage.negative ? 200 : 232,
         background: over ? 'var(--glass-hover)' : 'color-mix(in srgb, var(--surface) 26%, transparent)',
         border: `1px solid ${over ? 'var(--line-3)' : 'var(--glass-rim)'}`,
-        backdropFilter: 'blur(14px)',
       }}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overStage !== stage.status) setOverStage(stage.status) }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverStage(null) }}
