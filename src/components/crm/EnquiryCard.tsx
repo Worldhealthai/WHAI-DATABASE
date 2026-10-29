@@ -45,7 +45,7 @@ function One({ e, startOpen }: { e: Enquiry; startOpen: boolean }) {
         {open ? <ChevronDown className="w-4 h-4 mt-0.5 shrink-0" style={{ color: 'var(--fg-4)' }} /> : <ChevronRight className="w-4 h-4 mt-0.5 shrink-0" style={{ color: 'var(--fg-4)' }} />}
         <span className="min-w-0 flex-1">
           <span className="block text-[13.5px] font-medium" style={{ color: 'var(--fg)' }}>
-            {typeLabel(e.type)}{e.subject && e.subject.toLowerCase() !== (e.type || '').toLowerCase() ? ` · ${e.subject}` : ''}
+            {typeLabel(e.type)}{e.subject && ![(e.type || '').toLowerCase(), typeLabel(e.type).toLowerCase()].includes(e.subject.toLowerCase()) ? ` · ${e.subject}` : ''}
           </span>
           <span className="block text-[12px]" style={{ color: 'var(--fg-3)' }}>
             {fmt(e.receivedAt)}{e.site ? ` · ${e.site}` : ''}{e.event ? ` · ${e.event}` : ''}
