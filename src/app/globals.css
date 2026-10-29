@@ -916,3 +916,25 @@
 
 /* Entrance: the editions as pills */
 .ent-years a { border-radius: 999px; }
+
+/* Entrance in glass: the list is a frosted panel over the teal wash, each
+   event a row that lights up in its colour, the editions on a pill track. */
+.ent-list {
+  border-radius: 18px;
+  background: var(--btn-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid var(--btn-rim);
+  outline: 1px solid var(--btn-edge);
+  outline-offset: -1px;
+  box-shadow: var(--btn-shadow), 0 18px 40px -24px rgba(15, 59, 63, 0.35);
+}
+.ent-series { background: transparent; padding: 16px 22px 6px; border-top: 1px solid var(--line); }
+.ent-series:first-child { border-top: 0; }
+.ent-row { border-top: 0; margin: 0 8px 6px; padding: 12px 14px; border-radius: 12px; border: 1px solid transparent; transition: background 120ms ease, border-color 120ms ease; }
+.ent-row:hover { background: var(--btn-glass-hover); border-color: var(--btn-rim); box-shadow: var(--btn-shadow); }
+.ent-dot { width: 10px; height: 10px; border-radius: 999px; flex-shrink: 0; background: var(--acc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 18%, transparent); }
+.ent-years { gap: 2px; padding: 3px; border-radius: 999px; background: var(--seg-track); border: 1px solid var(--line); box-shadow: inset 0 1px 2px rgba(15, 59, 63, 0.06); }
+.ent-years a { height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid transparent; background: transparent; outline: 0; box-shadow: none; }
+.ent-years a:hover { background: transparent; border-color: transparent; color: var(--fg); }
+.ent-years a[data-current='true'] { background: var(--btn-glass-hover); border-color: var(--btn-rim); outline: 0; box-shadow: var(--btn-shadow); color: var(--fg); font-weight: 600; }
