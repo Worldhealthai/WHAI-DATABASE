@@ -15,7 +15,7 @@
 //                    Ticket or Sponsor pass, or "paid" in tags), else End
 //                    User; tag Delegate
 // A company with both labels is a Solution Provider, marked as a conflict
-// for a human look.
+// for a human look, unless it is one the team has settled (SETTLED below).
 
 export type Firmographic = 'Solution Provider' | 'End User'
 export type Relationship = 'Sponsor' | 'Speaker' | 'Delegate'
@@ -25,6 +25,15 @@ export function firmographicByRule(relationship: Relationship, paid: boolean): F
   if (relationship === 'Sponsor') return 'Solution Provider'
   if (relationship === 'Speaker') return 'End User'
   return paid ? 'Solution Provider' : 'End User'
+}
+
+// Companies whose label the team has settled, whoever their people are: a
+// Solution Provider can work with or speak for them (Hasib Aftab at the NHS),
+// and they are never sponsors. Keys as companyKey() makes them.
+const SETTLED: Record<string, Firmographic> = {
+  nhs: 'End User',
+  nice: 'End User',
+  sobi: 'End User',
 }
 
 const LEGAL = /(\s+(ltd|limited|llc|llp|inc|plc|corp|corporation|gmbh|ag|sa|bv|group|holdings|co|company|international|uk))+\s*$/
@@ -171,7 +180,8 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
   }
   const accounts: Account[] = []
   for (const [key, { contacts: cs }] of byCompany) {
-    const labels = new Set(cs.map((c) => c.firmographic))
+    const settled = SETTLED[key]
+    const labels = settled ? new Set<Firmographic>([settled]) : new Set(cs.map((c) => c.firmographic))
     const decidedBy = Array.from(new Set(cs.map((c) => (c.relationship === 'Delegate' ? (c.paid ? 'Paid delegate' : 'Free delegate') : `${c.relationship}s tab`))))
     const sponsorRows = cs.filter((c) => c.relationship === 'Sponsor')
     const lead = sponsorRows.sort((a, b) => (STAGE_RANK[b.status || ''] ?? 0) - (STAGE_RANK[a.status || ''] ?? 0))[0]
