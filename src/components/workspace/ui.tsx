@@ -69,7 +69,7 @@ export function Segmented<T extends string>({
   options, value, onChange, size = 'md',
 }: { options: { value: T; label: React.ReactNode; hint?: string }[]; value: T; onChange: (v: T) => void; size?: 'sm' | 'md' }) {
   return (
-    <div className="inline-flex items-center gap-0.5 p-[3px] rounded-[9px]" style={{ background: 'var(--surface-3)' }}>
+    <div className="crm-seg">
       {options.map((o) => {
         const active = o.value === value
         return (
@@ -78,8 +78,8 @@ export function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(o.value)}
             title={o.hint}
-            className={cn('rounded-md font-medium transition-all whitespace-nowrap', size === 'sm' ? 'h-7 px-2.5 text-[12px]' : 'h-8 px-3 text-[13px]')}
-            style={active ? { background: 'var(--surface)', color: 'var(--fg)', boxShadow: 'var(--shadow-sm)' } : { color: 'var(--fg-3)' }}
+            data-active={active}
+            className={cn('crm-seg-item font-medium whitespace-nowrap', size === 'sm' ? 'h-7 px-3 text-[12px]' : 'h-8 px-3.5 text-[13px]')}
           >
             {o.label}
           </button>

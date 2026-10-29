@@ -27,14 +27,14 @@ export function ViewSwitch({ kind, view }: { kind: Kind; view: 'board' | 'list' 
     <Link
       href={href(v === 'board' ? BOARD[kind] : LIST[kind])}
       aria-current={view === v ? 'page' : undefined}
-      className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium transition-all"
-      style={view === v ? { background: 'var(--surface)', color: 'var(--fg)', boxShadow: 'var(--shadow-sm)' } : { color: 'var(--fg-3)' }}
+      data-active={view === v}
+      className="crm-seg-item inline-flex items-center gap-1.5 h-7 px-3 text-[12px] font-medium"
     >
       <Icon className="w-3.5 h-3.5" /> {label}
     </Link>
   )
   return (
-    <div className="inline-flex items-center gap-0.5 p-[3px] rounded-[9px]" style={{ background: 'var(--surface-3)' }}>
+    <div className="crm-seg">
       {item('board', 'Board', KanbanSquare)}
       {item('list', 'List', List)}
     </div>
