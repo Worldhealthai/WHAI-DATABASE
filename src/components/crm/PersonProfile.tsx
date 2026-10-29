@@ -12,6 +12,7 @@ import { CopyPopover } from '@/components/crm/CopyPopover'
 import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money, type ProfileNav } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { partnerConsentLabel, type Delegate, type Speaker } from '@/types'
+import { MoveRecordButton } from './MoveRecordButton'
 
 type Props = {
   nav: ProfileNav
@@ -69,6 +70,7 @@ export function PersonProfile(props: Props) {
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+            <MoveRecordButton kind={kind} id={person.id} name={name || 'this person'} />
             <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>
               {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
             </button>
