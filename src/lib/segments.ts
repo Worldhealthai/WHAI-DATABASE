@@ -8,7 +8,8 @@
 //
 // The rules, in one place so they can be changed (docs/audit/README.md):
 //   Sponsors tab   → Solution Provider; tag Sponsor
-//   Speakers tab   → End User;          tag Speaker
+//   Speakers tab   → their Speaker type when set (a sponsor's speaker is a
+//                    Solution Provider), else End User; tag Speaker
 //   Delegates tab  → their Company type when set; otherwise Solution
 //                    Provider when paid (a Nexus booking paid by card, a
 //                    Ticket or Sponsor pass, or "paid" in tags), else End
@@ -97,6 +98,9 @@ export interface Account {
   firmographic: Firmographic
   conflict: boolean
   decidedBy: string[]
+  // Why a company needs a look: the people whose own label disagrees with
+  // the company's ("Jane Doe (Speaker) said End User").
+  disagree: string[]
   tags: Relationship[]
   people: number
   sponsorStage: string | null
@@ -208,6 +212,10 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
       firmographic: labels.has('Solution Provider') ? 'Solution Provider' : 'End User',
       conflict: labels.size > 1,
       decidedBy,
+      disagree: labels.size > 1
+        ? Array.from(new Set(cs.filter((c) => c.firmographic !== (labels.has('Solution Provider') ? 'Solution Provider' : 'End User'))
+            .map((c) => `${`${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || 'Someone'} (${c.relationship}) said ${c.firmographic}`)))
+        : [],
       tags: RELATIONSHIPS.filter((r) => cs.some((c) => c.relationship === r)),
       people,
       sponsorStage: lead?.status ?? null,

@@ -261,7 +261,6 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const { category } = useWorkspace()
   const series = category ? eventLook(category.name).series : ''
   const [type, setType] = useState<'all' | Firmographic>('all')
-  const [tag, setTag] = useState<Relationship | ''>('')
   const [conflicts, setConflicts] = useState(false)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -269,9 +268,9 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const q = query.trim().toLowerCase()
   const rows = useMemo(() => {
     return (data?.accounts ?? []).filter((a) =>
-      (type === 'all' || a.firmographic === type) && (!tag || a.tags.includes(tag)) && (!conflicts || a.conflict) &&
+      (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) &&
       (!q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
-  }, [data, type, tag, conflicts, q])
+  }, [data, type, conflicts, q])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
   const add = usePipelineAdd()
   const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
@@ -288,7 +287,6 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
       <div className="ws-card overflow-hidden">
         <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length}>
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
-          <TagFilter value={tag} onChange={(v) => { setTag(v); setPage(1) }} />
           <button type="button" className="ws-chip" data-active={conflicts} onClick={() => { setConflicts(!conflicts); setPage(1) }}>
             <AlertTriangle className="w-3.5 h-3.5" /> To check
           </button>
@@ -316,6 +314,11 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                           <span className="min-w-0">
                             <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>
                             <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
+                            {a.conflict && a.disagree?.length ? (
+                              <span className="block text-[11.5px] truncate" style={{ color: 'var(--warn)' }} title={a.disagree.join('\n')}>
+                                {a.disagree[0]}{a.disagree.length > 1 ? ` +${a.disagree.length - 1} more` : ''}
+                              </span>
+                            ) : null}
                           </span>
                         </Link>
                       </span>

@@ -81,7 +81,11 @@ export async function loadContacts(events: string[] | null): Promise<SegmentCont
     out.push({
       relationship: 'Speaker', table: 'speakers', id: r.id, recordId: r.id, event: s(r.event), company: s(r.organization), firstName: s(r.firstName), lastName: s(r.lastName),
       email: s(r.email)?.toLowerCase() ?? null, phone: s(r.phone), jobTitle: s(r.jobTitle), linkedinUrl: s(r.linkedinUrl), status: r.status ?? null,
-      selfDeclared: s(r.subType), paid: false, firmographic: firmographicByRule('Speaker', false), country: s(r.country), updatedAt: r.updatedAt ?? null,
+      // Their own answer (Speaker type) when they gave one: a sponsor's speaker
+      // is a Solution Provider.
+      selfDeclared: s(r.subType), paid: false,
+      firmographic: s(r.subType) === 'Solution Provider' || s(r.subType) === 'End User' ? (s(r.subType) as 'Solution Provider' | 'End User') : firmographicByRule('Speaker', false),
+      country: s(r.country), updatedAt: r.updatedAt ?? null,
     })
   }
   for (const r of delegates) {
