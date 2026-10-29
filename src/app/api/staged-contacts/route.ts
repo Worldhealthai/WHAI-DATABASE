@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
         if (error || !made) { failed.push({ email: row.email, error: error?.message || 'Could not stage' }); continue }
         stagedId = made.id
       }
-      const result = await assignStagedContact(stagedId!, assignAs, contacts[i]?.assignStatus)
+      const result = await assignStagedContact(stagedId!, assignAs, contacts[i]?.assignStatus, contacts[i]?.assignSubType)
       if ('error' in result) failed.push({ email: row.email, error: result.error ?? 'Could not assign' })
       else assigned.push({ email: row.email, assignedAs: result.assignedAs, assignedId: result.assignedId, event: result.event })
     }

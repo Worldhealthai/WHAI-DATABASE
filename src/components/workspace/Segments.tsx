@@ -320,7 +320,9 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         </Link>
                       </span>
                       <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>
-                      <span><Tags tags={a.tags} /></span>
+                      {/* A sponsoring company's one role is Sponsor: its people's delegate
+                          or speaker records are part of that. */}
+                      <span><Tags tags={a.tags.includes('Sponsor') ? ['Sponsor'] : a.tags} /></span>
                       <span className="min-w-0 truncate"><Events events={a.events ?? []} /></span>
                       {(() => {
                         // This year's sponsor record, if the company has one.
