@@ -57,7 +57,7 @@ export interface Post {
   caption: string
   hashtags: string[]
   link: string | null
-  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; before?: unknown; steers?: { text: string; at: string; changed?: string[]; notes?: string[]; reply?: string }[]; linkedin?: { state?: string; page?: string }; publishers?: string[] } & Record<string, unknown>
+  source: { style?: CardStyle; photo?: string; photos?: string[]; image?: string; logo?: string; format?: 'carousel'; pages?: 'carousel' | 'two-page'; by?: string; slides?: { kind: string }[]; dropped?: string[]; before?: unknown; steers?: { text: string; at: string; changed?: string[]; notes?: string[]; reply?: string }[]; linkedin?: { state?: string; page?: string }; publishers?: string[]; mentions?: Tagged[] } & Record<string, unknown>
   brief: string | null
   status: 'draft' | 'posted'
   postUrl: string | null
@@ -603,6 +603,129 @@ function MovePanel({ post, onDone, onClose }: { post: Post; onDone: (message: st
   )
 }
 
+// A company tagged on a post: its LinkedIn page and its name there.
+interface Tagged { urn: string; name: string; vanity?: string | null }
+
+// The companies the post tags. LinkedIn's API cannot tag them on the image,
+// so "Approve and post" mentions them in the text: where the caption names
+// one, that word becomes the tag; the rest go on a line before the hashtags.
+function TagCompanies({ post, caption, connected, onChanged }: { post: Post; caption: string; connected: boolean; onChanged: () => void }) {
+  const tagged = post.source?.mentions ?? []
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [offered, setOffered] = useState<{ found: Tagged[]; missing: string[] } | null>(null)
+  const [looking, setLooking] = useState(false)
+  const posted = post.status === 'posted'
+  if (posted && !tagged.length) return null
+
+  async function save(next: Tagged[]) {
+    const r = await fetch(`/api/marketing/content/${post.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mentions: next }) })
+    if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || 'The tags could not be saved.')
+    onChanged()
+  }
+  async function add() {
+    if (!q.trim()) return
+    setBusy(true)
+    setErr('')
+    try {
+      const r = await fetch(`/api/linkedin/company?q=${encodeURIComponent(q.trim())}`, { cache: 'no-store' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j?.error || 'That company page could not be found.')
+      const found = j as Tagged
+      if (!tagged.some((t) => t.urn === found.urn)) await save([...tagged, found])
+      setQ('')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'That company page could not be found.')
+    }
+    setBusy(false)
+  }
+  // Claude reads the post for the companies it names; LinkedIn finds their pages.
+  async function suggest() {
+    setLooking(true)
+    setErr('')
+    const r = await fetch(`/api/marketing/content/${post.id}/tags`, { method: 'POST' })
+    const j = await r.json().catch(() => ({}))
+    setLooking(false)
+    if (!r.ok) return setErr(j?.error || 'The post could not be read for companies.')
+    setOffered({ found: j.found ?? [], missing: j.missing ?? [] })
+  }
+  async function take(list: Tagged[]) {
+    setErr('')
+    const next = [...tagged, ...list.filter((m) => !tagged.some((t) => t.urn === m.urn))]
+    await save(next).catch((e) => setErr(e.message))
+    setOffered((o) => (o ? { ...o, found: o.found.filter((f) => !list.some((m) => m.urn === f.urn)) } : o))
+  }
+  async function drop(urn: string) {
+    setErr('')
+    await save(tagged.filter((t) => t.urn !== urn)).catch((e) => setErr(e.message))
+  }
+  const named = (name: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu').test(caption)
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[12.5px] font-medium" style={{ color: 'var(--fg-2)' }}>Tagged companies</span>
+      {tagged.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {tagged.map((t) => (
+            <span key={t.urn} className="crm-pill inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px]" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--fg-2)' }} title={named(t.name) ? 'Tagged where the caption names it' : 'Not named in the caption: tagged on a line before the hashtags'}>
+              <span style={{ color: 'var(--accent-ink)' }}>@{t.name}</span>
+              {!named(t.name) && <span style={{ color: 'var(--fg-4)' }}>· own line</span>}
+              {!posted && <button type="button" onClick={() => drop(t.urn)} aria-label={`Untag ${t.name}`} style={{ color: 'var(--fg-4)' }}>×</button>}
+            </span>
+          ))}
+        </div>
+      )}
+      {!posted && (
+        connected ? (
+          <div className="flex gap-2">
+            <input
+              className="ws-input flex-1"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+              placeholder="Paste the company’s LinkedIn page, e.g. linkedin.com/company/gsk"
+              aria-label="Company to tag"
+              disabled={busy}
+            />
+            <button type="button" onClick={add} disabled={busy || !q.trim()} className="ws-btn ws-btn-sm">{busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Tag'}</button>
+            <button type="button" onClick={suggest} disabled={looking} className="ws-btn ws-btn-sm" title="Find the companies this post names and their LinkedIn pages">
+              {looking ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Reading…</> : <><Sparkles className="w-3.5 h-3.5" /> Suggest from the post</>}
+            </button>
+          </div>
+        ) : (
+          <span className="text-[12px]" style={{ color: 'var(--fg-4)' }}>Connect LinkedIn at the top of the tab to tag companies.</span>
+        )
+      )}
+      {offered && !posted && (
+        <div className="flex flex-col gap-1.5 rounded-md p-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+          {offered.found.length > 0 ? (
+            <>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>Named in this post:</span>
+                {offered.found.map((m) => (
+                  <span key={m.urn} className="crm-pill inline-flex items-center gap-1 rounded-full pl-2.5 pr-1 py-0.5 text-[12px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+                    <a href={`https://www.linkedin.com/company/${m.vanity || m.urn.split(':').pop()}`} target="_blank" rel="noreferrer" className="hover:underline underline-offset-4" style={{ color: 'var(--fg-2)' }} title="Open the page to check it is the right one">{m.name}</a>
+                    <button type="button" onClick={() => take([m])} className="rounded-full px-1.5" style={{ color: 'var(--accent-ink)' }} aria-label={`Tag ${m.name}`}>+ Tag</button>
+                  </span>
+                ))}
+                {offered.found.length > 1 && <button type="button" onClick={() => take(offered.found)} className="ws-btn ws-btn-primary ws-btn-sm">Tag all</button>}
+              </div>
+            </>
+          ) : (
+            <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{offered.missing.length ? 'No pages found for the companies in this post.' : 'No other companies named in this post.'}</span>
+          )}
+          {offered.missing.length > 0 && (
+            <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{`No LinkedIn page found for ${offered.missing.join(', ')}. Paste its page link above to tag it.`}</span>
+          )}
+        </div>
+      )}
+      {!posted && <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>LinkedIn only allows tags in the post text, not on the image. Where the caption names the company, that name becomes the tag; the company is notified and its name links to its page.</span>}
+      {err && <p className="text-[12.5px]" style={{ color: 'var(--bad)' }}>{err}</p>}
+    </div>
+  )
+}
+
 function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post; onChanged: () => void; onMoved: (message: string) => void; onRegenerate: () => void; busy: boolean }) {
   const [caption, setCaption] = useState(post.caption)
   const [headline, setHeadline] = useState(post.headline)
@@ -870,6 +993,7 @@ function PostCard({ post, onChanged, onMoved, onRegenerate, busy }: { post: Post
           </div>
           <textarea className="ws-input" rows={7} value={caption} onChange={(e) => setCaption(e.target.value)} aria-label="Caption" style={{ resize: 'vertical', lineHeight: 1.5 }} />
           <p className="text-[12.5px] break-words" style={{ color: 'var(--accent-ink)' }}>{post.hashtags.join(' ')}</p>
+          <TagCompanies post={post} caption={caption} connected={Boolean(li?.connected)} onChanged={onChanged} />
 
           {/* Ask Claude: the team's instructions and what came of them, as a thread; the post is rewritten and drawn again. */}
           <div className="flex flex-col gap-2 rounded-md p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
