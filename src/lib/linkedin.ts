@@ -155,7 +155,7 @@ export async function disconnect(): Promise<void> {
 
 // A token good for the next few minutes: the stored one, or a refreshed
 // one when LinkedIn gave a refresh token; otherwise "connect again".
-async function liveToken(): Promise<{ token: string; conn: Connection }> {
+export async function liveToken(): Promise<{ token: string; conn: Connection }> {
   const conn = await getConnection()
   if (!conn) throw new LinkedInError('LinkedIn is not connected. Use "Connect LinkedIn" at the top of the Content tab.', 409, true)
   if (Date.parse(conn.expires_at) - Date.now() > 10 * 60 * 1000) return { token: conn.access_token, conn }
@@ -176,13 +176,14 @@ async function liveToken(): Promise<{ token: string; conn: Connection }> {
 
 // ── The API ────────────────────────────────────────────────────────────────
 
-async function api<T>(accessToken: string, path: string, init: { method?: string; body?: unknown } = {}): Promise<{ data: T; headers: Headers }> {
+export async function api<T>(accessToken: string, path: string, init: { method?: string; body?: unknown; restliMethod?: string } = {}): Promise<{ data: T; headers: Headers }> {
   const r = await fetch(`${API}${path}`, {
     method: init.method ?? 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'LinkedIn-Version': apiVersion(),
       'X-Restli-Protocol-Version': '2.0.0',
+      ...(init.restliMethod ? { 'X-RestLi-Method': init.restliMethod } : {}),
       ...(init.body ? { 'Content-Type': 'application/json' } : {}),
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
