@@ -326,7 +326,7 @@ export async function findCompany(input: string): Promise<Mention> {
     if (!data.localizedName) throw new LinkedInError(`LinkedIn has no company page numbered ${key}.`, 404)
     return { urn: `urn:li:organization:${key}`, name: data.localizedName, vanity: data.vanityName ?? null }
   }
-  if (!/^[A-Za-z0-9._-]+$/.test(key)) throw new LinkedInError('Paste the company’s LinkedIn page link, like linkedin.com/company/gsk.', 400)
+  if (!/^[A-Za-z0-9._&'-]+$/.test(key)) throw new LinkedInError('Paste the company’s LinkedIn page link, like linkedin.com/company/gsk.', 400)
   const { data } = await api<{ elements?: { id?: number; localizedName?: string; vanityName?: string }[] }>(
     t,
     `/organizations?q=vanityName&vanityName=${encodeURIComponent(key)}`,

@@ -614,6 +614,8 @@ function TagCompanies({ post, caption, connected, onChanged }: { post: Post; cap
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [offered, setOffered] = useState<{ found: Tagged[]; missing: string[] } | null>(null)
+  const [looking, setLooking] = useState(false)
   const posted = post.status === 'posted'
   if (posted && !tagged.length) return null
 
@@ -637,6 +639,22 @@ function TagCompanies({ post, caption, connected, onChanged }: { post: Post; cap
       setErr(e instanceof Error ? e.message : 'That company page could not be found.')
     }
     setBusy(false)
+  }
+  // Claude reads the post for the companies it names; LinkedIn finds their pages.
+  async function suggest() {
+    setLooking(true)
+    setErr('')
+    const r = await fetch(`/api/marketing/content/${post.id}/tags`, { method: 'POST' })
+    const j = await r.json().catch(() => ({}))
+    setLooking(false)
+    if (!r.ok) return setErr(j?.error || 'The post could not be read for companies.')
+    setOffered({ found: j.found ?? [], missing: j.missing ?? [] })
+  }
+  async function take(list: Tagged[]) {
+    setErr('')
+    const next = [...tagged, ...list.filter((m) => !tagged.some((t) => t.urn === m.urn))]
+    await save(next).catch((e) => setErr(e.message))
+    setOffered((o) => (o ? { ...o, found: o.found.filter((f) => !list.some((m) => m.urn === f.urn)) } : o))
   }
   async function drop(urn: string) {
     setErr('')
@@ -671,10 +689,36 @@ function TagCompanies({ post, caption, connected, onChanged }: { post: Post; cap
               disabled={busy}
             />
             <button type="button" onClick={add} disabled={busy || !q.trim()} className="ws-btn ws-btn-sm">{busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Tag'}</button>
+            <button type="button" onClick={suggest} disabled={looking} className="ws-btn ws-btn-sm" title="Find the companies this post names and their LinkedIn pages">
+              {looking ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Reading…</> : <><Sparkles className="w-3.5 h-3.5" /> Suggest from the post</>}
+            </button>
           </div>
         ) : (
           <span className="text-[12px]" style={{ color: 'var(--fg-4)' }}>Connect LinkedIn at the top of the tab to tag companies.</span>
         )
+      )}
+      {offered && !posted && (
+        <div className="flex flex-col gap-1.5 rounded-md p-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+          {offered.found.length > 0 ? (
+            <>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>Named in this post:</span>
+                {offered.found.map((m) => (
+                  <span key={m.urn} className="crm-pill inline-flex items-center gap-1 rounded-full pl-2.5 pr-1 py-0.5 text-[12px]" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+                    <a href={`https://www.linkedin.com/company/${m.vanity || m.urn.split(':').pop()}`} target="_blank" rel="noreferrer" className="hover:underline underline-offset-4" style={{ color: 'var(--fg-2)' }} title="Open the page to check it is the right one">{m.name}</a>
+                    <button type="button" onClick={() => take([m])} className="rounded-full px-1.5" style={{ color: 'var(--accent-ink)' }} aria-label={`Tag ${m.name}`}>+ Tag</button>
+                  </span>
+                ))}
+                {offered.found.length > 1 && <button type="button" onClick={() => take(offered.found)} className="ws-btn ws-btn-primary ws-btn-sm">Tag all</button>}
+              </div>
+            </>
+          ) : (
+            <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{offered.missing.length ? 'No pages found for the companies in this post.' : 'No other companies named in this post.'}</span>
+          )}
+          {offered.missing.length > 0 && (
+            <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{`No LinkedIn page found for ${offered.missing.join(', ')}. Paste its page link above to tag it.`}</span>
+          )}
+        </div>
       )}
       {!posted && <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>LinkedIn only allows tags in the post text, not on the image. Where the caption names the company, that name becomes the tag; the company is notified and its name links to its page.</span>}
       {err && <p className="text-[12.5px]" style={{ color: 'var(--bad)' }}>{err}</p>}
