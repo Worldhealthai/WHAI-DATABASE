@@ -260,20 +260,89 @@ async function upload(accessToken: string, kind: 'images' | 'documents', owner: 
   return urn
 }
 
+// A company tagged in a post: its page, and its name exactly as LinkedIn
+// has it (a mention shows as a link only when the name matches).
+export interface Mention { urn: string; name: string; vanity?: string | null }
+
 // LinkedIn's "little text": these characters are markup and must be
-// escaped to show as themselves; a hashtag is written as a template.
+// escaped to show as themselves; a hashtag is written as a template, and
+// a tagged company as a mention. LinkedIn's API cannot tag a company on
+// the image itself, so the tags go in the text: where the caption already
+// names the company, otherwise on a line of their own before the hashtags.
 const RESERVED = /[\\|{}@[\]()<>#*_~]/g
-export function littleText(caption: string, hashtags: string[]): string {
+const escape = (s: string) => s.replace(RESERVED, (c) => `\\${c}`)
+const SPOT = (i: number) => `\u0000${i}\u0000`
+export function littleText(caption: string, hashtags: string[], mentions: Mention[] = []): string {
   const inCaption = new Set((caption.match(/#[A-Za-z][A-Za-z0-9_]*/g) ?? []).map((h) => h.toLowerCase()))
   const extra = hashtags.filter((h) => !inCaption.has(h.toLowerCase()))
-  const body = caption.trim()
+  let body = caption.trim()
+  const loose: string[] = []
+  mentions.forEach((m, i) => {
+    const at = findName(body, m.name)
+    if (at < 0) loose.push(SPOT(i))
+    else body = body.slice(0, at) + SPOT(i) + body.slice(at + m.name.length)
+  })
+  if (loose.length) {
+    // Before the caption's own hashtag line when it ends with one.
+    const tail = body.match(/\n\s*#[A-Za-z][^\n]*$/)
+    body = tail ? `${body.slice(0, tail.index)}\n\n${loose.join(' ')}${tail[0]}` : `${body}\n\n${loose.join(' ')}`
+  }
   // The tags go on the caption's own hashtag line when it ends with one.
   const endsWithTags = /(^|\n)\s*#[A-Za-z][^\n]*$/.test(body)
   const text = !extra.length ? body : endsWithTags ? `${body} ${extra.join(' ')}` : `${body}\n\n${extra.join(' ')}`
   return text
     .split(/(#[A-Za-z][A-Za-z0-9_]*)/g)
-    .map((part, i) => (i % 2 === 1 ? `{hashtag|\\#|${part.slice(1)}}` : part.replace(RESERVED, (c) => `\\${c}`)))
+    .map((part, i) => (i % 2 === 1 ? `{hashtag|\\#|${part.slice(1)}}` : escape(part)))
     .join('')
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => `@[${escape(mentions[Number(i)].name)}](${mentions[Number(i)].urn})`)
+}
+
+// Where the caption names the company: the first time, as a whole word,
+// in any case.
+function findName(text: string, name: string): number {
+  if (!name.trim()) return -1
+  const lower = text.toLowerCase()
+  const want = name.toLowerCase()
+  for (let at = lower.indexOf(want); at >= 0; at = lower.indexOf(want, at + 1)) {
+    const before = text[at - 1] ?? ' '
+    const after = text[at + want.length] ?? ' '
+    if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return at
+  }
+  return -1
+}
+
+// A company's LinkedIn page from what the team pastes: the page's link
+// (linkedin.com/company/gsk), its short name (gsk) or its number.
+export async function findCompany(input: string): Promise<Mention> {
+  const raw = input.trim()
+  const fromUrl = raw.match(/linkedin\.com\/(?:company|showcase|school)\/([^/?#\s]+)/i)?.[1]
+  const key = decodeURIComponent(fromUrl ?? raw.replace(/^@/, '')).trim()
+  if (!key) throw new LinkedInError('Paste the company’s LinkedIn page link.', 400)
+  const { token: t } = await liveToken()
+  if (/^\d+$/.test(key)) {
+    const { data } = await api<{ id?: number; localizedName?: string; vanityName?: string }>(t, `/organizations/${key}`).catch(() => {
+      throw new LinkedInError(`LinkedIn has no company page numbered ${key}.`, 404)
+    })
+    if (!data.localizedName) throw new LinkedInError(`LinkedIn has no company page numbered ${key}.`, 404)
+    return { urn: `urn:li:organization:${key}`, name: data.localizedName, vanity: data.vanityName ?? null }
+  }
+  if (!/^[A-Za-z0-9._-]+$/.test(key)) throw new LinkedInError('Paste the company’s LinkedIn page link, like linkedin.com/company/gsk.', 400)
+  const { data } = await api<{ elements?: { id?: number; localizedName?: string; vanityName?: string }[] }>(
+    t,
+    `/organizations?q=vanityName&vanityName=${encodeURIComponent(key)}`,
+  )
+  const org = data.elements?.find((e) => e.id && e.localizedName)
+  if (!org) throw new LinkedInError(`LinkedIn has no company page at linkedin.com/company/${key}.`, 404)
+  return { urn: `urn:li:organization:${org.id}`, name: org.localizedName!, vanity: org.vanityName ?? key }
+}
+
+// The tags as stored on a post (source.mentions), checked.
+export function mentionsOf(source: unknown): Mention[] {
+  const list = (source as { mentions?: unknown } | null)?.mentions
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((m): m is Mention => !!m && typeof m === 'object' && /^urn:li:organization:\d+$/.test(String((m as Mention).urn)) && typeof (m as Mention).name === 'string' && !!(m as Mention).name.trim())
+    .map((m) => ({ urn: m.urn, name: m.name.trim(), vanity: m.vanity ?? null }))
 }
 
 export interface Published { urn: string; url: string; page: LinkedInPage }

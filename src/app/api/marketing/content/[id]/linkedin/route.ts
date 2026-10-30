@@ -1,12 +1,13 @@
 // POST /api/marketing/content/<id>/linkedin → "Approve and post": the post
 // goes up on its brand's LinkedIn page now (lib/linkedin), a single post as
-// its image and a carousel as its PDF, and is marked posted with its link.
+// its image and a carousel as its PDF, with the companies tagged on it
+// mentioned in the text, and is marked posted with its link.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { renderCard } from '@/lib/contentCard'
 import { renderCarouselPdf, slidesOf, type CarouselPost } from '@/lib/contentCarousel'
 import { brandFor } from '@/lib/contentBrand'
-import { LinkedInError, littleText, publish } from '@/lib/linkedin'
+import { LinkedInError, littleText, mentionsOf, publish } from '@/lib/linkedin'
 import type { ContentPost } from '@/lib/contentStudio'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +44,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       : new Uint8Array(await (await renderCard(post as Parameters<typeof renderCard>[0])).arrayBuffer())
     const done = await publish({
       brand,
-      commentary: littleText(post.caption, post.hashtags),
+      commentary: littleText(post.caption, post.hashtags, mentionsOf(post.source)),
       file: carousel ? { kind: 'document', bytes, title } : { kind: 'image', bytes, title, altText: [post.kicker, post.headline, post.subline].filter(Boolean).join('. ') },
     })
     const now = new Date().toISOString()

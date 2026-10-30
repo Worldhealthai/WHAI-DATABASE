@@ -2,10 +2,13 @@
 //   PATCH  /api/marketing/content/<id> { kicker?, headline?, subline?, caption?, hashtags?, link?, forDate?, status?, postUrl?, slides? }
 //          slides: a carousel's words, slide by slide, as the team corrected
 //          them (each slide keeps its kind, its link and its source).
+//          mentions: the companies tagged on the post, [{ urn, name, vanity }]
+//          from /api/linkedin/company, mentioned in the text when it goes up.
 //   DELETE /api/marketing/content/<id>
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { tidy } from '@/lib/contentStudio'
+import { mentionsOf } from '@/lib/linkedin'
 import { fitText } from '@/lib/contentText'
 import type { Slide } from '@/lib/contentCarousel'
 
@@ -44,17 +47,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     patch.postedAt = body.status === 'posted' ? new Date().toISOString() : null
     if (body.status === 'draft') patch.postUrl = null
   }
-  if (Array.isArray(body.slides)) {
+  if (Array.isArray(body.slides) || Array.isArray(body.mentions)) {
     const { data: was, error: readError } = await supabase.from('marketing_content').select('source').eq('id', id).maybeSingle()
     if (readError) return NextResponse.json({ error: readError.message }, { status: 500 })
     const source = (was?.source ?? {}) as { slides?: Slide[] } & Record<string, unknown>
-    const slides = Array.isArray(source.slides) ? source.slides : []
-    if (!slides.length) return NextResponse.json({ error: 'This post has no slides to edit.' }, { status: 400 })
-    const next = slides.map((s, i) => (body.slides[i] && typeof body.slides[i] === 'object' ? edited(s, body.slides[i]) : s))
-    patch.source = { ...source, slides: next }
-    // The post's own words follow the news slide, as when it was written.
-    const news = next[0]?.kind === 'news' ? next[0] : null
-    if (news) Object.assign(patch, { kicker: news.kicker, headline: news.headline, subline: fitText(news.summary, 120) })
+    const next: Record<string, unknown> = { ...source }
+    if (Array.isArray(body.slides)) {
+      const slides = Array.isArray(source.slides) ? source.slides : []
+      if (!slides.length) return NextResponse.json({ error: 'This post has no slides to edit.' }, { status: 400 })
+      const edits = slides.map((s, i) => (body.slides[i] && typeof body.slides[i] === 'object' ? edited(s, body.slides[i]) : s))
+      next.slides = edits
+      // The post's own words follow the news slide, as when it was written.
+      const news = edits[0]?.kind === 'news' ? edits[0] : null
+      if (news) Object.assign(patch, { kicker: news.kicker, headline: news.headline, subline: fitText(news.summary, 120) })
+    }
+    if (Array.isArray(body.mentions)) {
+      // One tag per company page.
+      next.mentions = mentionsOf({ mentions: body.mentions }).filter((m, i, all) => all.findIndex((x) => x.urn === m.urn) === i).slice(0, 20)
+    }
+    patch.source = next
   }
   const { data, error } = await supabase.from('marketing_content').update(patch).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
