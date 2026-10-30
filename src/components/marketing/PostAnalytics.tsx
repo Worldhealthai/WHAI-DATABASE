@@ -4,7 +4,7 @@
 // from LinkedIn (api/linkedin/analytics). The page follows the edition's
 // brand, and any of the three pages can be looked at.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ArrowUpRight, BarChart3, RefreshCw } from 'lucide-react'
@@ -54,6 +54,7 @@ export function PostAnalytics() {
     sort === 'publishedAt' ? Date.parse(y.publishedAt ?? '') - Date.parse(x.publishedAt ?? '') : (y[sort] ?? -1) - (x[sort] ?? -1),
   )
   const fromCrm = a?.posts.filter((p) => p.crm).length ?? 0
+  const pin = usePinBelowTopbar()
 
   return (
     <WorkspacePage
@@ -105,7 +106,9 @@ export function PostAnalytics() {
             </ChartCard>
           </div>
 
-          <div className="ws-card overflow-hidden">
+          {/* Posts: the column headings stay in sight while the list scrolls
+              (on wider screens, where the table needs no sideways scroll). */}
+          <div className="ws-card overflow-hidden lg:overflow-visible">
             <div className="flex flex-wrap items-center gap-2 px-5 py-4" style={{ borderBottom: '1px solid var(--line)' }}>
               <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>Posts</p>
               {a && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{`${a.posts.length} in the period${fromCrm ? `, ${fromCrm} from the Content tab` : ''}. Each post's figures are for its whole life.`}</span>}
@@ -115,8 +118,8 @@ export function PostAnalytics() {
             ) : !posts.length ? (
               <EmptyState icon={BarChart3} title="No posts in this period" body="Posts the page puts up show here, with their figures." className="py-10" />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="ws-table w-full min-w-[860px]">
+              <div className="overflow-x-auto lg:overflow-visible">
+                <table className="ws-table w-full min-w-[860px]" style={{ ['--pin' as string]: `${pin}px` }}>
                   <thead>
                     <tr>
                       <Th k="publishedAt" sort={sort} setSort={setSort} left>Post</Th>
@@ -141,7 +144,7 @@ export function PostAnalytics() {
 
 function Th({ k, sort, setSort, left, children }: { k: SortKey; sort: SortKey; setSort: (k: SortKey) => void; left?: boolean; children: React.ReactNode }) {
   return (
-    <th style={{ textAlign: left ? 'left' : 'right' }} aria-sort={sort === k ? 'descending' : undefined}>
+    <th className="lg:sticky lg:top-[var(--pin)] z-[5]" style={{ textAlign: left ? 'left' : 'right', background: 'var(--surface)', boxShadow: 'inset 0 -1px 0 var(--line)' }} aria-sort={sort === k ? 'descending' : undefined}>
       <button type="button" onClick={() => setSort(k)} className="hover:underline underline-offset-4 whitespace-nowrap" style={{ color: sort === k ? 'var(--fg)' : undefined, fontWeight: sort === k ? 600 : undefined }}>
         {children}{sort === k ? ' ↓' : ''}
       </button>
@@ -171,6 +174,22 @@ function PostRow({ p }: { p: PostFigures }) {
       <td className="text-right tabular text-[13px] font-medium" style={{ color: 'var(--fg)' }}>{pct(p.engagementRate)}</td>
     </tr>
   )
+}
+
+// How far down the CRM's top bar reaches, so the pinned headings sit
+// just under it (it is two rows on wide screens, one on phones).
+function usePinBelowTopbar(): number {
+  const [h, setH] = useState(0)
+  useEffect(() => {
+    const bar = document.querySelector('header.crm-top')
+    if (!bar) return
+    const read = () => setH(Math.round(bar.getBoundingClientRect().height))
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(bar)
+    return () => ro.disconnect()
+  }, [])
+  return h
 }
 
 function ChartCard({ title, note, loading, children }: { title: string; note: string; loading: boolean; children: React.ReactNode }) {
