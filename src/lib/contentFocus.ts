@@ -73,7 +73,7 @@ export function focusedPick<T extends Pick<PublicInsight, 'title' | 'dek'>>(fres
 export type AskedFormat = 'single' | 'two-page' | 'carousel'
 export function askedFormat(text: string | null | undefined): AskedFormat | null {
   const t = String(text || '')
-  if (/\b(single|one)[- ]?(page|pager|image|slide|card|graphic|picture)|\\b1-(page|pager|slide|image)\b|\b(just|only) (one|a single|1) (page|image|slide|card)\b|\bno (carousel|slides|second page|more pages)\b|\bnot a carousel\b/i.test(t)) return 'single'
+  if (/\b(single|one)[- ]?(page|pager|image|slide|card|graphic|picture)\b|\b1-(page|pager|slide|image)\b|\b(just|only) (one|a single|1) (page|image|slide|card)\b|\bno (carousel|slides|second page|more pages)\b|\bnot a carousel\b/i.test(t)) return 'single'
   if (/\b(two|2)[- ]?(pages?|pager|slides?|images?)\b/i.test(t)) return 'two-page'
   if (/\bcarousel\b|\b(three|four|five|six|3|4|5|6)[- ]?(slides|pages)\b/i.test(t)) return 'carousel'
   return null
