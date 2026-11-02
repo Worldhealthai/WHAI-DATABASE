@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const style = isCardStyle(body.style) ? body.style : 'rotate'
     const post = body.format === 'carousel'
       ? await draftCarousel(ed, { brief, forDate, ref: body.ref ? String(body.ref) : null, style })
-      : await draftPost(ed, { kind, brief, forDate, style })
+      : await draftPost(ed, { kind, brief, forDate, style, ref: body.ref ? String(body.ref) : null })
     return NextResponse.json({ post }, { status: 201 })
   } catch (error: any) {
     if (error instanceof ContentError) return NextResponse.json({ error: error.message }, { status: error.status })

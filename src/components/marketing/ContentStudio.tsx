@@ -69,6 +69,9 @@ export interface Post {
 const fmtDay = (iso: string | null) =>
   iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : 'No day set'
 
+// A briefing for the "Which briefing" picker (api/marketing/content/briefings).
+interface Briefing { slug: string; title: string; published_at: string | null; ai: boolean; big: boolean; posted: boolean }
+
 // The LinkedIn connection (api/linkedin): whether posts can go straight up.
 interface LinkedInStatus {
   configured: boolean
@@ -187,6 +190,9 @@ export function ContentStudio() {
   const refresh = () => qc.invalidateQueries({ queryKey: key })
 
   const [pick, setPick] = useState<Pick>('auto')
+  // A briefing picked by hand ('' lets the page choose: AI first, a big
+  // general story at most once a week).
+  const [briefing, setBriefing] = useState('')
   const [look, setLook] = useState<Look>('rotate')
   const [browsing, setBrowsing] = useState(false)
   const [brief, setBrief] = useState('')
@@ -199,6 +205,16 @@ export function ContentStudio() {
   // A single post, or a LinkedIn carousel from an Insights briefing.
   const [format, setFormat] = useState<'single' | 'carousel'>('single')
   const kinds = KINDS.filter((k) => k.track === track)
+  const briefings = useQuery<Briefing[]>({
+    queryKey: ['content-briefings', ed?.label ?? ''],
+    queryFn: async () => {
+      const r = await fetch(`/api/marketing/content/briefings?${new URLSearchParams({ series: ed!.series, label: ed!.label })}`, { cache: 'no-store' })
+      return ((await r.json().catch(() => ({})))?.briefings ?? []) as Briefing[]
+    },
+    enabled: Boolean(ed),
+    staleTime: 5 * 60 * 1000,
+  }).data ?? []
+  const showBriefings = format === 'carousel' || pick === 'insight' || pick === 'auto'
 
   async function generate(opts: { kind?: Pick; brief?: string; forDate?: string; format?: 'single' | 'carousel'; ref?: string | null; style?: Look } = {}) {
     if (!ed) return
@@ -210,7 +226,7 @@ export function ContentStudio() {
     const r = await fetch('/api/marketing/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...ed, kind: kind === 'auto' ? null : kind, brief: opts.brief ?? brief, forDate: opts.forDate ?? forDate ?? null, format: fmt, ref: opts.ref ?? null, style: style === 'rotate' ? null : style }),
+      body: JSON.stringify({ ...ed, kind: kind === 'auto' ? null : kind, brief: opts.brief ?? brief, forDate: opts.forDate ?? forDate ?? null, format: fmt, ref: 'ref' in opts ? opts.ref ?? null : briefing || null, style: style === 'rotate' ? null : style }),
     })
     const j = await r.json().catch(() => ({}))
     setBusy(false)
@@ -220,6 +236,8 @@ export function ContentStudio() {
     }
     setBrief('')
     setForDate('')
+    setBriefing('')
+    qc.invalidateQueries({ queryKey: ['content-briefings'] })
     refresh()
   }
 
@@ -278,7 +296,7 @@ export function ContentStudio() {
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               {format === 'carousel' ? (
-                <Field label="What it is about" hint="One of the newest Insights briefings not yet turned into a carousel.">
+                <Field label="What it is about" hint="An Insights briefing, chosen under Which briefing.">
                   <p className="ws-input flex items-center" style={{ color: 'var(--fg-2)' }}>An Insights briefing: the news, a statistic, the data, a quote</p>
                 </Field>
               ) : (
@@ -310,6 +328,16 @@ export function ContentStudio() {
                   onPick={(style) => { setLook(style); setBrowsing(false) }}
                   onClose={() => setBrowsing(false)}
                 />
+              )}
+              {showBriefings && (
+                <Field label="Which briefing" hint={track === 'nexus' ? 'Left to choose, the newest the page has not posted.' : 'Left to choose, the page posts about AI: an AI briefing, or a big general story at most once a week. Pick any one to write it anyway.'}>
+                  <select className="ws-input" value={briefing} onChange={(e) => setBriefing(e.target.value)}>
+                    <option value="">{track === 'nexus' ? 'Choose for me' : 'Choose for me (AI first)'}</option>
+                    {briefings.map((b) => (
+                      <option key={b.slug} value={b.slug}>{`${b.ai ? 'AI · ' : b.big ? 'Big news · ' : ''}${b.title}${b.posted ? ' (posted)' : ''}`}</option>
+                    ))}
+                  </select>
+                </Field>
               )}
               <Field label="Planned for" hint="Left blank, the next day with nothing planned.">
                 <input className="ws-input" type="date" value={forDate} onChange={(e) => setForDate(e.target.value)} />

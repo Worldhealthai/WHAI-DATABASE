@@ -28,6 +28,7 @@ import {
   VOICE,
   carouselLimits,
   checkSlides,
+  focusedInsights,
   gatherContext,
   photoFields,
   pools,
@@ -94,11 +95,11 @@ async function pickInsight(brand: RoutineBrand, ref?: string | null): Promise<Pi
   else {
     const fresh = list.filter((i) => !posted.has(i.slug))
     // The group's page posts about its own pieces only: the health and
-    // pharma pieces already have posts on their own pages. Those pages
-    // lead with their own field: a piece on a deal or a funding round
-    // (category "Markets") waits until the others have had their post.
-    const isMarkets = (i: PublicInsight) => (i.category || '').toLowerCase() === 'markets'
-    insight = brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : fresh.find((i) => !isMarkets(i)) ?? fresh[0]
+    // pharma pieces already have posts on their own pages.
+    // The health and pharma pages post about AI: their AI briefings, and a
+    // big general story at most once a week (lib/contentFocus).
+    const focused = new Set(focusedInsights(ctx).map((i) => i.slug))
+    insight = brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : fresh.find((i) => focused.has(i.slug))
   }
   if (!insight) return null
   const choice = (pools(ctx).insight ?? []).find((c) => c.ref === insight!.slug) ?? {
@@ -143,7 +144,10 @@ export async function routineBrief(brand: RoutineBrand, ref?: string | null) {
   const picked = await pickInsight(brand, ref)
   const page = brand === 'nexus' ? 'World Nexus Group (the group page, about its market intelligence)' : (await routineEdition(brand)).label
   if (!picked) {
-    return { brand, page, status: 'nothing' as const, message: `Every published ${SERIES[brand]} briefing already has a post. Nothing to write.` }
+    const message = brand === 'nexus'
+      ? `Every published ${SERIES[brand]} briefing already has a post. Nothing to write.`
+      : `No new AI briefing for ${SERIES[brand]} today, and no big general story is due (one a week at most). Nothing to write.`
+    return { brand, page, status: 'nothing' as const, message }
   }
   const { ctx, insight, choice } = picked
   const article = await readArticleFull(insight.slug)

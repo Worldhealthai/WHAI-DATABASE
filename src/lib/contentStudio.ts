@@ -20,6 +20,7 @@
 // always in the brand's own look and a run of posts does not look the same.
 
 import Anthropic from '@anthropic-ai/sdk'
+import { FRESH_DAYS, bigScore, generalAllowed, isAiStory, isBigNews } from '@/lib/contentFocus'
 import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
@@ -141,7 +142,7 @@ export interface EditionContext {
   sponsors: LineupSponsor[]
   sessions: Session[]
   photos: string[]
-  recent: Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'>[]
+  recent: (Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'> & { createdAt?: string })[]
 }
 
 const parseDay = (date: string | null | undefined) => {
@@ -158,7 +159,7 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
     nexus ? Promise.resolve({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] }) : fetchLineup(ed).catch(() => ({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] })),
     nexus ? Promise.resolve(null) : readAgenda(ed.label),
     readJson<{ photos: GalleryPhoto[] }>(`${NEXUS_URL}/api/public/gallery?site=${brand === 'nexus' ? 'all' : brand}`, { photos: [] }),
-    supabase.from('marketing_content').select('kind, ref, headline, caption, source').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(40),
+    supabase.from('marketing_content').select('kind, ref, headline, caption, source, createdAt').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(40),
   ])
   const now = Date.now()
   const upcoming = events.events
@@ -177,12 +178,14 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
     event,
     upcoming,
     daysToGo: when ? Math.ceil((when - now) / 86400000) : null,
-    insights: (insightsRes.articles ?? []).slice(0, 20),
+    // More than a day's worth: the health and pharma pages pick the AI
+    // briefings among them (lib/contentFocus), which can be a few days back.
+    insights: (insightsRes.articles ?? []).slice(0, nexus ? 20 : 60),
     speakers: lineup.speakers,
     sponsors: lineup.sponsors,
     sessions: agenda?.sessions.filter((s) => s.type !== 'break' && s.title) ?? [],
     photos: gallery.photos.map((p) => p.image_url).filter(Boolean),
-    recent: ((recentRes.data ?? []) as Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'>[]),
+    recent: ((recentRes.data ?? []) as EditionContext['recent']),
   }
 }
 
@@ -221,6 +224,22 @@ export function photoFields(ctx: EditionContext, seed: string, style: CardStyle)
   return photos.length ? { photo: photos[0], photos } : {}
 }
 
+// A briefing as something to post about.
+export function insightChoiceFor(ctx: EditionContext, i: PublicInsight): Choice {
+  return { kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${ctx.site}/insights/${i.slug}` }
+}
+
+// The briefings a health or pharma page posts about by itself: those of the
+// last few weeks it has not posted, AI first, then (when the week allows
+// one) the biggest general story. The rest stay pickable by hand.
+export function focusedInsights(ctx: EditionContext): PublicInsight[] {
+  const recentDays = Date.now() - FRESH_DAYS * 86400000
+  const inWindow = ctx.insights.filter((i) => !i.published_at || Date.parse(i.published_at) >= recentDays)
+  const ai = inWindow.filter(isAiStory)
+  const general = generalAllowed(ctx.recent) ? inWindow.filter((i) => !isAiStory(i) && isBigNews(i)).sort((a, b) => bigScore(b) - bigScore(a)).slice(0, 1) : []
+  return [...ai, ...general]
+}
+
 export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
   const used = new Set(ctx.recent.map((r) => `${r.kind}:${r.ref}`))
   const fresh = (kind: ContentKind, items: Choice[]) => {
@@ -232,9 +251,10 @@ export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]
   // A briefing's card. The pharma and health pages lead with their own
   // field: a piece on a deal or a funding round (category "Markets") comes
   // after the others, as those belong to the group's page first.
-  const insightChoice = (i: PublicInsight): Choice => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}` })
-  const isMarkets = (i: PublicInsight) => (i.category || '').toLowerCase() === 'markets'
-  const insights = ctx.brand === 'nexus' ? ctx.insights : [...ctx.insights.filter((i) => !isMarkets(i)), ...ctx.insights.filter(isMarkets)]
+  // The health and pharma pages post about AI: the AI briefings of the last
+  // few weeks, and a big general story at most once a week (lib/contentFocus).
+  const insights = ctx.brand === 'nexus' ? ctx.insights : focusedInsights(ctx)
+  const insightChoice = (i: PublicInsight) => insightChoiceFor(ctx, i)
 
   if (ctx.brand === 'nexus') {
     return {
@@ -293,7 +313,9 @@ function choose(ctx: EditionContext, wanted: ContentKind | null): Choice {
 
 export function emptyPoolMessage(kind: ContentKind, ctx: EditionContext): string {
   switch (kind) {
-    case 'insight': return `No published Insights for ${ctx.ed.series} yet. Publish one on worldnexusgroup.com first.`
+    case 'insight':
+      if (!ctx.insights.length) return `No published Insights for ${ctx.ed.series} yet. Publish one on worldnexusgroup.com first.`
+      return `No new AI briefing for ${ctx.ed.series} in the last ${FRESH_DAYS} days, and a big general story has already gone out this week. Pick a briefing yourself under "Which briefing", or choose another kind of post.`
     case 'session': return `No sessions in the ${ctx.ed.label} agenda yet. Build it in the Production portal first.`
     case 'speaker': return 'No confirmed speaker on the line-up has agreed to a LinkedIn post yet.'
     case 'theme': return 'The agenda has no discussion points yet to draw a theme from.'
@@ -463,9 +485,11 @@ export function tidy(s: string): string {
 
 // ── The whole run ───────────────────────────────────────────────────────────
 
-export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null }): Promise<ContentPost> {
+export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null; ref?: string | null }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
-  const pick = choose(ctx, opts.kind ?? null)
+  // A briefing picked by hand is written whatever it is about.
+  const chosen = opts.ref ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
+  const pick = chosen ? insightChoiceFor(ctx, chosen) : choose(ctx, opts.kind ?? null)
   // A briefing is written from its own text, from an angle that moves on
   // each time the same briefing comes round.
   let angle: string | null = null
@@ -676,7 +700,10 @@ export function checkSlides(
 
 export async function draftCarousel(ed: Edition, opts: { brief?: string | null; forDate?: string | null; ref?: string | null; style?: CardStyle | 'rotate' | null }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
-  const pool = pools(ctx).insight ?? []
+  // A briefing picked by hand is written whatever it is about; otherwise
+  // the page's own pick (AI first, lib/contentFocus).
+  const chosen = opts.ref ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
+  const pool = chosen ? [insightChoiceFor(ctx, chosen)] : pools(ctx).insight ?? []
   if (!pool.length) throw new ContentError(emptyPoolMessage('insight', ctx))
   // The briefing asked for, else one of the newest not turned into a
   // carousel lately.
