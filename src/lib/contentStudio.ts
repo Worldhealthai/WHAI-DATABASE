@@ -485,7 +485,7 @@ export function tidy(s: string): string {
 
 // ── The whole run ───────────────────────────────────────────────────────────
 
-export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null; ref?: string | null }): Promise<ContentPost> {
+export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null; ref?: string | null; by?: string }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
   // A briefing picked by hand is written whatever it is about.
   const chosen = opts.ref ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
@@ -517,7 +517,7 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     forDate: opts.forDate || (await nextFreeDay(ed.label)),
     ...draft,
     link: pick.link,
-    source: { ...sourceKept, style, ...photos, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
+    source: { ...sourceKept, style, ...photos, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site, ...(opts.by ? { by: opts.by } : {}) },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
@@ -528,13 +528,15 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
 }
 
 // The first day from today with no post planned for this edition.
+// The next weekday with nothing planned: the pages post Monday to Friday.
 export async function nextFreeDay(edition: string): Promise<string> {
   const { data } = await supabase.from('marketing_content').select('forDate').eq('edition', edition).not('forDate', 'is', null)
   const taken = new Set((data ?? []).map((r: { forDate: string }) => r.forDate))
   const d = new Date()
   for (let i = 0; i < 365; i++) {
     const iso = d.toISOString().slice(0, 10)
-    if (!taken.has(iso)) return iso
+    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
+    if (!weekend && !taken.has(iso)) return iso
     d.setUTCDate(d.getUTCDate() + 1)
   }
   return new Date().toISOString().slice(0, 10)
