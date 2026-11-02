@@ -336,24 +336,28 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
           <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>People</span>
           <TitleFilter titles={titleCounts} tokens={pf.titles} onChange={(titles) => setP({ titles })} />
-          <Segmented size="sm" value={pf.doing || 'any'} onChange={(v) => setP({ doing: v === 'any' ? '' : (v as Doing) })}
-            options={[{ value: 'any', label: 'Anyone' }, { value: 'Attending', label: 'Attending' }, { value: 'Speaking', label: 'Speaking' }, { value: 'Company contact', label: 'Contacts' }]} />
+          <div className="max-w-full overflow-x-auto scrollbar-hide">
+            <Segmented size="sm" value={pf.doing || 'any'} onChange={(v) => setP({ doing: v === 'any' ? '' : (v as Doing) })}
+              options={[{ value: 'any', label: 'Anyone' }, { value: 'Attending', label: 'Attending' }, { value: 'Speaking', label: 'Speaking' }, { value: 'Company contact', label: 'Contacts' }]} />
+          </div>
           {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ titles: [], doing: '' })}>Clear</button>}
         </div>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the companies" body={(error as Error).message} /> :
          isLoading ? <Skeleton /> :
          rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body="Try another filter, or clear the search." /> : (
           <div className="overflow-x-auto">
-            <div className="min-w-[900px]">
-              <div className="grid grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
-                <span>Company</span><span>Type</span><span>Events</span><span>{add.year} sales</span><span className="text-right">People</span><span className="text-right">Updated</span>
+            {/* On a phone a company is its name and type, with the sales
+                action under the name; the rest is on its record. */}
+            <div className="md:min-w-[900px]">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
+                <span>Company</span><span>Type</span><span className="hidden md:block">Events</span><span className="hidden md:block">{add.year} sales</span><span className="hidden md:block text-right">People</span><span className="hidden md:block text-right">Updated</span>
               </div>
               {shown.map((a) => {
                 const found = q || filtering ? peopleOf(a) : []
                 const expanded = open.has(a.key) || found.length > 0
                 return (
                   <div key={a.key} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <div className="grid grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
                       <span className="flex items-center gap-2 min-w-0">
                         <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -372,16 +376,16 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         </Link>
                       </span>
                       <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>
-                      <span className="min-w-0 truncate"><Events events={a.events ?? []} /></span>
+                      <span className="hidden md:block min-w-0 truncate"><Events events={a.events ?? []} /></span>
                       {(() => {
                         // This year's sponsor record, if the company has one.
                         const rec = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
-                        if (rec) return <Link href={`${PATH[rec.table]}/${rec.id}`} className="text-[13px] truncate hover:underline underline-offset-4" style={{ color: 'var(--fg-2)' }}>{rec.status ?? 'In the pipeline'}</Link>
-                        if (a.key === '__none' || !add.event) return <span className="text-[13px]" style={{ color: 'var(--fg-4)' }}>—</span>
-                        return <span><AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} /></span>
+                        if (rec) return <Link href={`${PATH[rec.table]}/${rec.id}`} className="col-span-2 md:col-span-1 pl-11 md:pl-0 text-[13px] truncate hover:underline underline-offset-4" style={{ color: 'var(--fg-2)' }}>{rec.status ?? 'In the pipeline'}</Link>
+                        if (a.key === '__none' || !add.event) return <span className="hidden md:block text-[13px]" style={{ color: 'var(--fg-4)' }}>—</span>
+                        return <span className="col-span-2 md:col-span-1 pl-11 md:pl-0"><AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} /></span>
                       })()}
-                      <span className="text-right tabular text-[13.5px]">{a.people}</span>
-                      <span className="text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
+                      <span className="hidden md:block text-right tabular text-[13.5px]">{a.people}</span>
+                      <span className="hidden md:block text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
                     </div>
                     {expanded && <Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} />}
                   </div>
