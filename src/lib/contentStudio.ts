@@ -20,7 +20,7 @@
 // always in the brand's own look and a run of posts does not look the same.
 
 import Anthropic from '@anthropic-ai/sdk'
-import { FRESH_DAYS, bigScore, generalAllowed, isAiStory, isBigNews } from '@/lib/contentFocus'
+import { FRESH_DAYS, askedFormat, bigScore, generalAllowed, isAiStory, isBigNews } from '@/lib/contentFocus'
 import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
@@ -738,7 +738,10 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   // Held to the article: a figure or a quote not in it drops its slide.
   const date = ctx.event?.date ?? null
   const { news, extras, end, dropped } = checkSlides(d, article, { title: src.title ?? '', publishedAt: src.published_at ?? null, fallbackDate: date, link: pick.link })
-  const slides: Slide[] = [news, ...extras, end]
+  // Two pages when the steer asks for two (the news and the strongest
+  // slide), else the full carousel.
+  const twoPage = askedFormat(opts.brief) === 'two-page' && extras.length > 0
+  const slides: Slide[] = twoPage ? [news, extras[0]] : [news, ...extras, end]
   // The slides' style, as for a single card; a photo goes behind the cover.
   needsPhotos(opts.style, ctx.photos.length)
   const style = nextStyle(ctx.recent, opts.style ?? null, ctx.photos.length)
@@ -756,7 +759,7 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
     caption: tidy(d.caption),
     hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
     link: pick.link,
-    source: { ...pick.source, format: 'carousel', style, ...photos, slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
+    source: { ...pick.source, format: 'carousel', ...(twoPage ? { pages: 'two-page' } : {}), style, ...photos, slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
@@ -880,7 +883,11 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
   const { photo: _p, photos: _ps, image: _i, logo: _l, style: _s, before: _b, steers: _st, linkedin: _li, slides: _sl, dropped: _d, by: _by, movedFrom: _m, ...held } = post.source
   // On another page, that page's own site, city and date.
   const material: Record<string, unknown> = { ...held, ...(to?.facts ?? {}) }
-  const carousel = Array.isArray(post.source.slides) && post.source.slides.length > 0
+  // The shape the instruction asks for: a carousel asked to be a single
+  // image becomes one, a carousel asked for two pages keeps two.
+  const wanted = askedFormat(steer)
+  const hasSlides = Array.isArray(post.source.slides) && post.source.slides.length > 0
+  const carousel = hasSlides && wanted !== 'single'
   const ask = (current: unknown, more: string[]) =>
     [
       `Page the post goes out from: ${page}`,
@@ -890,7 +897,7 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       ...extra,
       `The post as it stands:\n${JSON.stringify(current, null, 2)}`,
       `The marketing team's instruction for this revision: ${steer}`,
-      'Revise the post as the instruction asks. Facts the team gives in the instruction may be used as given; everything else must come from the material, as before. Change what the instruction asks for and anything that must change with it to read right; keep the rest word for word. Return the whole post as JSON.',
+      'Revise the post as the instruction asks. Facts the team gives in the instruction may be used as given; everything else must come from the material, as before. Change what the instruction asks for and anything that must change with it to read right; keep the rest word for word. Do exactly what the instruction asks and nothing more: never add pages, slides, sections, a quote, a statistic, a closing "read the full briefing" or anything else it did not ask for. Return the whole post as JSON.',
     ].filter(Boolean).join('\n\n')
   const notes: string[] = []
   let patch: Record<string, unknown>
@@ -926,17 +933,21 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       fallbackDate: (material.date as string | undefined) ?? null,
       link: link ?? '',
     })
-    const slides = mergeSlides(post.source.slides ?? [], checked, d, post.source.pages === 'two-page', notes)
+    const pages = wanted === 'two-page' ? 'two-page' : wanted === 'carousel' ? 'carousel' : post.source.pages
+    let slides = mergeSlides(post.source.slides ?? [], checked, d, pages === 'two-page', notes)
+    // Two pages: the news and the strongest slide that checked out, nothing else.
+    if (pages === 'two-page') slides = slides.filter((s) => s.kind !== 'end').slice(0, 2)
     notes.push(...checked.dropped)
     const news = slides[0]?.kind === 'news' ? slides[0] : null
     patch = {
       ...(news ? { kicker: news.kicker, headline: news.headline, subline: fitText(news.summary, 120) } : {}),
       caption: tidy(d.caption) || post.caption,
       hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags,
-      source: { ...post.source, slides },
+      source: { ...post.source, slides, ...(pages ? { pages } : {}) },
     }
   } else {
     const text = post.kind === 'insight' && post.ref ? await readArticle(post.ref) : ''
+    if (wanted && wanted !== 'single' && !hasSlides) notes.push('a single post stays one image here: to make it a carousel, draft it again with Carousel chosen')
     const d = await draftWithin<Draft & Partial<ChatAnswer>>(
       {
         system: VOICE,
@@ -953,6 +964,12 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
     )
     pick(d)
     patch = { kicker: tidy(d.kicker), headline: tidy(d.headline), subline: tidy(d.subline), caption: tidy(d.caption) || post.caption, hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags }
+    // A carousel asked to be one image: the slides go, the card takes over.
+    if (hasSlides) {
+      const { slides: _old, format: _f, pages: _pg, ...single } = post.source as Record<string, unknown>
+      patch.source = single
+      notes.push('made into a single image, as asked')
+    }
   }
 
   return { patch, notes, answer }

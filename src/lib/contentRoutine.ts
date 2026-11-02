@@ -90,8 +90,9 @@ const BY = 'routine'
 // weekend, whatever the routine's own schedule. The routine runs three times
 // a day; the first run with something to say takes the day, and the
 // afternoon run fills a day the Insights desk gave nothing suitable for
-// with a post of the page's own (a speaker, a sponsor, the agenda, the
-// countdown; for the group, the platform and its signals).
+// with a general post about AI in the field (a theme from the agenda's
+// discussion points; for the group, the platform and its signals), else the
+// event's own (a session, a speaker, a sponsor, the countdown).
 
 const london = (opts: Intl.DateTimeFormatOptions) => new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', ...opts })
 export const londonToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' })
@@ -122,9 +123,13 @@ async function restingToday(edition: string): Promise<string | null> {
 async function fillTheDay(brand: RoutineBrand, ctx: EditionContext): Promise<ContentPost | null> {
   if (Number(london({ hour: '2-digit', hour12: false })) < FILL_FROM_HOUR) return null
   const all = pools(ctx)
-  const kinds = (brand === 'nexus' ? NEXUS_KINDS : EVENT_KINDS).filter((k) => k !== 'insight')
+  // A general post about AI in the field comes first: for health and pharma
+  // a question from the agenda's discussion points (a theme), for the group
+  // the platform and the signals it watches; then the event's own posts.
+  const general: ContentKind[] = brand === 'nexus' ? ['platform', 'signal'] : ['theme']
+  const rest = (brand === 'nexus' ? NEXUS_KINDS : EVENT_KINDS).filter((k) => k !== 'insight' && !general.includes(k))
   const last = ctx.recent.slice(0, 3).map((r) => r.kind)
-  const order: ContentKind[] = [...kinds.filter((k) => !last.includes(k)), ...kinds.filter((k) => last.includes(k))]
+  const order: ContentKind[] = [...general, ...rest.filter((k) => !last.includes(k)), ...rest.filter((k) => last.includes(k))]
   const kind = order.find((k) => (all[k]?.length ?? 0) > 0)
   if (!kind) return null
   return draftPost(ctx.ed, { kind, forDate: londonToday(), by: BY })
