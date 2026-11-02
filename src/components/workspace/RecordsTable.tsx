@@ -35,6 +35,9 @@ interface Column {
   render: (r: Row) => React.ReactNode
 }
 
+// On a phone a list keeps the name and the stage; the rest is on the record.
+const onPhone = (c: Column) => c.key === 'status' || c.label === 'Company' || c.key === 'lastName'
+
 // The value, editable in place: click it, type the number, Enter (or click
 // away) saves; Escape puts it back.
 function ValueCell({ row, onSave }: { row: Row; onSave: (r: Row, amount: number | null) => Promise<void> }) {
@@ -129,7 +132,7 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
         type="button"
         onClick={(e) => { e.stopPropagation(); onEdit(r) }}
         title={`Edit ${name || def.label.toLowerCase()}`}
-        className="group/name flex items-center gap-3 min-w-0 text-left -ml-1 pl-1 pr-2 py-0.5 rounded-lg transition-colors hover:bg-[var(--surface-3)]"
+        className="group/name flex items-center gap-3 min-w-0 max-w-full text-left -ml-1 pl-1 pr-2 py-0.5 rounded-lg transition-colors hover:bg-[var(--surface-3)]"
       >
         <Initials name={name || '?'} size={30} />
         <span className="min-w-0">
@@ -345,10 +348,10 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
             <input value={keyword} onChange={(e) => onKeyword(e.target.value)} placeholder={`Search ${def.plural.toLowerCase()}…`} className="ws-input pl-9" />
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-            <button className="ws-chip" data-active={status === ''} onClick={() => { setStatus(''); setPage(1) }}>All</button>
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide w-full md:w-auto min-w-0 max-w-full">
+            <button className="ws-chip shrink-0" data-active={status === ''} onClick={() => { setStatus(''); setPage(1) }}>All</button>
             {def.stages.map((s) => (
-              <button key={s.status} className="ws-chip" data-active={status === s.status} onClick={() => { setStatus(status === s.status ? '' : s.status); setPage(1) }}>
+              <button key={s.status} className="ws-chip shrink-0" data-active={status === s.status} onClick={() => { setStatus(status === s.status ? '' : s.status); setPage(1) }}>
                 <StageDot hex={s.hex} /> {s.label}
               </button>
             ))}
@@ -368,11 +371,12 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="ws-table w-full">
+            {/* Fixed layout on a phone, so the name shortens and the stage stays in view. */}
+            <table className="ws-table w-full table-fixed md:table-auto">
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th key={c.key} style={{ width: c.width }}>
+                    <th key={c.key} className={onPhone(c) ? undefined : 'hidden md:table-cell'} style={{ width: c.width }}>
                       {c.sortable ? (
                         <button onClick={() => sort(c.key)} className="inline-flex items-center gap-1 hover:opacity-80">
                           {c.label}
@@ -386,12 +390,12 @@ export function RecordsTable({ kind }: { kind: RecordKind }) {
               <tbody>
                 {isLoading
                   ? [0, 1, 2, 3, 4, 5].map((i) => (
-                      <tr key={i}>{columns.map((c) => <td key={c.key}><div className="h-4 rounded animate-pulse" style={{ background: 'var(--surface-3)', width: c.key === columns[0].key ? '60%' : '70%' }} /></td>)}</tr>
+                      <tr key={i}>{columns.map((c) => <td key={c.key} className={onPhone(c) ? undefined : 'hidden md:table-cell'}><div className="h-4 rounded animate-pulse" style={{ background: 'var(--surface-3)', width: c.key === columns[0].key ? '60%' : '70%' }} /></td>)}</tr>
                     ))
                   : rows.map((r) => (
                       <tr key={r.id} className="cursor-pointer" onClick={() => router.push(`${def.detailPath}/${r.id}`)}>
                         {columns.map((c) => (
-                          <td key={c.key} onClick={c.key === 'status' || c.key === 'valueAmount' ? (e) => e.stopPropagation() : undefined}>
+                          <td key={c.key} className={onPhone(c) ? undefined : 'hidden md:table-cell'} onClick={c.key === 'status' || c.key === 'valueAmount' ? (e) => e.stopPropagation() : undefined}>
                             {c.render(r)}
                           </td>
                         ))}

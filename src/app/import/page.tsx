@@ -542,7 +542,7 @@ export default function ImportPage() {
       </div>
 
       {/* Import type tabs */}
-      <div className="flex items-center gap-1.5 p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl w-fit">
+      <div className="flex items-center gap-1.5 p-1 bg-[var(--surface)] border border-[var(--line)] rounded-xl w-fit max-w-full overflow-x-auto scrollbar-hide">
         {(Object.entries(TYPE_CONFIG) as [ImportType, typeof TYPE_CONFIG[ImportType]][]).map(([type, c]) => {
           const active = importType === type
           const Icon = c.icon
@@ -551,7 +551,7 @@ export default function ImportPage() {
               key={type}
               onClick={() => handleTypeChange(type)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
+                'flex shrink-0 items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
                 active ? `${c.activeBg} ${c.activeText} ${c.activeBorder} border` : 'text-slate-500 hover:text-slate-300 border border-transparent'
               )}
             >

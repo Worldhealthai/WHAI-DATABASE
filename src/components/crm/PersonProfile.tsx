@@ -44,7 +44,8 @@ export function PersonProfile(props: Props) {
 
       {/* The person, and the events they are in */}
       <header className="ws-card overflow-hidden">
-        <div className="p-5 flex items-start gap-4">
+        {/* On a phone the buttons take a row of their own under the name. */}
+        <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
           {headshot ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={headshot} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" style={{ border: '1px solid var(--line)' }} />
@@ -70,7 +71,7 @@ export function PersonProfile(props: Props) {
               {person.linkedinUrl && <a href={person.linkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Linkedin className="w-3.5 h-3.5" /> LinkedIn</a>}
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
             <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
             <TypeRoleButton kind={kind} id={person.id} name={name || 'this person'} subType={person.subType} />
             <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>

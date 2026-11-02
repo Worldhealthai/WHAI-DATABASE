@@ -5,6 +5,7 @@
 //        "carousel", a LinkedIn carousel from an Insights briefing (ref picks
 //        which); style photo, night or light, else the next in turn
 import { NextRequest, NextResponse } from 'next/server'
+import { askedFormat } from '@/lib/contentFocus'
 import { setupHint, supabase } from '@/lib/supabase'
 import { EVENT_KINDS, NEXUS_KINDS, ContentError, draftCarousel, draftPost, type ContentKind } from '@/lib/contentStudio'
 import { LineupError } from '@/lib/marketingSource'
@@ -39,9 +40,13 @@ export async function POST(req: NextRequest) {
     const ed = { series, city, year, label }
     const brief = body.brief ? String(body.brief) : null
     const style = isCardStyle(body.style) ? body.style : 'rotate'
-    const post = body.format === 'carousel'
+    // What the steer asks for wins over the format chosen: "a single page"
+    // is one image, "a carousel" is a carousel.
+    const asked = askedFormat(brief)
+    const carousel = asked ? asked !== 'single' : body.format === 'carousel'
+    const post = carousel
       ? await draftCarousel(ed, { brief, forDate, ref: body.ref ? String(body.ref) : null, style })
-      : await draftPost(ed, { kind, brief, forDate, style })
+      : await draftPost(ed, { kind: kind ?? (body.format === 'carousel' ? 'insight' : null), brief, forDate, style, ref: body.ref ? String(body.ref) : null })
     return NextResponse.json({ post }, { status: 201 })
   } catch (error: any) {
     if (error instanceof ContentError) return NextResponse.json({ error: error.message }, { status: error.status })

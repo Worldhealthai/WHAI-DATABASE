@@ -63,7 +63,7 @@ function StatusToggle({ status, onChange }: { status: SlotStatus; onChange: (s: 
       title={ok ? 'Confirmed — click to mark TBC' : 'TBC — click to confirm'}
       aria-label="Speaker status"
       data-status={status}
-      className="inline-flex items-center justify-center h-8 w-[96px] rounded-md text-[12px] font-semibold transition-colors"
+      className="inline-flex items-center justify-center h-10 md:h-8 w-full md:w-[96px] rounded-md text-[13px] md:text-[12px] font-semibold transition-colors"
       style={ok ? { background: 'var(--ok-soft)', color: 'var(--ok)', border: '1px solid transparent' } : { background: 'var(--warn-soft)', color: 'var(--warn)', border: '1px solid transparent' }}
     >
       {ok ? 'Confirmed' : 'TBC'}
@@ -85,8 +85,15 @@ function NeedsBadge({ session }: { session: Session }) {
 
 // ── Speaker row ─────────────────────────────────────────────────────────────
 
-// Name · Role · Organisation · Seat · Option · Status · bench · remove
-const SLOT_GRID = 'grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(0,1.25fr)_104px_112px_96px_28px_28px] gap-2 items-center'
+// Name · Role · Organisation · Seat · Option · Status · bench · remove, in
+// one row on a wide screen. On a phone each speaker is a small card: the
+// name and remove, then role and organisation, then seat and option, then
+// status and the backup button (the order classes below put them there).
+const SLOT_COLS = 'md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(0,1.25fr)_104px_112px_96px_28px_28px]'
+const SLOT_GRID = `grid grid-cols-6 gap-2 items-center rounded-lg p-2.5 border md:border-0 md:rounded-none md:p-0 ${SLOT_COLS}`
+const SLOT_HEAD = `hidden md:grid gap-2 items-center ${SLOT_COLS}`
+// Inputs a thumb can hit, in text a phone won't zoom into; desk size from md.
+const FIELD = 'ws-input h-10 md:h-8 text-[16px] md:text-[13px] w-full'
 
 function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; lineup: SpeakerRow[]; onChange: (s: SpeakerSlot) => void; onRemove: () => void }) {
   const onLineup = Boolean(slot.lineupRef) || lineup.some((l) => l.name.trim().toLowerCase() === slot.name.trim().toLowerCase())
@@ -97,15 +104,15 @@ function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; line
     else onChange({ ...slot, name, lineupRef: null })
   }
   return (
-    <div className={SLOT_GRID}>
-      <span className="relative">
-        <input list="agenda-lineup" className="ws-input h-8 text-[13px] w-full pr-6" value={slot.name} placeholder="Name" onChange={(e) => onChange({ ...slot, name: e.target.value })} onBlur={(e) => pickFromLineup(e.target.value)} />
+    <div className={SLOT_GRID} style={{ borderColor: 'var(--line)' }}>
+      <span className="relative col-span-5 md:col-span-1 order-1">
+        <input list="agenda-lineup" className={cn(FIELD, 'pr-7')} value={slot.name} placeholder="Name" onChange={(e) => onChange({ ...slot, name: e.target.value })} onBlur={(e) => pickFromLineup(e.target.value)} />
         {onLineup && <Check className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--ok)' }} aria-label="On the admin panel line-up" />}
       </span>
-      <input className="ws-input h-8 text-[13px] w-full" value={slot.role} placeholder="Role" onChange={(e) => onChange({ ...slot, role: e.target.value })} />
-      <input className="ws-input h-8 text-[13px] w-full" value={slot.org} placeholder="Organisation" onChange={(e) => onChange({ ...slot, org: e.target.value })} />
+      <input className={cn(FIELD, 'col-span-3 md:col-span-1 order-3 md:order-2')} value={slot.role} placeholder="Role" aria-label="Role" onChange={(e) => onChange({ ...slot, role: e.target.value })} />
+      <input className={cn(FIELD, 'col-span-3 md:col-span-1 order-4 md:order-3')} value={slot.org} placeholder="Organisation" aria-label="Organisation" onChange={(e) => onChange({ ...slot, org: e.target.value })} />
       <select
-        className="ws-input h-8 text-[12.5px] py-0 pr-6"
+        className="ws-input h-10 md:h-8 text-[15px] md:text-[12.5px] py-0 pr-6 col-span-3 md:col-span-1 order-5 md:order-4"
         value={slot.moderator ? 'moderator' : 'speaker'}
         onChange={(e) => onChange({ ...slot, moderator: e.target.value === 'moderator' })}
         aria-label="Seat"
@@ -115,7 +122,7 @@ function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; line
         <option value="moderator">Moderator</option>
       </select>
       <select
-        className="ws-input h-8 text-[12.5px] py-0 pl-2 pr-6"
+        className="ws-input h-10 md:h-8 text-[15px] md:text-[12.5px] py-0 pl-2 pr-6 col-span-3 md:col-span-1 order-6 md:order-5"
         value={slot.option ?? ''}
         onChange={(e) => onChange({ ...slot, option: e.target.value ? Number(e.target.value) : null })}
         aria-label="Panel preference"
@@ -126,16 +133,18 @@ function SlotRow({ slot, lineup, onChange, onRemove }: { slot: SpeakerSlot; line
         <option value="2">Option 2</option>
         <option value="3">Option 3</option>
       </select>
-      <StatusToggle status={slot.status} onChange={(status) => onChange({ ...slot, status })} />
+      <span className="col-span-4 md:col-span-1 order-7 md:order-6"><StatusToggle status={slot.status} onChange={(status) => onChange({ ...slot, status })} /></span>
       <button
         type="button"
-        className="ws-btn ws-btn-ghost ws-btn-sm px-0 justify-center"
+        className="ws-btn ws-btn-ghost ws-btn-sm px-0 justify-center gap-1.5 h-10 md:h-auto col-span-2 md:col-span-1 order-8 md:order-7"
         onClick={() => onChange({ ...slot, backup: !slot.backup })}
+        aria-label={slot.backup ? 'Promote onto the panel' : 'Move to backup panellists'}
         title={slot.backup ? 'Promote onto the panel' : 'Move to backup panellists'}
       >
         {slot.backup ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+        <span className="md:hidden text-[13px]">{slot.backup ? 'Promote' : 'Backup'}</span>
       </button>
-      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm px-0 justify-center" onClick={onRemove} title="Remove"><X className="w-3.5 h-3.5" /></button>
+      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm px-0 justify-center h-10 md:h-auto order-2 md:order-8" onClick={onRemove} title="Remove" aria-label="Remove"><X className="w-4 h-4 md:w-3.5 md:h-3.5" /></button>
     </div>
   )
 }
@@ -215,12 +224,12 @@ function SessionEdit({
   return (
     <div className="ws-card" style={isBreak ? { background: 'var(--surface-2)' } : undefined}>
       {/* Header: time, title, type, order */}
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3" style={{ borderBottom: isBreak ? 'none' : '1px solid var(--line)' }}>
-        <input className="ws-input h-8 w-[68px] text-[13px] tabular text-center px-1" value={s.start} placeholder="09:40" onChange={(e) => set({ start: e.target.value })} aria-label="Start" />
+      <div className="flex flex-wrap items-center gap-2 px-3.5 md:px-5 py-3" style={{ borderBottom: isBreak ? 'none' : '1px solid var(--line)' }}>
+        <input className="ws-input h-10 md:h-8 w-[76px] md:w-[68px] text-[16px] md:text-[13px] tabular text-center px-1" value={s.start} placeholder="09:40" onChange={(e) => set({ start: e.target.value })} aria-label="Start" />
         <span style={{ color: 'var(--fg-4)' }}>–</span>
-        <input className="ws-input h-8 w-[68px] text-[13px] tabular text-center px-1" value={s.end} placeholder="10:05" onChange={(e) => set({ end: e.target.value })} aria-label="End" />
-        <input className="ws-input h-8 flex-1 min-w-[200px] text-[14px] font-semibold" value={s.title} placeholder="Session title" onChange={(e) => set({ title: e.target.value, type: s.title ? s.type : inferType(e.target.value) })} aria-label="Session title" />
-        <select className="ws-input h-8 w-[168px] text-[12.5px] py-0 pr-7" value={s.type} onChange={(e) => { const type = e.target.value as SessionType; set({ type, seats: s.seats ? s.seats : undefined }) }} aria-label="Session type">
+        <input className="ws-input h-10 md:h-8 w-[76px] md:w-[68px] text-[16px] md:text-[13px] tabular text-center px-1" value={s.end} placeholder="10:05" onChange={(e) => set({ end: e.target.value })} aria-label="End" />
+        <input className="ws-input h-10 md:h-8 flex-1 basis-full md:basis-auto min-w-0 md:min-w-[200px] text-[16px] md:text-[14px] font-semibold order-last md:order-none" value={s.title} placeholder="Session title" onChange={(e) => set({ title: e.target.value, type: s.title ? s.type : inferType(e.target.value) })} aria-label="Session title" />
+        <select className="ws-input h-10 md:h-8 w-[150px] md:w-[168px] text-[15px] md:text-[12.5px] py-0 pr-7" value={s.type} onChange={(e) => { const type = e.target.value as SessionType; set({ type, seats: s.seats ? s.seats : undefined }) }} aria-label="Session type">
           {SESSION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <span className="inline-flex items-center gap-0.5 ml-auto">
@@ -231,13 +240,13 @@ function SessionEdit({
       </div>
 
       {isBreak ? (
-        <div className="px-5 pb-3">
-          <input className="ws-input h-8 text-[13px]" value={s.notes ?? ''} placeholder="Note (optional)" onChange={(e) => set({ notes: e.target.value })} />
+        <div className="px-3.5 md:px-5 pb-3">
+          <input className="ws-input h-10 md:h-8 text-[16px] md:text-[13px]" value={s.notes ?? ''} placeholder="Note (optional)" onChange={(e) => set({ notes: e.target.value })} />
         </div>
       ) : (
-        <div className="px-5 py-4 grid gap-4">
+        <div className="px-3.5 md:px-5 py-4 grid gap-4">
           {hasTalk && (
-            <input className="ws-input h-8 text-[13px] italic" value={s.talkTitle ?? ''} placeholder="Talk title (optional)" onChange={(e) => set({ talkTitle: e.target.value })} />
+            <input className="ws-input h-10 md:h-8 text-[16px] md:text-[13px] italic" value={s.talkTitle ?? ''} placeholder="Talk title (optional)" onChange={(e) => set({ talkTitle: e.target.value })} />
           )}
 
           {/* Questions as a bullet list */}
@@ -251,16 +260,19 @@ function SessionEdit({
             ) : (
               <ul className="space-y-1.5">
                 {s.points.map((q, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--fg-4)' }} />
-                    <input
-                      className="ws-input h-8 text-[13px] flex-1"
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 mt-4 md:mt-3" style={{ background: 'var(--fg-4)' }} />
+                    {/* Grows to fit, so a long question reads whole on a phone. */}
+                    <textarea
+                      rows={1}
+                      className="ws-input min-h-10 md:min-h-8 py-2 md:py-1.5 text-[16px] md:text-[13px] flex-1 min-w-0 resize-none leading-snug"
+                      style={{ fieldSizing: 'content' } as React.CSSProperties}
                       value={q}
                       placeholder="What are the …?"
-                      onChange={(e) => setPoint(i, e.target.value)}
+                      onChange={(e) => setPoint(i, e.target.value.replace(/\n/g, ' '))}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); set({ points: [...s.points.slice(0, i + 1), '', ...s.points.slice(i + 1)] }) } }}
                     />
-                    <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm px-0 w-8 justify-center" onClick={() => set({ points: s.points.filter((_, k) => k !== i) })} title="Remove question"><X className="w-3.5 h-3.5" /></button>
+                    <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm px-0 w-10 h-10 md:w-8 md:h-auto justify-center shrink-0" onClick={() => set({ points: s.points.filter((_, k) => k !== i) })} title="Remove question"><X className="w-3.5 h-3.5" /></button>
                   </li>
                 ))}
               </ul>
@@ -277,10 +289,10 @@ function SessionEdit({
               <div className="flex items-center gap-2 text-[12px]" style={{ color: 'var(--fg-4)' }}>
                 <span>Seats:</span>
                 <label className="inline-flex items-center gap-1">
-                  <input type="number" min={0} max={9} className="ws-input h-7 w-[46px] text-[12.5px] tabular text-center px-1" value={seats.moderators} onChange={(e) => set({ seats: { moderators: Math.max(0, Number(e.target.value) || 0), speakers: seats.speakers } })} aria-label="Moderator seats" /> mod
+                  <input type="number" min={0} max={9} className="ws-input h-9 md:h-7 w-[52px] md:w-[46px] text-[16px] md:text-[12.5px] tabular text-center px-1" value={seats.moderators} onChange={(e) => set({ seats: { moderators: Math.max(0, Number(e.target.value) || 0), speakers: seats.speakers } })} aria-label="Moderator seats" /> mod
                 </label>
                 <label className="inline-flex items-center gap-1">
-                  <input type="number" min={0} max={12} className="ws-input h-7 w-[46px] text-[12.5px] tabular text-center px-1" value={seats.speakers} onChange={(e) => set({ seats: { moderators: seats.moderators, speakers: Math.max(0, Number(e.target.value) || 0) } })} aria-label="Speaker seats" /> speakers
+                  <input type="number" min={0} max={12} className="ws-input h-9 md:h-7 w-[52px] md:w-[46px] text-[16px] md:text-[12.5px] tabular text-center px-1" value={seats.speakers} onChange={(e) => set({ seats: { moderators: seats.moderators, speakers: Math.max(0, Number(e.target.value) || 0) } })} aria-label="Speaker seats" /> speakers
                 </label>
                 {s.seats && (s.seats.moderators !== seatsFor(s.type).moderators || s.seats.speakers !== seatsFor(s.type).speakers) && (
                   <button type="button" className="hover:underline underline-offset-4" onClick={() => set({ seats: undefined })}>reset</button>
@@ -289,7 +301,7 @@ function SessionEdit({
             </div>
             <div className="grid gap-1.5">
               {mains.length > 0 && (
-                <div className={cn(SLOT_GRID, 'text-[11px] uppercase tracking-wide font-semibold px-0.5')} style={{ color: 'var(--fg-4)' }}>
+                <div className={cn(SLOT_HEAD, 'text-[11px] uppercase tracking-wide font-semibold px-0.5')} style={{ color: 'var(--fg-4)' }}>
                   <span>Name</span><span>Role</span><span>Organisation</span><span>Seat</span><span>Option</span><span>Status</span><span /><span />
                 </div>
               )}

@@ -24,16 +24,21 @@ import { describeOverruns, fitText, overruns } from '@/lib/contentText'
 import {
   CAROUSEL_SCHEMA,
   ContentError,
+  EVENT_KINDS,
+  NEXUS_KINDS,
   NEXUS_EDITION,
   VOICE,
   carouselLimits,
   checkSlides,
+  draftPost,
+  focusedInsights,
   gatherContext,
   photoFields,
   pools,
   readArticleFull,
   tidy,
   type CarouselDraft,
+  type ContentKind,
   type Choice,
   type ContentPost,
   type EditionContext,
@@ -80,6 +85,56 @@ export async function routineEdition(brand: RoutineBrand): Promise<Edition> {
 // written once and the tab can say who wrote it.
 const BY = 'routine'
 
+// ── The cadence ────────────────────────────────────────────────────────────
+// One post per page each weekday (November 2026): five a week, none at the
+// weekend, whatever the routine's own schedule. The routine runs three times
+// a day; the first run with something to say takes the day, and the
+// afternoon run fills a day the Insights desk gave nothing suitable for
+// with a general post about AI in the field (a theme from the agenda's
+// discussion points; for the group, the platform and its signals), else the
+// event's own (a session, a speaker, a sponsor, the countdown).
+
+const london = (opts: Intl.DateTimeFormatOptions) => new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', ...opts })
+export const londonToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' })
+const isWeekend = () => ['Sat', 'Sun'].includes(london({ weekday: 'short' }))
+// From this hour a day with no briefing to post about gets the page's own post.
+const FILL_FROM_HOUR = 16
+
+async function todaysPost(edition: string): Promise<{ headline: string } | null> {
+  const { data } = await supabase
+    .from('marketing_content')
+    .select('headline')
+    .eq('edition', edition)
+    .eq('forDate', londonToday())
+    .eq('source->>by', BY)
+    .limit(1)
+  return (data?.[0] as { headline: string } | undefined) ?? null
+}
+
+// Why the page gets no post from this run, or null when it may have one.
+async function restingToday(edition: string): Promise<string | null> {
+  if (isWeekend()) return 'The pages post Monday to Friday: nothing at the weekend.'
+  const done = await todaysPost(edition)
+  return done ? `Today's post is already written ("${done.headline}"). One a weekday.` : null
+}
+
+// A day the Insights desk gave nothing suitable for, from the afternoon
+// run on: the page's own kind of post, not one of the last few kinds.
+async function fillTheDay(brand: RoutineBrand, ctx: EditionContext): Promise<ContentPost | null> {
+  if (Number(london({ hour: '2-digit', hour12: false })) < FILL_FROM_HOUR) return null
+  const all = pools(ctx)
+  // A general post about AI in the field comes first: for health and pharma
+  // a question from the agenda's discussion points (a theme), for the group
+  // the platform and the signals it watches; then the event's own posts.
+  const general: ContentKind[] = brand === 'nexus' ? ['platform', 'signal'] : ['theme']
+  const rest = (brand === 'nexus' ? NEXUS_KINDS : EVENT_KINDS).filter((k) => k !== 'insight' && !general.includes(k))
+  const last = ctx.recent.slice(0, 3).map((r) => r.kind)
+  const order: ContentKind[] = [...general, ...rest.filter((k) => !last.includes(k)), ...rest.filter((k) => last.includes(k))]
+  const kind = order.find((k) => (all[k]?.length ?? 0) > 0)
+  if (!kind) return null
+  return draftPost(ctx.ed, { kind, forDate: londonToday(), by: BY })
+}
+
 interface Picked { ctx: EditionContext; insight: PublicInsight; choice: Choice }
 
 // Today's briefing for the page: the newest published one it has not
@@ -94,11 +149,11 @@ async function pickInsight(brand: RoutineBrand, ref?: string | null): Promise<Pi
   else {
     const fresh = list.filter((i) => !posted.has(i.slug))
     // The group's page posts about its own pieces only: the health and
-    // pharma pieces already have posts on their own pages. Those pages
-    // lead with their own field: a piece on a deal or a funding round
-    // (category "Markets") waits until the others have had their post.
-    const isMarkets = (i: PublicInsight) => (i.category || '').toLowerCase() === 'markets'
-    insight = brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : fresh.find((i) => !isMarkets(i)) ?? fresh[0]
+    // pharma pieces already have posts on their own pages.
+    // The health and pharma pages post about AI: their AI briefings, and a
+    // big general story at most once a week (lib/contentFocus).
+    const focused = new Set(focusedInsights(ctx).map((i) => i.slug))
+    insight = brand === 'nexus' ? fresh.find((i) => i.site === 'nexus') : fresh.find((i) => focused.has(i.slug))
   }
   if (!insight) return null
   const choice = (pools(ctx).insight ?? []).find((c) => c.ref === insight!.slug) ?? {
@@ -140,10 +195,23 @@ export interface RoutineDraft extends CarouselDraft {
 }
 
 export async function routineBrief(brand: RoutineBrand, ref?: string | null) {
+  const ed = await routineEdition(brand)
+  const page = brand === 'nexus' ? 'World Nexus Group (the group page, about its market intelligence)' : ed.label
+  const resting = await restingToday(ed.label)
+  if (resting) return { brand, page, status: 'nothing' as const, message: resting }
   const picked = await pickInsight(brand, ref)
-  const page = brand === 'nexus' ? 'World Nexus Group (the group page, about its market intelligence)' : (await routineEdition(brand)).label
   if (!picked) {
-    return { brand, page, status: 'nothing' as const, message: `Every published ${SERIES[brand]} briefing already has a post. Nothing to write.` }
+    // Nothing from the Insights desk: from the afternoon run, the CRM
+    // writes the day's post itself so the page still has its five a week.
+    const filled = await fillTheDay(brand, await gatherContext(ed)).catch((e) => {
+      console.error('Content routine: the day\'s own post could not be drafted:', e)
+      return null
+    })
+    if (filled) return { brand, page, status: 'nothing' as const, message: `No briefing to post about today, so the CRM drafted a ${filled.kind} post itself ("${filled.headline}"). Nothing for you to write.` }
+    const message = brand === 'nexus'
+      ? `Every published ${SERIES[brand]} briefing already has a post. Nothing to write.`
+      : `No new AI briefing for ${SERIES[brand]} yet today, and no big general story is due (one a week at most). Nothing to write: the afternoon run drafts one of the page's own posts if nothing comes in.`
+    return { brand, page, status: 'nothing' as const, message }
   }
   const { ctx, insight, choice } = picked
   const article = await readArticleFull(insight.slug)
@@ -169,6 +237,8 @@ export async function routineBrief(brand: RoutineBrand, ref?: string | null) {
 export type RoutineFormat = 'carousel' | 'two-page' | 'single'
 
 export async function saveRoutinePost(brand: RoutineBrand, ref: string, d: RoutineDraft): Promise<{ post: ContentPost; format: RoutineFormat; slides: number; dropped: string[] }> {
+  const resting = await restingToday((await routineEdition(brand)).label)
+  if (resting) throw new ContentError(resting, 409)
   const picked = await pickInsight(brand, ref)
   if (!picked) throw new ContentError(`No published briefing "${ref}" for ${SERIES[brand]}.`, 404)
   const { ctx, insight, choice } = picked

@@ -20,6 +20,7 @@
 // always in the brand's own look and a run of posts does not look the same.
 
 import Anthropic from '@anthropic-ai/sdk'
+import { FRESH_DAYS, askedFormat, bigScore, generalAllowed, isAiStory, isBigNews } from '@/lib/contentFocus'
 import { supabase } from '@/lib/supabase'
 import { NEXUS_URL, fetchLineup, absoluteUrl, type Edition, type LineupSpeaker, type LineupSponsor } from '@/lib/marketingSource'
 import { normaliseAgenda, type Agenda, type Session } from '@/lib/agenda/model'
@@ -141,7 +142,7 @@ export interface EditionContext {
   sponsors: LineupSponsor[]
   sessions: Session[]
   photos: string[]
-  recent: Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'>[]
+  recent: (Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'> & { createdAt?: string })[]
 }
 
 const parseDay = (date: string | null | undefined) => {
@@ -158,7 +159,7 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
     nexus ? Promise.resolve({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] }) : fetchLineup(ed).catch(() => ({ event: null, speakers: [] as LineupSpeaker[], sponsors: [] as LineupSponsor[] })),
     nexus ? Promise.resolve(null) : readAgenda(ed.label),
     readJson<{ photos: GalleryPhoto[] }>(`${NEXUS_URL}/api/public/gallery?site=${brand === 'nexus' ? 'all' : brand}`, { photos: [] }),
-    supabase.from('marketing_content').select('kind, ref, headline, caption, source').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(40),
+    supabase.from('marketing_content').select('kind, ref, headline, caption, source, createdAt').eq('edition', ed.label).order('createdAt', { ascending: false }).limit(40),
   ])
   const now = Date.now()
   const upcoming = events.events
@@ -177,12 +178,14 @@ export async function gatherContext(ed: Edition): Promise<EditionContext> {
     event,
     upcoming,
     daysToGo: when ? Math.ceil((when - now) / 86400000) : null,
-    insights: (insightsRes.articles ?? []).slice(0, 20),
+    // More than a day's worth: the health and pharma pages pick the AI
+    // briefings among them (lib/contentFocus), which can be a few days back.
+    insights: (insightsRes.articles ?? []).slice(0, nexus ? 20 : 60),
     speakers: lineup.speakers,
     sponsors: lineup.sponsors,
     sessions: agenda?.sessions.filter((s) => s.type !== 'break' && s.title) ?? [],
     photos: gallery.photos.map((p) => p.image_url).filter(Boolean),
-    recent: ((recentRes.data ?? []) as Pick<ContentPost, 'kind' | 'ref' | 'headline' | 'caption' | 'source'>[]),
+    recent: ((recentRes.data ?? []) as EditionContext['recent']),
   }
 }
 
@@ -221,6 +224,22 @@ export function photoFields(ctx: EditionContext, seed: string, style: CardStyle)
   return photos.length ? { photo: photos[0], photos } : {}
 }
 
+// A briefing as something to post about.
+export function insightChoiceFor(ctx: EditionContext, i: PublicInsight): Choice {
+  return { kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${ctx.site}/insights/${i.slug}` }
+}
+
+// The briefings a health or pharma page posts about by itself: those of the
+// last few weeks it has not posted, AI first, then (when the week allows
+// one) the biggest general story. The rest stay pickable by hand.
+export function focusedInsights(ctx: EditionContext): PublicInsight[] {
+  const recentDays = Date.now() - FRESH_DAYS * 86400000
+  const inWindow = ctx.insights.filter((i) => !i.published_at || Date.parse(i.published_at) >= recentDays)
+  const ai = inWindow.filter(isAiStory)
+  const general = generalAllowed(ctx.recent) ? inWindow.filter((i) => !isAiStory(i) && isBigNews(i)).sort((a, b) => bigScore(b) - bigScore(a)).slice(0, 1) : []
+  return [...ai, ...general]
+}
+
 export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]>> {
   const used = new Set(ctx.recent.map((r) => `${r.kind}:${r.ref}`))
   const fresh = (kind: ContentKind, items: Choice[]) => {
@@ -232,9 +251,10 @@ export function pools(ctx: EditionContext): Partial<Record<ContentKind, Choice[]
   // A briefing's card. The pharma and health pages lead with their own
   // field: a piece on a deal or a funding round (category "Markets") comes
   // after the others, as those belong to the group's page first.
-  const insightChoice = (i: PublicInsight): Choice => ({ kind: 'insight', ref: i.slug, source: { title: i.title, dek: i.dek, category: i.category, published_at: i.published_at }, link: `${site}/insights/${i.slug}` })
-  const isMarkets = (i: PublicInsight) => (i.category || '').toLowerCase() === 'markets'
-  const insights = ctx.brand === 'nexus' ? ctx.insights : [...ctx.insights.filter((i) => !isMarkets(i)), ...ctx.insights.filter(isMarkets)]
+  // The health and pharma pages post about AI: the AI briefings of the last
+  // few weeks, and a big general story at most once a week (lib/contentFocus).
+  const insights = ctx.brand === 'nexus' ? ctx.insights : focusedInsights(ctx)
+  const insightChoice = (i: PublicInsight) => insightChoiceFor(ctx, i)
 
   if (ctx.brand === 'nexus') {
     return {
@@ -293,7 +313,9 @@ function choose(ctx: EditionContext, wanted: ContentKind | null): Choice {
 
 export function emptyPoolMessage(kind: ContentKind, ctx: EditionContext): string {
   switch (kind) {
-    case 'insight': return `No published Insights for ${ctx.ed.series} yet. Publish one on worldnexusgroup.com first.`
+    case 'insight':
+      if (!ctx.insights.length) return `No published Insights for ${ctx.ed.series} yet. Publish one on worldnexusgroup.com first.`
+      return `No new AI briefing for ${ctx.ed.series} in the last ${FRESH_DAYS} days, and a big general story has already gone out this week. Pick a briefing yourself under "Which briefing", or choose another kind of post.`
     case 'session': return `No sessions in the ${ctx.ed.label} agenda yet. Build it in the Production portal first.`
     case 'speaker': return 'No confirmed speaker on the line-up has agreed to a LinkedIn post yet.'
     case 'theme': return 'The agenda has no discussion points yet to draw a theme from.'
@@ -463,9 +485,11 @@ export function tidy(s: string): string {
 
 // ── The whole run ───────────────────────────────────────────────────────────
 
-export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null }): Promise<ContentPost> {
+export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null; ref?: string | null; by?: string }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
-  const pick = choose(ctx, opts.kind ?? null)
+  // A briefing picked by hand is written whatever it is about.
+  const chosen = opts.ref ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
+  const pick = chosen ? insightChoiceFor(ctx, chosen) : choose(ctx, opts.kind ?? null)
   // A briefing is written from its own text, from an angle that moves on
   // each time the same briefing comes round.
   let angle: string | null = null
@@ -493,7 +517,7 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
     forDate: opts.forDate || (await nextFreeDay(ed.label)),
     ...draft,
     link: pick.link,
-    source: { ...sourceKept, style, ...photos, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site },
+    source: { ...sourceKept, style, ...photos, angle, city: ctx.ed.city, date: ctx.event?.date ?? null, site: ctx.site, ...(opts.by ? { by: opts.by } : {}) },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
@@ -504,13 +528,15 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
 }
 
 // The first day from today with no post planned for this edition.
+// The next weekday with nothing planned: the pages post Monday to Friday.
 export async function nextFreeDay(edition: string): Promise<string> {
   const { data } = await supabase.from('marketing_content').select('forDate').eq('edition', edition).not('forDate', 'is', null)
   const taken = new Set((data ?? []).map((r: { forDate: string }) => r.forDate))
   const d = new Date()
   for (let i = 0; i < 365; i++) {
     const iso = d.toISOString().slice(0, 10)
-    if (!taken.has(iso)) return iso
+    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
+    if (!weekend && !taken.has(iso)) return iso
     d.setUTCDate(d.getUTCDate() + 1)
   }
   return new Date().toISOString().slice(0, 10)
@@ -676,7 +702,10 @@ export function checkSlides(
 
 export async function draftCarousel(ed: Edition, opts: { brief?: string | null; forDate?: string | null; ref?: string | null; style?: CardStyle | 'rotate' | null }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
-  const pool = pools(ctx).insight ?? []
+  // A briefing picked by hand is written whatever it is about; otherwise
+  // the page's own pick (AI first, lib/contentFocus).
+  const chosen = opts.ref ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
+  const pool = chosen ? [insightChoiceFor(ctx, chosen)] : pools(ctx).insight ?? []
   if (!pool.length) throw new ContentError(emptyPoolMessage('insight', ctx))
   // The briefing asked for, else one of the newest not turned into a
   // carousel lately.
@@ -709,7 +738,10 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
   // Held to the article: a figure or a quote not in it drops its slide.
   const date = ctx.event?.date ?? null
   const { news, extras, end, dropped } = checkSlides(d, article, { title: src.title ?? '', publishedAt: src.published_at ?? null, fallbackDate: date, link: pick.link })
-  const slides: Slide[] = [news, ...extras, end]
+  // Two pages when the steer asks for two (the news and the strongest
+  // slide), else the full carousel.
+  const twoPage = askedFormat(opts.brief) === 'two-page' && extras.length > 0
+  const slides: Slide[] = twoPage ? [news, extras[0]] : [news, ...extras, end]
   // The slides' style, as for a single card; a photo goes behind the cover.
   needsPhotos(opts.style, ctx.photos.length)
   const style = nextStyle(ctx.recent, opts.style ?? null, ctx.photos.length)
@@ -727,7 +759,7 @@ export async function draftCarousel(ed: Edition, opts: { brief?: string | null; 
     caption: tidy(d.caption),
     hashtags: (d.hashtags || []).map((h) => '#' + String(h).replace(/^#+/, '').replace(/\s+/g, '')).filter((h) => h.length > 1).slice(0, 5),
     link: pick.link,
-    source: { ...pick.source, format: 'carousel', style, ...photos, slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
+    source: { ...pick.source, format: 'carousel', ...(twoPage ? { pages: 'two-page' } : {}), style, ...photos, slides, dropped, publishers: article.publishers, city: ctx.ed.city, date, site: ctx.site },
     brief: opts.brief?.trim() || null,
     status: 'draft',
     updatedAt: new Date().toISOString(),
@@ -753,7 +785,7 @@ export interface Revision { post: ContentPost; notes: string[]; changed: string[
 // One instruction and what came of it, kept with the post as its thread.
 export interface Steer { text: string; at: string; changed?: string[]; notes?: string[]; reply?: string }
 
-type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[]; look?: { style?: unknown; photo?: unknown; photos?: unknown } }
+type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[]; shape?: { format: string | null; pages: string | null }; look?: { style?: unknown; photo?: unknown; photos?: unknown } }
 export type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: Steer[] } & Record<string, unknown> }
 
 const snapshot = (p: Revisable): Snapshot => ({
@@ -763,6 +795,8 @@ const snapshot = (p: Revisable): Snapshot => ({
   caption: p.caption,
   hashtags: p.hashtags,
   ...(Array.isArray(p.source?.slides) ? { slides: p.source.slides } : {}),
+  // Its shape, so undoing a change to one image or to slides puts it back.
+  shape: { format: p.source?.format ?? null, pages: p.source?.pages ?? null },
   look: { style: p.source?.style, photo: p.source?.photo, photos: p.source?.photos },
 })
 
@@ -851,7 +885,14 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
   const { photo: _p, photos: _ps, image: _i, logo: _l, style: _s, before: _b, steers: _st, linkedin: _li, slides: _sl, dropped: _d, by: _by, movedFrom: _m, ...held } = post.source
   // On another page, that page's own site, city and date.
   const material: Record<string, unknown> = { ...held, ...(to?.facts ?? {}) }
-  const carousel = Array.isArray(post.source.slides) && post.source.slides.length > 0
+  // The shape the instruction asks for: a carousel asked to be a single
+  // image becomes one, a carousel asked for two pages keeps two.
+  const wanted = askedFormat(steer)
+  const hasSlides = Array.isArray(post.source.slides) && post.source.slides.length > 0
+  // A single image about a briefing asked to be a carousel or two pages:
+  // the slides are built from the briefing.
+  const grow = !hasSlides && (wanted === 'carousel' || wanted === 'two-page') && post.kind === 'insight' && Boolean(post.ref)
+  const carousel = (hasSlides && wanted !== 'single') || grow
   const ask = (current: unknown, more: string[]) =>
     [
       `Page the post goes out from: ${page}`,
@@ -861,7 +902,7 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       ...extra,
       `The post as it stands:\n${JSON.stringify(current, null, 2)}`,
       `The marketing team's instruction for this revision: ${steer}`,
-      'Revise the post as the instruction asks. Facts the team gives in the instruction may be used as given; everything else must come from the material, as before. Change what the instruction asks for and anything that must change with it to read right; keep the rest word for word. Return the whole post as JSON.',
+      'Revise the post as the instruction asks. Facts the team gives in the instruction may be used as given; everything else must come from the material, as before. Change what the instruction asks for and anything that must change with it to read right; keep the rest word for word. Do exactly what the instruction asks and nothing more: never add pages, slides, sections, a quote, a statistic, a closing "read the full briefing" or anything else it did not ask for. Return the whole post as JSON.',
     ].filter(Boolean).join('\n\n')
   const notes: string[] = []
   let patch: Record<string, unknown>
@@ -882,7 +923,9 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
         brief: ask(draftOf(post), [
           `The briefing's title: ${String(material.title ?? '')}`,
           `The briefing's full text (with the instruction, the only material; every figure and quote must come from them):\n"""\n${article.body}\n"""`,
-          'A section left empty has no slide on the post: keep it empty unless the instruction asks for it.',
+          grow
+            ? 'The post is one image now and the instruction asks for slides: write the news, the statistic, the data, the quote and the closing line from the briefing, each only where the text holds it.'
+            : 'A section left empty has no slide on the post: keep it empty unless the instruction asks for it.',
         ]),
         maxTokens: 12000,
         refused: () => 'Claude declined to make this change. Try putting it another way.',
@@ -897,17 +940,24 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       fallbackDate: (material.date as string | undefined) ?? null,
       link: link ?? '',
     })
-    const slides = mergeSlides(post.source.slides ?? [], checked, d, post.source.pages === 'two-page', notes)
+    const pages = wanted === 'two-page' ? 'two-page' : wanted === 'carousel' ? 'carousel' : post.source.pages
+    let slides = grow
+      ? [checked.news, ...checked.extras, checked.end]
+      : mergeSlides(post.source.slides ?? [], checked, d, pages === 'two-page', notes)
+    if (grow) notes.push(pages === 'two-page' ? 'made into two pages, as asked' : 'made into a carousel, as asked')
+    // Two pages: the news and the strongest slide that checked out, nothing else.
+    if (pages === 'two-page') slides = slides.filter((s) => s.kind !== 'end').slice(0, 2)
     notes.push(...checked.dropped)
     const news = slides[0]?.kind === 'news' ? slides[0] : null
     patch = {
       ...(news ? { kicker: news.kicker, headline: news.headline, subline: fitText(news.summary, 120) } : {}),
       caption: tidy(d.caption) || post.caption,
       hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags,
-      source: { ...post.source, slides },
+      source: { ...post.source, slides, ...(grow ? { format: 'carousel' } : {}), ...(pages ? { pages } : {}) },
     }
   } else {
     const text = post.kind === 'insight' && post.ref ? await readArticle(post.ref) : ''
+    if (wanted && wanted !== 'single' && !hasSlides) notes.push('this post is not about a briefing, so it stays one image: slides are built from a briefing')
     const d = await draftWithin<Draft & Partial<ChatAnswer>>(
       {
         system: VOICE,
@@ -924,6 +974,12 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
     )
     pick(d)
     patch = { kicker: tidy(d.kicker), headline: tidy(d.headline), subline: tidy(d.subline), caption: tidy(d.caption) || post.caption, hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags }
+    // A carousel asked to be one image: the slides go, the card takes over.
+    if (hasSlides) {
+      const { slides: _old, format: _f, pages: _pg, ...single } = post.source as Record<string, unknown>
+      patch.source = single
+      notes.push('made into a single image, as asked')
+    }
   }
 
   return { patch, notes, answer }
@@ -984,8 +1040,16 @@ export async function undoRevision(id: string): Promise<ContentPost> {
   const post = await readPost(id)
   const before = post.source.before
   if (!before) throw new ContentError('There is no revision to undo.', 409)
-  const { slides, look, ...words } = before
+  const { slides, look, shape, ...words } = before
   const { before: _b, ...source } = post.source
+  if (shape) {
+    // The shape it had: a carousel's slides and format, or none for one image.
+    delete source.format
+    delete source.pages
+    if (!slides) delete source.slides
+    if (shape.format) source.format = shape.format
+    if (shape.pages) source.pages = shape.pages
+  }
   const steers = [...(post.source.steers ?? []), { text: 'Undo the last change', at: new Date().toISOString(), changed: [], reply: 'Put back as it was before the last change.' }].slice(-20)
   // The look as it was too: its style and photos (none kept means none).
   const looked = look ? { style: look.style, photo: look.photo, photos: look.photos } : {}

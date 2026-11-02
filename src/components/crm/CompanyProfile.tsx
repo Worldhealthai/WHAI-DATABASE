@@ -67,7 +67,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
 
       {/* The company, and the events it is in */}
       <header className="ws-card overflow-hidden">
-        <div className="p-5 flex items-start gap-4">
+        <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
           {company.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={company.logoUrl} alt="" className="w-14 h-14 rounded-xl object-contain shrink-0" style={{ background: '#fff', border: '1px solid var(--line)' }} />
@@ -88,7 +88,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
               <span>{people.length} {people.length === 1 ? 'contact' : 'contacts'}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
             <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
             <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>
               {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
