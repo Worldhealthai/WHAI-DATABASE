@@ -785,7 +785,7 @@ export interface Revision { post: ContentPost; notes: string[]; changed: string[
 // One instruction and what came of it, kept with the post as its thread.
 export interface Steer { text: string; at: string; changed?: string[]; notes?: string[]; reply?: string }
 
-type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[]; look?: { style?: unknown; photo?: unknown; photos?: unknown } }
+type Snapshot = Pick<ContentPost, 'kicker' | 'headline' | 'subline' | 'caption' | 'hashtags'> & { slides?: Slide[]; shape?: { format: string | null; pages: string | null }; look?: { style?: unknown; photo?: unknown; photos?: unknown } }
 export type Revisable = ContentPost & { source: { slides?: Slide[]; format?: string; pages?: string; before?: Snapshot; steers?: Steer[] } & Record<string, unknown> }
 
 const snapshot = (p: Revisable): Snapshot => ({
@@ -795,6 +795,8 @@ const snapshot = (p: Revisable): Snapshot => ({
   caption: p.caption,
   hashtags: p.hashtags,
   ...(Array.isArray(p.source?.slides) ? { slides: p.source.slides } : {}),
+  // Its shape, so undoing a change to one image or to slides puts it back.
+  shape: { format: p.source?.format ?? null, pages: p.source?.pages ?? null },
   look: { style: p.source?.style, photo: p.source?.photo, photos: p.source?.photos },
 })
 
@@ -887,7 +889,10 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
   // image becomes one, a carousel asked for two pages keeps two.
   const wanted = askedFormat(steer)
   const hasSlides = Array.isArray(post.source.slides) && post.source.slides.length > 0
-  const carousel = hasSlides && wanted !== 'single'
+  // A single image about a briefing asked to be a carousel or two pages:
+  // the slides are built from the briefing.
+  const grow = !hasSlides && (wanted === 'carousel' || wanted === 'two-page') && post.kind === 'insight' && Boolean(post.ref)
+  const carousel = (hasSlides && wanted !== 'single') || grow
   const ask = (current: unknown, more: string[]) =>
     [
       `Page the post goes out from: ${page}`,
@@ -918,7 +923,9 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
         brief: ask(draftOf(post), [
           `The briefing's title: ${String(material.title ?? '')}`,
           `The briefing's full text (with the instruction, the only material; every figure and quote must come from them):\n"""\n${article.body}\n"""`,
-          'A section left empty has no slide on the post: keep it empty unless the instruction asks for it.',
+          grow
+            ? 'The post is one image now and the instruction asks for slides: write the news, the statistic, the data, the quote and the closing line from the briefing, each only where the text holds it.'
+            : 'A section left empty has no slide on the post: keep it empty unless the instruction asks for it.',
         ]),
         maxTokens: 12000,
         refused: () => 'Claude declined to make this change. Try putting it another way.',
@@ -934,7 +941,10 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       link: link ?? '',
     })
     const pages = wanted === 'two-page' ? 'two-page' : wanted === 'carousel' ? 'carousel' : post.source.pages
-    let slides = mergeSlides(post.source.slides ?? [], checked, d, pages === 'two-page', notes)
+    let slides = grow
+      ? [checked.news, ...checked.extras, checked.end]
+      : mergeSlides(post.source.slides ?? [], checked, d, pages === 'two-page', notes)
+    if (grow) notes.push(pages === 'two-page' ? 'made into two pages, as asked' : 'made into a carousel, as asked')
     // Two pages: the news and the strongest slide that checked out, nothing else.
     if (pages === 'two-page') slides = slides.filter((s) => s.kind !== 'end').slice(0, 2)
     notes.push(...checked.dropped)
@@ -943,11 +953,11 @@ export async function rewritePost(post: Revisable, steer: string, to?: { page: s
       ...(news ? { kicker: news.kicker, headline: news.headline, subline: fitText(news.summary, 120) } : {}),
       caption: tidy(d.caption) || post.caption,
       hashtags: hashtagsOf(d.hashtags).length ? hashtagsOf(d.hashtags) : post.hashtags,
-      source: { ...post.source, slides, ...(pages ? { pages } : {}) },
+      source: { ...post.source, slides, ...(grow ? { format: 'carousel' } : {}), ...(pages ? { pages } : {}) },
     }
   } else {
     const text = post.kind === 'insight' && post.ref ? await readArticle(post.ref) : ''
-    if (wanted && wanted !== 'single' && !hasSlides) notes.push('a single post stays one image here: to make it a carousel, draft it again with Carousel chosen')
+    if (wanted && wanted !== 'single' && !hasSlides) notes.push('this post is not about a briefing, so it stays one image: slides are built from a briefing')
     const d = await draftWithin<Draft & Partial<ChatAnswer>>(
       {
         system: VOICE,
@@ -1030,8 +1040,16 @@ export async function undoRevision(id: string): Promise<ContentPost> {
   const post = await readPost(id)
   const before = post.source.before
   if (!before) throw new ContentError('There is no revision to undo.', 409)
-  const { slides, look, ...words } = before
+  const { slides, look, shape, ...words } = before
   const { before: _b, ...source } = post.source
+  if (shape) {
+    // The shape it had: a carousel's slides and format, or none for one image.
+    delete source.format
+    delete source.pages
+    if (!slides) delete source.slides
+    if (shape.format) source.format = shape.format
+    if (shape.pages) source.pages = shape.pages
+  }
   const steers = [...(post.source.steers ?? []), { text: 'Undo the last change', at: new Date().toISOString(), changed: [], reply: 'Put back as it was before the last change.' }].slice(-20)
   // The look as it was too: its style and photos (none kept means none).
   const looked = look ? { style: look.style, photo: look.photo, photos: look.photos } : {}

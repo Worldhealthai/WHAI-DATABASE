@@ -203,7 +203,8 @@ export function ContentStudio() {
   const [moved, setMoved] = useState('')
   const [view, setView] = useState<'all' | 'draft' | 'posted'>('all')
   // A single post, or a LinkedIn carousel from an Insights briefing.
-  const [format, setFormat] = useState<'single' | 'carousel'>('single')
+  // A carousel by default: the chat can make any one a single image.
+  const [format, setFormat] = useState<'single' | 'carousel'>('carousel')
   const kinds = KINDS.filter((k) => k.track === track)
   const briefings = useQuery<Briefing[]>({
     queryKey: ['content-briefings', ed?.label ?? ''],
