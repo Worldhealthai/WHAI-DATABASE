@@ -21,6 +21,8 @@ import { Pagination } from '@/components/search/Pagination'
 import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
+import { FocusToggle } from '@/components/crm/FocusToggle'
+import type { Focus } from '@/lib/contactFocus'
 
 interface Segments {
   accounts: Account[]
@@ -141,18 +143,25 @@ const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'At
 // Filters on the people inside companies: job titles (TitleFilter: words
 // or exact titles, any of them) and how they take part.
 type Doing = '' | 'Attending' | 'Speaking' | 'Company contact'
-interface PersonFilter { titles: TitleToken[]; doing: Doing }
-const personFilterOn = (f: PersonFilter) => !!(f.titles.length || f.doing)
+interface PersonFilter { titles: TitleToken[]; doing: Doing; focus: '' | Focus }
+const personFilterOn = (f: PersonFilter) => !!(f.titles.length || f.doing || f.focus)
 const doingPasses = (m: Member, f: PersonFilter) => !f.doing || m.records.some((r) => DOING[r.relationship] === f.doing)
 function personPasses(m: Member, f: PersonFilter): boolean {
   if (f.titles.length && !f.titles.some((t) => tokenMatches(m.jobTitle, t))) return false
+  if (f.focus && !(m.focus ?? []).includes(f.focus)) return false
   return doingPasses(m, f)
 }
 
 const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q)
 
 // A company's people, under its row.
-function Members({ members, query, company, add }: { members: Member[]; query: string; company: string; add?: PipelineAdd }) {
+// Where a record is, as much as the view needs: nothing inside one edition,
+// the year across an event's editions, the whole event in the Directory.
+type Where = 'none' | 'year' | 'event'
+const whereOf = (event: string | null | undefined, where: Where) =>
+  !event || where === 'none' ? '' : where === 'year' ? ` ${event.match(/20\d{2}/)?.[0] ?? shortEvent(event)}` : ` · ${shortEvent(event)}`
+
+function Members({ members, query, company, add, where }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where }) {
   return (
     <ul className="flex flex-col">
       {members.map((m) => {
@@ -166,10 +175,11 @@ function Members({ members, query, company, add }: { members: Member[]; query: s
             <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
               {m.records.map((r, i) => (
                 <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                  {DOING[r.relationship]}{r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
+                  {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? `: ${r.status}` : ''}
                 </Link>
               ))}
             </span>
+            <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} size="xs" />
             {add?.event && !m.records.some((r) => r.relationship === 'Speaker' && add.inYear(r)) && (
               <AddButton label="Speaker pipeline" busy={add.busy === `speaker:${m.key}`} done={add.done.has(`speaker:${m.key}`)} onClick={() => add.addSpeaker(m, company === NO_COMPANY_NAME ? '' : company)} />
             )}
@@ -263,6 +273,15 @@ function TagFilter({ value, onChange }: { value: Relationship | ''; onChange: (v
 
 const PAGE = 50
 
+// The company table's columns: Type only while both types are shown, Events
+// only in the Directory (inside an event every company is in it).
+const COMPANY_GRID: Record<string, string> = {
+  te: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px]',
+  t: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.1fr)_70px_90px]',
+  e: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px]',
+  '': 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.1fr)_70px_90px]',
+}
+
 // ── Companies ────────────────────────────────────────────────────────────────
 
 // Companies (the series, or the edition), or with `everything` the
@@ -278,7 +297,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState<Set<string>>(new Set())
-  const [pf, setPf] = useState<PersonFilter>({ titles: [], doing: '' })
+  const [pf, setPf] = useState<PersonFilter>({ titles: [], doing: '', focus: '' })
   const setP = (patch: Partial<PersonFilter>) => { setPf((x) => ({ ...x, ...patch })); setPage(1) }
   const q = query.trim().toLowerCase()
   const filtering = personFilterOn(pf)
@@ -314,6 +333,8 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const peopleCount = useMemo(() => (filtering || q ? rows.reduce((n, a) => n + peopleOf(a).length, 0) : null), [rows, filtering, q, peopleOf])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
   const add = usePipelineAdd()
+  const showType = type === 'all'
+  const grid = COMPANY_GRID[`${showType ? 't' : ''}${everything ? 'e' : ''}`]
   const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
   return (
@@ -332,15 +353,13 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
             <AlertTriangle className="w-3.5 h-3.5" /> To check
           </button>
         </Toolbar>
-        {/* The people inside: by job title, seniority and how they take part */}
+        {/* The people inside: by job title, and Health or Pharma */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
           <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>People</span>
           <TitleFilter titles={titleCounts} tokens={pf.titles} onChange={(titles) => setP({ titles })} />
-          <div className="max-w-full overflow-x-auto scrollbar-hide">
-            <Segmented size="sm" value={pf.doing || 'any'} onChange={(v) => setP({ doing: v === 'any' ? '' : (v as Doing) })}
-              options={[{ value: 'any', label: 'Anyone' }, { value: 'Attending', label: 'Attending' }, { value: 'Speaking', label: 'Speaking' }, { value: 'Company contact', label: 'Contacts' }]} />
-          </div>
-          {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ titles: [], doing: '' })}>Clear</button>}
+          <Segmented size="sm" value={pf.focus || 'any'} onChange={(v) => setP({ focus: v === 'any' ? '' : (v as Focus) })}
+            options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
+          {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ titles: [], doing: '', focus: '' })}>Clear</button>}
         </div>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the companies" body={(error as Error).message} /> :
          isLoading ? <Skeleton /> :
@@ -349,15 +368,15 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
             {/* On a phone a company is its name and type, with the sales
                 action under the name; the rest is on its record. */}
             <div className="md:min-w-[900px]">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 px-4 py-2.5 text-[12px] font-medium" style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
-                <span>Company</span><span>Type</span><span className="hidden md:block">Events</span><span className="hidden md:block">{add.year} sales</span><span className="hidden md:block text-right">People</span><span className="hidden md:block text-right">Updated</span>
+              <div className={`grid ${grid} gap-3 px-4 py-2.5 text-[12px] font-medium`} style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
+                <span>Company</span>{showType && <span>Type</span>}{everything && <span className="hidden md:block">Events</span>}<span className="hidden md:block">{add.year} sales</span><span className="hidden md:block text-right">People</span><span className="hidden md:block text-right">Updated</span>
               </div>
               {shown.map((a) => {
                 const found = q || filtering ? peopleOf(a) : []
                 const expanded = open.has(a.key) || found.length > 0
                 return (
                   <div key={a.key} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px] gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]">
+                    <div className={`grid ${grid} gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]`}>
                       <span className="flex items-center gap-2 min-w-0">
                         <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -375,8 +394,8 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                           </span>
                         </Link>
                       </span>
-                      <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>
-                      <span className="hidden md:block min-w-0 truncate"><Events events={a.events ?? []} /></span>
+                      {showType && <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>}
+                      {everything && <span className="hidden md:block min-w-0 truncate"><Events events={a.events ?? []} /></span>}
                       {(() => {
                         // This year's sponsor record, if the company has one.
                         const rec = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
@@ -387,7 +406,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                       <span className="hidden md:block text-right tabular text-[13.5px]">{a.people}</span>
                       <span className="hidden md:block text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
                     </div>
-                    {expanded && <Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} />}
+                    {expanded && <Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} where={everything ? 'event' : scope === 'series' ? 'year' : 'none'} />}
                   </div>
                 )
               })}
@@ -400,72 +419,65 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   )
 }
 
-// ── People ───────────────────────────────────────────────────────────────────
+// ── Contacts ─────────────────────────────────────────────────────────────────
 
-export function PeopleView() {
+// Every contact, once, with their company in small letters beside the name:
+// the same people as Companies, as one list.
+export function ContactsView() {
   const [scope, setScope] = useState<Scope>('series')
   const { data, isLoading, error } = useSegments(scope)
-  const [tag, setTag] = useState<Relationship | ''>('')
-  const [multi, setMulti] = useState(false)
   const [type, setType] = useState<'all' | Firmographic>('all')
+  const [focus, setFocus] = useState<'' | Focus>('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return (data?.people ?? []).filter((p) =>
-      (!tag || p.tags.includes(tag)) && (!multi || p.tags.length > 1) && (type === 'all' || p.firmographic === type) &&
-      (!q || p.name.toLowerCase().includes(q) || (p.email || '').includes(q) || (p.company || '').toLowerCase().includes(q)))
-  }, [data, tag, multi, type, query])
+      (type === 'all' || p.firmographic === type) && (!focus || (p.focus ?? []).includes(focus)) &&
+      (!q || p.name.toLowerCase().includes(q) || (p.email || '').includes(q) || (p.company || '').toLowerCase().includes(q) || (p.jobTitle || '').toLowerCase().includes(q)))
+  }, [data, type, focus, query])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
+  const where: Where = scope === 'series' ? 'year' : 'none'
 
   return (
     <WorkspacePage
-      title="People"
-      description={scope === 'series' ? 'Everyone in the series, once, with every role they have had at any of our events.' : 'Everyone in this edition, once, with every role they have at the event.'}
+      title="Contacts"
+      description={scope === 'series' ? 'Everyone at this event, across its editions, once, with their company beside their name.' : 'Everyone in this edition, once, with their company beside their name.'}
       actions={<ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />}
     >
-      <Summary data={data} loading={isLoading} />
       <div className="ws-card overflow-hidden">
-        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search people, emails or companies…" count={rows.length}>
+        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search names, companies, titles or emails…" count={rows.length}>
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
-          <TagFilter value={tag} onChange={(v) => { setTag(v); setPage(1) }} />
-          <button type="button" className="ws-chip" data-active={multi} onClick={() => { setMulti(!multi); setPage(1) }}>In more than one role</button>
+          <Segmented size="sm" value={focus || 'any'} onChange={(v) => { setFocus(v === 'any' ? '' : (v as Focus)); setPage(1) }}
+            options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
         </Toolbar>
-        {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the people" body={(error as Error).message} /> :
+        {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the contacts" body={(error as Error).message} /> :
          isLoading ? <Skeleton /> :
          rows.length === 0 ? <EmptyState icon={Users} title="No one matches" body="Try another filter, or clear the search." /> : (
-          <div className="overflow-x-auto">
-            <table className="ws-table w-full min-w-[820px]">
-              <thead><tr><th>Person</th><th>Company</th><th>Company type</th><th>Roles</th><th>Where they are</th></tr></thead>
-              <tbody>
-                {shown.map((p) => (
-                  <tr key={p.key}>
-                    <td>
-                      <Link href={`${PATH[p.records[0].table]}/${p.records[0].id}`} className="flex items-center gap-3 min-w-0">
-                        <Initials name={p.name || p.email || '?'} size={30} />
-                        <span className="min-w-0">
-                          <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
-                          <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.email].filter(Boolean).join(' · ') || '—'}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="text-[13px] truncate max-w-[220px]" style={{ color: 'var(--fg-2)' }}>{p.company || '—'}</td>
-                    <td><TypeBadge type={p.firmographic} /></td>
-                    <td><Tags tags={p.tags} /></td>
-                    <td>
-                      <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
-                        {p.records.map((r, i) => (
-                          <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                            {DOING[r.relationship]}{scope === 'series' && r.event ? ` · ${shortEvent(r.event)}` : ''}{r.status ? `: ${r.status}` : ''}
-                          </Link>
-                        ))}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="flex flex-col">
+            {shown.map((p) => (
+              <li key={p.key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--line)' }}>
+                <Link href={`${PATH[p.records[0].table]}/${p.records[0].id}`} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
+                  <Initials name={p.name || p.email || '?'} size={30} />
+                  <span className="min-w-0">
+                    <span className="block truncate">
+                      <span className="text-[13.5px] font-medium" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
+                      {p.company && <span className="text-[11.5px] ml-2" style={{ color: 'var(--fg-4)' }}>{p.company}</span>}
+                    </span>
+                    <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.email].filter(Boolean).join(' · ') || '—'}</span>
+                  </span>
+                </Link>
+                <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] pl-[42px] sm:pl-0">
+                  {p.records.map((r, i) => (
+                    <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
+                      {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? `: ${r.status}` : ''}
+                    </Link>
+                  ))}
+                </span>
+                <span className="pl-[42px] sm:pl-0"><FocusToggle key={(p.focus ?? []).join()} rows={p.focusRows ?? []} email={p.email} initial={p.focus ?? []} size="xs" /></span>
+              </li>
+            ))}
+          </ul>
         )}
         {rows.length > PAGE && <div className="px-4 py-3"><Pagination page={page} totalPages={Math.ceil(rows.length / PAGE)} total={rows.length} pageSize={PAGE} onPage={setPage} onPageSize={() => {}} /></div>}
       </div>

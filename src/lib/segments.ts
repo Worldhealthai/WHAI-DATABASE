@@ -17,6 +17,8 @@
 // A company with both labels is a Solution Provider, marked as a conflict
 // for a human look, unless it is one the team has settled (SETTLED below).
 
+import type { Focus } from '@/lib/contactFocus'
+
 export type Firmographic = 'Solution Provider' | 'End User'
 export type Relationship = 'Sponsor' | 'Speaker' | 'Delegate'
 export const RELATIONSHIPS: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
@@ -78,6 +80,8 @@ export interface SegmentContact {
   selfDeclared: string | null  // subType from the booking form
   paid: boolean
   firmographic: Firmographic
+  // Health and/or Pharma, from the record's tags (lib/contactFocus).
+  focus?: Focus[]
   website?: string | null
   country?: string | null
   tier?: string | null
@@ -97,6 +101,10 @@ export interface Person {
   firmographic: Firmographic | null    // their company's
   selfDeclared: string | null
   records: { relationship: Relationship; table: string; id: string; status: string | null; event?: string | null }[]
+  // The rows their Health/Pharma tag is kept on (a sponsor contact's own
+  // row, not its company's), and what it is.
+  focusRows: FocusRow[]
+  focus: Focus[]
   events: string[]         // every event they are in
   updatedAt: string | null
 }
@@ -137,6 +145,14 @@ export interface Member {
   jobTitle: string | null
   tags: Relationship[]
   records: { relationship: Relationship; table: string; id: string; status: string | null; event?: string | null }[]
+  focusRows: FocusRow[]
+  focus: Focus[]
+}
+
+export interface FocusRow { table: string; id: string }
+const addFocus = (into: { focus: Focus[]; focusRows: FocusRow[] }, c: SegmentContact) => {
+  into.focusRows.push({ table: c.table, id: c.id })
+  for (const f of c.focus ?? []) if (!into.focus.includes(f)) into.focus.push(f)
 }
 
 // People who gave no company are listed together under this name.
@@ -154,7 +170,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     const name = `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim()
     const p = byPerson.get(key) ?? {
       key, name, email: c.email, phone: null, jobTitle: null, company: null, companyKey: null,
-      tags: [], firmographic: null, selfDeclared: null, records: [], events: [], updatedAt: null,
+      tags: [], firmographic: null, selfDeclared: null, records: [], focusRows: [], focus: [], events: [], updatedAt: null,
     }
     p.name ||= name
     p.email ||= c.email
@@ -164,6 +180,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     p.selfDeclared ||= c.selfDeclared
     if (!p.tags.includes(c.relationship)) p.tags.push(c.relationship)
     p.records.push({ relationship: c.relationship, table: c.table, id: c.recordId, status: c.status, event: c.event ?? null })
+    addFocus(p, c)
     if (c.event && !p.events.includes(c.event)) p.events.push(c.event)
     p.updatedAt = latest(p.updatedAt, c.updatedAt)
     byPerson.set(key, p)
@@ -208,12 +225,13 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     for (const c of cs) {
       const pk = personKey(c.email, c.firstName, c.lastName, c.company)
       if (!pk) continue
-      const m = members.get(pk) ?? { key: pk, name: `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim() || c.email || '', email: c.email, phone: null, jobTitle: null, tags: [], records: [] }
+      const m = members.get(pk) ?? { key: pk, name: `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim() || c.email || '', email: c.email, phone: null, jobTitle: null, tags: [], records: [], focusRows: [], focus: [] }
       m.email ||= c.email
       m.phone ||= c.phone
       m.jobTitle ||= c.jobTitle
       if (!m.tags.includes(c.relationship)) m.tags.push(c.relationship)
       m.records.push({ relationship: c.relationship, table: c.table, id: c.recordId, status: c.status, event: c.event ?? null })
+      addFocus(m, c)
       members.set(pk, m)
     }
     accounts.push({
