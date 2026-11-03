@@ -10,6 +10,8 @@ import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
+import { FocusToggle } from './FocusToggle'
+import { focusOf } from '@/lib/contactFocus'
 import type { Sponsor, SponsorContact } from '@/types'
 import { PersonRolesLine } from './PersonRoles'
 import { EnquiryCard } from './EnquiryCard'
@@ -46,7 +48,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
           contactFirstName: company.contactFirstName, contactLastName: company.contactLastName,
           contactEmail: company.contactEmail, contactPhone: company.contactPhone,
           contactJobTitle: company.contactJobTitle, contactLinkedinUrl: company.contactLinkedinUrl,
-          notes: null, createdAt: company.createdAt,
+          notes: null, tags: company.tags ?? null, createdAt: company.createdAt,
         }
       : null
   const people = [...(primary ? [{ c: primary, isPrimary: true }] : []), ...(company.contacts ?? []).map((c) => ({ c, isPrimary: false }))]
@@ -184,6 +186,8 @@ function ContactRow({ kind, companyName, c, isPrimary, actions }: { kind: Kind; 
           self={{ kind, id: c.id }}
           person={{ email: c.contactEmail, firstName: c.contactFirstName, lastName: c.contactLastName, organization: companyName }}
         />
+        {/* Which side of the business this person is for. */}
+        <div className="mt-1.5"><FocusToggle rows={[{ table: kind === 'partner' ? 'partners' : 'sponsors', id: c.id }]} email={c.contactEmail} initial={focusOf(c.tags)} size="xs" /></div>
       </div>
       </div>
       <div className="flex items-center gap-0.5 shrink-0">

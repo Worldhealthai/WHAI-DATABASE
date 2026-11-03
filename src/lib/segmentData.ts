@@ -4,6 +4,7 @@
 // lib/segments. Read only.
 import { supabase } from '@/lib/supabase'
 import { firmographicByRule, type SegmentContact } from '@/lib/segments'
+import { focusOf } from '@/lib/contactFocus'
 
 type Row = Record<string, any>
 
@@ -42,8 +43,8 @@ const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
 export async function loadContacts(events: string[] | null): Promise<SegmentContact[]> {
   if (events && !events.length) return []
   const [companies, speakers, delegates] = await Promise.all([
-    all('sponsors', 'id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", "updatedAt"', events),
-    all('speakers', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", country, "updatedAt"', events),
+    all('sponsors', 'id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"', events),
+    all('speakers', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, country, "updatedAt"', events),
     all('delegates', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, "ticketType", country, "updatedAt"', events),
   ])
   // Sponsors: the company rows of the edition, each with its own contact,
@@ -56,7 +57,7 @@ export async function loadContacts(events: string[] | null): Promise<SegmentCont
   for (let i = 0; events && i < ids.length; i += 200) {
     const { data, error } = await supabase
       .from('sponsors')
-      .select('id, "companyId", "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", "updatedAt"')
+      .select('id, "companyId", "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"')
       .in('companyId', ids.slice(i, i + 200))
     if (error) throw error
     extra.push(...((data ?? []) as Row[]))
@@ -74,7 +75,7 @@ export async function loadContacts(events: string[] | null): Promise<SegmentCont
       email: s(row.contactEmail)?.toLowerCase() ?? null, phone: s(row.contactPhone), jobTitle: s(row.contactJobTitle), linkedinUrl: s(row.contactLinkedinUrl),
       status: company.status ?? null, selfDeclared: null, paid: false, firmographic: firmographicByRule('Sponsor', false),
       website: s(company.website), country: s(company.country), tier: s(company.tier), valueAmount: company.valueAmount ?? null,
-      updatedAt: row.updatedAt ?? company.updatedAt ?? null,
+      focus: focusOf(row.tags), updatedAt: row.updatedAt ?? company.updatedAt ?? null,
     })
   }
   for (const r of speakers) {
@@ -85,7 +86,7 @@ export async function loadContacts(events: string[] | null): Promise<SegmentCont
       // is a Solution Provider.
       selfDeclared: s(r.subType), paid: false,
       firmographic: s(r.subType) === 'Solution Provider' || s(r.subType) === 'End User' ? (s(r.subType) as 'Solution Provider' | 'End User') : firmographicByRule('Speaker', false),
-      country: s(r.country), updatedAt: r.updatedAt ?? null,
+      country: s(r.country), focus: focusOf(r.tags), updatedAt: r.updatedAt ?? null,
     })
   }
   for (const r of delegates) {
@@ -97,7 +98,7 @@ export async function loadContacts(events: string[] | null): Promise<SegmentCont
     out.push({
       relationship: 'Delegate', table: 'delegates', id: r.id, recordId: r.id, event: s(r.event), company: s(r.organization), firstName: s(r.firstName), lastName: s(r.lastName),
       email, phone: s(r.phone), jobTitle: s(r.jobTitle), linkedinUrl: s(r.linkedinUrl), status: r.status ?? null,
-      selfDeclared: declared, paid: isPaid, firmographic: firm, country: s(r.country), updatedAt: r.updatedAt ?? null,
+      selfDeclared: declared, paid: isPaid, firmographic: firm, country: s(r.country), focus: focusOf(r.tags), updatedAt: r.updatedAt ?? null,
     })
   }
   return out

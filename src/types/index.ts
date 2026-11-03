@@ -384,6 +384,7 @@ export interface SponsorContact {
   contactJobTitle?: string | null
   contactLinkedinUrl?: string | null
   notes?: string | null
+  tags?: string | null
   createdAt: string
 }
 

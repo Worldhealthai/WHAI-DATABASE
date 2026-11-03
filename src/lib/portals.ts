@@ -8,7 +8,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles, BarChart3,
-  Building, ClipboardList, Network,
+  Building, ClipboardList, Network, Users,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
 
@@ -55,6 +55,7 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
     sections: [
       { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
       { key: 'companies', label: 'Companies', icon: Building, path: 'companies' },
+      { key: 'contacts', label: 'Contacts', icon: Users, path: 'contacts' },
       { key: 'pipeline', label: 'Pipeline', icon: KanbanSquare, path: 'pipeline', group: 'Sales' },
       { key: 'production', label: 'Speakers', icon: Mic, path: 'production', group: 'Production' },
       // The agenda on its own, so it is always in sight.
