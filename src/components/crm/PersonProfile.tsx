@@ -16,7 +16,7 @@ import { TypeRoleButton, roleLabel } from './TypeRoleButton'
 import { EnquiryCard } from './EnquiryCard'
 import { PersonRolesCard } from './PersonRoles'
 import { FocusToggle } from './FocusToggle'
-import { focusOf } from '@/lib/contactFocus'
+import { focusOf, focusOfEvent, type Focus } from '@/lib/contactFocus'
 
 type Props = {
   nav: ProfileNav
@@ -73,7 +73,7 @@ export function PersonProfile(props: Props) {
               {person.linkedinUrl && <a href={person.linkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Linkedin className="w-3.5 h-3.5" /> LinkedIn</a>}
             </div>
             {/* Which side of the business they are for: Health, Pharma or both. */}
-            <div className="mt-2"><FocusToggle rows={[{ table: kind === 'speaker' ? 'speakers' : 'delegates', id: person.id }]} email={person.email} initial={focusOf(person.tags)} /></div>
+            <div className="mt-2"><FocusToggle rows={[{ table: kind === 'speaker' ? 'speakers' : 'delegates', id: person.id }]} email={person.email} initial={focusOf(person.tags)} auto={[focusOfEvent(person.event)].filter((f): f is Focus => !!f)} /></div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
             <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>

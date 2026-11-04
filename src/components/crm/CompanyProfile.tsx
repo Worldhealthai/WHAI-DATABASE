@@ -11,7 +11,7 @@ import { CopyPopover } from '@/components/crm/CopyPopover'
 import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { FocusToggle } from './FocusToggle'
-import { focusOf } from '@/lib/contactFocus'
+import { focusOf, focusOfEvent, type Focus } from '@/lib/contactFocus'
 import type { Sponsor, SponsorContact } from '@/types'
 import { PersonRolesLine } from './PersonRoles'
 import { EnquiryCard } from './EnquiryCard'
@@ -140,7 +140,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
             ) : (
               <ul>
                 {people.map(({ c, isPrimary }) => (
-                  <ContactRow key={`${c.id}-${isPrimary}`} kind={kind} companyName={company.companyName} c={c} isPrimary={isPrimary} actions={contacts} />
+                  <ContactRow key={`${c.id}-${isPrimary}`} kind={kind} companyName={company.companyName} event={company.event} c={c} isPrimary={isPrimary} actions={contacts} />
                 ))}
               </ul>
             )}
@@ -165,7 +165,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
   )
 }
 
-function ContactRow({ kind, companyName, c, isPrimary, actions }: { kind: Kind; companyName: string | null; c: SponsorContact; isPrimary: boolean; actions: ContactActions }) {
+function ContactRow({ kind, companyName, event, c, isPrimary, actions }: { kind: Kind; companyName: string | null; event?: string | null; c: SponsorContact; isPrimary: boolean; actions: ContactActions }) {
   const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ') || c.contactEmail || 'Unnamed'
   return (
     <li className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-[var(--surface-2)]" style={{ borderTop: '1px solid var(--line)' }}>
@@ -187,7 +187,7 @@ function ContactRow({ kind, companyName, c, isPrimary, actions }: { kind: Kind; 
           person={{ email: c.contactEmail, firstName: c.contactFirstName, lastName: c.contactLastName, organization: companyName }}
         />
         {/* Which side of the business this person is for. */}
-        <div className="mt-1.5"><FocusToggle rows={[{ table: kind === 'partner' ? 'partners' : 'sponsors', id: c.id }]} email={c.contactEmail} initial={focusOf(c.tags)} size="xs" /></div>
+        <div className="mt-1.5"><FocusToggle rows={[{ table: kind === 'partner' ? 'partners' : 'sponsors', id: c.id }]} email={c.contactEmail} initial={focusOf(c.tags)} auto={[focusOfEvent(event)].filter((f): f is Focus => !!f)} size="xs" /></div>
       </div>
       </div>
       <div className="flex items-center gap-0.5 shrink-0">

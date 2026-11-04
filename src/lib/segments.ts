@@ -17,7 +17,7 @@
 // A company with both labels is a Solution Provider, marked as a conflict
 // for a human look, unless it is one the team has settled (SETTLED below).
 
-import type { Focus } from '@/lib/contactFocus'
+import { FOCUSES, focusOfEvent, type Focus } from '@/lib/contactFocus'
 
 export type Firmographic = 'Solution Provider' | 'End User'
 export type Relationship = 'Sponsor' | 'Speaker' | 'Delegate'
@@ -105,6 +105,7 @@ export interface Person {
   // row, not its company's), and what it is.
   focusRows: FocusRow[]
   focus: Focus[]
+  focusAuto: Focus[]       // the sides of their events (lib/contactFocus)
   events: string[]         // every event they are in
   updatedAt: string | null
 }
@@ -128,6 +129,9 @@ export interface Account {
   country: string | null
   best: { name: string; jobTitle: string | null; email: string | null; phone: string | null } | null
   events: string[]
+  // The sides it is on (Health, Pharma or both): its events', and its
+  // people's own tags.
+  sides: Focus[]
   // Its people, each once, with their roles and records.
   members: Member[]
   completeness: number
@@ -147,12 +151,15 @@ export interface Member {
   records: { relationship: Relationship; table: string; id: string; status: string | null; event?: string | null }[]
   focusRows: FocusRow[]
   focus: Focus[]
+  focusAuto: Focus[]
 }
 
 export interface FocusRow { table: string; id: string }
-const addFocus = (into: { focus: Focus[]; focusRows: FocusRow[] }, c: SegmentContact) => {
+const addFocus = (into: { focus: Focus[]; focusAuto: Focus[]; focusRows: FocusRow[] }, c: SegmentContact) => {
   into.focusRows.push({ table: c.table, id: c.id })
   for (const f of c.focus ?? []) if (!into.focus.includes(f)) into.focus.push(f)
+  const auto = focusOfEvent(c.event)
+  if (auto && !into.focusAuto.includes(auto)) into.focusAuto.push(auto)
 }
 
 // People who gave no company are listed together under this name.
@@ -170,7 +177,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     const name = `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim()
     const p = byPerson.get(key) ?? {
       key, name, email: c.email, phone: null, jobTitle: null, company: null, companyKey: null,
-      tags: [], firmographic: null, selfDeclared: null, records: [], focusRows: [], focus: [], events: [], updatedAt: null,
+      tags: [], firmographic: null, selfDeclared: null, records: [], focusRows: [], focus: [], focusAuto: [], events: [], updatedAt: null,
     }
     p.name ||= name
     p.email ||= c.email
@@ -225,7 +232,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     for (const c of cs) {
       const pk = personKey(c.email, c.firstName, c.lastName, c.company)
       if (!pk) continue
-      const m = members.get(pk) ?? { key: pk, name: `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim() || c.email || '', email: c.email, phone: null, jobTitle: null, tags: [], records: [], focusRows: [], focus: [] }
+      const m = members.get(pk) ?? { key: pk, name: `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim() || c.email || '', email: c.email, phone: null, jobTitle: null, tags: [], records: [], focusRows: [], focus: [], focusAuto: [] }
       m.email ||= c.email
       m.phone ||= c.phone
       m.jobTitle ||= c.jobTitle
@@ -255,6 +262,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
       best: best ? { name: `${best.firstName || ''} ${best.lastName || ''}`.trim() || best.email || '', jobTitle: best.jobTitle, email: best.email, phone: best.phone } : null,
       completeness,
       events: Array.from(new Set(cs.map((c) => c.event).filter((e): e is string => !!e))),
+      sides: FOCUSES.filter((f) => cs.some((c) => focusOfEvent(c.event) === f || (c.focus ?? []).includes(f))),
       members: Array.from(members.values()).sort((a, b) => a.name.localeCompare(b.name)),
       updatedAt,
       open: lead ? { table: 'sponsors', id: lead.recordId } : { table: cs[0].table, id: cs[0].recordId },
