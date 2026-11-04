@@ -126,80 +126,6 @@ function FollowUps({ labels }: { labels: string[] }) {
   )
 }
 
-// Who is coming: the people attending or speaking, by their company's type,
-// and the end-user organisations sending the most (lib/segments, the same
-// data as Companies).
-function WhosComing({ labels }: { labels: string[] }) {
-  const ws = useWorkspace()
-  const { data, isLoading } = useQuery<{ accounts: Account[] }>({
-    queryKey: ['ws-segments', labels],
-    queryFn: async () => {
-      const p = new URLSearchParams()
-      labels.forEach((l) => p.append('events', l))
-      const r = await fetch(`/api/segments?${p}`)
-      if (!r.ok) throw new Error('segments')
-      return r.json()
-    },
-    enabled: labels.length > 0,
-    staleTime: 60_000,
-  })
-  let eu = 0, sp = 0
-  const orgs: { name: string; n: number; href: string }[] = []
-  for (const a of data?.accounts ?? []) {
-    const coming = (a.members ?? []).filter((m) => m.records.some((r) => r.relationship === 'Delegate' || r.relationship === 'Speaker')).length
-    if (!coming) continue
-    if (a.firmographic === 'End User') { eu += coming; orgs.push({ name: a.name, n: coming, href: `/${a.open.table}/${a.open.id}` }) }
-    else sp += coming
-  }
-  orgs.sort((x, y) => y.n - x.n)
-  const total = eu + sp
-  const pct = total ? Math.round((eu / total) * 100) : 0
-  return (
-    <div className="ws-card px-5 py-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Who&rsquo;s coming</p>
-        {ws.portal && ws.slug && (
-          <Link href={workspaceHref(ws.portal.key, ws.slug, 'companies', ws.year ?? undefined)} className="text-[12px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>Companies</Link>
-        )}
-      </div>
-      {isLoading ? (
-        <div className="h-24 mt-3 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />
-      ) : total === 0 ? (
-        <p className="text-[12.5px] mt-2" style={{ color: 'var(--fg-4)' }}>No one attending or speaking yet.</p>
-      ) : (
-        <>
-          <p className="text-[12.5px] mt-0.5" style={{ color: 'var(--fg-3)' }}>
-            {total} attending or speaking: <span className="font-semibold" style={{ color: 'var(--fg)' }}>{pct}% end users</span>
-          </p>
-          <div className="flex h-2 rounded-full overflow-hidden gap-px mt-3" style={{ background: 'var(--surface-3)' }}>
-            <span style={{ width: `${pct}%`, background: 'var(--accent)' }} title={`End users: ${eu}`} />
-            <span style={{ width: `${100 - pct}%`, background: 'var(--line-3)' }} title={`Solution providers: ${sp}`} />
-          </div>
-          <div className="flex gap-4 mt-2 text-[12px]" style={{ color: 'var(--fg-3)' }}>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }} />End users <span className="tabular font-medium" style={{ color: 'var(--fg)' }}>{eu}</span></span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: 'var(--line-3)' }} />Solution providers <span className="tabular font-medium" style={{ color: 'var(--fg)' }}>{sp}</span></span>
-          </div>
-          {orgs.length > 0 && (
-            <>
-              <p className="text-[12px] font-semibold uppercase tracking-wider mt-4 mb-1" style={{ color: 'var(--fg-4)' }}>Top end-user organisations</p>
-              <ul>
-                {orgs.slice(0, 6).map((o) => (
-                  <li key={o.name}>
-                    <Link href={o.href} className="flex items-center justify-between gap-3 py-1.5 px-2 -mx-2 rounded-lg transition-colors hover:bg-[var(--surface-2)]">
-                      <span className="text-[13px] truncate" style={{ color: 'var(--fg)' }}>{o.name}</span>
-                      <span className="text-[12px] tabular shrink-0" style={{ color: 'var(--fg-3)' }}>{o.n}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
 // The newest records, one kind at a time.
 function Recent({ labels }: { labels: string[] }) {
   const ws = useWorkspace()
@@ -307,7 +233,6 @@ export function Overview() {
       <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-4 mt-4 items-start">
         <div className="flex flex-col gap-4 min-w-0">
           <FollowUps labels={labels} />
-          <WhosComing labels={labels} />
         </div>
         <div className="flex flex-col gap-4 min-w-0">
           <AgendaSummary />
