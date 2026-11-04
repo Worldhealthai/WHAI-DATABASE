@@ -20,12 +20,14 @@
 import { FOCUSES, focusOfEvent, type Focus } from '@/lib/contactFocus'
 
 export type Firmographic = 'Solution Provider' | 'End User'
-export type Relationship = 'Sponsor' | 'Speaker' | 'Delegate'
-export const RELATIONSHIPS: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
+// Lead: someone from a leads list (crm.leads, November 2026), in Companies,
+// Contacts and the Directory only, never on a pipeline.
+export type Relationship = 'Sponsor' | 'Speaker' | 'Delegate' | 'Lead'
+export const RELATIONSHIPS: Relationship[] = ['Sponsor', 'Speaker', 'Delegate', 'Lead']
 
 export function firmographicByRule(relationship: Relationship, paid: boolean): Firmographic {
   if (relationship === 'Sponsor') return 'Solution Provider'
-  if (relationship === 'Speaker') return 'End User'
+  if (relationship === 'Speaker' || relationship === 'Lead') return 'End User'
   return paid ? 'Solution Provider' : 'End User'
 }
 
@@ -65,7 +67,7 @@ const SENIOR = /(chief|ceo|cto|cdo|cmo|cio|coo|vp|vice president|head|director|f
 
 export interface SegmentContact {
   relationship: Relationship
-  table: 'sponsors' | 'speakers' | 'delegates'
+  table: 'sponsors' | 'speakers' | 'delegates' | 'leads'
   id: string               // the row (a sponsor contact row links to its company row)
   recordId: string         // the record to open: the company row for sponsors
   event?: string | null
@@ -82,6 +84,9 @@ export interface SegmentContact {
   firmographic: Firmographic
   // Health and/or Pharma, from the record's tags (lib/contactFocus).
   focus?: Focus[]
+  // Where a lead came from and what we know ("RAISE Summit 2026 sponsor ·
+  // US company · …"): shown under them and searched.
+  note?: string | null
   website?: string | null
   country?: string | null
   tier?: string | null
@@ -106,6 +111,7 @@ export interface Person {
   focusRows: FocusRow[]
   focus: Focus[]
   focusAuto: Focus[]       // the sides of their events (lib/contactFocus)
+  note: string | null      // a lead's note (where they came from)
   events: string[]         // every event they are in
   updatedAt: string | null
 }
@@ -152,6 +158,7 @@ export interface Member {
   focusRows: FocusRow[]
   focus: Focus[]
   focusAuto: Focus[]
+  note: string | null
 }
 
 export interface FocusRow { table: string; id: string }
@@ -177,7 +184,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     const name = `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim()
     const p = byPerson.get(key) ?? {
       key, name, email: c.email, phone: null, jobTitle: null, company: null, companyKey: null,
-      tags: [], firmographic: null, selfDeclared: null, records: [], focusRows: [], focus: [], focusAuto: [], events: [], updatedAt: null,
+      tags: [], firmographic: null, selfDeclared: null, records: [], focusRows: [], focus: [], focusAuto: [], note: null, events: [], updatedAt: null,
     }
     p.name ||= name
     p.email ||= c.email
@@ -185,6 +192,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     p.jobTitle ||= c.jobTitle
     if (!p.company && c.company) { p.company = c.company; p.companyKey = companyKey(c.company) }
     p.selfDeclared ||= c.selfDeclared
+    p.note ||= c.note ?? null
     if (!p.tags.includes(c.relationship)) p.tags.push(c.relationship)
     p.records.push({ relationship: c.relationship, table: c.table, id: c.recordId, status: c.status, event: c.event ?? null })
     addFocus(p, c)
@@ -205,7 +213,10 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
   const accounts: Account[] = []
   for (const [key, { contacts: cs }] of byCompany) {
     const settled = SETTLED[key]
-    const labels = settled ? new Set<Firmographic>([settled]) : new Set(cs.map((c) => c.firmographic))
+    // A company's own records decide its type; its leads only when it has
+    // nothing else (a leads list is a guess, not a conflict).
+    const deciding = cs.some((c) => c.relationship !== 'Lead') ? cs.filter((c) => c.relationship !== 'Lead') : cs
+    const labels = settled ? new Set<Firmographic>([settled]) : new Set(deciding.map((c) => c.firmographic))
     const decidedBy = Array.from(new Set(cs.map((c) => (c.relationship === 'Delegate' ? (c.paid ? 'Paid delegate' : 'Free delegate') : `${c.relationship}s tab`))))
     const sponsorRows = cs.filter((c) => c.relationship === 'Sponsor')
     const lead = sponsorRows.sort((a, b) => (STAGE_RANK[b.status || ''] ?? 0) - (STAGE_RANK[a.status || ''] ?? 0))[0]
@@ -232,10 +243,11 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
     for (const c of cs) {
       const pk = personKey(c.email, c.firstName, c.lastName, c.company)
       if (!pk) continue
-      const m = members.get(pk) ?? { key: pk, name: `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim() || c.email || '', email: c.email, phone: null, jobTitle: null, tags: [], records: [], focusRows: [], focus: [], focusAuto: [] }
+      const m = members.get(pk) ?? { key: pk, name: `${c.firstName || ''} ${c.lastName || ''}`.replace(/\s+/g, ' ').trim() || c.email || '', email: c.email, phone: null, jobTitle: null, tags: [], records: [], focusRows: [], focus: [], focusAuto: [], note: null }
       m.email ||= c.email
       m.phone ||= c.phone
       m.jobTitle ||= c.jobTitle
+      m.note ||= c.note ?? null
       if (!m.tags.includes(c.relationship)) m.tags.push(c.relationship)
       m.records.push({ relationship: c.relationship, table: c.table, id: c.recordId, status: c.status, event: c.event ?? null })
       addFocus(m, c)
@@ -248,7 +260,7 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
       conflict: labels.size > 1,
       decidedBy,
       disagree: labels.size > 1
-        ? Array.from(new Set(cs.filter((c) => c.firmographic !== (labels.has('Solution Provider') ? 'Solution Provider' : 'End User'))
+        ? Array.from(new Set(deciding.filter((c) => c.firmographic !== (labels.has('Solution Provider') ? 'Solution Provider' : 'End User'))
             .map((c) => `${`${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || 'Someone'} (${c.relationship}) said ${c.firmographic}`)))
         : [],
       tags: RELATIONSHIPS.filter((r) => cs.some((c) => c.relationship === r)),
@@ -280,7 +292,8 @@ export function consolidate(contacts: SegmentContact[]): { people: Person[]; acc
 // the furthest along and most recently touched.
 export function hitList(accounts: Account[], limit = 50): Account[] {
   return accounts
-    .filter((a) => a.firmographic === 'Solution Provider' && a.sponsorStage !== 'Confirmed' && a.sponsorStage !== 'Rejected')
+    // Companies known only from a leads list are not on it.
+    .filter((a) => a.firmographic === 'Solution Provider' && a.sponsorStage !== 'Confirmed' && a.sponsorStage !== 'Rejected' && a.tags.some((t) => t !== 'Lead'))
     .sort((a, b) =>
       b.completeness - a.completeness ||
       (STAGE_RANK[b.sponsorStage || ''] ?? 2) - (STAGE_RANK[a.sponsorStage || ''] ?? 2) ||

@@ -45,14 +45,18 @@ function useSeriesLabels(): string[] {
   return useMemo(() => (category ? Array.from(new Set(editionYears(category).flatMap((y) => labelsForEdition(category, y)))) : []), [category])
 }
 
-function useSegments(scope: Scope = 'edition') {
+// What a view reads: Companies the companies (with their people inside),
+// Contacts the people, the Hit list its list. Each gets only that, since
+// with the leads lists the whole is too big to send at once.
+type View = 'accounts' | 'people' | 'hit'
+function useSegments(scope: Scope = 'edition', view: View = 'accounts') {
   const edition = useWorkspace().labels
   const series = useSeriesLabels()
   const labels = scope === 'series' ? series : edition
   return useQuery<Segments>({
-    queryKey: ['ws-segments', scope === 'all' ? 'all' : labels],
+    queryKey: ['ws-segments', scope === 'all' ? 'all' : labels, view],
     queryFn: async () => {
-      const p = new URLSearchParams()
+      const p = new URLSearchParams({ view })
       if (scope === 'all') p.set('scope', 'all')
       else labels.forEach((l) => p.append('events', l))
       const r = await fetch(`/api/segments?${p}`)
@@ -140,7 +144,15 @@ function AddButton({ label, busy, done, onClick }: { label: string; busy: boolea
 const NO_COMPANY_NAME = 'No company given'
 // How a person takes part, in the CRM's terms: speaking, attending, or a
 // contact of a sponsoring company.
-const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact' }
+const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact', Lead: 'Lead' }
+
+// A record's page, as a link; a lead (a leads-list row) has none, so it is
+// plain text. A person opens on their first record that has a page.
+const pageOf = (records: { table: string; id: string }[]) => records.find((r) => PATH[r.table]) ?? records[0]
+function RecLink({ rec, className, style, children }: { rec: { table: string; id: string }; className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
+  const path = PATH[rec.table]
+  return path ? <Link href={`${path}/${rec.id}`} className={className} style={style}>{children}</Link> : <span className={className} style={style}>{children}</span>
+}
 
 // Filters on the people inside companies: job titles (TitleFilter: words
 // or exact titles, any of them) and how they take part.
@@ -154,7 +166,7 @@ function personPasses(m: Member, f: PersonFilter): boolean {
   return doingPasses(m, f)
 }
 
-const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q)
+const matches = (m: Member, q: string) => m.name.toLowerCase().includes(q) || (m.email || '').includes(q) || (m.jobTitle || '').toLowerCase().includes(q) || (m.note || '').toLowerCase().includes(q)
 
 // A company's people, under its row.
 // Where a record is, as much as the view needs: nothing inside one edition,
@@ -170,15 +182,16 @@ function Members({ members, query, company, add, where, account }: { members: Me
         const hit = !!query && matches(m, query)
         return (
           <li key={m.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
-            <Link href={`${PATH[m.records[0].table]}/${m.records[0].id}`} className="min-w-0 flex-1">
+            <RecLink rec={pageOf(m.records)} className="min-w-0 flex-1">
               <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
               <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{[m.jobTitle, m.email].filter(Boolean).length ? ` · ${[m.jobTitle, m.email].filter(Boolean).join(' · ')}` : ''}</span>
-            </Link>
+              {m.note && <span className="block text-[11.5px] truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={m.note}>{m.note}</span>}
+            </RecLink>
             <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
               {m.records.map((r, i) => (
-                <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
+                <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
                   {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? `: ${r.status}` : ''}
-                </Link>
+                </RecLink>
               ))}
             </span>
             {where === 'event' && <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" />}
@@ -421,11 +434,11 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
       const people = q || filtering ? peopleOf(a) : a.members ?? []
       const rec = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
       const base = [a.name, a.firmographic, (a.events ?? []).map(shortEvent).join('; '), rec?.status ?? '', a.website, a.country]
-      if (!people.length) out.push([...base, '', '', '', '', ''])
-      for (const m of people) out.push([...base, m.name, m.jobTitle, m.email, m.phone, rolesOf(m.records)])
+      if (!people.length) out.push([...base, '', '', '', '', '', ''])
+      for (const m of people) out.push([...base, m.name, m.jobTitle, m.email, m.phone, rolesOf(m.records), m.note])
     }
     downloadCsv(`${everything ? 'directory' : `companies ${event} ${scope === 'series' ? 'all years' : year}`}`,
-      ['Company', 'Type', 'Events', `${year} sales`, 'Website', 'Country', 'Name', 'Job title', 'Email', 'Phone', 'Roles'], out)
+      ['Company', 'Type', 'Events', `${year} sales`, 'Website', 'Country', 'Name', 'Job title', 'Email', 'Phone', 'Roles', 'Note'], out)
   }
   const showType = type === 'all'
   const grid = COMPANY_GRID[`${showType ? 't' : ''}${everything ? 'e' : ''}`]
@@ -490,7 +503,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
-                        <Link href={`${PATH[a.open.table]}/${a.open.id}`} className="flex items-center gap-3 min-w-0">
+                        <RecLink rec={a.open} className="flex items-center gap-3 min-w-0">
                           <Initials name={a.name} size={30} />
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
@@ -501,7 +514,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                               </span>
                             ) : null}
                           </span>
-                        </Link>
+                        </RecLink>
                       </span>
                       {showType && <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>}
                       {everything && <span className="hidden md:block min-w-0 truncate"><Events events={a.events ?? []} /></span>}
@@ -536,7 +549,7 @@ export function ContactsView() {
   const { slug, year } = useWorkspace()
   const sk = `contacts.${slug}`
   const [scope, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
-  const { data, isLoading, error } = useSegments(scope)
+  const { data, isLoading, error } = useSegments(scope, 'people')
   const [type, setType] = useSticky<'all' | Firmographic>(`${sk}.type`, 'all')
   const [titles, setTitles] = useSticky<TitleToken[]>(`${sk}.titles`, [])
   const [query, setQuery] = useSticky(`${sk}.query`, '')
@@ -545,7 +558,7 @@ export function ContactsView() {
     const q = query.trim().toLowerCase()
     return (data?.people ?? []).filter((p) =>
       (type === 'all' || p.firmographic === type) && (!titles.length || titles.some((t) => tokenMatches(p.jobTitle, t))) &&
-      (!q || p.name.toLowerCase().includes(q) || (p.email || '').includes(q) || (p.company || '').toLowerCase().includes(q) || (p.jobTitle || '').toLowerCase().includes(q)))
+      (!q || p.name.toLowerCase().includes(q) || (p.email || '').includes(q) || (p.company || '').toLowerCase().includes(q) || (p.jobTitle || '').toLowerCase().includes(q) || (p.note || '').toLowerCase().includes(q)))
   }, [data, type, titles, query])
   // Every job title among the contacts of the type in view, with how many
   // hold it: what the title search offers, as on Companies.
@@ -573,8 +586,8 @@ export function ContactsView() {
           <ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />
           <button type="button" className="ws-btn" disabled={!rows.length} title="Download these contacts as a CSV"
             onClick={() => downloadCsv(`contacts ${slug ?? ''} ${scope === 'series' ? 'all years' : year ?? ''}`,
-              ['Name', 'Company', 'Job title', 'Email', 'Phone', 'Type', 'Roles'],
-              rows.map((p) => [p.name, p.company, p.jobTitle, p.email, p.phone, p.firmographic, rolesOf(p.records)]))}>
+              ['Name', 'Company', 'Job title', 'Email', 'Phone', 'Type', 'Roles', 'Note'],
+              rows.map((p) => [p.name, p.company, p.jobTitle, p.email, p.phone, p.firmographic, rolesOf(p.records), p.note]))}>
             <Download className="w-4 h-4" /> Export
           </button>
         </>
@@ -596,7 +609,7 @@ export function ContactsView() {
           <ul className="flex flex-col">
             {shown.map((p) => (
               <li key={p.key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--line)' }}>
-                <Link href={`${PATH[p.records[0].table]}/${p.records[0].id}`} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
+                <RecLink rec={pageOf(p.records)} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
                   <Initials name={p.name || p.email || '?'} size={30} />
                   <span className="min-w-0">
                     <span className="block truncate">
@@ -604,13 +617,14 @@ export function ContactsView() {
                       {p.company && <span className="text-[11.5px] ml-2" style={{ color: 'var(--fg-4)' }}>{p.company}</span>}
                     </span>
                     <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.email].filter(Boolean).join(' · ') || '—'}</span>
+                    {p.note && <span className="block text-[11.5px] truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={p.note}>{p.note}</span>}
                   </span>
-                </Link>
+                </RecLink>
                 <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] pl-[42px] sm:pl-0">
                   {p.records.map((r, i) => (
-                    <Link key={i} href={`${PATH[r.table]}/${r.id}`} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
+                    <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
                       {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? `: ${r.status}` : ''}
-                    </Link>
+                    </RecLink>
                   ))}
                 </span>
               </li>
@@ -626,7 +640,7 @@ export function ContactsView() {
 // ── Hit list ─────────────────────────────────────────────────────────────────
 
 export function HitListView() {
-  const { data, isLoading, error } = useSegments()
+  const { data, isLoading, error } = useSegments('edition', 'hit')
   const { year } = useWorkspace()
   const list = data?.hitList ?? []
   return (
@@ -641,7 +655,7 @@ export function HitListView() {
           {list.map((a, i) => (
             <li key={a.key} className="grid grid-cols-[28px_minmax(0,1fr)] md:grid-cols-[28px_minmax(0,1.3fr)_minmax(0,1.4fr)_auto] gap-x-4 gap-y-2 items-center px-5 py-3.5">
               <span className="text-[13px] tabular font-semibold" style={{ color: 'var(--fg-4)' }}>{i + 1}</span>
-              <Link href={`${PATH[a.open.table]}/${a.open.id}`} className="min-w-0">
+              <RecLink rec={a.open} className="min-w-0">
                 <span className="block text-[14px] font-semibold truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{a.name}</span>
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-[12px]" style={{ color: 'var(--fg-3)' }}>
                   {a.sponsorStage ?? a.decidedBy.join(', ')}
@@ -649,7 +663,7 @@ export function HitListView() {
                   {a.valueAmount ? <span>· {formatMoney(a.valueAmount)}</span> : null}
                   {a.tags.length > 1 ? <span>· also {a.tags.filter((t) => t !== 'Sponsor').join(', ').toLowerCase()}</span> : null}
                 </span>
-              </Link>
+              </RecLink>
               <span className="min-w-0 col-start-2 md:col-start-auto">
                 <span className="block text-[13px] truncate" style={{ color: 'var(--fg)' }}>{a.best ? a.best.name : 'No contact yet'}</span>
                 <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{a.best?.jobTitle || '—'}</span>
