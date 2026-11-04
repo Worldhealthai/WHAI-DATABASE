@@ -9,7 +9,7 @@ import { FOCUSES, focusOf, withFocus, type Focus } from '@/lib/contactFocus'
 
 export const dynamic = 'force-dynamic'
 
-const TABLES = new Set(['sponsors', 'speakers', 'delegates', 'partners'])
+const TABLES = new Set(['sponsors', 'speakers', 'delegates', 'partners', 'leads'])
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   try {
     if (email.includes('@')) {
       const esc = email.replace(/[\\%_]/g, '\\$&')
-      for (const [table, col] of [['speakers', 'email'], ['delegates', 'email'], ['sponsors', 'contactEmail'], ['partners', 'contactEmail']]) {
+      for (const [table, col] of [['speakers', 'email'], ['delegates', 'email'], ['sponsors', 'contactEmail'], ['partners', 'contactEmail'], ['leads', 'email']]) {
         const { data, error } = await supabase.from(table).select('id').ilike(col, esc).limit(50)
         if (error) throw error
         for (const r of (data ?? []) as { id: string }[]) rows.push({ table, id: r.id })

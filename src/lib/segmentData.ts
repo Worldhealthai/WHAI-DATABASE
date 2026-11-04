@@ -9,15 +9,21 @@ import { focusOf } from '@/lib/contactFocus'
 type Row = Record<string, any>
 
 // events null: every event.
+// Pages of 1,000 (the API's cap), four at a time: the leads lists run to
+// thousands of rows.
 async function all(table: string, select: string, events: string[] | null): Promise<Row[]> {
   const out: Row[] = []
-  for (let from = 0; ; from += 1000) {
+  const page = async (from: number) => {
     let q = supabase.from(table).select(select)
     if (events) q = q.in('event', events)
     const { data, error } = await q.order('id').range(from, from + 999)
     if (error) throw error
-    out.push(...((data ?? []) as unknown as Row[]))
-    if (!data || data.length < 1000) return out
+    return (data ?? []) as unknown as Row[]
+  }
+  for (let from = 0; ; from += 4000) {
+    const pages = await Promise.all([0, 1, 2, 3].map((i) => page(from + i * 1000)))
+    for (const p of pages) out.push(...p)
+    if (pages.some((p) => p.length < 1000)) return out
   }
 }
 
@@ -42,10 +48,11 @@ const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 export async function loadContacts(events: string[] | null): Promise<SegmentContact[]> {
   if (events && !events.length) return []
-  const [companies, speakers, delegates] = await Promise.all([
+  const [companies, speakers, delegates, leads] = await Promise.all([
     all('sponsors', 'id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"', events),
     all('speakers', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, country, "updatedAt"', events),
     all('delegates', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, "ticketType", country, "updatedAt"', events),
+    all('leads', 'id, event, "companyName", "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", segment, country, website, notes, "updatedAt"', events),
   ])
   // Sponsors: the company rows of the edition, each with its own contact,
   // then the extra contacts that hang off them (companyId), whatever event
@@ -99,6 +106,16 @@ export async function loadContacts(events: string[] | null): Promise<SegmentCont
       relationship: 'Delegate', table: 'delegates', id: r.id, recordId: r.id, event: s(r.event), company: s(r.organization), firstName: s(r.firstName), lastName: s(r.lastName),
       email, phone: s(r.phone), jobTitle: s(r.jobTitle), linkedinUrl: s(r.linkedinUrl), status: r.status ?? null,
       selfDeclared: declared, paid: isPaid, firmographic: firm, country: s(r.country), focus: focusOf(r.tags), updatedAt: r.updatedAt ?? null,
+    })
+  }
+  // Leads lists (crm.leads): in Companies, Contacts and the Directory only,
+  // labelled by the list (Solution Provider or End User), with their note.
+  for (const r of leads) {
+    out.push({
+      relationship: 'Lead', table: 'leads', id: r.id, recordId: r.id, event: s(r.event), company: s(r.companyName), firstName: s(r.firstName), lastName: s(r.lastName),
+      email: s(r.email)?.toLowerCase() ?? null, phone: s(r.phone), jobTitle: s(r.jobTitle), linkedinUrl: s(r.linkedinUrl), status: null,
+      selfDeclared: null, paid: false, firmographic: r.segment === 'Solution Provider' ? 'Solution Provider' : 'End User',
+      website: s(r.website), country: s(r.country), note: s(r.notes), updatedAt: r.updatedAt ?? null,
     })
   }
   return out
