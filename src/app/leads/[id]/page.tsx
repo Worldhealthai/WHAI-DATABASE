@@ -1,8 +1,9 @@
 'use client'
 
 // A person from a leads list (crm.leads): who they are, where they came
-// from, and the two ways on: into the speaker pipeline (Production) or into
-// Sales as their company's contact, both at Not contacted in their edition.
+// from, and the way on, by their type: an End User into Production (the
+// speaker pipeline), a Solution Provider into Sales as their company's
+// contact, at Not contacted in their edition.
 // Once moved they leave the list and this page opens their new record.
 
 import { useState } from 'react'
@@ -98,12 +99,16 @@ export default function LeadPage() {
         {/* The ways on */}
         <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
           <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>Add to {edition ? edition.title : 'the event'}</span>
-          <button onClick={() => move('speaker')} disabled={!!busy} className="ws-btn ws-btn-sm">
-            {busy === 'speaker' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />} Speaker pipeline
-          </button>
-          <button onClick={() => move('sponsor')} disabled={!!busy || !lead.companyName} className="ws-btn ws-btn-sm" title={lead.companyName ? `${lead.companyName} into Sales, with ${name} as its contact` : 'No company to add'}>
-            {busy === 'sponsor' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />} Sales pipeline
-          </button>
+          {/* An End User into Production (the speaker pipeline); a Solution Provider into Sales. */}
+          {lead.segment === 'End User' ? (
+            <button onClick={() => move('speaker')} disabled={!!busy} className="ws-btn ws-btn-sm">
+              {busy === 'speaker' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />} Production pipeline
+            </button>
+          ) : (
+            <button onClick={() => move('sponsor')} disabled={!!busy || !lead.companyName} className="ws-btn ws-btn-sm" title={lead.companyName ? `${lead.companyName} into Sales, with ${name} as its contact` : 'No company to add'}>
+              {busy === 'sponsor' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />} Sales pipeline
+            </button>
+          )}
           {err && <span className="text-[12px]" style={{ color: 'var(--bad)' }}>{err}</span>}
         </div>
       </header>

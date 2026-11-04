@@ -7,6 +7,7 @@
 // leave the leads list: the new record is them now.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { addToSales } from '@/lib/salesContact'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,27 +47,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       recordId = data.id
     } else {
       kind = 'sponsor'
-      const contact = { contactFirstName: lead.firstName, contactLastName: lead.lastName, contactEmail: email, contactPhone: lead.phone, contactJobTitle: lead.jobTitle, contactLinkedinUrl: lead.linkedinUrl }
       const name = String(lead.companyName || '').trim()
       if (!name) return NextResponse.json({ error: 'This lead has no company to add to Sales' }, { status: 400 })
-      const { data: rows, error: e1 } = await supabase.from('sponsors').select('id, "contactEmail"').ilike('companyName', esc(name)).eq('event', event).is('companyId', null).limit(1)
-      if (e1) throw e1
-      const company = rows?.[0]
-      if (company) {
-        // Already a contact of it: nothing to add.
-        const { data: dup } = email ? await supabase.from('sponsors').select('id').eq('companyId', company.id).ilike('contactEmail', esc(email)).limit(1) : { data: [] as { id: string }[] }
-        if (!(email && String(company.contactEmail || '').toLowerCase() === email) && !dup?.length) {
-          const { error: e2 } = await supabase.from('sponsors').insert({ companyId: company.id, companyName: name, event, status: 'Active', tags, notes, ...contact })
-          if (e2) throw e2
-        }
-        recordId = company.id
-      } else {
-        const { data, error: e3 } = await supabase.from('sponsors').insert({
-          companyName: name, website: lead.website, country: lead.country, city: lead.city, event, status: 'Not Contacted', tags, notes, ...contact,
-        }).select('id').single()
-        if (e3) throw e3
-        recordId = data.id
-      }
+      const r = await addToSales({
+        company: name, event, website: lead.website, country: lead.country, city: lead.city, tags, notes,
+        person: { firstName: lead.firstName, lastName: lead.lastName, email, phone: lead.phone, jobTitle: lead.jobTitle, linkedinUrl: lead.linkedinUrl },
+      })
+      recordId = r.id
     }
     await supabase.from('leads').delete().eq('id', id)
     return NextResponse.json({ ok: true, kind, id: recordId })
