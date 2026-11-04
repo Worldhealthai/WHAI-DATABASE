@@ -12,7 +12,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Building2, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
+import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
 import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
@@ -347,6 +347,25 @@ function TagFilter({ value, onChange }: { value: Relationship | ''; onChange: (v
 
 const PAGE = 50
 
+// A CSV of what the view shows (every page, with its search and filters),
+// one row per person, for Excel.
+function downloadCsv(name: string, header: string[], rows: (string | number | null | undefined)[][]) {
+  const cell = (v: string | number | null | undefined) => {
+    const t = v == null ? '' : String(v)
+    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+  }
+  const text = [header, ...rows].map((r) => r.map(cell).join(',')).join('\r\n')
+  // The byte-order mark makes Excel read the names' accents right.
+  const url = URL.createObjectURL(new Blob(['\ufeff' + text], { type: 'text/csv;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+const rolesOf = (records: { relationship: Relationship; event?: string | null; status: string | null }[]) =>
+  records.map((r) => `${DOING[r.relationship]}${r.event ? ` (${shortEvent(r.event)})` : ''}${r.status ? `: ${r.status}` : ''}`).join('; ')
+
 // The company table's columns: Type only while both types are shown, Events
 // only in the Directory (inside an event every company is in it).
 const COMPANY_GRID: Record<string, string> = {
@@ -361,7 +380,7 @@ const COMPANY_GRID: Record<string, string> = {
 // Companies (the series, or the edition), or with `everything` the
 // Directory: every company in every event.
 export function CompaniesView({ everything = false }: { everything?: boolean }) {
-  const { category, slug } = useWorkspace()
+  const { category, slug, year } = useWorkspace()
   // Kept for the tab's session, so Back from a profile finds it as it was.
   const sk = `${everything ? 'directory' : 'companies'}.${everything ? '' : slug}`
   const [picked, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
@@ -411,6 +430,18 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const peopleCount = useMemo(() => (filtering || q ? rows.reduce((n, a) => n + peopleOf(a).length, 0) : null), [rows, filtering, q, peopleOf])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
   const add = usePipelineAdd()
+  const exportCompanies = () => {
+    const out: (string | number | null)[][] = []
+    for (const a of rows) {
+      const people = q || filtering ? peopleOf(a) : a.members ?? []
+      const rec = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
+      const base = [a.name, a.firmographic, (a.events ?? []).map(shortEvent).join('; '), rec?.status ?? '', a.website, a.country]
+      if (!people.length) out.push([...base, '', '', '', '', ''])
+      for (const m of people) out.push([...base, m.name, m.jobTitle, m.email, m.phone, rolesOf(m.records)])
+    }
+    downloadCsv(`${everything ? 'directory' : `companies ${event} ${scope === 'series' ? 'all years' : year}`}`,
+      ['Company', 'Type', 'Events', `${year} sales`, 'Website', 'Country', 'Name', 'Job title', 'Email', 'Phone', 'Roles'], out)
+  }
   const showType = type === 'all'
   const grid = COMPANY_GRID[`${showType ? 't' : ''}${everything ? 'e' : ''}`]
   const toggle = (k: string) => setOpenList((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]))
@@ -421,7 +452,14 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
       description={everything ? 'Every company in the CRM, across every event, each once with its people. Search a person to find them under their company.' : scope === 'series'
         ? `Every company at ${event || 'this event'}, once, across all its editions, with its people. Search a person to find them under their company.`
         : 'Every company in this edition, once, with its people.'}
-      actions={everything ? undefined : <ScopeSwitch value={picked} onChange={(v) => { setScope(v); setPage(1) }} />}
+      actions={
+        <>
+          {!everything && <ScopeSwitch value={picked} onChange={(v) => { setScope(v); setPage(1) }} />}
+          <button type="button" className="ws-btn" disabled={!rows.length} onClick={exportCompanies} title="Download these companies and their people as a CSV">
+            <Download className="w-4 h-4" /> Export
+          </button>
+        </>
+      }
     >
       <Summary data={data} loading={isLoading} />
       <div className="ws-card">
@@ -510,7 +548,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
 // Every contact, once, with their company in small letters beside the name:
 // the same people as Companies, as one list.
 export function ContactsView() {
-  const { slug } = useWorkspace()
+  const { slug, year } = useWorkspace()
   const sk = `contacts.${slug}`
   const [scope, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
   const { data, isLoading, error } = useSegments(scope)
@@ -545,7 +583,17 @@ export function ContactsView() {
     <WorkspacePage
       title="Contacts"
       description={scope === 'series' ? 'Everyone at this event, across its editions, once, with their company beside their name.' : 'Everyone in this edition, once, with their company beside their name.'}
-      actions={<ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />}
+      actions={
+        <>
+          <ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />
+          <button type="button" className="ws-btn" disabled={!rows.length} title="Download these contacts as a CSV"
+            onClick={() => downloadCsv(`contacts ${slug ?? ''} ${scope === 'series' ? 'all years' : year ?? ''}`,
+              ['Name', 'Company', 'Job title', 'Email', 'Phone', 'Type', 'Roles'],
+              rows.map((p) => [p.name, p.company, p.jobTitle, p.email, p.phone, p.firmographic, rolesOf(p.records)]))}>
+            <Download className="w-4 h-4" /> Export
+          </button>
+        </>
+      }
     >
       <div className="ws-card overflow-hidden">
         <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search names, companies, titles or emails…" count={rows.length}>
