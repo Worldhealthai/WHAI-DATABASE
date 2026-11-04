@@ -9,12 +9,13 @@
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Award, KanbanSquare, Mic, Network, Plus, Search, X } from 'lucide-react'
+import { Award, Download, KanbanSquare, Mic, Network, Plus, Search, X } from 'lucide-react'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { cn } from '@/lib/utils'
 import { useSearchParams } from 'next/navigation'
 import { useWorkspace } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
+import { downloadCsv } from '@/lib/csv'
 import { KINDS, changeStage, listParams, type RecordKind, type Stage } from '@/lib/recordKinds'
 import { editionLabel } from '@/lib/portals'
 import { useTierOptions } from '@/lib/useTierOptions'
@@ -457,6 +458,22 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
   const noun = production ? 'speaker' : kind === 'partner' ? 'partner' : 'lead'
   const saved = () => { setAdding(null); refetch(); queryClient.invalidateQueries({ queryKey: ['ws-stats'] }); queryClient.invalidateQueries({ queryKey: ['ws-list', kind] }) }
   const year4 = Number(year) || null
+  // The board as a CSV: every card the search leaves, column by column.
+  const stageLabel = (status: string) => def.stages.find((s) => s.status === status)?.label ?? status
+  const exportBoard = () => {
+    const order = new Map(def.stages.map((s, i) => [s.status, i]))
+    const cards = [...shown].sort((a, b) => (order.get(a.status) ?? 99) - (order.get(b.status) ?? 99))
+    const day = (v: unknown) => (v ? String(v).slice(0, 10) : '')
+    if (production) {
+      downloadCsv(`speaker pipeline ${eventLabel}`,
+        ['Name', 'Job title', 'Organisation', 'Email', 'Phone', 'Stage', 'Speaker type', 'Session', 'Country', 'Updated'],
+        cards.map((l) => [[l.firstName, l.lastName].filter(Boolean).join(' '), l.jobTitle, l.organization, l.email, l.phone, stageLabel(l.status), l.subType, l.sessionTitle, l.country, day(l.updatedAt)]))
+    } else {
+      downloadCsv(`${kind === 'partner' ? 'partners' : 'sales pipeline'} ${eventLabel}`,
+        ['Company', 'Stage', kind === 'partner' ? 'Partner type' : 'Tier', 'Value', 'Currency', 'Contact', 'Job title', 'Email', 'Phone', 'Contacts on file', 'Country', 'Website', 'Updated'],
+        cards.map((l) => [l.companyName, stageLabel(l.status), l.tier, l.valueAmount, l.valueAmount ? l.valueCurrency || 'GBP' : '', [l.contactFirstName, l.contactLastName].filter(Boolean).join(' '), l.contactJobTitle, l.contactEmail, l.contactPhone, l.contactCount, l.country, l.website, day(l.updatedAt)]))
+    }
+  }
 
   return (
     <WorkspacePage
@@ -477,6 +494,9 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
               { value: 'partner', label: <span className="inline-flex items-center gap-1.5"><Network className="w-3.5 h-3.5" /> Partners</span> },
             ]}
           />}
+          <button type="button" className="ws-btn" disabled={!shown.length} onClick={exportBoard} title="Download the board (with its search) as a CSV">
+            <Download className="w-4 h-4" /> Export
+          </button>
           <button onClick={() => setAdding(def.stages[0].status)} className="ws-btn ws-btn-primary"><Plus className="w-4 h-4" /> Add {noun}</button>
         </>
       }
