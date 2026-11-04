@@ -33,7 +33,7 @@ interface Segments {
   totals: { rows: number; accounts: number; people: number; solutionProviders: number; endUsers: number; conflicts: number; multiTag: number }
 }
 
-const PATH: Record<string, string> = { sponsors: '/sponsors', speakers: '/speakers', delegates: '/delegates', partners: '/partners' }
+const PATH: Record<string, string> = { sponsors: '/sponsors', speakers: '/speakers', delegates: '/delegates', partners: '/partners', leads: '/leads' }
 const TAG_ORDER: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
 
 type Scope = 'series' | 'edition' | 'all'
@@ -124,6 +124,9 @@ function usePipelineAdd() {
         contactFirstName: n.firstName || null, contactLastName: n.lastName || null, contactEmail: lead?.email ?? null, contactPhone: lead?.phone ?? null, contactJobTitle: lead?.jobTitle ?? null,
       })
     },
+    // A lead goes on as themselves (/api/leads/:id/promote): the new record
+    // takes their details and note, and they leave the leads list.
+    promote: (key: string, leadId: string, to: 'speaker' | 'sponsor') => post(`${to}:${key}`, `/api/leads/${leadId}/promote`, { to, event, year: Number(year) || null }),
     addSpeaker: (m: Member, company: string) => post(`speaker:${m.key}`, '/api/speakers', {
       ...split(m.name || m.email || 'Unnamed'), email: m.email, phone: m.phone, jobTitle: m.jobTitle,
       organization: company, event, year: Number(year) || null, status: 'Not Contacted',
@@ -131,6 +134,28 @@ function usePipelineAdd() {
   }
 }
 type PipelineAdd = ReturnType<typeof usePipelineAdd>
+
+// The ways on for a person in Companies or Contacts: the speaker pipeline,
+// unless they already speak this year; and, for a lead, Sales as their
+// company's contact (a company already in Sales shows its stage instead).
+function PersonAdds({ add, who, company }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null }) {
+  if (!add.event) return null
+  const lead = who.records.find((r) => r.table === 'leads')
+  const onlyLead = !!lead && who.records.every((r) => r.table === 'leads')
+  const speaking = who.records.some((r) => r.relationship === 'Speaker' && add.inYear(r))
+  const selling = who.records.some((r) => r.relationship === 'Sponsor' && add.inYear(r))
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {!speaking && (
+        <AddButton label="Speaker pipeline" busy={add.busy === `speaker:${who.key}`} done={add.done.has(`speaker:${who.key}`)}
+          onClick={() => (lead ? add.promote(who.key, lead.id, 'speaker') : add.addSpeaker(who as Member, company === NO_COMPANY_NAME ? '' : company ?? ''))} />
+      )}
+      {onlyLead && !selling && company && company !== NO_COMPANY_NAME && (
+        <AddButton label="Sales pipeline" busy={add.busy === `sponsor:${who.key}`} done={add.done.has(`sponsor:${who.key}`)} onClick={() => add.promote(who.key, lead!.id, 'sponsor')} />
+      )}
+    </span>
+  )
+}
 
 function AddButton({ label, busy, done, onClick }: { label: string; busy: boolean; done: boolean; onClick: () => void }) {
   if (done) return <span className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap" style={{ color: 'var(--ok)' }}><Check className="w-3.5 h-3.5" /> Added</span>
@@ -195,9 +220,7 @@ function Members({ members, query, company, add, where, account }: { members: Me
               ))}
             </span>
             {where === 'event' && <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" />}
-            {add?.event && !m.records.some((r) => r.relationship === 'Speaker' && add.inYear(r)) && (
-              <AddButton label="Speaker pipeline" busy={add.busy === `speaker:${m.key}`} done={add.done.has(`speaker:${m.key}`)} onClick={() => add.addSpeaker(m, company === NO_COMPANY_NAME ? '' : company)} />
-            )}
+            {add && <PersonAdds add={add} who={m} company={company} />}
           </li>
         )
       })}
@@ -576,6 +599,7 @@ export function ContactsView() {
   }, [data, type])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
   const where: Where = scope === 'series' ? 'year' : 'none'
+  const add = usePipelineAdd()
 
   return (
     <WorkspacePage
@@ -627,6 +651,7 @@ export function ContactsView() {
                     </RecLink>
                   ))}
                 </span>
+                <span className="pl-[42px] sm:pl-0"><PersonAdds add={add} who={p} company={p.company} /></span>
               </li>
             ))}
           </ul>
