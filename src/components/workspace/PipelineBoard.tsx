@@ -9,11 +9,12 @@
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Award, KanbanSquare, Mic, Network, Plus } from 'lucide-react'
+import { Award, KanbanSquare, Mic, Network, Plus, Search, X } from 'lucide-react'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { cn } from '@/lib/utils'
 import { useSearchParams } from 'next/navigation'
 import { useWorkspace } from '@/lib/workspace'
+import { useSticky } from '@/lib/useSticky'
 import { KINDS, changeStage, listParams, type RecordKind, type Stage } from '@/lib/recordKinds'
 import { editionLabel } from '@/lib/portals'
 import { useTierOptions } from '@/lib/useTierOptions'
@@ -388,7 +389,11 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
   const queryClient = useQueryClient()
   const { labels, category, year } = ws
   const asked = useSearchParams().get('kind')
-  const [kind, setKind] = useState<BoardKind>(production ? 'speaker' : asked === 'partner' ? 'partner' : 'sponsor')
+  // Kept for the tab's session, so Back from a profile finds the board as it was.
+  const sk = `board.${mode}.${ws.slug}`
+  const [kindPicked, setKind] = useSticky<BoardKind>(`${sk}.kind`, asked === 'partner' ? 'partner' : 'sponsor')
+  const kind: BoardKind = production ? 'speaker' : asked === 'partner' ? 'partner' : kindPicked
+  const [query, setQuery] = useSticky(`${sk}.query`, '')
   // Speaker applications still waiting in the admin panel: the board's
   // first column, to read (they are approved or rejected there).
   const { pending, admin } = usePendingBookings()
@@ -399,7 +404,18 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
 
   const def = KINDS[kind]
   const { data, isLoading, refetch } = useBoard(kind, labels)
-  const leads = data?.data ?? []
+  const leads = useMemo(() => data?.data ?? [], [data])
+  // The search: company, person, title or email, any word in any order.
+  const q = query.trim().toLowerCase()
+  const shown = useMemo(() => {
+    if (!q) return leads
+    const words = q.split(/\s+/)
+    return leads.filter((l) => {
+      const text = [l.companyName, l.contactFirstName, l.contactLastName, l.contactEmail, l.contactJobTitle, l.firstName, l.lastName, l.email, l.jobTitle, l.organization, l.sessionTitle, l.tier]
+        .filter(Boolean).join(' ').toLowerCase()
+      return words.every((w) => text.includes(w))
+    })
+  }, [leads, q])
 
   const byStage = useMemo(() => {
     const m: Record<string, Lead[]> = {}
@@ -407,6 +423,12 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
     for (const l of leads) (m[l.status] ??= []).push(l)
     return m
   }, [leads, def.stages])
+  const shownByStage = useMemo(() => {
+    const m: Record<string, Lead[]> = {}
+    for (const s of def.stages) m[s.status] = []
+    for (const l of shown) (m[l.status] ??= []).push(l)
+    return m
+  }, [shown, def.stages])
 
   const currency = useMemo(() => {
     const c: Record<string, number> = {}
@@ -475,6 +497,28 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
         />
       </div>
 
+      {!empty && (
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <label className="relative flex-1 min-w-[220px] max-w-[420px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--fg-4)' }} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={production ? 'Search speakers, companies, titles or sessions…' : `Search ${kind === 'partner' ? 'partners' : 'companies'}, people, titles or emails…`}
+              className="ws-input"
+              style={{ paddingLeft: 34, paddingRight: query ? 34 : undefined }}
+              aria-label="Search the board"
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1.5" aria-label="Clear the search">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </label>
+          {q && <span className="text-[12.5px] tabular" style={{ color: 'var(--fg-4)' }}>{shown.length} of {leads.length} match</span>}
+        </div>
+      )}
+
       {empty ? (
         <div className="ws-card">
           <EmptyState
@@ -510,7 +554,7 @@ export function PipelineBoard({ mode = 'sales' }: { mode?: 'sales' | 'production
             <Column
               key={s.status}
               stage={s}
-              leads={byStage[s.status] ?? []}
+              leads={shownByStage[s.status] ?? []}
               currency={currency}
               kind={kind}
               dragId={dragId}

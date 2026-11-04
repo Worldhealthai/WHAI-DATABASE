@@ -12,6 +12,8 @@ import { EventPicker } from '@/components/crm/EventPicker'
 import { KINDS, type RecordKind } from '@/lib/recordKinds'
 import { eventLook } from '@/lib/portals'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
+import { useRouter } from 'next/navigation'
+import { stepsBack } from '@/components/layout/NavMemory'
 import { useUpcomingEventOptions } from '@/lib/useEventOptions'
 
 // "Leonard Warren" → "LW"; a one-word name gives its first two letters ("IQ").
@@ -36,9 +38,10 @@ export interface NavItem { id: string; name: string }
 export interface ProfileNav { prev: NavItem | null; next: NavItem | null; index: number; total: number }
 
 // Back to the list, and the previous/next record in it.
-// Back goes to where the records are worked: the event's board for this kind
-// (Speakers, Pipeline…), in the event and year last open, not the old
-// standalone list.
+// Back goes to the page the profile was opened from, exactly as it was
+// (NavMemory), past any profiles stepped through with Previous/Next; else (opened from a link) to where the records are worked: the
+// event's board for this kind (Speakers, Pipeline…), in the event and year
+// last open.
 const BACK_SECTION: Record<RecordKind, string> = { sponsor: 'pipeline', partner: 'partners', speaker: 'production', delegate: 'registrations' }
 
 export function ProfileNavBar({ kind, nav }: { kind: RecordKind; nav: ProfileNav }) {
@@ -46,9 +49,10 @@ export function ProfileNavBar({ kind, nav }: { kind: RecordKind; nav: ProfileNav
   const list = def.detailPath
   const ws = useWorkspaceFromUrl()
   const back = ws.portal && ws.slug ? ws.href(BACK_SECTION[kind]) : list
+  const router = useRouter()
   return (
     <nav className="flex items-center justify-between gap-2">
-      <Link href={back} className="ws-btn ws-btn-ghost ws-btn-sm -ml-2">
+      <Link href={back} onClick={(e) => { const n = stepsBack(); if (n > 0) { e.preventDefault(); if (n === 1) router.back(); else window.history.go(-n) } }} className="ws-btn ws-btn-ghost ws-btn-sm -ml-2">
         <ArrowLeft className="w-3.5 h-3.5" /> {def.plural}
         {nav.index >= 0 && <span className="tabular" style={{ color: 'var(--fg-4)' }}>· {nav.index + 1} of {nav.total}</span>}
       </Link>
