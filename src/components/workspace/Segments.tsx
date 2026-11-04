@@ -33,7 +33,7 @@ interface Segments {
   totals: { rows: number; accounts: number; people: number; solutionProviders: number; endUsers: number; conflicts: number; multiTag: number }
 }
 
-const PATH: Record<string, string> = { sponsors: '/sponsors', speakers: '/speakers', delegates: '/delegates', partners: '/partners', leads: '/leads' }
+const PATH: Record<string, string> = { sponsors: '/sponsors', speakers: '/speakers', delegates: '/delegates', partners: '/partners' }
 const TAG_ORDER: Relationship[] = ['Sponsor', 'Speaker', 'Delegate']
 
 type Scope = 'series' | 'edition' | 'all'
@@ -91,7 +91,7 @@ function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) =
 // Into this year's pipelines, from here: a company into Sales (a sponsor
 // lead, Not contacted), a person into Production (a speaker, Not
 // contacted). Someone already in the year's pipeline shows its stage.
-function usePipelineAdd() {
+export function usePipelineAdd() {
   const { category, year, labels } = useWorkspace()
   const qc = useQueryClient()
   const [busy, setBusy] = useState<string | null>(null)
@@ -139,14 +139,14 @@ function usePipelineAdd() {
     }),
   }
 }
-type PipelineAdd = ReturnType<typeof usePipelineAdd>
+export type PipelineAdd = ReturnType<typeof usePipelineAdd>
 
 // The way on for a person in Companies or Contacts, by their company's type
 // (November 2026): an End User into Production (the speaker pipeline), a
 // Solution Provider into Sales (as their company's contact). Not shown once
 // they are already in that pipeline this year. A lead goes on as themselves
 // (promote), leaving the leads list.
-function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null; type: Firmographic | null }) {
+export function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null; type: Firmographic | null }) {
   if (!add.event || !type) return null
   const lead = who.records.find((r) => r.table === 'leads')
   const firm = company && company !== NO_COMPANY_NAME ? company : ''
@@ -160,7 +160,7 @@ function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who: Pick<M
     onClick={() => (lead ? add.promote(who.key, lead.id, 'sponsor') : add.addContactToSales(who as Member, firm))} />
 }
 
-function AddButton({ label, busy, done, onClick }: { label: string; busy: boolean; done: boolean; onClick: () => void }) {
+export function AddButton({ label, busy, done, onClick }: { label: string; busy: boolean; done: boolean; onClick: () => void }) {
   if (done) return <span className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap" style={{ color: 'var(--ok)' }}><Check className="w-3.5 h-3.5" /> Added</span>
   return (
     <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 whitespace-nowrap" style={{ color: 'var(--accent-ink)' }}>
@@ -174,12 +174,30 @@ const NO_COMPANY_NAME = 'No company given'
 // contact of a sponsoring company.
 const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact', Lead: 'Lead' }
 
-// A record's page, as a link; a lead (a leads-list row) has none, so it is
-// plain text. A person opens on their first record that has a page.
+// A record's page, as a link. A person opens on their first record in a
+// pipeline; someone known only from a leads list opens on their contact
+// page in the event (ContactProfile). A company with a sponsor record opens
+// on it; any other on its own page with its team (CompanyProfile).
 const pageOf = (records: { table: string; id: string }[]) => records.find((r) => PATH[r.table]) ?? records[0]
+export function recHref(slug: string | null, rec: { table: string; id: string }): string | null {
+  if (PATH[rec.table]) return `${PATH[rec.table]}/${rec.id}`
+  if (rec.table === 'leads' && slug) return `/event/${slug}/contacts/${rec.id}`
+  return null
+}
+export function companyHref(slug: string | null, a: { key: string; name: string; open?: { table: string; id: string } }): string | null {
+  if (a.open?.table === 'sponsors') return `/sponsors/${a.open.id}`
+  if (!slug || a.key === '__none') return null
+  return `/event/${slug}/companies/${encodeURIComponent(a.key)}?name=${encodeURIComponent(a.name)}`
+}
 function RecLink({ rec, className, style, children }: { rec: { table: string; id: string }; className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
-  const path = PATH[rec.table]
-  return path ? <Link href={`${path}/${rec.id}`} className={className} style={style}>{children}</Link> : <span className={className} style={style}>{children}</span>
+  const { slug } = useWorkspace()
+  const href = recHref(slug, rec)
+  return href ? <Link href={href} className={className} style={style}>{children}</Link> : <span className={className} style={style}>{children}</span>
+}
+function CompanyLink({ a, className, style, children }: { a: Account; className?: string; style?: React.CSSProperties; children: React.ReactNode }) {
+  const { slug } = useWorkspace()
+  const href = companyHref(slug, a)
+  return href ? <Link href={href} className={className} style={style}>{children}</Link> : <span className={className} style={style}>{children}</span>
 }
 
 // Filters on the people inside companies: job titles (TitleFilter: words
@@ -203,7 +221,7 @@ type Where = 'none' | 'year' | 'event'
 const whereOf = (event: string | null | undefined, where: Where) =>
   !event || where === 'none' ? '' : where === 'year' ? ` ${event.match(/20\d{2}/)?.[0] ?? shortEvent(event)}` : ` · ${shortEvent(event)}`
 
-function Members({ members, query, company, add, where, account }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account }) {
+export function Members({ members, query, company, add, where, account }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account }) {
   return (
     <ul className="flex flex-col">
       {members.map((m) => {
@@ -295,7 +313,7 @@ function AddContact({ account }: { account: Account }) {
 }
 
 // The sides a company is on, as small words in the brands' colours.
-function Sides({ sides }: { sides: Focus[] }) {
+export function Sides({ sides }: { sides: Focus[] }) {
   if (!sides?.length) return null
   return (
     <span className="inline-flex items-center gap-1.5 text-[11px] font-medium">
@@ -529,7 +547,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
-                        <RecLink rec={a.open} className="flex items-center gap-3 min-w-0">
+                        <CompanyLink a={a} className="flex items-center gap-3 min-w-0">
                           <Initials name={a.name} size={30} />
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
@@ -540,7 +558,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                               </span>
                             ) : null}
                           </span>
-                        </RecLink>
+                        </CompanyLink>
                       </span>
                       {showType && <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>}
                       {everything && <span className="hidden md:block min-w-0 truncate"><Events events={a.events ?? []} /></span>}
@@ -684,7 +702,7 @@ export function HitListView() {
           {list.map((a, i) => (
             <li key={a.key} className="grid grid-cols-[28px_minmax(0,1fr)] md:grid-cols-[28px_minmax(0,1.3fr)_minmax(0,1.4fr)_auto] gap-x-4 gap-y-2 items-center px-5 py-3.5">
               <span className="text-[13px] tabular font-semibold" style={{ color: 'var(--fg-4)' }}>{i + 1}</span>
-              <RecLink rec={a.open} className="min-w-0">
+              <CompanyLink a={a} className="min-w-0">
                 <span className="block text-[14px] font-semibold truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{a.name}</span>
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-[12px]" style={{ color: 'var(--fg-3)' }}>
                   {a.sponsorStage ?? a.decidedBy.join(', ')}
@@ -692,7 +710,7 @@ export function HitListView() {
                   {a.valueAmount ? <span>· {formatMoney(a.valueAmount)}</span> : null}
                   {a.tags.length > 1 ? <span>· also {a.tags.filter((t) => t !== 'Sponsor').join(', ').toLowerCase()}</span> : null}
                 </span>
-              </RecLink>
+              </CompanyLink>
               <span className="min-w-0 col-start-2 md:col-start-auto">
                 <span className="block text-[13px] truncate" style={{ color: 'var(--fg)' }}>{a.best ? a.best.name : 'No contact yet'}</span>
                 <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{a.best?.jobTitle || '—'}</span>
