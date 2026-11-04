@@ -11,12 +11,13 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Award, Building2, Globe, Linkedin, Loader2, Mail, MapPin, Mic, Phone, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Award, Building2, Globe, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2, Users } from 'lucide-react'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Fact, eventParts, fmtDate, initials } from '@/components/crm/profileParts'
 import { stepsBack } from '@/components/layout/NavMemory'
 import { useWorkspace } from '@/lib/workspace'
 import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
+import { Field, Modal, Segmented } from './ui'
 import { AddButton, Members, Sides, TypeBadge, companyHref, recHref, usePipelineAdd } from './Segments'
 import { IntelCompanyStrip, IntelHospitalSections, IntelStrip, IntelVendorSections, NoIntel, useIntel } from './IntelPanel'
 import { isProvider as intelIsProvider, providerTypeLabel } from '@/lib/intel'
@@ -171,6 +172,7 @@ export function ContactProfile({ id }: { id: string }) {
   const qc = useQueryClient()
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState('')
+  const [editing, setEditing] = useState(false)
   const { data: lead, isLoading, error } = useQuery<Lead>({
     queryKey: ['lead', id],
     queryFn: async () => {
@@ -245,10 +247,14 @@ export function ContactProfile({ id }: { id: string }) {
               {lead.linkedinUrl && <a href={lead.linkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Linkedin className="w-3.5 h-3.5" /> LinkedIn</a>}
             </div>
           </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => setEditing(true)} disabled={!!busy} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
           <button onClick={remove} disabled={!!busy} className="ws-btn ws-btn-sm ws-btn-ghost shrink-0" title="Delete this contact" aria-label="Delete this contact" style={{ color: 'var(--bad)' }}>
             {busy === 'remove' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
           </button>
+          </div>
         </div>
+        {editing && <EditContactModal lead={lead} onClose={() => setEditing(false)} onSaved={(next) => { qc.setQueryData(['lead', id], next); qc.invalidateQueries({ queryKey: ['ws-segments'] }); setEditing(false) }} />}
         <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
           <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>Not in a pipeline yet{edition ? ` · ${edition.title}` : ''}</span>
           {type === 'End User' ? (
@@ -304,5 +310,57 @@ export function ContactProfile({ id }: { id: string }) {
         </section>
       </div>
     </div>
+  )
+}
+
+// Edit a contact's details (a person from a leads list): name, title,
+// company, emails, phone, LinkedIn, location, website, type and notes.
+const LEAD_FIELDS: { k: string; label: string; type?: string; span?: boolean }[] = [
+  { k: 'firstName', label: 'First name' }, { k: 'lastName', label: 'Last name' },
+  { k: 'jobTitle', label: 'Job title' }, { k: 'companyName', label: 'Company' },
+  { k: 'email', label: 'Email', type: 'email' }, { k: 'email2', label: 'Other email', type: 'email' },
+  { k: 'phone', label: 'Phone', type: 'tel' }, { k: 'linkedinUrl', label: 'LinkedIn URL', type: 'url' },
+  { k: 'city', label: 'City' }, { k: 'country', label: 'Country' },
+  { k: 'website', label: 'Company website', type: 'url', span: true },
+]
+
+function EditContactModal({ lead, onClose, onSaved }: { lead: Lead; onClose: () => void; onSaved: (next: Lead) => void }) {
+  const [f, setF] = useState<Record<string, string>>(() => Object.fromEntries([...LEAD_FIELDS.map((x) => x.k), 'notes', 'segment'].map((k) => [k, lead[k] ?? ''])))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const save = async () => {
+    setSaving(true); setErr('')
+    try {
+      const r = await fetch(`/api/leads/${lead.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || 'Could not save')
+      onSaved(j)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not save')
+      setSaving(false)
+    }
+  }
+  return (
+    <Modal title="Edit contact" subtitle={[lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email || undefined} onClose={onClose} width="max-w-2xl"
+      footer={<>
+        {err && <span className="text-[12px] mr-auto" style={{ color: 'var(--bad)' }}>{err}</span>}
+        <button type="button" className="ws-btn ws-btn-ghost" onClick={onClose}>Cancel</button>
+        <button type="button" className="ws-btn ws-btn-primary" onClick={save} disabled={saving}>{saving && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
+      </>}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {LEAD_FIELDS.map((x) => (
+          <Field key={x.k} label={x.label} span={x.span}>
+            <input className="ws-input" type={x.type ?? 'text'} value={f[x.k]} onChange={(e) => setF((p) => ({ ...p, [x.k]: e.target.value }))} />
+          </Field>
+        ))}
+        <Field label="Type" span>
+          <Segmented size="sm" value={f.segment || 'End User'} onChange={(v) => setF((p) => ({ ...p, segment: v }))}
+            options={[{ value: 'End User', label: 'End User' }, { value: 'Solution Provider', label: 'Solution Provider' }]} />
+        </Field>
+        <Field label="Notes" span>
+          <textarea className="ws-input min-h-[90px] py-2" value={f.notes} onChange={(e) => setF((p) => ({ ...p, notes: e.target.value }))} />
+        </Field>
+      </div>
+    </Modal>
   )
 }
