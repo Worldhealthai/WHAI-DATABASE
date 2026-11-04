@@ -98,6 +98,8 @@ export function usePipelineAdd() {
   const qc = useQueryClient()
   const [busy, setBusy] = useState<string | null>(null)
   const [done, setDone] = useState<Set<string>>(new Set())
+  // Speakers added from this page, so the "Added" can be undone.
+  const [created, setCreated] = useState<Map<string, string>>(new Map())
   const event = category && year ? editionLabel(category.name, year) : null
   const inYear = (r: { event?: string | null }) => !!r.event && labels.some((l) => l.toLowerCase() === r.event!.toLowerCase())
   const post = async (key: string, url: string, body: Record<string, unknown>) => {
@@ -105,6 +107,10 @@ export function usePipelineAdd() {
     try {
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok && res.status !== 409) throw new Error((await res.json().catch(() => null))?.error || 'Could not add it.')
+      const j = res.ok ? await res.json().catch(() => null) : null
+      // A speaker record made just now (not one that was already there).
+      const speakerId = j && !j.existing && (j.kind === 'speaker' ? j.id : url === '/api/speakers' ? j.id : null)
+      if (speakerId) setCreated((m) => new Map(m).set(key, speakerId))
       setDone((d) => new Set(d).add(key))
       qc.invalidateQueries({ queryKey: ['ws-segments'] })
       qc.invalidateQueries({ queryKey: ['ws-board'] })
@@ -116,8 +122,28 @@ export function usePipelineAdd() {
     }
   }
   const split = (name: string) => { const [f, ...rest] = name.trim().split(/\s+/); return { firstName: f || name, lastName: rest.join(' ') } }
+  // Take a speaker added by mistake back out (/api/speakers/:id/undo): a
+  // lead goes back onto the leads list.
+  const undo = async (key: string) => {
+    const id = created.get(key)
+    if (!id) return
+    setBusy(key)
+    try {
+      const res = await fetch(`/api/speakers/${id}/undo`, { method: 'POST' })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Could not undo it.')
+      setCreated((m) => { const n = new Map(m); n.delete(key); return n })
+      setDone((d) => { const n = new Set(d); n.delete(key); return n })
+      qc.invalidateQueries({ queryKey: ['ws-segments'] })
+      qc.invalidateQueries({ queryKey: ['ws-board'] })
+      qc.invalidateQueries({ queryKey: ['ws-stats'] })
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not undo it.')
+    } finally {
+      setBusy(null)
+    }
+  }
   return {
-    year, event, busy, done, inYear,
+    year, event, busy, done, inYear, undo, canUndo: (key: string) => created.has(key),
     addCompany: (a: Account) => {
       const lead = a.best
       const n = lead ? split(lead.name) : { firstName: '', lastName: '' }
@@ -153,17 +179,29 @@ export function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who:
   const lead = who.records.find((r) => r.table === 'leads')
   const firm = company && company !== NO_COMPANY_NAME ? company : ''
   if (type === 'End User') {
-    if (who.records.some((r) => r.relationship === 'Speaker' && add.inYear(r))) return null
+    // Once added from here it keeps showing "Added · Undo", even after the
+    // list reloads with them speaking.
+    if (!add.done.has(`speaker:${who.key}`) && who.records.some((r) => r.relationship === 'Speaker' && add.inYear(r))) return null
     return <AddButton label="Production pipeline" busy={add.busy === `speaker:${who.key}`} done={add.done.has(`speaker:${who.key}`)}
-      onClick={() => (lead ? add.promote(who.key, lead.id, 'speaker') : add.addSpeaker(who as Member, firm))} />
+      onClick={() => (lead ? add.promote(who.key, lead.id, 'speaker') : add.addSpeaker(who as Member, firm))}
+      onUndo={add.canUndo(`speaker:${who.key}`) ? () => add.undo(`speaker:${who.key}`) : undefined} />
   }
   if (who.records.some((r) => r.relationship === 'Sponsor' && add.inYear(r)) || !firm) return null
   return <AddButton label="Sales pipeline" busy={add.busy === `sponsor:${who.key}`} done={add.done.has(`sponsor:${who.key}`)}
     onClick={() => (lead ? add.promote(who.key, lead.id, 'sponsor') : add.addContactToSales(who as Member, firm))} />
 }
 
-export function AddButton({ label, busy, done, onClick }: { label: string; busy: boolean; done: boolean; onClick: () => void }) {
-  if (done) return <span className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap" style={{ color: 'var(--ok)' }}><Check className="w-3.5 h-3.5" /> Added</span>
+export function AddButton({ label, busy, done, onClick, onUndo }: { label: string; busy: boolean; done: boolean; onClick: () => void; onUndo?: () => void }) {
+  if (done) return (
+    <span className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap" style={{ color: 'var(--ok)' }}>
+      <Check className="w-3.5 h-3.5" /> Added
+      {onUndo && (
+        <button type="button" onClick={onUndo} disabled={busy} className="ml-1 underline underline-offset-4 disabled:opacity-60" style={{ color: 'var(--fg-3)' }} title="Take them back out of the pipeline">
+          {busy ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Undo'}
+        </button>
+      )}
+    </span>
+  )
   return (
     <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 whitespace-nowrap" style={{ color: 'var(--accent-ink)' }}>
       {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} {label}
