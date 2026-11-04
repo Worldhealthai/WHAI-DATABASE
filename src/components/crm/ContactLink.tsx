@@ -37,14 +37,15 @@ export interface ContactSeed {
 }
 
 export interface ContactDrawerApi {
-  openContact: (seed: ContactSeed) => void
+  // `list` is the list the name was in, for the panel's Previous and Next.
+  openContact: (seed: ContactSeed, list?: ContactSeed[]) => void
   close: () => void
 }
 
 export const ContactDrawerContext = createContext<ContactDrawerApi | null>(null)
 export const useContactDrawer = () => useContext(ContactDrawerContext)
 
-export function ContactLink({ seed, href, className, style, title, children }: { seed: ContactSeed; href?: string | null; className?: string; style?: React.CSSProperties; title?: string; children: React.ReactNode }) {
+export function ContactLink({ seed, list, href, className, style, title, children }: { seed: ContactSeed; list?: ContactSeed[]; href?: string | null; className?: string; style?: React.CSSProperties; title?: string; children: React.ReactNode }) {
   const drawer = useContactDrawer()
   const to = href ?? seed.href ?? null
   const onClick = (e: React.MouseEvent) => {
@@ -53,7 +54,7 @@ export function ContactLink({ seed, href, className, style, title, children }: {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
-    drawer.openContact({ ...seed, href: to })
+    drawer.openContact({ ...seed, href: to }, list)
   }
   if (to) return <Link href={to} onClick={onClick} className={className} style={style} title={title}>{children}</Link>
   return <button type="button" onClick={onClick} className={`text-left ${className ?? ''}`} style={style} title={title}>{children}</button>

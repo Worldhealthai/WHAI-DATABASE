@@ -7,7 +7,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Loader2, Plus, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Plus, Undo2, X } from 'lucide-react'
 import { EventPicker } from '@/components/crm/EventPicker'
 import { KINDS, type RecordKind } from '@/lib/recordKinds'
 import { eventLook } from '@/lib/portals'
@@ -64,36 +64,331 @@ export function ProfileSide({ children }: { children: React.ReactNode }) {
 export interface NavItem { id: string; name: string }
 export interface ProfileNav { prev: NavItem | null; next: NavItem | null; index: number; total: number }
 
-// Back to the list, and the previous/next record in it.
-// Back goes to the page the profile was opened from, exactly as it was
-// (NavMemory), past any profiles stepped through with Previous/Next; else (opened from a link) to where the records are worked: the
-// event's board for this kind (Speakers, Pipeline…), in the event and year
-// last open.
-const BACK_SECTION: Record<RecordKind, string> = { sponsor: 'pipeline', partner: 'partners', speaker: 'production', delegate: 'registrations' }
+// ── Where the page sits: the trail back ──────────────────────────────────────
 
-export function ProfileNavBar({ kind, nav }: { kind: RecordKind; nav: ProfileNav }) {
+// Back goes to the page the profile was opened from, exactly as it was
+// (NavMemory), past any profiles stepped through with Previous/Next; else to
+// the link's own place.
+export function useBack() {
+  const router = useRouter()
+  return (e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    const n = stepsBack()
+    if (n > 0) { e.preventDefault(); if (n === 1) router.back(); else window.history.go(-n) }
+  }
+}
+
+export interface Crumb { label: string; href?: string }
+
+// "← Companies › Aidoc": the first crumb is the way back (with its arrow),
+// the last is this page. On a phone the middle ones give way first.
+export function Crumbs({ items, current, after }: { items: Crumb[]; current: string; after?: React.ReactNode }) {
+  const back = useBack()
+  return (
+    <ol className="flex items-center gap-1 min-w-0 text-[13px]" aria-label="Breadcrumb">
+      {items.map((c, i) => (
+        <li key={`${c.label}-${i}`} className={`flex items-center gap-1 min-w-0 ${i > 0 ? 'max-sm:hidden' : 'shrink-0'}`}>
+          {i > 0 && <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--fg-4)' }} aria-hidden />}
+          {c.href ? (
+            <Link href={c.href} onClick={i === 0 ? back : undefined} className={`ws-btn ws-btn-ghost ws-btn-sm ws-tap ${i === 0 ? '-ml-2' : '!px-1.5'}`} style={{ color: 'var(--fg-2)' }}>
+              {i === 0 && <ArrowLeft className="w-3.5 h-3.5" />} {c.label}
+            </Link>
+          ) : <span className="px-1.5" style={{ color: 'var(--fg-3)' }}>{c.label}</span>}
+        </li>
+      ))}
+      <li className="flex items-center gap-1 min-w-0" aria-current="page">
+        <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--fg-4)' }} aria-hidden />
+        <span className="px-1.5 font-medium truncate" style={{ color: 'var(--fg)' }}>{current}</span>
+        {after}
+      </li>
+    </ol>
+  )
+}
+
+// The trail, and the previous/next record in the list the profile came from.
+// Without a workspace the trail goes to where the records are worked: the
+// event's board for this kind (Sales, Production…), in the event and year
+// last open.
+const BOARD: Record<RecordKind, { section: string; label: string }> = {
+  sponsor: { section: 'pipeline', label: 'Sales' },
+  partner: { section: 'partners', label: 'Partners' },
+  speaker: { section: 'production', label: 'Production' },
+  delegate: { section: 'registrations', label: 'Registrations' },
+}
+export function useBoard(kind: RecordKind) {
+  const ws = useWorkspaceFromUrl()
+  const b = BOARD[kind]
+  return { ...b, href: ws.portal && ws.slug ? ws.href(b.section) : KINDS[kind].detailPath }
+}
+
+export function ProfileNavBar({ kind, nav, name }: { kind: RecordKind; nav: ProfileNav; name: string }) {
   const def = KINDS[kind]
   const list = def.detailPath
-  const ws = useWorkspaceFromUrl()
-  const back = ws.portal && ws.slug ? ws.href(BACK_SECTION[kind]) : list
-  const router = useRouter()
+  const board = useBoard(kind)
+  const step = (item: NavItem | null, dir: 'prev' | 'next') => (
+    <Link
+      href={item ? `${list}/${item.id}` : '#'}
+      aria-disabled={!item}
+      aria-label={dir === 'prev' ? `Previous: ${item?.name ?? 'none'}` : `Next: ${item?.name ?? 'none'}`}
+      title={item?.name}
+      className="ws-btn ws-btn-sm ws-tap"
+      style={item ? undefined : { opacity: 0.4, pointerEvents: 'none' }}
+    >
+      {dir === 'prev' && <ChevronLeft className="w-3.5 h-3.5" />}
+      <span className="hidden md:inline max-w-[140px] truncate">{item?.name ?? (dir === 'prev' ? 'Previous' : 'Next')}</span>
+      {dir === 'next' && <ChevronRight className="w-3.5 h-3.5" />}
+    </Link>
+  )
   return (
-    <nav className="flex items-center justify-between gap-2">
-      <Link href={back} onClick={(e) => { const n = stepsBack(); if (n > 0) { e.preventDefault(); if (n === 1) router.back(); else window.history.go(-n) } }} className="ws-btn ws-btn-ghost ws-btn-sm -ml-2">
-        <ArrowLeft className="w-3.5 h-3.5" /> {def.plural}
-        {nav.index >= 0 && <span className="tabular" style={{ color: 'var(--fg-4)' }}>· {nav.index + 1} of {nav.total}</span>}
-      </Link>
-      <div className="flex items-center gap-1">
-        <Link href={nav.prev ? `${list}/${nav.prev.id}` : '#'} aria-disabled={!nav.prev} title={nav.prev?.name} className="ws-btn ws-btn-sm" style={nav.prev ? undefined : { opacity: 0.4, pointerEvents: 'none' }}>
-          <ChevronLeft className="w-3.5 h-3.5" /> <span className="hidden sm:inline max-w-[140px] truncate">{nav.prev?.name ?? 'Previous'}</span>
-        </Link>
-        <Link href={nav.next ? `${list}/${nav.next.id}` : '#'} aria-disabled={!nav.next} title={nav.next?.name} className="ws-btn ws-btn-sm" style={nav.next ? undefined : { opacity: 0.4, pointerEvents: 'none' }}>
-          <span className="hidden sm:inline max-w-[140px] truncate">{nav.next?.name ?? 'Next'}</span> <ChevronRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
+    <nav className="flex items-center justify-between gap-2 min-h-10">
+      <Crumbs
+        items={[{ label: board.label, href: board.href }]}
+        current={name}
+        after={nav.index >= 0 ? <span className="tabular shrink-0 text-[12px] max-sm:hidden" style={{ color: 'var(--fg-4)' }}>{nav.index + 1} of {nav.total}</span> : null}
+      />
+      <div className="flex items-center gap-1 shrink-0">{step(nav.prev, 'prev')}{step(nav.next, 'next')}</div>
     </nav>
   )
 }
+
+// ── Cards ────────────────────────────────────────────────────────────────────
+
+// Every card's head, the same everywhere: the title on the left with its
+// count in grey, an optional small line under it, one quiet action on the
+// right. `collapse` makes the title a toggle on a phone (the body hides
+// with `max-lg:hidden` while shut); on a desk the card is always open.
+export function CardHead({ title, count, sub, action, note, side = false, collapse }: {
+  title: React.ReactNode; count?: React.ReactNode; sub?: React.ReactNode; action?: React.ReactNode; note?: string; side?: boolean
+  collapse?: { open: boolean; toggle: () => void; id: string }
+}) {
+  const heading = (
+    <span className="flex flex-wrap items-baseline gap-x-1.5 min-w-0">
+      <span className={`${side ? 'text-[13.5px]' : 'text-[14px]'} font-semibold`} style={{ color: 'var(--fg)' }} title={note}>{title}</span>
+      {count != null && count !== '' && <span className={`${side ? 'text-[12.5px]' : 'text-[13px]'} tabular`} style={{ color: 'var(--fg-4)' }}>{count}</span>}
+    </span>
+  )
+  return (
+    <div className={`${side ? 'px-4 pt-3.5' : 'px-4 sm:px-5 pt-4'} pb-2.5 flex items-start justify-between gap-3`}>
+      <div className="min-w-0 flex-1">
+        {collapse ? (
+          <>
+            <button type="button" onClick={collapse.toggle} aria-expanded={collapse.open} aria-controls={collapse.id} className="lg:hidden flex items-center gap-1.5 min-h-10 -my-2 w-full text-left">
+              {heading}
+              <ChevronDown className={`w-4 h-4 ml-auto shrink-0 transition-transform ${collapse.open ? 'rotate-180' : ''}`} style={{ color: 'var(--fg-4)' }} />
+            </button>
+            <h2 className="max-lg:hidden">{heading}</h2>
+          </>
+        ) : <h2>{heading}</h2>}
+        {sub && <p className={`text-[11.5px] mt-0.5 ${collapse && !collapse.open ? 'max-lg:hidden' : ''}`} style={{ color: 'var(--fg-4)' }}>{sub}</p>}
+      </div>
+      {action && <div className={`shrink-0 flex items-center gap-1 -my-1 ${collapse && !collapse.open ? 'max-lg:hidden' : ''}`}>{action}</div>}
+    </div>
+  )
+}
+
+// Shut on a phone until tapped; a desk always shows the body.
+export function useCollapse(id: string, startOpen = false) {
+  const [open, setOpen] = useState(startOpen)
+  return { open, toggle: () => setOpen((o) => !o), id, bodyClass: open ? '' : 'max-lg:hidden' }
+}
+
+// ── The way on: where we are with them, and what to do next ───────────────────
+
+// A stage's colour: grey before anything has happened, the accent while it
+// is in play, green once won, red once lost.
+export function stageTone(kind: RecordKind | null, status: string | null | undefined): string {
+  if (!kind || !status) return 'var(--line-3)'
+  const st = KINDS[kind].stages
+  const s = st.find((x) => x.status === status)
+  if (!s) return 'var(--fg-4)'
+  if (s.negative) return 'var(--bad)'
+  const pos = st.filter((x) => !x.negative)
+  const i = pos.indexOf(s)
+  if (i === pos.length - 1) return 'var(--ok)'
+  return i === 0 ? 'var(--line-3)' : 'var(--accent)'
+}
+export const kindOfTable = (t: string): RecordKind | null => (t === 'sponsors' ? 'sponsor' : t === 'speakers' ? 'speaker' : t === 'delegates' ? 'delegate' : t === 'partners' ? 'partner' : null)
+export function StageDot({ tone, className = '' }: { tone: string; className?: string }) {
+  return <span className={`w-2 h-2 rounded-full shrink-0 ${className}`} style={{ background: tone }} aria-hidden />
+}
+// The stage after this one, or null at the end (or once closed).
+export function nextStage(kind: RecordKind, status: string) {
+  const pos = KINDS[kind].stages.filter((s) => !s.negative)
+  const i = pos.findIndex((s) => s.status === status)
+  return i >= 0 && i < pos.length - 1 ? pos[i + 1] : null
+}
+export const stageLabel = (kind: RecordKind, status: string) => KINDS[kind].stages.find((s) => s.status === status)?.label ?? KINDS[kind].statusLabel(status)
+
+// The band at the foot of a profile's header: where we are (a line with its
+// stage dot), the one primary action for that state, and under it the
+// events they are in, in one line. On a phone the action takes the width.
+export function NextStep({ where, action, events }: { where: React.ReactNode; action?: React.ReactNode; events?: React.ReactNode }) {
+  return (
+    <div className="px-4 sm:px-5 py-3 flex flex-col gap-2.5" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-2.5">
+        <div className="flex items-center gap-2 min-w-0 flex-1 text-[13px]" style={{ color: 'var(--fg-2)' }}>{where}</div>
+        {action && <div className="flex items-center gap-2 flex-wrap max-sm:[&>*]:flex-1 sm:shrink-0">{action}</div>}
+      </div>
+      {events}
+    </div>
+  )
+}
+
+// Moving a record on one stage from the band, with the stage it left kept
+// for an Undo until the page moves again.
+export function MoveOn({ kind, status, onChange, saving, boardHref, boardLabel }: { kind: RecordKind; status: string; onChange: (s: string) => void; saving: boolean; boardHref: string; boardLabel: string }) {
+  const [from, setFrom] = useState<string | null>(null)
+  const next = nextStage(kind, status)
+  const closed = KINDS[kind].stages.some((s) => s.negative && s.status === status)
+  return (
+    <>
+      {from && from !== status && (
+        <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap" disabled={saving} onClick={() => { onChange(from); setFrom(null) }} title={`Back to ${stageLabel(kind, from)}`}>
+          <Undo2 className="w-3.5 h-3.5" /> Undo
+        </button>
+      )}
+      <Link href={boardHref} className="ws-btn ws-btn-sm ws-tap">{boardLabel} board</Link>
+      {next && !closed && (
+        <button type="button" className="ws-btn ws-btn-sm ws-btn-primary ws-tap" disabled={saving} onClick={() => { setFrom(status); onChange(next.status) }}>
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />} Move to {next.label.toLowerCase()}
+        </button>
+      )}
+    </>
+  )
+}
+
+// "In Sales · ● In discussion": the pipeline and the stage, for the band.
+export function WhereLine({ label, kind, status, extra }: { label: string; kind: RecordKind | null; status?: string | null; extra?: React.ReactNode }) {
+  return (
+    <span className="flex items-center gap-2 min-w-0 flex-wrap">
+      <span className="text-[11.5px] font-medium shrink-0" style={{ color: 'var(--fg-4)' }}>{label}</span>
+      {status && kind ? (
+        <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: 'var(--fg)' }}><StageDot tone={stageTone(kind, status)} /> {stageLabel(kind, status)}</span>
+      ) : null}
+      {extra}
+    </span>
+  )
+}
+
+// One compact line of events: "● WPAI London 2027 · In discussion  ● WHAI
+// London 2026 · Attended". The one open is marked; the rest are links.
+export interface EventItem { key: string; event: string; status?: string | null; tone?: string; href?: string | null; current?: boolean }
+export function EventsLine({ items, add }: { items: EventItem[]; add?: React.ReactNode }) {
+  if (!items.length && !add) return null
+  return (
+    <div className="flex items-start gap-2 min-w-0">
+      <span className="text-[11.5px] font-medium shrink-0 leading-7" style={{ color: 'var(--fg-4)' }}>Events</span>
+      <ul className="flex flex-wrap items-center gap-x-1 gap-y-0.5 min-w-0 text-[12.5px]">
+        {items.map((e) => {
+          const body = (
+            <>
+              <StageDot tone={e.tone ?? 'var(--line-3)'} />
+              <span className={e.current ? 'font-semibold' : 'font-medium'} style={{ color: 'var(--fg)' }}>{shortEventName(e.event)}</span>
+              {e.status && <span style={{ color: 'var(--fg-3)' }}>· {e.status}</span>}
+            </>
+          )
+          const cls = 'inline-flex items-center gap-1.5 h-7 px-2 rounded-md whitespace-nowrap'
+          return (
+            <li key={e.key}>
+              {e.current || !e.href
+                ? <span className={cls} aria-current={e.current ? 'page' : undefined} style={e.current ? { background: 'var(--surface)', boxShadow: 'inset 0 0 0 1px var(--line-2)' } : undefined}>{body}</span>
+                : <Link href={e.href} className={`${cls} crm-row-link`} title={`Open ${e.event}`}>{body}</Link>}
+            </li>
+          )
+        })}
+        {add && <li>{add}</li>}
+      </ul>
+    </div>
+  )
+}
+export const shortEventName = (e: string) => e.replace(/^World Health AI/i, 'WHAI').replace(/^World Pharma AI/i, 'WPAI')
+
+// ── The name and the action, kept in view on a phone ──────────────────────────
+
+// Once the header has scrolled under the top bar, a thin bar with the name
+// and the primary action sits just below it. Phone only: a desk has the room.
+export function MiniHeader({ watch, name, action }: { watch: React.RefObject<HTMLElement | null>; name: string; action?: React.ReactNode }) {
+  const [top, setTop] = useState<number | null>(null)
+  useEffect(() => {
+    const el = watch.current
+    if (!el) return
+    const bar = () => document.querySelector('header.crm-top')?.getBoundingClientRect().bottom ?? 0
+    const check = () => {
+      const b = bar()
+      setTop(el.getBoundingClientRect().bottom < b + 8 ? b : null)
+    }
+    check()
+    window.addEventListener('scroll', check, { passive: true })
+    window.addEventListener('resize', check)
+    return () => { window.removeEventListener('scroll', check); window.removeEventListener('resize', check) }
+  }, [watch])
+  if (top == null) return null
+  return (
+    <div className="lg:hidden fixed inset-x-0 z-30 anim-fade-in" style={{ top, background: 'var(--surface)', borderBottom: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
+      <div className="flex items-center gap-3 px-4 h-14">
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="min-w-0 flex-1 text-left text-[14px] font-semibold truncate" style={{ color: 'var(--fg)' }} title="Back to the top">{name}</button>
+        {action && <div className="shrink-0 flex items-center gap-2">{action}</div>}
+      </div>
+    </div>
+  )
+}
+
+// ── Loading ──────────────────────────────────────────────────────────────────
+
+// The page's own shape while it loads: the trail, the header with its band,
+// and the two columns of cards.
+export function ProfileSkeleton({ side = true }: { side?: boolean }) {
+  const bar = (w: string, h = 'h-3') => <div className={`${h} rounded animate-pulse`} style={{ width: w, background: 'var(--surface-3)' }} />
+  const card = (rows: number, key: string, quiet = false) => (
+    <div key={key} className={`ws-card ${quiet ? 'ws-card-quiet' : ''} p-4 sm:p-5 flex flex-col gap-3`}>
+      {bar('30%', 'h-3.5')}
+      {Array.from({ length: rows }, (_, i) => <div key={i} className="flex items-center gap-3">{bar(`${70 - i * 8}%`)}</div>)}
+    </div>
+  )
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-6" aria-busy="true" aria-label="Loading">
+      <div className="h-10 flex items-center mb-3">{bar('160px')}</div>
+      <div className={PROFILE_GRID}>
+        <div className={PROFILE_MAIN}>
+          <div className="ws-card overflow-hidden">
+            <div className="p-4 sm:p-5 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl animate-pulse shrink-0" style={{ background: 'var(--surface-3)' }} />
+              <div className="flex-1 flex flex-col gap-2.5 pt-1">{bar('90px')}{bar('45%', 'h-5')}{bar('60%')}</div>
+            </div>
+            <div className="px-4 sm:px-5 py-4 flex items-center justify-between" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>{bar('35%')}<div className="w-32 h-8 rounded-lg animate-pulse" style={{ background: 'var(--surface-3)' }} /></div>
+          </div>
+          {card(4, 'a')}
+          {card(5, 'b')}
+        </div>
+        {side && <aside className="contents lg:flex lg:flex-col lg:gap-4">{card(5, 'c', true)}{card(3, 'd', true)}</aside>}
+      </div>
+    </div>
+  )
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+
+// A person as a contact card (.vcf), for a phone's address book.
+export function downloadVcard(p: { name: string; jobTitle?: string | null; company?: string | null; email?: string | null; phone?: string | null; url?: string | null }) {
+  const esc = (v: string) => v.replace(/[,;\\]/g, (m) => `\\${m}`)
+  const [first, ...rest] = p.name.split(/\s+/)
+  const lines = ['BEGIN:VCARD', 'VERSION:3.0', `N:${esc(rest.join(' '))};${esc(first ?? '')};;;`, `FN:${esc(p.name)}`]
+  if (p.company) lines.push(`ORG:${esc(p.company)}`)
+  if (p.jobTitle) lines.push(`TITLE:${esc(p.jobTitle)}`)
+  if (p.email) lines.push(`EMAIL;TYPE=WORK:${p.email}`)
+  if (p.phone) lines.push(`TEL;TYPE=WORK:${p.phone}`)
+  if (p.url) lines.push(`URL:${p.url}`)
+  lines.push('END:VCARD')
+  download(`${p.name.replace(/[^\w ]+/g, '').trim() || 'contact'}.vcf`, 'text/vcard;charset=utf-8', lines.join('\r\n'))
+}
+function download(filename: string, type: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type }))
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 
 export function Fact({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
   return (
@@ -280,8 +575,9 @@ export function StageBar({ kind, status, accent, disabled, onChange, at }: { kin
   )
 }
 
-// The events the record's company or person is in, as tabs (the open one
-// is this record), and adding them to more. `addNote` says what adding does.
+// The events the record's company or person is in, in one line (the one
+// marked is this record; each other is a link to its own), and adding them
+// to more. `addNote` says what adding does.
 export function EventTabs({ kind, id, current, addNote }: { kind: RecordKind; id: string; current: string | null; addNote: string }) {
   const { api, detailPath: list } = KINDS[kind]
   const queryClient = useQueryClient()
@@ -300,7 +596,11 @@ export function EventTabs({ kind, id, current, addNote }: { kind: RecordKind; id
   const editions = (data?.editions ?? []).filter((e) => e.event)
   const inEvents = new Set(editions.map((e) => String(e.event).toLowerCase()))
   const options = upcoming.filter((ev) => !inEvents.has(ev.toLowerCase()))
-  const label = (s: string | null) => (s ? KINDS[kind].statusLabel(s) : '')
+  // The open record is always in the line, even before the list loads.
+  const items: EventItem[] = editions.map((e) => ({
+    key: e.id, event: String(e.event), status: e.status ? stageLabel(kind, e.status) : null, tone: stageTone(kind, e.status),
+    href: `${list}/${e.id}`, current: e.id === id,
+  }))
 
   const save = async () => {
     if (!picked.length) return
@@ -314,46 +614,29 @@ export function EventTabs({ kind, id, current, addNote }: { kind: RecordKind; id
   }
 
   return (
-    <div style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
-      <div className="px-4 sm:px-5 py-3 flex items-center gap-2 flex-wrap">
-        <span className="text-[11.5px] font-medium mr-1 shrink-0" style={{ color: 'var(--fg-4)' }} title="Each event is its own record; the marked one is this page">Events</span>
-        {editions.map((e) => {
-          const { look, title } = eventParts(String(e.event))
-          const active = !!current && String(e.event).toLowerCase() === current.toLowerCase() && e.id === id
-          const body = (
-            <>
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: look.accent }} />
-              <span className="font-semibold" style={{ color: 'var(--fg)' }}>{title}</span>
-              <span style={{ color: 'var(--fg-4)' }}>{look.short}</span>
-              {e.status && <span className="pl-1.5 ml-0.5" style={{ color: 'var(--fg-3)', borderLeft: '1px solid var(--line-2)' }}>{label(e.status)}</span>}
-            </>
-          )
-          const cls = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] whitespace-nowrap shrink-0 transition-colors'
-          return active ? (
-            <span key={e.id} className={cls} aria-current="page" style={{ background: look.accentSoft, border: `1px solid ${look.accentLine}` }}>{body}</span>
-          ) : (
-            <Link key={e.id} href={`${list}/${e.id}`} className={`${cls} hover:bg-[var(--surface-3)]`} style={{ border: '1px solid var(--line)', background: 'var(--surface)' }} title={`Open ${e.event}`}>{body}</Link>
-          )
-        })}
-        {options.length > 0 && (
-          <button type="button" onClick={() => setAdding((a) => !a)} className="ws-btn ws-btn-sm ws-btn-ghost shrink-0" aria-expanded={adding}>
+    <>
+      <EventsLine
+        items={items.some((e) => e.current) || !current ? items : [{ key: id, event: current, current: true }, ...items.filter((e) => e.event.toLowerCase() !== current.toLowerCase())]}
+        add={options.length > 0 ? (
+          <button type="button" onClick={() => setAdding((a) => !a)} className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !h-7" aria-expanded={adding} style={{ color: 'var(--fg-3)' }}>
             <Plus className="w-3.5 h-3.5" /> Add to event
           </button>
-        )}
-      </div>
+        ) : undefined}
+      />
       {adding && (
-        <div className="px-5 pb-4">
+        <div className="pt-1">
           <p className="text-[12px] mb-2" style={{ color: 'var(--fg-3)' }}>{addNote}</p>
           <EventPicker options={options} selected={picked} onToggle={(ev) => setPicked((p) => (p.includes(ev) ? p.filter((x) => x !== ev) : [...p, ev]))} />
           <div className="flex items-center gap-2 mt-3">
-            <button type="button" onClick={save} disabled={!picked.length || saving} className="ws-btn ws-btn-sm ws-btn-primary">
+            <button type="button" onClick={save} disabled={!picked.length || saving} className="ws-btn ws-btn-sm ws-btn-primary ws-tap">
               {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {picked.length ? `Add to ${picked.length} ${picked.length === 1 ? 'event' : 'events'}` : 'Pick events'}
             </button>
-            <button type="button" onClick={() => { setAdding(false); setPicked([]) }} className="ws-btn ws-btn-sm ws-btn-ghost">Cancel</button>
+            <button type="button" onClick={() => { setAdding(false); setPicked([]) }} className="ws-btn ws-btn-sm ws-btn-ghost ws-tap">Cancel</button>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
+

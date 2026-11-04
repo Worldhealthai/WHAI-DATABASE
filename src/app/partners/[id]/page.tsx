@@ -9,6 +9,7 @@ import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SponsorContactModal } from '@/components/crm/SponsorContactModal'
 import { CompanyProfile } from '@/components/crm/CompanyProfile'
 import type { Sponsor, SponsorContact } from '@/types'
+import { ProfileSkeleton } from '@/components/crm/profileParts'
 
 async function fetchPartner(id: string) {
   const res = await fetch(`/api/partners/${id}`)
@@ -123,18 +124,7 @@ export default function PartnerDetailPage() {
     } finally { setStageSaving(false) }
   }
 
-  if (isLoading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-4">
-        <div className="h-8 w-32 bg-slate-700/50 rounded animate-pulse" />
-        <div className="h-24 bg-slate-700/30 rounded-xl animate-pulse" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 h-80 bg-slate-700/30 rounded-xl animate-pulse" />
-          <div className="h-80 bg-slate-700/30 rounded-xl animate-pulse" />
-        </div>
-      </div>
-    )
-  }
+  if (isLoading) return <ProfileSkeleton />
 
   if (error || !partner) {
     return (

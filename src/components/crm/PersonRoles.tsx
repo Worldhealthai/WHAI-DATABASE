@@ -7,7 +7,7 @@
 
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { Link2 } from 'lucide-react'
+import { CardHead, StageDot, stageLabel, stageTone } from './profileParts'
 import type { PersonRole } from '@/app/api/people/roles/route'
 
 // How they take part in each record: speaking, attending, or a contact of a
@@ -44,25 +44,23 @@ export function PersonRolesCard({ self, person }: { self: { kind: PersonRole['ki
   const { data, isLoading } = usePersonRoles(person)
   const others = (data?.roles ?? []).filter((r) => !(r.kind === self.kind && r.id === self.id))
   return (
-    <section className="ws-card p-5">
-      <h2 className="text-[15px] font-semibold flex items-center gap-2" style={{ color: 'var(--fg)' }}>
-        <Link2 className="w-4 h-4" style={{ color: 'var(--fg-4)' }} /> Connections
-      </h2>
+    <section className="ws-card ws-card-quiet overflow-hidden">
+      <CardHead side title="Connections" count={others.length || ''} note="Their other records: other sections and other events" />
       {isLoading ? (
-        <div className="h-9 mt-3 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />
+        <div className="h-9 mx-4 mb-4 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />
       ) : others.length === 0 ? (
-        <p className="text-[13px] mt-2" style={{ color: 'var(--fg-4)' }}>Not in any other section or event.</p>
+        <p className="px-4 pb-4 text-[12.5px]" style={{ color: 'var(--fg-4)' }}>Not in any other section or event.</p>
       ) : (
-        <ul className="mt-3 flex flex-col gap-1">
+        <ul className="flex flex-col pb-1.5">
           {others.map((r) => (
             <li key={`${r.kind}-${r.id}`}>
-              <Link href={`${PATH[r.kind]}/${r.id}`} className="flex items-center gap-3 px-3 py-2 -mx-3 rounded-lg transition-colors hover:bg-[var(--surface-2)]">
-                <span className="text-[12px] font-medium px-2 h-6 inline-flex items-center rounded-md shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)' }}>{LABEL[r.kind]}</span>
-                <span className="text-[13px] truncate flex-1" style={{ color: 'var(--fg)' }}>
-                  {shortEvent(r.event)}
-                  {r.company && (r.kind === 'sponsor' || r.kind === 'partner') ? <span style={{ color: 'var(--fg-3)' }}> · {r.company}</span> : null}
+              <Link href={`${PATH[r.kind]}/${r.id}`} className="crm-row flex items-center gap-2.5 px-4 py-2 min-h-[40px]">
+                <StageDot tone={stageTone(r.kind, r.status)} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium truncate" style={{ color: 'var(--fg)' }}>{shortEvent(r.event)}</span>
+                  <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{LABEL[r.kind]}{r.company && (r.kind === 'sponsor' || r.kind === 'partner') ? ` · ${r.company}` : ''}</span>
                 </span>
-                <span className="text-[12px] shrink-0" style={{ color: 'var(--fg-3)' }}>{r.ticketType ? `${r.ticketType} · ` : ''}{r.status}</span>
+                <span className="text-[12px] shrink-0 max-w-[120px] truncate" style={{ color: 'var(--fg-2)' }}>{r.ticketType ? `${r.ticketType} · ` : ''}{r.status ? stageLabel(r.kind, r.status) : ''}</span>
               </Link>
             </li>
           ))}

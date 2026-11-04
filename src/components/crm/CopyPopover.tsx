@@ -12,7 +12,7 @@ export function splitValues(raw: string): string[] {
   return raw.split(/\s+or\s+|[,;/]\s*|\s+and\s+/i).map((v) => v.trim()).filter(Boolean)
 }
 
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)
     return true

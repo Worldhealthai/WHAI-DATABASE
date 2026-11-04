@@ -10,7 +10,7 @@
 // tabs as they are; nothing here changes a record.
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
@@ -177,7 +177,7 @@ export type PipelineAdd = ReturnType<typeof usePipelineAdd>
 // Solution Provider into Sales (as their company's contact). Not shown once
 // they are already in that pipeline this year. A lead goes on as themselves
 // (promote), leaving the leads list.
-export function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null; type: Firmographic | null }) {
+export function PersonAdds({ add, who, company, type, primary }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null; type: Firmographic | null; primary?: boolean }) {
   if (!add.event || !type) return null
   const lead = who.records.find((r) => r.table === 'leads')
   const firm = company && company !== NO_COMPANY_NAME ? company : ''
@@ -185,18 +185,20 @@ export function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who:
     // Once added from here it keeps showing "Added · Undo", even after the
     // list reloads with them speaking.
     if (!add.done.has(`speaker:${who.key}`) && who.records.some((r) => r.relationship === 'Speaker' && add.inYear(r))) return null
-    return <AddButton label="Production pipeline" busy={add.busy === `speaker:${who.key}`} done={add.done.has(`speaker:${who.key}`)}
+    return <AddButton primary={primary} label="Production pipeline" busy={add.busy === `speaker:${who.key}`} done={add.done.has(`speaker:${who.key}`)}
       onClick={() => (lead ? add.promote(who.key, lead.id, 'speaker') : add.addSpeaker(who as Member, firm))}
       onUndo={add.canUndo(`speaker:${who.key}`) ? () => add.undo(`speaker:${who.key}`) : undefined} />
   }
   if (who.records.some((r) => r.relationship === 'Sponsor' && add.inYear(r)) || !firm) return null
-  return <AddButton label="Sales pipeline" busy={add.busy === `sponsor:${who.key}`} done={add.done.has(`sponsor:${who.key}`)}
+  return <AddButton primary={primary} label="Sales pipeline" busy={add.busy === `sponsor:${who.key}`} done={add.done.has(`sponsor:${who.key}`)}
     onClick={() => (lead ? add.promote(who.key, lead.id, 'sponsor') : add.addContactToSales(who as Member, firm))} />
 }
 
-export function AddButton({ label, busy, done, onClick, onUndo }: { label: string; busy: boolean; done: boolean; onClick: () => void; onUndo?: () => void }) {
+// `primary` is the page's one main action (the profile's band, the contact
+// panel): the accent button, a 40px tap on a phone.
+export function AddButton({ label, busy, done, onClick, onUndo, primary }: { label: string; busy: boolean; done: boolean; onClick: () => void; onUndo?: () => void; primary?: boolean }) {
   if (done) return (
-    <span className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap" style={{ color: 'var(--ok)' }}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap ${primary ? 'text-[13px] font-medium min-h-8 max-sm:min-h-10' : 'text-[12px]'}`} style={{ color: 'var(--ok)' }}>
       <Check className="w-3.5 h-3.5" /> Added
       {onUndo && (
         <button type="button" onClick={onUndo} disabled={busy} className="ml-1 underline underline-offset-4 disabled:opacity-60" style={{ color: 'var(--fg-3)' }} title="Take them back out of the pipeline">
@@ -204,6 +206,11 @@ export function AddButton({ label, busy, done, onClick, onUndo }: { label: strin
         </button>
       )}
     </span>
+  )
+  if (primary) return (
+    <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-sm ws-btn-primary ws-tap whitespace-nowrap">
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} {label}
+    </button>
   )
   return (
     <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 whitespace-nowrap" style={{ color: 'var(--accent-ink)' }}>
@@ -269,19 +276,26 @@ const whereOf = (event: string | null | undefined, where: Where) =>
 // shows as one word at rest; the Health / Pharma toggle and the way into a
 // pipeline appear on hover (and in the contact panel, always). The lead
 // list's note is in the panel, not here.
-export function Members({ members, query, company, add, where, account }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account }) {
+// `flush` is for a profile's card: the rows start at the card's own edge
+// (no room kept for a company's initials) and wash on hover; `openAdd`
+// receives the opener of the Add contact row, for a button elsewhere.
+export function Members({ members, query, company, add, where, account, flush, openAdd }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account; flush?: boolean; openAdd?: React.RefObject<(() => void) | null> }) {
   const { slug } = useWorkspace()
+  const seedOf = (m: Member) => ({ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null, href: recHref(slug, pageOf(m.records)) })
+  // The panel steps through the list it was opened from.
+  const list = members.map(seedOf)
+  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[54px] pr-4'
   return (
     <ul className="flex flex-col">
-      {members.map((m) => {
+      {members.map((m, mi) => {
         const hit = !!query && matches(m, query)
         const focusWord = (m.focus ?? []).length ? (m.focus ?? []).join(' · ') : (m.focusAuto ?? []).join(' · ')
         // Once added from here, "Added · Undo" stays in view.
         const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className="group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_120px] items-start gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
+          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_120px] items-start gap-x-4 gap-y-1 py-2.5 ${pad}`} style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
             {/* The name opens the contact panel; the link underneath is their page. */}
-            <ContactLink seed={{ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null }} href={recHref(slug, pageOf(m.records))} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
+            <ContactLink seed={list[mi]} list={list} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
               <span className="block truncate text-[13px] leading-5">
                 <span className="font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
                 {m.jobTitle && <span style={{ color: 'var(--fg-3)' }}> · {m.jobTitle}</span>}
@@ -296,7 +310,8 @@ export function Members({ members, query, company, add, where, account }: { memb
                 </RecLink>
               ))}
             </span>
-            <span className="flex items-center sm:justify-end gap-2 min-h-5">
+            {/* On a phone the side and the way on are in the contact panel, a tap away. */}
+            <span className={`items-center sm:justify-end gap-2 min-h-5 ${added ? 'flex' : 'hidden sm:flex'}`}>
               {where === 'event' ? (
                 <>
                   <span className="text-[11.5px] group-hover:hidden group-focus-within:hidden" style={{ color: 'var(--fg-4)' }} title={focusWord ? 'Relevant for; hover to change' : undefined}>{focusWord}</span>
@@ -308,15 +323,16 @@ export function Members({ members, query, company, add, where, account }: { memb
           </li>
         )
       })}
-      {account && account.key !== '__none' && <AddContact account={account} />}
+      {account && account.key !== '__none' && <AddContact account={account} flush={flush} openRef={openAdd} />}
     </ul>
   )
 }
 
 // A new person at the company, for Health or Pharma (/api/directory-contact):
 // for a company in the Health directory, its Pharma contact, and back.
-function AddContact({ account }: { account: Account }) {
+function AddContact({ account, flush, openRef }: { account: Account; flush?: boolean; openRef?: React.RefObject<(() => void) | null> }) {
   const qc = useQueryClient()
+  const rowRef = useRef<HTMLLIElement>(null)
   const sides = account.sides ?? []
   // The side it is missing, else Pharma.
   const [open, setOpen] = useState(false)
@@ -341,14 +357,20 @@ function AddContact({ account }: { account: Account }) {
       setBusy(false)
     }
   }
+  // A button elsewhere on the page (the profile's header) opens the form here.
+  useEffect(() => {
+    if (!openRef) return
+    openRef.current = () => { setOpen(true); setMsg(null); requestAnimationFrame(() => { rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); rowRef.current?.querySelector('input')?.focus() }) }
+    return () => { openRef.current = null }
+  }, [openRef])
   const input = (k: keyof typeof f, ph: string, type = 'text') => (
     <input className="ws-input h-8 text-[13px] min-w-0 flex-1 basis-[140px]" type={type} placeholder={ph} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} />
   )
   return (
-    <li className="py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)' }}>
+    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[54px] pr-4'}`} style={{ borderTop: '1px solid var(--line)' }}>
       {!open ? (
         <span className="flex flex-wrap items-center gap-3">
-          <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2" style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
+          <button type="button" className={`ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 ${flush ? '-ml-2 ws-tap' : ''}`} style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
             <Plus className="w-3.5 h-3.5" /> Add contact
           </button>
           {msg && <span className="text-[12px]" style={{ color: msg.ok ? 'var(--ok)' : 'var(--bad)' }}>{msg.text}</span>}

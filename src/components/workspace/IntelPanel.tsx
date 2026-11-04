@@ -17,11 +17,12 @@
 // sidebar, the Lusha-named people under the team.
 
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronDown, ChevronRight, ExternalLink, Linkedin, Loader2, Plus, Sparkles, X } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, Linkedin, Loader2, Plus, Sparkles, X } from 'lucide-react'
 import { ContactLink } from '@/components/crm/ContactLink'
-import { fmtDate } from '@/components/crm/profileParts'
+import { CardHead, fmtDate, useCollapse } from '@/components/crm/profileParts'
+import type { ContactSeed } from '@/components/crm/ContactLink'
 import { companyKey, type Firmographic } from '@/lib/segments'
 import type { Competitor, Confidence, Deployment, IntelCard, IntelCompany, Source } from '@/lib/intel'
 import { isProvider, providerTypeLabel, reasonText } from '@/lib/intel'
@@ -194,15 +195,17 @@ function Status({ d }: { d: Deployment }) {
 // A card in the sidebar: a small heading with its count, an optional note
 // as a tooltip on the heading, an optional small line under it (where the
 // figures come from), and rows underneath.
-function SideCard({ title, count, note, sub, children, className = '', foot }: { title: string; count?: React.ReactNode; note?: string; sub?: React.ReactNode; children: React.ReactNode; className?: string; foot?: React.ReactNode }) {
+function SideCard({ title, count, note, sub, children, className = '', foot, startOpen = false }: { title: string; count?: React.ReactNode; note?: string; sub?: React.ReactNode; children: React.ReactNode; className?: string; foot?: React.ReactNode; startOpen?: boolean }) {
+  // On a phone the card shuts to its heading until tapped (startOpen keeps
+  // one open that asks for a decision); a desk always shows it whole.
+  const c = useCollapse(useId(), startOpen)
   return (
-    <section className={`ws-card overflow-hidden ${className}`}>
-      <div className="px-4 pt-3 pb-1.5 flex flex-col gap-0.5">
-        <h2 className="text-[13.5px] font-semibold" style={{ color: 'var(--fg)' }} title={note}>{title} {count != null && <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{count}</span>}</h2>
-        {sub && <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{sub}</p>}
+    <section className={`ws-card ws-card-quiet overflow-hidden ${className}`}>
+      <CardHead side title={title} count={count} note={note} sub={sub} collapse={{ open: c.open, toggle: c.toggle, id: c.id }} />
+      <div id={c.id} className={c.bodyClass}>
+        {children}
+        {foot}
       </div>
-      {children}
-      {foot}
     </section>
   )
 }
@@ -272,6 +275,7 @@ function DescriptionOrigin({ kind }: { kind: IntelCompany['description']['kind']
 export function IntelDescription({ c, className = '' }: { c: IntelCompany; className?: string }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [more, setMore] = useState(false)
   const [busy, setBusy] = useState<'verify' | 'write' | null>(null)
   const [err, setErr] = useState('')
   const d = c.description
@@ -293,36 +297,42 @@ export function IntelDescription({ c, className = '' }: { c: IntelCompany; class
   }
   return (
     <section className={`ws-card overflow-hidden ${className}`}>
-      <div className="px-4 sm:px-5 pt-4 pb-2 flex items-start justify-between gap-3 flex-wrap">
-        <h2 className="text-[14px] font-semibold flex flex-col sm:flex-row sm:items-baseline gap-x-2.5 gap-y-0.5" style={{ color: 'var(--fg)' }}>
-          What they do
-          {has && <DescriptionOrigin kind={d.kind} />}
-        </h2>
-        <span className="inline-flex items-center gap-2 text-[12px] flex-wrap" style={{ color: 'var(--fg-3)' }}>
-          {has && (d.verifiedBy
-            ? <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} /> Verified by {d.verifiedBy}{d.verifiedAt ? `, ${fmtDate(d.verifiedAt)}` : ''}</span>
-            : <>
-                <span>Unverified</span>
-                <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2" onClick={verify} disabled={busy != null} title="Record that you have read this and it is right">
-                  {busy === 'verify' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Mark as verified
-                </button>
-              </>)}
-          {canWrite && (
-            <button type="button" className="ws-btn ws-btn-sm !h-7 !px-2" onClick={write} disabled={busy != null} title="Write a description with Claude from the company's homepage, its one-liner, the Lusha or dataset text and its latest signals. Saved as an AI generated description until someone verifies it.">
-              {busy === 'write' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} {has ? 'Write a fuller one with AI' : 'Write with AI'}
-            </button>
-          )}
-          {has && d.sources.length > 0 && (
-            <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 -mr-2" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-              Sources ({d.sources.length}) {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-            </button>
-          )}
-        </span>
-      </div>
+      {/* The heading with who wrote it; the one action on the right is its sources. */}
+      <CardHead
+        title="What they do"
+        count={has ? <DescriptionOrigin kind={d.kind} /> : undefined}
+        action={has && d.sources.length > 0 ? (
+          <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap -mr-2" style={{ color: 'var(--fg-3)' }} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            Sources ({d.sources.length}) <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        ) : undefined}
+      />
       <div className="px-4 sm:px-5 pb-4">
         {has
-          ? <p className="text-[13.5px] leading-relaxed" style={{ color: 'var(--fg-2)' }}>{d.value}</p>
+          ? <>
+              {/* On a phone a long description opens at six lines, the rest a tap away. */}
+              <p className={`text-[13.5px] leading-relaxed ${more ? '' : 'max-lg:line-clamp-6'}`} style={{ color: 'var(--fg-2)' }}>{d.value}</p>
+              {!more && (d.value?.length ?? 0) > 320 && <button type="button" className="lg:hidden ws-btn ws-btn-ghost ws-btn-sm ws-tap -ml-2 mt-0.5" style={{ color: 'var(--fg-3)' }} onClick={() => setMore(true)}>Read more <ChevronDown className="w-3.5 h-3.5" /></button>}
+            </>
           : <p className="text-[13px]" style={{ color: 'var(--fg-4)' }}>No description on file yet{c.oneLiner ? `; the one-liner above is all the dataset holds` : ''}.</p>}
+        {/* Whether anyone has checked it, and writing a fuller one. */}
+        {(has || canWrite) && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5 text-[12px]" style={{ color: 'var(--fg-4)' }}>
+            {has && (d.verifiedBy
+              ? <span className="inline-flex items-center gap-1" style={{ color: 'var(--fg-3)' }}><Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} /> Verified by {d.verifiedBy}{d.verifiedAt ? `, ${fmtDate(d.verifiedAt)}` : ''}</span>
+              : <>
+                  <span>Not yet checked by anyone on the team</span>
+                  <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !h-7 !px-2" style={{ color: 'var(--fg-2)' }} onClick={verify} disabled={busy != null} title="Record that you have read this and it is right">
+                    {busy === 'verify' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Mark as verified
+                  </button>
+                </>)}
+            {canWrite && (
+              <button type="button" className="ws-btn ws-btn-sm ws-tap !h-7 !px-2" onClick={write} disabled={busy != null} title="Write a description with Claude from the company's homepage, its one-liner, the Lusha or dataset text and its latest signals. Saved as an AI generated description until someone verifies it.">
+                {busy === 'write' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} {has ? 'Write a fuller one with AI' : 'Write with AI'}
+              </button>
+            )}
+          </div>
+        )}
         {busy === 'write' && <p className="text-[12px] mt-2" style={{ color: 'var(--fg-4)' }}>Reading the homepage and writing, a few seconds…</p>}
         {err && <p className="text-[12px] mt-2" style={{ color: 'var(--bad)' }}>{err}</p>}
         {open && has && (
@@ -365,17 +375,17 @@ function Similar({ c, slug, title, note, className }: { c: IntelCompany; slug: s
     <SideCard title={title} count={c.similarCompanies.length} note={note} className={className}
       sub={sized ? `Team sizes from Lusha${asOf ? `, ${monthYear(asOf)}` : ''} · LinkedIn-based estimates` : undefined}
       foot={hidden > 0 && (
-        <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm w-full !justify-start !rounded-none !h-9 !px-4" style={{ borderTop: '1px solid var(--line)', color: 'var(--fg-3)' }} onClick={() => setAll(true)}>
+        <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm w-full !justify-start !rounded-none !h-10 !px-4" style={{ borderTop: '1px solid var(--line)', color: 'var(--fg-3)' }} onClick={() => setAll(true)}>
           Show {hidden} more <ChevronDown className="w-3.5 h-3.5" />
         </button>
       )}>
-      <ul className="flex flex-col pb-1">
+      <ul className="flex flex-col pb-1.5">
         {rows.map((s) => (
-          <li key={s.key} className="flex items-start gap-2.5 px-4 py-1.5 min-w-0">
+          <li key={s.key} className="crm-row relative flex items-start gap-2.5 px-4 py-2 min-w-0">
             <Initials name={s.name} size={26} className="mt-0.5" />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 min-w-0">
-                <Link href={companyPath(slug, s.key, s.name)} className="text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={s.oneLiner ?? undefined}>{s.name}</Link>
+                <Link href={companyPath(slug, s.key, s.name)} className="text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4 after:absolute after:inset-0" style={{ color: 'var(--fg)' }} title={s.oneLiner ?? undefined}>{s.name}</Link>
                 {confirmed.has(s.key) && (
                   <span className="shrink-0 px-1.5 py-px rounded-md text-[11px] whitespace-nowrap" style={{ border: '1px solid var(--line)', color: 'var(--fg-3)' }}
                     title={`Confirmed as a competitor${confirmed.get(s.key)?.reviewedBy ? ` by ${confirmed.get(s.key)!.reviewedBy}` : ''}${confirmed.get(s.key)?.reviewedAt ? `, ${fmtDate(confirmed.get(s.key)!.reviewedAt)}` : ''}`}>
@@ -416,12 +426,12 @@ function Competitors({ c, slug, className }: { c: IntelCompany; slug: string | n
     } catch (e) { setErr(e instanceof Error ? e.message : 'Not saved') } finally { setBusy(null) }
   }
   return (
-    <SideCard title="Competitors" count={`${confirmed} confirmed · ${suggested} suggested`} note="AI suggestions; a company only counts as a competitor once someone on the team confirms it" className={className}>
-      <ul className="flex flex-col pb-1">
+    <SideCard title="Competitors" count={`${confirmed} confirmed · ${suggested} suggested`} note="AI suggestions; a company only counts as a competitor once someone on the team confirms it" className={className} startOpen={suggested > 0}>
+      <ul className="flex flex-col pb-1.5">
         {c.competitors.map((k) => {
           const st = stateOf(k)
           return (
-            <li key={k.key} className="flex flex-col gap-1 px-4 py-1.5" style={{ opacity: st === 'rejected' ? 0.55 : 1 }}>
+            <li key={k.key} className="flex flex-col gap-1.5 px-4 py-2" style={{ opacity: st === 'rejected' ? 0.55 : 1 }}>
               <span className="flex items-center gap-2.5 min-w-0">
                 <Initials name={k.name} size={26} />
                 <span className="min-w-0 flex-1">
@@ -471,13 +481,13 @@ function Signals({ c, className }: { c: IntelCompany; className?: string }) {
   const rows = c.signals.slice(0, SIGNALS_KEEP)
   return (
     <SideCard title="Signals" count={c.signals.length > rows.length ? `latest ${rows.length} of ${c.signals.length}` : c.signals.length} note="From Lusha" className={className}>
-      <ul className="flex flex-col pb-1">
+      <ul className="flex flex-col pb-1.5">
         {rows.map((s, i) => {
           const date = s.date ?? s.source.date
           const domain = domainOf(s.source.url)
           const body = <span className="text-[13px] line-clamp-2" style={{ color: 'var(--fg)' }} title={s.headline}>{s.headline}</span>
           return (
-            <li key={s.id ?? i} className="px-4 py-1.5 min-w-0">
+            <li key={s.id ?? i} className="px-4 py-2 min-w-0" style={i > 0 ? { borderTop: '1px solid var(--line)' } : undefined}>
               <span className="flex items-baseline justify-between gap-3 text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
                 <span className="font-medium">{s.type}</span>
                 <span className="shrink-0 whitespace-nowrap">
@@ -539,7 +549,8 @@ function Evidence({ d }: { d: Deployment }) {
 
 // A proposed row with evidence can be verified or rejected here; a verdict
 // shows at once and the record is refreshed after.
-function Verdict({ d, onDone }: { d: Deployment; onDone: (v: 'verified' | 'rejected') => void }) {
+// `compact` (the desk's table) keeps the two buttons to their icons.
+function Verdict({ d, onDone, compact }: { d: Deployment; onDone: (v: 'verified' | 'rejected') => void; compact?: boolean }) {
   const [busy, setBusy] = useState<string | null>(null)
   if (!d.evidence || d.review !== 'proposed') return null
   const go = async (verdict: 'verified' | 'rejected') => {
@@ -548,7 +559,7 @@ function Verdict({ d, onDone }: { d: Deployment; onDone: (v: 'verified' | 'rejec
   }
   return (
     <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
-      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !h-7 !px-1.5" disabled={!!busy} onClick={() => go('verified')} title="The evidence says this; mark it verified">{busy === 'verified' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Verify</button>
+      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !h-7 !px-1.5" disabled={!!busy} onClick={() => go('verified')} title="The evidence says this; mark it verified" aria-label="Verify">{busy === 'verified' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3.5 h-3.5" />}{!compact && ' Verify'}</button>
       <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !h-7 !px-1.5" disabled={!!busy} onClick={() => go('rejected')} title="The evidence does not support this; drop it" aria-label="Reject"><X className="w-3 h-3" /></button>
     </span>
   )
@@ -574,7 +585,7 @@ function DeploymentsTable({ rows: given, slug, side }: { rows: Deployment[]; slu
         <td className="!py-2 !pr-3"><Status d={d} /></td>
         <td className="!py-2 !pr-3"><Evidence d={d} /></td>
         <td className="!py-2 !pr-2">{conf(d)}</td>
-        <td className="!pl-0 !pr-3 !py-2 text-right"><Verdict d={d} onDone={done(d)} /></td>
+        <td className="!pl-0 !pr-3 !py-2 text-right"><Verdict d={d} onDone={done(d)} compact /></td>
       </tr>
     )
   }
@@ -597,15 +608,15 @@ function DeploymentsTable({ rows: given, slug, side }: { rows: Deployment[]; slu
           the actions their own column), long cells clamped with the whole in
           the tooltip; the wrapper scrolls sideways before anything is cut. */}
       <div className="hidden md:block overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-        <table className="ws-table ws-table-fixed" style={{ minWidth: 640 }}>
-          <colgroup><col style={{ width: '18%' }} /><col style={{ width: '21%' }} /><col style={{ width: 104 }} /><col style={{ width: '25%' }} /><col style={{ width: 90 }} /><col style={{ width: 94 }} /></colgroup>
+        <table className="ws-table ws-table-fixed crm-table" style={{ minWidth: 680 }}>
+          <colgroup><col style={{ width: '20%' }} /><col style={{ width: '21%' }} /><col style={{ width: 100 }} /><col /><col style={{ width: 88 }} /><col style={{ width: 68 }} /></colgroup>
           <thead>
             <tr><th className="!pl-5 !py-2 !pr-3">{head}</th><th className="!py-2 !pr-3">Use case</th><th className="!py-2 !pr-3" title={STATUS_NOTE}>Status</th><th className="!py-2 !pr-3">Evidence</th><th className="!py-2 !pr-2">Confidence</th><th className="!py-2 !pl-0 !pr-3"><span className="sr-only">Review</span></th></tr>
           </thead>
           <tbody>
             {sourced.map(tr)}
             {unsourced.length > 0 && (
-              <tr><td colSpan={6} className="!pl-5 !py-1.5 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)', background: 'var(--surface-2)' }}>{alsoHeading}</td></tr>
+              <tr><td colSpan={6} className="!pl-5 !pt-3 !pb-1.5 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{alsoHeading}</td></tr>
             )}
             {unsourced.map(tr)}
           </tbody>
@@ -615,7 +626,7 @@ function DeploymentsTable({ rows: given, slug, side }: { rows: Deployment[]; slu
       <ul className="md:hidden flex flex-col">
         {sourced.map(li)}
         {unsourced.length > 0 && (
-          <li className="px-4 py-1.5 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)', background: 'var(--surface-2)', borderTop: '1px solid var(--line)' }}>{alsoHeading}</li>
+          <li className="px-4 pt-3 pb-1.5 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)', borderTop: '1px solid var(--line)' }}>{alsoHeading}</li>
         )}
         {unsourced.map(li)}
       </ul>
@@ -632,13 +643,10 @@ export function IntelDeployments({ c, slug, className = '' }: { c: IntelCompany;
   const provider = isProvider(c)
   const rows = provider ? c.providerDeployments : c.vendorDeployments
   const title = provider ? 'Vendors they work with' : 'Hospitals and health systems'
-  if (!rows.length) return <p className={`px-1 text-[12.5px] ${className}`} style={{ color: 'var(--fg-4)' }}>{provider ? 'No vendor named in a sourced announcement yet.' : 'No hospital named in a sourced announcement yet.'}</p>
+  if (!rows.length) return <p className={`ws-card px-4 sm:px-5 py-3 text-[12.5px] ${className}`} style={{ color: 'var(--fg-4)' }}><span className="font-medium" style={{ color: 'var(--fg-3)' }}>{title}</span> · {provider ? 'no vendor named in a sourced announcement yet.' : 'no hospital named in a sourced announcement yet.'}</p>
   return (
     <section className={`ws-card overflow-hidden ${className}`}>
-      <div className="px-4 sm:px-5 pt-4 pb-2 flex items-baseline justify-between gap-3 flex-wrap">
-        <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }} title={provider ? 'Announcements from the trust or the vendor' : 'Only hospitals we have an announcement for; the real list is longer'}>{title}</h2>
-        <span className="text-[12px]" style={{ color: 'var(--fg-4)' }}>{deploymentsHeadline(rows, provider ? 'vendors' : 'hospitals')}</span>
-      </div>
+      <CardHead title={title} count={rows.length} note={provider ? 'Announcements from the trust or the vendor' : 'Only hospitals we have an announcement for; the real list is longer'} sub={deploymentsHeadline(rows, provider ? 'vendors' : 'hospitals')} />
       <DeploymentsTable rows={rows} slug={slug} side={provider ? 'vendor' : 'provider'} />
     </section>
   )
@@ -654,9 +662,9 @@ function NotYetHere({ c, slug, className }: { c: IntelCompany; slug: string | nu
   if (!gaps.length) return null
   return (
     <SideCard title="Vendors at similar trusts" count={gaps.length} note="Vendors named in sourced announcements at similar trusts, and not at this one" sub="Not yet here; a prospecting cue" className={className}>
-      <ul className="flex flex-col pb-1">
+      <ul className="flex flex-col pb-1.5">
         {gaps.map((w) => (
-          <li key={w.key} className="flex items-start gap-2.5 px-4 py-1.5 min-w-0">
+          <li key={w.key} className="crm-row flex items-start gap-2.5 px-4 py-2 min-w-0">
             <Initials name={w.name} size={26} className="mt-0.5" />
             <span className="min-w-0 flex-1">
               <Link href={companyPath(slug, w.key, w.name)} className="block text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={w.oneLiner ?? w.useCase ?? undefined}>{w.name}</Link>
@@ -698,22 +706,23 @@ export function IntelPeopleNamed({ c, exclude = [], type }: { c: IntelCompany; e
   if (!people.length) return null
   const src = people[0].source
   const rows = all ? people : people.slice(0, 4)
+  const seeds: ContactSeed[] = rows.map((p) => ({ key: `lusha:${p.name}`, name: p.name, jobTitle: p.jobTitle, country: p.country ?? null, linkedinUrl: p.linkedinUrl, company: c.name, type: type ?? null, records: [] }))
   return (
     <div style={{ borderTop: '1px solid var(--line)' }}>
-      <p className="px-4 sm:px-5 pt-2.5 pb-1 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>Also named by {src.kind === 'lusha' ? 'Lusha' : src.label}{src.date ? `, ${monthYear(src.date)}` : ''} <span className="font-normal">· not in the CRM; names and titles only</span></p>
+      <p className="px-4 sm:px-5 pt-3 pb-1.5 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>Also named by {src.kind === 'lusha' ? 'Lusha' : src.label}{src.date ? `, ${monthYear(src.date)}` : ''} <span className="font-normal">· not in the CRM; names and titles only</span></p>
       <ul className="flex flex-col pb-1">
         {rows.map((p, i) => (
-          <li key={`${p.name}-${i}`} className="flex items-center gap-2.5 px-4 sm:px-5 py-1.5">
+          <li key={`${p.name}-${i}`} className="crm-row flex items-center gap-2.5 px-4 sm:px-5 py-2">
             <Initials name={p.name} size={26} />
-            <ContactLink seed={{ name: p.name, jobTitle: p.jobTitle, country: p.country ?? null, linkedinUrl: p.linkedinUrl, company: c.name, type: type ?? null, records: [] }} className="min-w-0 flex-1 text-left">
+            <ContactLink seed={seeds[i]} list={seeds} className="min-w-0 flex-1 text-left">
               <span className="block text-[13px] font-medium truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{p.name}</span>
               <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.country].filter(Boolean).join(' · ')}</span>
             </ContactLink>
-            {p.linkedinUrl && <a href={p.linkedinUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 p-1.5 rounded-md hover:bg-[var(--surface-2)]" title="LinkedIn" style={{ color: 'var(--fg-3)' }}><Linkedin className="w-3.5 h-3.5" /></a>}
+            {p.linkedinUrl && <a href={p.linkedinUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 ws-btn ws-btn-ghost ws-btn-sm !w-8 !px-0 max-sm:!h-10 max-sm:!w-10" title="LinkedIn" aria-label={`${p.name} on LinkedIn`} style={{ color: 'var(--fg-3)' }}><Linkedin className="w-3.5 h-3.5" /></a>}
           </li>
         ))}
         {people.length > rows.length && (
-          <li className="px-3 sm:px-4"><button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1.5" style={{ color: 'var(--fg-3)' }} onClick={() => setAll(true)}>Show {people.length - rows.length} more <ChevronDown className="w-3.5 h-3.5" /></button></li>
+          <li className="px-3 sm:px-4 pb-1"><button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !px-1.5" style={{ color: 'var(--fg-3)' }} onClick={() => setAll(true)}>Show {people.length - rows.length} more <ChevronDown className="w-3.5 h-3.5" /></button></li>
         )}
       </ul>
     </div>

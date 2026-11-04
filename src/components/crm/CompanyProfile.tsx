@@ -13,17 +13,19 @@
 // activity, and the companies around them. On a phone it all stacks, the
 // sidebar's cards after the contacts.
 
-import { ArrowRightLeft, Globe, Linkedin, Loader2, Mail, Pencil, Phone, Trash2, UserPlus } from 'lucide-react'
+import { useRef } from 'react'
+import { ArrowRightLeft, Download, Globe, Linkedin, Loader2, Mail, Pencil, Phone, Trash2, UserPlus, Users } from 'lucide-react'
+import { downloadCsv } from '@/lib/csv'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { EventTabs, Fact, PROFILE_GRID, PROFILE_MAIN, ProfileSide, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money } from '@/components/crm/profileParts'
+import { CardHead, EventTabs, Fact, MiniHeader, MoveOn, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileSide, ProfileNavBar, StageBar, WhereLine, eventParts, fmtDate, initials, money, nextStage, shortEventName, useBoard } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { FocusToggle } from './FocusToggle'
 import { focusOf, focusOfEvent, type Focus } from '@/lib/contactFocus'
 import type { Sponsor, SponsorContact } from '@/types'
 import { PersonRolesLine } from './PersonRoles'
 import { EnquiryCard } from './EnquiryCard'
-import { ContactLink } from './ContactLink'
+import { ContactLink, type ContactSeed } from './ContactLink'
 import { IntelDeployments, IntelDescription, IntelSidebar, IntelStrip, NoIntel, useIntel } from '@/components/workspace/IntelPanel'
 import { companyKey } from '@/lib/segments'
 import { eventSlug } from '@/lib/portals'
@@ -74,12 +76,23 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
   const intel = intelQ.data?.company ?? null
   const website = company.website ?? intel?.website ?? null
 
+  const board = useBoard(kind)
+  const headRef = useRef<HTMLElement>(null)
+  const next = nextStage(kind, company.status)
+  const closed = KINDS[kind].stages.some((s) => s.negative && s.status === company.status)
+  const edition = company.event ? eventParts(company.event) : null
+  const exportContacts = () => downloadCsv(`${company.companyName} contacts`, ['Name', 'Job title', 'Email', 'Phone', 'LinkedIn', 'Primary', 'Event', 'Stage'],
+    people.map(({ c, isPrimary }) => [[c.contactFirstName, c.contactLastName].filter(Boolean).join(' '), c.contactJobTitle, c.contactEmail, c.contactPhone, c.contactLinkedinUrl, isPrimary ? 'Yes' : '', company.event, company.status]))
+  // The panel steps through the contacts in this order.
+  const seeds = people.map(({ c }) => contactSeed(kind, company, c, contacts))
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-      {/* Back, and the next/previous company in the list */}
-      <div className="mb-4">
+    <div className="crm-profile max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-24 sm:pb-8">
+      {/* The trail back, and the next/previous company in the list */}
+      <div className="mb-3">
         <ProfileNavBar
           kind={kind}
+          name={company.companyName}
           nav={{
             prev: nav.prev && { id: nav.prev.id, name: nav.prev.companyName },
             next: nav.next && { id: nav.next.id, name: nav.next.companyName },
@@ -87,11 +100,14 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
           }}
         />
       </div>
+      <MiniHeader watch={headRef} name={company.companyName} action={next && !closed ? (
+        <button type="button" className="ws-btn ws-btn-sm ws-btn-primary ws-tap" disabled={stageSaving} onClick={() => onStageChange(next.status)}>Move to {next.label.toLowerCase()}</button>
+      ) : undefined} />
 
       <div className={PROFILE_GRID}>
         <div className={PROFILE_MAIN}>
-          {/* The company, the ten-second strip, and the events it is in */}
-          <header className="ws-card overflow-hidden order-1">
+          {/* Who they are, the ten-second strip, and where we are with them */}
+          <header ref={headRef} className="ws-card overflow-hidden order-1">
             <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
               {company.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -102,10 +118,10 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{def.label}</p>
-                <h1 className="text-[22px] font-semibold leading-tight tracking-tight truncate" style={{ color: 'var(--fg)' }}>{company.companyName}</h1>
+                <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{def.label}{company.tier ? ` · ${company.tier}` : ''}</p>
+                <h1 className="text-[22px] font-semibold leading-tight tracking-tight sm:truncate" style={{ color: 'var(--fg)' }}>{company.companyName}</h1>
                 <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap text-[13px]" style={{ color: 'var(--fg-3)' }}>
-                  <span>{people.length} {people.length === 1 ? 'contact' : 'contacts'}</span>
+                  <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {people.length} {people.length === 1 ? 'contact' : 'contacts'}</span>
                   {/* The country lives in the strip once the intelligence layer has it. */}
                   {!intel?.hq && company.country && <span>{company.country}</span>}
                   {website && (
@@ -115,42 +131,45 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
                   )}
                 </div>
               </div>
+              {/* The secondary actions; the primary one is in the band below. */}
               <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
-                <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
-                <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>
+                <button onClick={contacts.onAdd} className="ws-btn ws-btn-sm ws-tap"><UserPlus className="w-3.5 h-3.5" /> Add contact</button>
+                <button onClick={onEdit} className="ws-btn ws-btn-sm ws-tap"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+                <button onClick={exportContacts} disabled={!people.length} className="ws-btn ws-btn-sm ws-tap" title="The contacts as a spreadsheet (CSV)"><Download className="w-3.5 h-3.5" /> Export</button>
+                <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost ws-tap max-sm:!w-9 max-sm:!px-0" title={`Delete this ${def.label.toLowerCase()}`} aria-label={`Delete this ${def.label.toLowerCase()}`} style={{ color: 'var(--bad)' }}>
                   {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
             {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
+            <NextStep
+              where={<WhereLine label={`In ${board.label}`} kind={kind} status={company.status} extra={<>
+                {edition && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{shortEventName(company.event ?? '')}</span>}
+                {closed && company.updatedAt && <span className="text-[12px]" style={{ color: 'var(--fg-4)' }}>since {fmtDate(company.updatedAt)}</span>}
+                {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
+              </>} />}
+              action={<MoveOn kind={kind} status={company.status} onChange={onStageChange} saving={stageSaving} boardHref={board.href} boardLabel={board.label} />}
+              events={<EventTabs kind={kind} id={company.id} current={company.event ?? null} addNote="Each event gets its own record of the company, starting at Not contacted, with the contacts copied." />}
+            />
           </header>
 
-          {/* This event's stage, and the other events it is in: the stage lives in one place */}
+          {/* Every stage of this event, to jump to any of them */}
           <section className="ws-card overflow-hidden order-2">
-            <div className="p-4 sm:p-5">
-              <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
-                <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>
-                  {company.event ? <>In {eventParts(company.event).title} <span className="font-normal" style={{ color: 'var(--fg-3)' }}>· {look?.series}</span></> : 'No event'}
-                </h2>
-                {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
-              </div>
+            <CardHead title="Stage" count={edition ? `${edition.title} · ${edition.look.series}` : 'No event'} />
+            <div className="px-4 sm:px-5 pb-4">
               <StageBar kind={kind} status={company.status} accent={accent} disabled={stageSaving} onChange={onStageChange} at={company.updatedAt} />
             </div>
-            <EventTabs kind={kind} id={company.id} current={company.event ?? null} addNote="Each event gets its own record of the company, starting at Not contacted, with the contacts copied." />
           </section>
 
           {/* Contacts: the primary first. A name opens the contact panel. */}
           <section className="ws-card overflow-hidden order-3">
-            <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-2">
-              <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Contacts <span className="font-normal tabular" style={{ color: 'var(--fg-4)' }}>{people.length || ''}</span></h2>
-              <button onClick={contacts.onAdd} className="ws-btn ws-btn-sm"><UserPlus className="w-3.5 h-3.5" /> Add contact</button>
-            </div>
+            <CardHead title="Contacts" count={people.length || ''} action={<button onClick={contacts.onAdd} className="ws-btn ws-btn-ghost ws-btn-sm ws-tap" style={{ color: 'var(--fg-3)' }}><UserPlus className="w-3.5 h-3.5" /> Add</button>} />
             {people.length === 0 ? (
               <p className="px-4 sm:px-5 pb-4 text-[13px]" style={{ color: 'var(--fg-4)' }}>No contacts yet.</p>
             ) : (
               <ul>
-                {people.map(({ c, isPrimary }) => (
-                  <ContactRow key={`${c.id}-${isPrimary}`} kind={kind} companyName={company.companyName} event={company.event} status={company.status} c={c} isPrimary={isPrimary} actions={contacts} />
+                {people.map(({ c, isPrimary }, i) => (
+                  <ContactRow key={`${c.id}-${isPrimary}`} kind={kind} companyName={company.companyName} event={company.event} c={c} isPrimary={isPrimary} actions={contacts} seed={seeds[i]} list={seeds} />
                 ))}
               </ul>
             )}
@@ -163,37 +182,39 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
           <div className="contents [&>section]:order-7"><EnquiryCard kind={kind} id={company.id} /></div>
 
           {company.notes && (
-            <section className="ws-card p-4 sm:p-5 order-8">
-              <h2 className="text-[14px] font-semibold mb-2" style={{ color: 'var(--fg)' }}>Notes</h2>
-              <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-2)' }}>{company.notes}</p>
+            <section className="ws-card overflow-hidden order-8">
+              <CardHead title="Notes" />
+              <p className="px-4 sm:px-5 pb-4 text-[13.5px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-2)' }}>{company.notes}</p>
             </section>
           )}
         </div>
 
         <ProfileSide>
           {/* The deal */}
-          <section className="ws-card p-4 order-4">
-            <h2 className="text-[13.5px] font-semibold mb-3" style={{ color: 'var(--fg)' }}>Deal</h2>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <section className="ws-card ws-card-quiet overflow-hidden order-4">
+            <CardHead side title="Deal" />
+            <dl className="px-4 pb-4 grid grid-cols-2 gap-x-4 gap-y-3">
               <Fact label={kind === 'partner' ? 'Type' : 'Tier'} value={company.tier || '—'} />
               <Fact label="Value" value={money(company.valueAmount, company.valueCurrency) ?? '—'} strong={!!company.valueAmount} />
               <Fact label="Added" value={fmtDate(company.createdAt)} />
               <Fact label="Updated" value={fmtDate(company.updatedAt)} />
             </dl>
             {company.packageDetails && (
-              <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
+              <div className="mx-4 mb-4 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
                 <p className="text-[11.5px] font-medium mb-1" style={{ color: 'var(--fg-4)' }}>Package</p>
                 <p className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-2)' }}>{company.packageDetails}</p>
               </div>
             )}
             {company.status !== 'Confirmed' && !company.valueAmount && (
-              <p className="text-[12px] mt-3" style={{ color: 'var(--fg-4)' }}>Tier, value and package are recorded once the stage is Confirmed.</p>
+              <p className="px-4 pb-4 -mt-1 text-[12px]" style={{ color: 'var(--fg-4)' }}>Tier, value and package are recorded once the stage is Confirmed.</p>
             )}
           </section>
 
-          <section className="ws-card p-4 order-4">
-            <h2 className="text-[13.5px] font-semibold mb-3" style={{ color: 'var(--fg)' }}>Activity</h2>
-            <ActivityFeed activities={company.activities ?? []} entityType={kind} entityId={company.id} onActivityAdded={refetch} />
+          <section className="ws-card ws-card-quiet overflow-hidden order-4">
+            <CardHead side title="Activity" count={company.activities?.length || ''} />
+            <div className="px-4 pb-4">
+              <ActivityFeed activities={company.activities ?? []} entityType={kind} entityId={company.id} onActivityAdded={refetch} />
+            </div>
           </section>
 
           {/* The companies around them */}
@@ -204,24 +225,33 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
   )
 }
 
-function ContactRow({ kind, companyName, event, status, c, isPrimary, actions }: { kind: Kind; companyName: string | null; event?: string | null; status?: string | null; c: SponsorContact; isPrimary: boolean; actions: ContactActions }) {
+// What the contact panel is opened with for one of the company's contacts.
+function contactSeed(kind: Kind, company: Company, c: SponsorContact, actions: ContactActions): ContactSeed {
+  const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ') || c.contactEmail || 'Unnamed'
+  const table = kind === 'partner' ? 'partners' : 'sponsors'
+  const auto = [focusOfEvent(company.event)].filter((f): f is Focus => !!f)
+  return {
+    key: c.contactEmail ?? `${name}|${company.companyName ?? ''}`, name, email: c.contactEmail, phone: c.contactPhone, jobTitle: c.contactJobTitle, linkedinUrl: c.contactLinkedinUrl,
+    company: company.companyName, type: 'Solution Provider',
+    records: [{ relationship: 'Sponsor', table, id: c.companyId, status: company.status ?? null, event: company.event }],
+    focusRows: [{ table, id: c.id }], focus: focusOf(c.tags), focusAuto: auto, note: c.notes,
+    onEdit: () => actions.onEdit(c), href: null,
+  }
+}
+
+function ContactRow({ kind, companyName, event, c, isPrimary, actions, seed, list }: { kind: Kind; companyName: string | null; event?: string | null; c: SponsorContact; isPrimary: boolean; actions: ContactActions; seed: ContactSeed; list: ContactSeed[] }) {
   const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ') || c.contactEmail || 'Unnamed'
   const table = kind === 'partner' ? 'partners' : 'sponsors'
   const auto = [focusOfEvent(event)].filter((f): f is Focus => !!f)
   const focus = focusOf(c.tags)
   const focusWord = focus.length ? focus.join(' · ') : auto.join(' · ')
   return (
-    <li className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 sm:px-5 py-2.5 transition-colors hover:bg-[var(--surface-2)]" style={{ borderTop: '1px solid var(--line)' }}>
+    <li className="group crm-row grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 sm:px-5 py-2.5" style={{ borderTop: '1px solid var(--line)' }}>
       <div className="min-w-0">
         <ContactLink
           href={null}
-          seed={{
-            key: c.contactEmail ?? `${name}|${companyName ?? ''}`, name, email: c.contactEmail, phone: c.contactPhone, jobTitle: c.contactJobTitle, linkedinUrl: c.contactLinkedinUrl,
-            company: companyName, type: 'Solution Provider',
-            records: [{ relationship: 'Sponsor', table, id: c.companyId, status: status ?? null, event }],
-            focusRows: [{ table, id: c.id }], focus, focusAuto: auto, note: c.notes,
-            onEdit: () => actions.onEdit(c),
-          }}
+          seed={seed}
+          list={list}
           className="flex items-center gap-3 min-w-0 w-full text-left"
         >
           <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--fg-2)' }}>{initials(name)}</span>

@@ -467,6 +467,28 @@
     color: var(--fg);
     vertical-align: middle;
   }
+  /* The profile pages (November 2026). The sidebar's cards sit a step back
+     from the main column's: the page's grey shows through a little. */
+  .ws-card-quiet { background: color-mix(in srgb, var(--surface) 55%, var(--bg)); }
+  /* A row that is a target: a quiet wash on hover (a pointer only). */
+  @media (hover: hover) {
+    .crm-row:hover, .crm-row-link:hover { background: var(--surface-2); }
+    .ws-card-quiet .crm-row:hover { background: var(--surface); }
+  }
+  .crm-row, .crm-row-link { transition: background 100ms ease; }
+  /* Keyboard focus, visible on every control of a profile and the contact panel. */
+  .crm-profile :is(a, button, input, textarea, select, [tabindex]:not([tabindex='-1'])):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  /* A table's column heads on a profile: a quiet band with a rule above and below. */
+  .crm-table th {
+    font-size: 11.5px;
+    color: var(--fg-3);
+    background: var(--surface-2);
+    border-top: 1px solid var(--line);
+  }
   .ws-table-fixed { table-layout: fixed; width: 100%; }
   .ws-table-fixed td, .ws-table-fixed th { overflow: hidden; }
   .ws-table tbody tr { transition: background 100ms ease; }
