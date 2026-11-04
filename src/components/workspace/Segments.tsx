@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
+import { downloadCsv } from '@/lib/csv'
 import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
 import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
@@ -347,22 +348,6 @@ function TagFilter({ value, onChange }: { value: Relationship | ''; onChange: (v
 
 const PAGE = 50
 
-// A CSV of what the view shows (every page, with its search and filters),
-// one row per person, for Excel.
-function downloadCsv(name: string, header: string[], rows: (string | number | null | undefined)[][]) {
-  const cell = (v: string | number | null | undefined) => {
-    const t = v == null ? '' : String(v)
-    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
-  }
-  const text = [header, ...rows].map((r) => r.map(cell).join(',')).join('\r\n')
-  // The byte-order mark makes Excel read the names' accents right.
-  const url = URL.createObjectURL(new Blob(['\ufeff' + text], { type: 'text/csv;charset=utf-8' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.csv`
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
 const rolesOf = (records: { relationship: Relationship; event?: string | null; status: string | null }[]) =>
   records.map((r) => `${DOING[r.relationship]}${r.event ? ` (${shortEvent(r.event)})` : ''}${r.status ? `: ${r.status}` : ''}`).join('; ')
 
