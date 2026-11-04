@@ -638,13 +638,19 @@ export function NoIntel({ compact = false }: { compact?: boolean }) {
 
 // The whole panel, self-fetching: the strip, then the sections for a vendor
 // or a hospital, or the quiet line. Mounted on the sponsor company page.
-export function IntelPanel({ companyKey: key, name, slug }: { companyKey: string | null; name: string | null; slug: string | null }) {
+// part: 'summary' is the strip only (the top of a sponsor's page, so the
+// stage and contacts stay near the top); 'details' the sections below it
+// (further down that page); 'all' both, as on a company's own profile.
+export function IntelPanel({ companyKey: key, name, slug, part = 'all' }: { companyKey: string | null; name: string | null; slug: string | null; part?: 'all' | 'summary' | 'details' }) {
   const { data, isLoading, isError } = useIntel(key, name)
+  if (part === 'details' && (isLoading || isError || !data?.company)) return null
   if (isLoading) return <div className="ws-card h-16 animate-pulse" />
   if (isError) return <p className="ws-card px-4 sm:px-5 py-3 text-[12.5px]" style={{ color: 'var(--fg-4)' }}>The intelligence layer could not be reached just now.</p>
   const c = data?.company
   if (!c) return <NoIntel />
   const provider = isProvider(c)
+  const sections = provider ? <IntelHospitalSections c={c} slug={slug} /> : <IntelVendorSections c={c} slug={slug} />
+  if (part === 'details') return sections
   return (
     <>
       <section className="ws-card overflow-hidden">
@@ -654,7 +660,7 @@ export function IntelPanel({ companyKey: key, name, slug }: { companyKey: string
         </div>
         <IntelStrip c={c} />
       </section>
-      {provider ? <IntelHospitalSections c={c} slug={slug} /> : <IntelVendorSections c={c} slug={slug} />}
+      {part === 'all' && sections}
     </>
   )
 }

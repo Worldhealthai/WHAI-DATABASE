@@ -106,8 +106,10 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
         <EventTabs kind={kind} id={company.id} current={company.event ?? null} addNote="Each event gets its own record of the company, starting at Not contacted, with the contacts copied." />
       </header>
 
-      {/* What the intelligence layer knows about the company, with its sources */}
-      <IntelPanel companyKey={companyKey(company.companyName)} name={company.companyName} slug={wsSlug} />
+      {/* What the intelligence layer knows about the company, in brief: the
+          rest (what they do, similar companies, hospitals…) is further down,
+          so the stage and contacts stay near the top. */}
+      <IntelPanel companyKey={companyKey(company.companyName)} name={company.companyName} slug={wsSlug} part="summary" />
 
       {/* This event's stage and deal */}
       <section className="ws-card p-5">
@@ -170,6 +172,9 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
           <ActivityFeed activities={company.activities ?? []} entityType={kind} entityId={company.id} onActivityAdded={refetch} />
         </section>
       </div>
+
+      {/* The intelligence in full: what they do, similar companies, competitors, hospitals, people, signals */}
+      <IntelPanel companyKey={companyKey(company.companyName)} name={company.companyName} slug={wsSlug} part="details" />
     </div>
   )
 }
