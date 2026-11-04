@@ -179,7 +179,7 @@ function Members({ members, query, company, add, where, account }: { members: Me
                 </Link>
               ))}
             </span>
-            <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" />
+            {where === 'event' && <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" />}
             {add?.event && !m.records.some((r) => r.relationship === 'Speaker' && add.inYear(r)) && (
               <AddButton label="Speaker pipeline" busy={add.busy === `speaker:${m.key}`} done={add.done.has(`speaker:${m.key}`)} onClick={() => add.addSpeaker(m, company === NO_COMPANY_NAME ? '' : company)} />
             )}
@@ -436,8 +436,11 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
           <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>People</span>
           <TitleFilter titles={titleCounts} tokens={pf.titles} onChange={(titles) => setP({ titles })} />
-          <Segmented size="sm" value={pf.focus || 'any'} onChange={(v) => setP({ focus: v === 'any' ? '' : (v as Focus) })}
-            options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
+          {/* Health or Pharma: the Directory only; inside an event the event says it. */}
+          {everything && (
+            <Segmented size="sm" value={pf.focus || 'any'} onChange={(v) => setP({ focus: v === 'any' ? '' : (v as Focus) })}
+              options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
+          )}
           {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ titles: [], doing: '', focus: '' })}>Clear</button>}
         </div>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the companies" body={(error as Error).message} /> :
@@ -506,15 +509,29 @@ export function ContactsView() {
   const [scope, setScope] = useState<Scope>('series')
   const { data, isLoading, error } = useSegments(scope)
   const [type, setType] = useState<'all' | Firmographic>('all')
-  const [focus, setFocus] = useState<'' | Focus>('')
+  const [titles, setTitles] = useState<TitleToken[]>([])
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return (data?.people ?? []).filter((p) =>
-      (type === 'all' || p.firmographic === type) && (!focus || effectiveFocus(p).includes(focus)) &&
+      (type === 'all' || p.firmographic === type) && (!titles.length || titles.some((t) => tokenMatches(p.jobTitle, t))) &&
       (!q || p.name.toLowerCase().includes(q) || (p.email || '').includes(q) || (p.company || '').toLowerCase().includes(q) || (p.jobTitle || '').toLowerCase().includes(q)))
-  }, [data, type, focus, query])
+  }, [data, type, titles, query])
+  // Every job title among the contacts of the type in view, with how many
+  // hold it: what the title search offers, as on Companies.
+  const titleCounts = useMemo(() => {
+    const m = new Map<string, { title: string; count: number }>()
+    for (const p of data?.people ?? []) {
+      if (type !== 'all' && p.firmographic !== type) continue
+      const t = (p.jobTitle || '').replace(/\s+/g, ' ').trim()
+      if (!t) continue
+      const e = m.get(t.toLowerCase()) ?? { title: t, count: 0 }
+      e.count++
+      m.set(t.toLowerCase(), e)
+    }
+    return Array.from(m.values()).sort((x, y) => y.count - x.count || x.title.localeCompare(y.title))
+  }, [data, type])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
   const where: Where = scope === 'series' ? 'year' : 'none'
 
@@ -527,9 +544,13 @@ export function ContactsView() {
       <div className="ws-card overflow-hidden">
         <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search names, companies, titles or emails…" count={rows.length}>
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
-          <Segmented size="sm" value={focus || 'any'} onChange={(v) => { setFocus(v === 'any' ? '' : (v as Focus)); setPage(1) }}
-            options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
         </Toolbar>
+        {/* By job title: words (chief, director…) or exact titles, as on Companies */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
+          <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>Job title</span>
+          <TitleFilter titles={titleCounts} tokens={titles} onChange={(t) => { setTitles(t); setPage(1) }} />
+          {titles.length > 0 && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => { setTitles([]); setPage(1) }}>Clear</button>}
+        </div>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the contacts" body={(error as Error).message} /> :
          isLoading ? <Skeleton /> :
          rows.length === 0 ? <EmptyState icon={Users} title="No one matches" body="Try another filter, or clear the search." /> : (
@@ -553,7 +574,6 @@ export function ContactsView() {
                     </Link>
                   ))}
                 </span>
-                <span className="pl-[42px] sm:pl-0"><FocusToggle key={(p.focus ?? []).join()} rows={p.focusRows ?? []} email={p.email} initial={p.focus ?? []} auto={p.focusAuto ?? []} size="xs" /></span>
               </li>
             ))}
           </ul>
