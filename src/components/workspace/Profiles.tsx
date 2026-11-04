@@ -13,13 +13,13 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Award, Building2, Globe, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2, Users } from 'lucide-react'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { Fact, eventParts, fmtDate, initials } from '@/components/crm/profileParts'
+import { Fact, PROFILE_GRID, PROFILE_MAIN, PROFILE_SIDE, eventParts, fmtDate, initials } from '@/components/crm/profileParts'
 import { stepsBack } from '@/components/layout/NavMemory'
 import { useWorkspace } from '@/lib/workspace'
 import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
 import { Field, Modal, Segmented } from './ui'
 import { AddButton, Members, Sides, TypeBadge, companyHref, recHref, usePipelineAdd } from './Segments'
-import { IntelCompanyStrip, IntelHospitalSections, IntelStrip, IntelVendorSections, NoIntel, useIntel } from './IntelPanel'
+import { IntelCompanyStrip, IntelDeployments, IntelDescription, IntelPeopleNamed, IntelSidebar, IntelStrip, NoIntel, useIntel } from './IntelPanel'
 import { isProvider as intelIsProvider, providerTypeLabel } from '@/lib/intel'
 
 function useCompany(key: string | null, name: string | null) {
@@ -49,7 +49,7 @@ const shortEvent = (e: string) => e.replace(/^World Health AI/i, 'WHAI').replace
 // The company's history at our events: each event it was in, and what its
 // people did there, derived from the team's records.
 const DOING: Record<Relationship, [string, string]> = { Speaker: ['speaking', 'speaking'], Delegate: ['attending', 'attending'], Sponsor: ['sponsor contact', 'sponsor contacts'], Lead: ['lead', 'leads'] }
-function EventHistory({ a }: { a: Account }) {
+function EventHistory({ a, className = '' }: { a: Account; className?: string }) {
   const events = [...(a.events ?? [])].sort((x, y) => (y.match(/20\d{2}/)?.[0] ?? '').localeCompare(x.match(/20\d{2}/)?.[0] ?? '') || x.localeCompare(y))
   if (!events.length) return null
   const rows = events.map((e) => {
@@ -59,7 +59,7 @@ function EventHistory({ a }: { a: Account }) {
     return { e, parts }
   })
   return (
-    <section className="ws-card overflow-hidden scroll-mt-4" id="events">
+    <section className={`ws-card overflow-hidden scroll-mt-4 ${className}`} id="events">
       <div className="px-4 sm:px-5 pt-4 pb-2"><h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Events <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{rows.length}</span></h2></div>
       <ul className="flex flex-col">
         {rows.map(({ e, parts }) => (
@@ -75,89 +75,108 @@ function EventHistory({ a }: { a: Account }) {
 
 // ── A company ────────────────────────────────────────────────────────────────
 
+// The page in two columns on a desk (PROFILE_* in profileParts): the main
+// column reads top to bottom (who they are, what they do, the hospitals or
+// vendors, the team, the events, the notes); the sidebar (sticky) holds the
+// companies around them: similar companies, competitors, signals. On a
+// phone everything stacks in the main column's order, with the sidebar's
+// cards after the team: that is what the order-* classes are for.
+
 export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: string; name: string }) {
   const ws = useWorkspace()
   const { data, isLoading, error } = useCompany(companyKeyParam, name)
   // The intelligence layer (crm.intel_company), read alongside the company.
   const intelQ = useIntel(companyKeyParam, name)
   const intel = intelQ.data?.company ?? null
-  const isProvider = !!intel && intelIsProvider(intel)
   const add = usePipelineAdd()
   const a = data?.account
   const back = ws.href('companies')
 
-  if (isLoading) return <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6"><div className="ws-card h-40 animate-pulse" /></div>
+  if (isLoading) return <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6"><div className="ws-card h-40 animate-pulse" /></div>
   if (error || !a) return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-4">
       <BackLink fallback={back} />
       <div className="ws-card p-6 text-[13.5px]" style={{ color: 'var(--fg-3)' }}>{(error as Error)?.message || 'Not found'}</div>
     </div>
   )
+  const isProvider = intel ? intelIsProvider(intel) : a.firmographic === 'End User'
   const inSales = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
   const notes = Array.from(new Set((a.members ?? []).map((m) => m.note).filter(Boolean)))
   // With the header action on the company, the per-person one is noise.
   const personAdd = add.event && a.firmographic === 'Solution Provider' ? undefined : add
+  const members = a.members ?? []
+  const website = a.website ?? intel?.website ?? null
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-24 sm:pb-6 space-y-4">
-      <nav><BackLink fallback={back} /></nav>
-      <header className="ws-card overflow-hidden">
-        <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
-          <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>{initials(a.name)}</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[11.5px] font-medium flex items-center gap-2 flex-wrap" style={{ color: 'var(--fg-4)' }}>
-              <TypeBadge type={a.firmographic} conflict={a.conflict} /> <Sides sides={a.sides ?? []} />
-              {intel?.providerType && <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{providerTypeLabel(intel.providerType)}</span>}
-            </p>
-            <h1 className="text-[22px] font-semibold leading-tight tracking-tight sm:truncate mt-0.5" style={{ color: 'var(--fg)' }}>{a.name}</h1>
-            <p className="text-[13px] mt-1 flex flex-wrap items-center gap-x-3 gap-y-1" style={{ color: 'var(--fg-3)' }}>
-              {/* The people here are the CRM's contacts, not the company's size (that is in the strip below). */}
-              <span className="inline-flex items-center gap-1" title="People at this company in the CRM"><Users className="w-3.5 h-3.5" /> {a.people} {a.people === 1 ? 'contact' : 'contacts'} on file</span>
-              {intel?.odsCode && <span className="inline-flex items-center gap-1 tabular" title="NHS ODS code, from the Intelligence dataset">ODS {intel.odsCode}</span>}
-              {/* Location lives in the strip once the intelligence layer has it. */}
-              {!intel && a.country && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {a.country}</span>}
-              {a.website && <a href={a.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline underline-offset-4"><Globe className="w-3.5 h-3.5" /> {a.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</a>}
-            </p>
-          </div>
-          {/* Sales is for Solution Providers; an End User's people go to Production, one by one below. */}
-          {add.event && a.firmographic === 'Solution Provider' && (
-            <div className="w-full sm:w-auto sm:shrink-0">
-              {inSales
-                ? <Link href={recHref(ws.slug, inSales) ?? '#'} className="ws-btn ws-btn-sm">In Sales: {inSales.status ?? 'open'}</Link>
-                : <AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} />}
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-24 sm:pb-6">
+      <nav className="mb-4"><BackLink fallback={back} /></nav>
+      <div className={PROFILE_GRID}>
+        <div className={PROFILE_MAIN}>
+          {/* Who they are, and the ten-second strip */}
+          <header className="ws-card overflow-hidden order-1">
+            <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[15px] font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>{initials(a.name)}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11.5px] font-medium flex items-center gap-2 flex-wrap" style={{ color: 'var(--fg-4)' }}>
+                  <TypeBadge type={a.firmographic} conflict={a.conflict} /> <Sides sides={a.sides ?? []} />
+                  {intel?.providerType && <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{providerTypeLabel(intel.providerType)}</span>}
+                </p>
+                <h1 className="text-[22px] font-semibold leading-tight tracking-tight sm:truncate mt-0.5" style={{ color: 'var(--fg)' }}>{a.name}</h1>
+                <p className="text-[13px] mt-1 flex flex-wrap items-center gap-x-3 gap-y-1" style={{ color: 'var(--fg-3)' }}>
+                  {/* The people here are the CRM's contacts, not the company's size (that is in the strip below). */}
+                  <span className="inline-flex items-center gap-1" title="People at this company in the CRM"><Users className="w-3.5 h-3.5" /> {a.people} {a.people === 1 ? 'contact' : 'contacts'} on file</span>
+                  {intel?.odsCode && <span className="inline-flex items-center gap-1 tabular" title="NHS ODS code, from the Intelligence dataset">ODS {intel.odsCode}</span>}
+                  {/* Location lives in the strip once the intelligence layer has it. */}
+                  {!intel?.hq && a.country && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {a.country}</span>}
+                  {website && <a href={/^https?:\/\//i.test(website) ? website : `https://${website}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline underline-offset-4"><Globe className="w-3.5 h-3.5" /> {website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</a>}
+                </p>
+              </div>
+              {/* Sales is for Solution Providers; an End User's people go to Production, one by one below. */}
+              {add.event && a.firmographic === 'Solution Provider' && (
+                <div className="w-full sm:w-auto sm:shrink-0">
+                  {inSales
+                    ? <Link href={recHref(ws.slug, inSales) ?? '#'} className="ws-btn ws-btn-sm">In Sales: {inSales.status ?? 'open'}</Link>
+                    : <AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} />}
+                </div>
+              )}
             </div>
+            {/* The ten-second strip, or the quiet line when the layer has nothing. */}
+            {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
+          </header>
+
+          {/* What they do, with its sources; the hospitals or vendors with their evidence */}
+          {intel && <IntelDescription c={intel} className="order-2" />}
+          {intel && <IntelDeployments c={intel} slug={ws.slug} className="order-3" />}
+
+          {/* The team: the CRM's people, then anyone Lusha names besides */}
+          <section className="ws-card overflow-hidden order-4">
+            <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between">
+              <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>{isProvider ? 'People' : 'Team'} <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{members.length}</span></h2>
+              <span className="text-[12px]" style={{ color: 'var(--fg-4)' }}>A name opens their details</span>
+            </div>
+            <div className="[&_li]:!pl-5">
+              <Members members={members} query="" company={a.name} add={personAdd} where="event" account={a} />
+            </div>
+            {intel && <IntelPeopleNamed c={intel} exclude={members.map((m) => m.name)} type={a.firmographic} />}
+          </section>
+
+          <EventHistory a={a} className="order-6" />
+
+          {notes.length > 0 && (
+            <section className="ws-card p-4 sm:p-5 order-7">
+              <h2 className="text-[14px] font-semibold mb-2" style={{ color: 'var(--fg)' }}>Notes <span className="text-[12px] font-normal" style={{ color: 'var(--fg-4)' }}>from the lead lists</span></h2>
+              <ul className="flex flex-col gap-1.5 text-[13px]" style={{ color: 'var(--fg-2)' }}>{notes.map((n) => <li key={n}>{n}</li>)}</ul>
+            </section>
           )}
         </div>
-        {/* The ten-second strip, or the quiet line when the layer has nothing. */}
-        {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
-        {(a.events ?? []).length > 0 && (
-          <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 text-[12.5px]" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)', color: 'var(--fg-3)' }}>
-            <span className="font-medium mr-1" style={{ color: 'var(--fg-4)' }}>Events</span>
-            {(a.events ?? []).map((e) => <a key={e} href="#events" className="px-2 py-0.5 rounded-md hover:underline underline-offset-4" style={{ border: '1px solid var(--line)' }} title="See what they did there, below">{shortEvent(e)}</a>)}
-          </div>
+
+        {/* The companies around them */}
+        {intel && (
+          <aside className={PROFILE_SIDE}>
+            <IntelSidebar c={intel} slug={ws.slug} className="order-5" />
+          </aside>
         )}
-      </header>
-
-      {/* What the intelligence layer knows, with its sources */}
-      {intel && (isProvider ? <IntelHospitalSections c={intel} slug={ws.slug} /> : <IntelVendorSections c={intel} slug={ws.slug} />)}
-
-      <section className="ws-card overflow-hidden">
-        <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between">
-          <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>{isProvider ? 'People' : 'Team'} <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{(a.members ?? []).length}</span></h2>
-        </div>
-        <div className="[&_li]:!pl-5">
-          <Members members={a.members ?? []} query="" company={a.name} add={personAdd} where="event" account={a} />
-        </div>
-      </section>
-
-      <EventHistory a={a} />
-
-      {notes.length > 0 && (
-        <section className="ws-card p-4 sm:p-5">
-          <h2 className="text-[14px] font-semibold mb-2" style={{ color: 'var(--fg)' }}>Import tags</h2>
-          <ul className="flex flex-col gap-1.5 text-[13px]" style={{ color: 'var(--fg-2)' }}>{notes.map((n) => <li key={n}>{n}</li>)}</ul>
-        </section>
-      )}
+      </div>
     </div>
   )
 }

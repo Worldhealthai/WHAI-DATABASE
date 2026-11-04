@@ -30,7 +30,10 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function CopyPopover({ label, value, children, title }: { label: string; value: string; children: React.ReactNode; title?: string }) {
+// `align` is which edge of the button the pop-up hangs from: the right (the
+// default, for buttons at the end of a row) or the left (a button that
+// starts a row, as in the contact panel).
+export function CopyPopover({ label, value, children, title, align = 'right' }: { label: string; value: string; children: React.ReactNode; title?: string; align?: 'left' | 'right' }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
@@ -69,7 +72,7 @@ export function CopyPopover({ label, value, children, title }: { label: string; 
           role="dialog"
           aria-label={label}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-full mt-1.5 z-30 w-[300px] max-w-[80vw] p-2 rounded-xl"
+          className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full mt-1.5 z-30 w-[300px] max-w-[80vw] p-2 rounded-xl`}
           style={{ background: 'var(--surface)', border: '1px solid var(--line-2)', boxShadow: 'var(--shadow-md)' }}
         >
           <span className="block px-2 pt-1 pb-1.5 text-[11px] font-medium" style={{ color: 'var(--fg-4)' }}>{label}</span>

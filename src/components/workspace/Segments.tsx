@@ -14,7 +14,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
-import { useWorkspace } from '@/lib/workspace'
+import { useWorkspace, useWorkspaceFromUrl } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
 import { downloadCsv } from '@/lib/csv'
 import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
@@ -25,6 +25,7 @@ import { EmptyState, Field, Initials, Modal, Segmented, formatMoney, timeAgo } f
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 import { FocusToggle } from '@/components/crm/FocusToggle'
+import { ContactLink } from '@/components/crm/ContactLink'
 import { effectiveFocus, type Focus } from '@/lib/contactFocus'
 import { useIntelCards, useIntelCardsFor } from './IntelPanel'
 
@@ -94,7 +95,9 @@ function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) =
 // lead, Not contacted), a person into Production (a speaker, Not
 // contacted). Someone already in the year's pipeline shows its stage.
 export function usePipelineAdd() {
-  const { category, year, labels } = useWorkspace()
+  // From the URL, or the last workspace open: the contact panel uses this on
+  // a sponsor's page too, outside any workspace.
+  const { category, year, labels } = useWorkspaceFromUrl()
   const qc = useQueryClient()
   const [busy, setBusy] = useState<string | null>(null)
   const [done, setDone] = useState<Set<string>>(new Set())
@@ -218,7 +221,7 @@ const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'At
 // pipeline; someone known only from a leads list opens on their contact
 // page in the event (ContactProfile). A company with a sponsor record opens
 // on it; any other on its own page with its team (CompanyProfile).
-const pageOf = (records: { table: string; id: string }[]) => records.find((r) => PATH[r.table]) ?? records[0]
+export const pageOf = (records: { table: string; id: string }[]) => records.find((r) => PATH[r.table]) ?? records[0]
 export function recHref(slug: string | null, rec: { table: string; id: string }): string | null {
   if (PATH[rec.table]) return `${PATH[rec.table]}/${rec.id}`
   if (rec.table === 'leads' && slug) return `/event/${slug}/contacts/${rec.id}`
@@ -262,17 +265,19 @@ const whereOf = (event: string | null | undefined, where: Where) =>
   !event || where === 'none' ? '' : where === 'year' ? ` ${event.match(/20\d{2}/)?.[0] ?? shortEvent(event)}` : ` · ${shortEvent(event)}`
 
 export function Members({ members, query, company, add, where, account }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account }) {
+  const { slug } = useWorkspace()
   return (
     <ul className="flex flex-col">
       {members.map((m) => {
         const hit = !!query && matches(m, query)
         return (
           <li key={m.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
-            <RecLink rec={pageOf(m.records)} className="min-w-0 flex-1 basis-[320px]">
-              <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
+            {/* The name opens the contact panel; the link underneath is their page. */}
+            <ContactLink seed={{ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null }} href={recHref(slug, pageOf(m.records))} className="min-w-0 flex-1 basis-[320px]">
+              <span className="text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
               <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{[m.jobTitle, m.email].filter(Boolean).length ? ` · ${[m.jobTitle, m.email].filter(Boolean).join(' · ')}` : ''}</span>
               {m.note && <span className="block text-[11.5px] sm:truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={m.note}>{m.note}</span>}
-            </RecLink>
+            </ContactLink>
             <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
               {m.records.map((r, i) => (
                 <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
@@ -818,17 +823,17 @@ export function ContactsView() {
           <ul className="flex flex-col">
             {shown.map((p) => (
               <li key={p.key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--line)' }}>
-                <RecLink rec={pageOf(p.records)} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
+                <ContactLink seed={{ ...p, type: p.firmographic }} href={recHref(slug, pageOf(p.records))} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
                   <Initials name={p.name || p.email || '?'} size={30} />
                   <span className="min-w-0">
                     <span className="block truncate">
-                      <span className="text-[13.5px] font-medium" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
+                      <span className="text-[13.5px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
                       {p.company && <span className="text-[11.5px] ml-2" style={{ color: 'var(--fg-4)' }}>{p.company}</span>}
                     </span>
                     <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.email].filter(Boolean).join(' · ') || '—'}</span>
                     {p.note && <span className="block text-[11.5px] truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={p.note}>{p.note}</span>}
                   </span>
-                </RecLink>
+                </ContactLink>
                 <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] pl-[42px] sm:pl-0">
                   {p.records.map((r, i) => (
                     <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>

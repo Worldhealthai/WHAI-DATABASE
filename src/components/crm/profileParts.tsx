@@ -34,6 +34,14 @@ export function eventParts(label: string) {
   return { look, title: [look.city !== '—' ? look.city : '', year].filter(Boolean).join(' ') || label }
 }
 
+// A profile in two columns on a desk: the main column, and a sticky sidebar
+// of about 336px (under the 112px top bar). On a phone both are `contents`,
+// so every card stacks in one column by its order-* class; the sidebar's
+// cards come after the team (order-5 on a company's page).
+export const PROFILE_GRID = 'flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_336px] lg:items-start'
+export const PROFILE_MAIN = 'contents lg:flex lg:flex-col lg:gap-4 lg:min-w-0'
+export const PROFILE_SIDE = 'contents lg:flex lg:flex-col lg:gap-4 lg:sticky lg:top-[128px]'
+
 export interface NavItem { id: string; name: string }
 export interface ProfileNav { prev: NavItem | null; next: NavItem | null; index: number; total: number }
 

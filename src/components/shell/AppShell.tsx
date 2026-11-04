@@ -7,11 +7,13 @@
 // areas as pill tabs and search, then the event and edition with the area's
 // own tabs (on phones the sections open in a drawer). Profiles, import and
 // triage live inside the same frame, still showing the workspace the admin
-// came from.
+// came from. The contact panel (ContactDrawer) is mounted here once, so a
+// person's name in any list can open it.
 
 import { Suspense, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { AIAssistant } from '@/components/crm/AIAssistant'
+import { ContactDrawerProvider } from '@/components/crm/ContactDrawer'
 import { useRouter } from 'next/navigation'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
 import { defaultYear, eventSlug, readLastWorkspace, workspaceHref, type PortalKey } from '@/lib/portals'
@@ -69,6 +71,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   }, [pathname])
 
   return (
+    <ContactDrawerProvider>
     <div className="flex min-h-screen">
       {/* The colour the glass is seen through */}
       <div className="crm-field" aria-hidden="true" />
@@ -90,6 +93,7 @@ function Frame({ children }: { children: React.ReactNode }) {
       </div>
       <AIAssistant />
     </div>
+    </ContactDrawerProvider>
   )
 }
 
