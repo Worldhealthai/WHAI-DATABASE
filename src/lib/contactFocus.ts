@@ -29,3 +29,17 @@ export function withFocus(tags: unknown, focus: Focus[]): string | null {
   const next = [...kept, ...FOCUSES.filter((f) => focus.includes(f))]
   return next.length ? next.join(', ') : null
 }
+
+// The side an event is on: World Pharma AI's are Pharma, World Health AI's
+// Health. A contact with no Health or Pharma tag of their own takes the side
+// of the events they are in, so a company in both directories has its
+// people split without anyone tagging them; a tag, once set, wins.
+export function focusOfEvent(event: unknown): Focus | null {
+  const e = String(event ?? '')
+  if (/world pharma ai|\bwpai\b/i.test(e)) return 'Pharma'
+  if (/world health ai|\bwhai\b/i.test(e)) return 'Health'
+  return null
+}
+
+// What counts for a person: their own tags, else their events' sides.
+export const effectiveFocus = (x: { focus?: Focus[]; focusAuto?: Focus[] }): Focus[] => (x.focus?.length ? x.focus : x.focusAuto ?? [])

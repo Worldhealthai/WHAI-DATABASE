@@ -22,7 +22,7 @@ import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 import { FocusToggle } from '@/components/crm/FocusToggle'
-import type { Focus } from '@/lib/contactFocus'
+import { effectiveFocus, type Focus } from '@/lib/contactFocus'
 
 interface Segments {
   accounts: Account[]
@@ -148,7 +148,7 @@ const personFilterOn = (f: PersonFilter) => !!(f.titles.length || f.doing || f.f
 const doingPasses = (m: Member, f: PersonFilter) => !f.doing || m.records.some((r) => DOING[r.relationship] === f.doing)
 function personPasses(m: Member, f: PersonFilter): boolean {
   if (f.titles.length && !f.titles.some((t) => tokenMatches(m.jobTitle, t))) return false
-  if (f.focus && !(m.focus ?? []).includes(f.focus)) return false
+  if (f.focus && !effectiveFocus(m).includes(f.focus)) return false
   return doingPasses(m, f)
 }
 
@@ -161,7 +161,7 @@ type Where = 'none' | 'year' | 'event'
 const whereOf = (event: string | null | undefined, where: Where) =>
   !event || where === 'none' ? '' : where === 'year' ? ` ${event.match(/20\d{2}/)?.[0] ?? shortEvent(event)}` : ` · ${shortEvent(event)}`
 
-function Members({ members, query, company, add, where }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where }) {
+function Members({ members, query, company, add, where, account }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account }) {
   return (
     <ul className="flex flex-col">
       {members.map((m) => {
@@ -179,14 +179,87 @@ function Members({ members, query, company, add, where }: { members: Member[]; q
                 </Link>
               ))}
             </span>
-            <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} size="xs" />
+            <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" />
             {add?.event && !m.records.some((r) => r.relationship === 'Speaker' && add.inYear(r)) && (
               <AddButton label="Speaker pipeline" busy={add.busy === `speaker:${m.key}`} done={add.done.has(`speaker:${m.key}`)} onClick={() => add.addSpeaker(m, company === NO_COMPANY_NAME ? '' : company)} />
             )}
           </li>
         )
       })}
+      {account && account.key !== '__none' && <AddContact account={account} />}
     </ul>
+  )
+}
+
+// A new person at the company, for Health or Pharma (/api/directory-contact):
+// for a company in the Health directory, its Pharma contact, and back.
+function AddContact({ account }: { account: Account }) {
+  const qc = useQueryClient()
+  const sides = account.sides ?? []
+  // The side it is missing, else Pharma.
+  const [open, setOpen] = useState(false)
+  const [side, setSide] = useState<Focus>(sides.length === 1 && sides[0] === 'Pharma' ? 'Health' : 'Pharma')
+  const [f, setF] = useState({ firstName: '', lastName: '', jobTitle: '', email: '' })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const sponsorIds = Array.from(new Set((account.members ?? []).flatMap((m) => m.records).filter((r) => r.relationship === 'Sponsor' && r.table === 'sponsors').map((r) => r.id)))
+  const save = async () => {
+    setBusy(true); setMsg(null)
+    try {
+      const res = await fetch('/api/directory-contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ company: account.name, sponsorIds, focus: side, ...f }) })
+      const j = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(j?.error || 'Could not add them')
+      setMsg({ ok: true, text: `Added as a ${side} contact${j?.event ? ` (${shortEvent(j.event)})` : ''}` })
+      setF({ firstName: '', lastName: '', jobTitle: '', email: '' })
+      setOpen(false)
+      qc.invalidateQueries({ queryKey: ['ws-segments'] })
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : 'Could not add them' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  const input = (k: keyof typeof f, ph: string, type = 'text') => (
+    <input className="ws-input h-8 text-[13px] min-w-0 flex-1 basis-[140px]" type={type} placeholder={ph} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} />
+  )
+  return (
+    <li className="py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)' }}>
+      {!open ? (
+        <span className="flex flex-wrap items-center gap-3">
+          <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2" style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
+            <Plus className="w-3.5 h-3.5" /> Add contact
+          </button>
+          {msg && <span className="text-[12px]" style={{ color: msg.ok ? 'var(--ok)' : 'var(--bad)' }}>{msg.text}</span>}
+        </span>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px] font-medium" style={{ color: 'var(--fg-3)' }}>New contact for</span>
+            <Segmented size="sm" value={side} onChange={(v) => setSide(v as Focus)} options={[{ value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {input('firstName', 'First name')}{input('lastName', 'Last name')}{input('jobTitle', 'Job title')}{input('email', 'Email', 'email')}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="ws-btn ws-btn-primary ws-btn-sm" disabled={busy || !(f.firstName || f.lastName || f.email)} onClick={save}>
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Add
+            </button>
+            <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm" onClick={() => setOpen(false)}>Cancel</button>
+            {msg && !msg.ok && <span className="text-[12px]" style={{ color: 'var(--bad)' }}>{msg.text}</span>}
+          </div>
+        </div>
+      )}
+    </li>
+  )
+}
+
+// The sides a company is on, as small words in the brands' colours.
+function Sides({ sides }: { sides: Focus[] }) {
+  if (!sides?.length) return null
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium">
+      {sides.map((f) => <span key={f} style={{ color: `var(--ev-${f === 'Health' ? 'london' : 'pharma'}-ink)` }}>{f}</span>)}
+    </span>
   )
 }
 
@@ -294,6 +367,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const event = category ? `${eventLook(category.name).series} ${eventLook(category.name).city}` : ''
   const [type, setType] = useState<'all' | Firmographic>('all')
   const [conflicts, setConflicts] = useState(false)
+  const [both, setBoth] = useState(false)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [open, setOpen] = useState<Set<string>>(new Set())
@@ -309,9 +383,9 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   }, [q, pf])
   const rows = useMemo(() => {
     return (data?.accounts ?? []).filter((a) =>
-      (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) &&
+      (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) && (!both || (a.sides ?? []).length > 1) &&
       (filtering ? peopleOf(a).length > 0 : !q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
-  }, [data, type, conflicts, q, filtering, peopleOf])
+  }, [data, type, conflicts, both, q, filtering, peopleOf])
   // Every job title among the companies in view (by type and the other
   // people filter), with how many people hold it: what the title filter
   // offers.
@@ -352,6 +426,11 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
           <button type="button" className="ws-chip" data-active={conflicts} onClick={() => { setConflicts(!conflicts); setPage(1) }}>
             <AlertTriangle className="w-3.5 h-3.5" /> To check
           </button>
+          {everything && (
+            <button type="button" className="ws-chip" data-active={both} onClick={() => { setBoth(!both); setPage(1) }} title="Companies in both the Health and the Pharma events">
+              In Health and Pharma
+            </button>
+          )}
         </Toolbar>
         {/* The people inside: by job title, and Health or Pharma */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
@@ -384,7 +463,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         <Link href={`${PATH[a.open.table]}/${a.open.id}`} className="flex items-center gap-3 min-w-0">
                           <Initials name={a.name} size={30} />
                           <span className="min-w-0">
-                            <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>
+                            <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
                             <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
                             {a.conflict && a.disagree?.length ? (
                               <span className="block text-[11.5px] truncate" style={{ color: 'var(--warn)' }} title={a.disagree.join('\n')}>
@@ -406,7 +485,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                       <span className="hidden md:block text-right tabular text-[13.5px]">{a.people}</span>
                       <span className="hidden md:block text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
                     </div>
-                    {expanded && <Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} where={everything ? 'event' : scope === 'series' ? 'year' : 'none'} />}
+                    {expanded && <Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} where={everything ? 'event' : scope === 'series' ? 'year' : 'none'} account={a} />}
                   </div>
                 )
               })}
@@ -433,7 +512,7 @@ export function ContactsView() {
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return (data?.people ?? []).filter((p) =>
-      (type === 'all' || p.firmographic === type) && (!focus || (p.focus ?? []).includes(focus)) &&
+      (type === 'all' || p.firmographic === type) && (!focus || effectiveFocus(p).includes(focus)) &&
       (!q || p.name.toLowerCase().includes(q) || (p.email || '').includes(q) || (p.company || '').toLowerCase().includes(q) || (p.jobTitle || '').toLowerCase().includes(q)))
   }, [data, type, focus, query])
   const shown = rows.slice((page - 1) * PAGE, page * PAGE)
@@ -474,7 +553,7 @@ export function ContactsView() {
                     </Link>
                   ))}
                 </span>
-                <span className="pl-[42px] sm:pl-0"><FocusToggle key={(p.focus ?? []).join()} rows={p.focusRows ?? []} email={p.email} initial={p.focus ?? []} size="xs" /></span>
+                <span className="pl-[42px] sm:pl-0"><FocusToggle key={(p.focus ?? []).join()} rows={p.focusRows ?? []} email={p.email} initial={p.focus ?? []} auto={p.focusAuto ?? []} size="xs" /></span>
               </li>
             ))}
           </ul>
