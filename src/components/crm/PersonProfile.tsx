@@ -6,7 +6,12 @@
 // activity. Shared by /speakers/[id] and /delegates/[id]; the pages keep
 // the data and actions.
 
-import { Building2, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
+import { Building2, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2, Undo2 } from 'lucide-react'
+import { stepsBack } from '@/components/layout/NavMemory'
+import { useWorkspaceFromUrl } from '@/lib/workspace'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money, type ProfileNav } from '@/components/crm/profileParts'
@@ -32,6 +37,33 @@ const yesNo = (v: boolean | null | undefined) => partnerConsentLabel(v) || '—'
 
 export function PersonProfile(props: Props) {
   const { kind, person, nav, onEdit, onDelete, deleting, onStageChange, stageSaving, refetch } = props
+  const router = useRouter()
+  const qc = useQueryClient()
+  const ws = useWorkspaceFromUrl()
+  const [undoing, setUndoing] = useState(false)
+  // A speaker just added (still Not contacted) can be taken back out: from a
+  // leads list they go back onto it (/api/speakers/:id/undo).
+  const fromLeads = kind === 'speaker' && /(^|,)\s*lead list\s*(,|$)/i.test(person.tags || '')
+  const canUndo = kind === 'speaker' && person.status === 'Not Contacted'
+  const undo = async () => {
+    if (!confirm(fromLeads ? 'Take them out of the speaker pipeline and put them back on the leads list?' : 'Take them out of the speaker pipeline? This speaker record is removed; their other records stay.')) return
+    setUndoing(true)
+    try {
+      const res = await fetch(`/api/speakers/${person.id}/undo`, { method: 'POST' })
+      const j = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(j?.error || 'Could not undo it')
+      qc.invalidateQueries({ queryKey: ['ws-segments'] })
+      qc.invalidateQueries({ queryKey: ['ws-board'] })
+      qc.invalidateQueries({ queryKey: ['speakers'] })
+      if (j?.leadId && ws.slug) { router.replace(`/event/${ws.slug}/contacts/${j.leadId}`); return }
+      const n = stepsBack()
+      if (n > 0) window.history.go(-n)
+      else router.replace(ws.portal && ws.slug ? ws.href('production') : '/speakers')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not undo it')
+      setUndoing(false)
+    }
+  }
   const def = KINDS[kind]
   const name = [person.firstName, person.lastName].filter(Boolean).join(' ') || person.email || 'Unnamed'
   const look = person.event ? eventParts(person.event).look : null
@@ -78,6 +110,11 @@ export function PersonProfile(props: Props) {
           <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
             <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
             <TypeRoleButton kind={kind} id={person.id} name={name || 'this person'} subType={person.subType} />
+            {canUndo && (
+              <button onClick={undo} disabled={undoing} className="ws-btn ws-btn-sm" title={fromLeads ? 'Back onto the leads list' : 'Remove this speaker record'}>
+                {undoing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5" />} {fromLeads ? 'Undo: back to leads' : 'Remove from speaker pipeline'}
+              </button>
+            )}
             <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>
               {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
             </button>
