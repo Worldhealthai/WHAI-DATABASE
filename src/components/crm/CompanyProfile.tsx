@@ -15,6 +15,9 @@ import { focusOf, focusOfEvent, type Focus } from '@/lib/contactFocus'
 import type { Sponsor, SponsorContact } from '@/types'
 import { PersonRolesLine } from './PersonRoles'
 import { EnquiryCard } from './EnquiryCard'
+import { IntelPanel } from '@/components/workspace/IntelPanel'
+import { companyKey } from '@/lib/segments'
+import { eventSlug } from '@/lib/portals'
 
 type Kind = 'sponsor' | 'partner'
 type Company = Sponsor & { activities: any[]; contacts: SponsorContact[] }
@@ -54,6 +57,9 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
   const people = [...(primary ? [{ c: primary, isPrimary: true }] : []), ...(company.contacts ?? []).map((c) => ({ c, isPrimary: false }))]
   const look = company.event ? eventParts(company.event).look : null
   const accent = look?.accent ?? 'var(--accent)'
+  // The event's workspace, so the intelligence panel's links open company
+  // pages inside it; this page itself sits outside the workspace.
+  const wsSlug = company.event ? eventSlug(company.event.replace(/\b20\d{2}\b/, '').trim()) : null
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-4">
@@ -99,6 +105,9 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
         </div>
         <EventTabs kind={kind} id={company.id} current={company.event ?? null} addNote="Each event gets its own record of the company, starting at Not contacted, with the contacts copied." />
       </header>
+
+      {/* What the intelligence layer knows about the company, with its sources */}
+      <IntelPanel companyKey={companyKey(company.companyName)} name={company.companyName} slug={wsSlug} />
 
       {/* This event's stage and deal */}
       <section className="ws-card p-5">
