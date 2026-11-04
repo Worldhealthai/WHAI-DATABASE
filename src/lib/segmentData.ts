@@ -11,11 +11,12 @@ type Row = Record<string, any>
 // events null: every event.
 // Pages of 1,000 (the API's cap), four at a time: the leads lists run to
 // thousands of rows.
-async function all(table: string, select: string, events: string[] | null): Promise<Row[]> {
+async function all(table: string, select: string, events: string[] | null, like?: [string, string]): Promise<Row[]> {
   const out: Row[] = []
   const page = async (from: number) => {
     let q = supabase.from(table).select(select)
     if (events) q = q.in('event', events)
+    if (like) q = q.ilike(like[0], like[1])
     const { data, error } = await q.order('id').range(from, from + 999)
     if (error) throw error
     return (data ?? []) as unknown as Row[]
@@ -46,13 +47,16 @@ async function paidEmails(emails: string[]): Promise<Set<string>> {
 
 const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
-export async function loadContacts(events: string[] | null): Promise<SegmentContact[]> {
+// With `company`, only the records whose company name contains it (every
+// event): one company's page (/api/companies), sorted by companyKey after.
+export async function loadContacts(events: string[] | null, opts: { company?: string } = {}): Promise<SegmentContact[]> {
   if (events && !events.length) return []
+  const like = (col: string): [string, string] | undefined => (opts.company ? [col, `%${opts.company.replace(/[\\%_]/g, '\\$&')}%`] : undefined)
   const [companies, speakers, delegates, leads] = await Promise.all([
-    all('sponsors', 'id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"', events),
-    all('speakers', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, country, "updatedAt"', events),
-    all('delegates', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, "ticketType", country, "updatedAt"', events),
-    all('leads', 'id, event, "companyName", "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", segment, country, website, notes, "updatedAt"', events),
+    all('sponsors', 'id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"', events, like('companyName')),
+    all('speakers', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, country, "updatedAt"', events, like('organization')),
+    all('delegates', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, "ticketType", country, "updatedAt"', events, like('organization')),
+    all('leads', 'id, event, "companyName", "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", segment, country, website, notes, "updatedAt"', events, like('companyName')),
   ])
   // Sponsors: the company rows of the edition, each with its own contact,
   // then the extra contacts that hang off them (companyId), whatever event
@@ -60,8 +64,9 @@ export async function loadContacts(events: string[] | null): Promise<SegmentCont
   const sponsorCompanies = companies.filter((c) => !c.companyId && !['Media Partner', 'Association Partner'].includes(String(c.tier)))
   const ids = sponsorCompanies.map((c) => c.id)
   // Every event: the contact rows are already in hand.
-  const extra: Row[] = events ? [] : companies.filter((c) => c.companyId)
-  for (let i = 0; events && i < ids.length; i += 200) {
+  const fetchExtra = !!events || !!opts.company
+  const extra: Row[] = fetchExtra ? [] : companies.filter((c) => c.companyId)
+  for (let i = 0; fetchExtra && i < ids.length; i += 200) {
     const { data, error } = await supabase
       .from('sponsors')
       .select('id, "companyId", "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"')

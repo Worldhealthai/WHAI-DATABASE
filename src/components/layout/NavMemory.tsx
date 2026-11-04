@@ -8,7 +8,7 @@
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
-const PROFILE = /^\/(sponsors|partners|speakers|delegates|leads)\/[^/]+\/?$/
+const PROFILE = /^\/((sponsors|partners|speakers|delegates)\/[^/]+|event\/[^/]+\/(companies|contacts)\/[^/]+)\/?$/
 
 let sawPage = false   // a page that is not a profile, this load
 let run = 0           // profiles in a row since it
