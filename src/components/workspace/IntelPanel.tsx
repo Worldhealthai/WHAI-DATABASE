@@ -75,11 +75,14 @@ export function useIntelCards(): IntelCards {
         try {
           const r = await fetch(`/api/intel/cards?keys=${encodeURIComponent(batch.join(','))}`)
           if (!r.ok) throw new Error('intel cards')
-          const j = (await r.json()) as { cards: IntelCard[] }
+          const j = (await r.json()) as { cards?: IntelCard[] }
+          // Read outside the state update, so a malformed answer is caught here
+          // instead of breaking the page while it renders.
+          const list = Array.isArray(j?.cards) ? j.cards : []
           setCards((m) => {
             const next = new Map(m)
             for (const k of batch) next.set(k, null)
-            for (const c of j.cards) next.set(c.crmKey, c)
+            for (const c of list) next.set(c.crmKey, c)
             return next
           })
         } catch {
@@ -91,7 +94,7 @@ export function useIntelCards(): IntelCards {
     void run()
   }, [])
   const cardFor = useCallback((key: string, name: string): IntelCard | null => cards.get(key) ?? cards.get(companyKey(name) ?? '') ?? null, [cards])
-  return { cardFor, ask, failed, categories: cats.data?.categories ?? [], known: cards }
+  return { cardFor, ask, failed, categories: Array.isArray(cats.data?.categories) ? cats.data.categories : [], known: cards }
 }
 
 // Asks for these keys' cards whenever they change; true once every one of

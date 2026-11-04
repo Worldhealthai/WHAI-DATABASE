@@ -12,6 +12,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
@@ -20,7 +21,7 @@ import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/
 import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
-import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
+import { EmptyState, Field, Initials, Modal, Segmented, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 import { FocusToggle } from '@/components/crm/FocusToggle'
@@ -425,8 +426,70 @@ const COMPANY_GRID: Record<string, string> = {
 
 // Companies (the series, or the edition), or with `everything` the
 // Directory: every company in every event.
+// A new company, from Companies or the Directory: its name, type, website
+// and country, and optionally its first contact. It joins no pipeline; it
+// opens on its own profile, from where it goes into Sales or Production.
+function AddCompanyModal({ onClose }: { onClose: () => void }) {
+  const { category, year, slug } = useWorkspace()
+  const router = useRouter()
+  const qc = useQueryClient()
+  const event = category && year ? editionLabel(category.name, year) : null
+  const [f, setF] = useState({ name: '', website: '', country: '', segment: 'Solution Provider' as Firmographic, firstName: '', lastName: '', jobTitle: '', email: '', phone: '' })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const [existing, setExisting] = useState<{ key: string; name: string } | null>(null)
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }))
+  const save = async () => {
+    setSaving(true); setErr(''); setExisting(null)
+    try {
+      const r = await fetch('/api/companies', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: f.name, website: f.website, country: f.country, segment: f.segment, event, contact: { firstName: f.firstName, lastName: f.lastName, jobTitle: f.jobTitle, email: f.email, phone: f.phone } }),
+      })
+      const j = await r.json().catch(() => null)
+      if (r.status === 409 && j?.existing) { setExisting(j.existing); throw new Error(j.error) }
+      if (!r.ok) throw new Error(j?.error || 'Could not add the company')
+      qc.invalidateQueries({ queryKey: ['ws-segments'] })
+      const href = companyHref(slug, { key: j.key, name: j.name })
+      onClose()
+      if (href) router.push(href)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not add the company')
+      setSaving(false)
+    }
+  }
+  const existingHref = existing ? companyHref(slug, existing) : null
+  return (
+    <Modal title="Add company" subtitle={event ? `In ${event}, on no pipeline yet` : undefined} onClose={onClose} width="max-w-2xl"
+      footer={<>
+        {err && <span className="text-[12px] mr-auto" style={{ color: 'var(--bad)' }}>{err}{existingHref && <> · <Link href={existingHref} className="underline underline-offset-4" onClick={onClose}>Open it</Link></>}</span>}
+        <button type="button" className="ws-btn ws-btn-ghost" onClick={onClose}>Cancel</button>
+        <button type="button" className="ws-btn ws-btn-primary" onClick={save} disabled={saving || !f.name.trim()}>{saving && <Loader2 className="w-4 h-4 animate-spin" />} Add company</button>
+      </>}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Company name" span><input className="ws-input" value={f.name} onChange={set('name')} autoFocus /></Field>
+        <Field label="Type" span>
+          <Segmented size="sm" value={f.segment} onChange={(v) => setF((p) => ({ ...p, segment: v as Firmographic }))}
+            options={[{ value: 'Solution Provider', label: 'Solution Provider' }, { value: 'End User', label: 'End User' }]} />
+        </Field>
+        <Field label="Website"><input className="ws-input" value={f.website} onChange={set('website')} placeholder="example.com" /></Field>
+        <Field label="Country"><input className="ws-input" value={f.country} onChange={set('country')} /></Field>
+      </div>
+      <p className="text-[12px] font-medium mt-5 mb-2" style={{ color: 'var(--fg-3)' }}>First contact <span className="font-normal" style={{ color: 'var(--fg-4)' }}>(optional)</span></p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="First name"><input className="ws-input" value={f.firstName} onChange={set('firstName')} /></Field>
+        <Field label="Last name"><input className="ws-input" value={f.lastName} onChange={set('lastName')} /></Field>
+        <Field label="Job title"><input className="ws-input" value={f.jobTitle} onChange={set('jobTitle')} /></Field>
+        <Field label="Email"><input className="ws-input" type="email" value={f.email} onChange={set('email')} /></Field>
+        <Field label="Phone"><input className="ws-input" type="tel" value={f.phone} onChange={set('phone')} /></Field>
+      </div>
+    </Modal>
+  )
+}
+
 export function CompaniesView({ everything = false }: { everything?: boolean }) {
   const { category, slug, year } = useWorkspace()
+  const [adding, setAdding] = useState(false)
   // Kept for the tab's session, so Back from a profile finds it as it was.
   const sk = `${everything ? 'directory' : 'companies'}.${everything ? '' : slug}`
   const [picked, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
@@ -520,6 +583,8 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
           <button type="button" className="ws-btn" disabled={!rows.length} onClick={exportCompanies} title="Download these companies and their people as a CSV">
             <Download className="w-4 h-4" /> Export
           </button>
+          <button type="button" className="ws-btn ws-btn-primary" onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add company</button>
+          {adding && <AddCompanyModal onClose={() => setAdding(false)} />}
         </>
       }
     >
