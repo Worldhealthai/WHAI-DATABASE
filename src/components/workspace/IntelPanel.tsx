@@ -128,17 +128,20 @@ const num = (n: number) => n.toLocaleString('en-GB')
 const CONF: Record<Confidence, string> = { high: 'High', medium: 'Medium', low: 'Low' }
 const CONF_INK: Record<Confidence, string> = { high: 'var(--ok)', medium: 'var(--warn)', low: 'var(--line-3)' }
 
-// How old a piece of evidence is, said only once it is more than eighteen
-// months old: "2½ yrs ago".
+// How old a piece of evidence is, said only once it is more than a year
+// old: "2½ yrs". Shown muted, the same on every row and every screen.
 function evidenceAge(iso: string | null | undefined): string | null {
   if (!iso) return null
   const months = (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-  if (!Number.isFinite(months) || months < 18) return null
+  if (!Number.isFinite(months) || months < 12) return null
   const half = Math.round(months / 6) / 2
   const whole = Math.floor(half)
   const text = half - whole === 0.5 ? `${whole}½` : String(whole)
-  return `${text} ${half === 1 ? 'yr' : 'yrs'} ago`
+  return `${text} ${half === 1 ? 'yr' : 'yrs'}`
 }
+
+// "aidoc.com" from a page's address, for a link that says where it goes.
+const domainOf = (url: string | null | undefined) => { try { return url ? new URL(url).hostname.replace(/^www\./, '') : null } catch { return null } }
 
 // How sure we are, and whether a person has checked it: "High ✓ verified",
 // or "High" alone while nobody has (the tooltip says so).
@@ -149,7 +152,7 @@ function ConfidenceMark({ level, verifiedBy, verifiedAt }: { level: Confidence |
     <span className="inline-flex items-center gap-1.5 text-[12px] whitespace-nowrap" style={{ color: 'var(--fg-3)' }} title={title}>
       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CONF_INK[level] }} />
       {CONF[level]}
-      {verifiedBy && <span className="inline-flex items-center gap-1" style={{ color: 'var(--fg-2)' }}><Check className="w-3 h-3" style={{ color: 'var(--ok)' }} /> verified</span>}
+      {verifiedBy && <Check className="w-3 h-3" style={{ color: 'var(--ok)' }} aria-label="Verified" />}
     </span>
   )
 }
@@ -189,12 +192,14 @@ function Status({ d }: { d: Deployment }) {
 }
 
 // A card in the sidebar: a small heading with its count, an optional note
-// as a tooltip on the heading, and rows underneath.
-function SideCard({ title, count, note, children, className = '', foot }: { title: string; count?: React.ReactNode; note?: string; children: React.ReactNode; className?: string; foot?: React.ReactNode }) {
+// as a tooltip on the heading, an optional small line under it (where the
+// figures come from), and rows underneath.
+function SideCard({ title, count, note, sub, children, className = '', foot }: { title: string; count?: React.ReactNode; note?: string; sub?: React.ReactNode; children: React.ReactNode; className?: string; foot?: React.ReactNode }) {
   return (
     <section className={`ws-card overflow-hidden ${className}`}>
-      <div className="px-4 pt-3 pb-1.5 flex items-baseline justify-between gap-3">
+      <div className="px-4 pt-3 pb-1.5 flex flex-col gap-0.5">
         <h2 className="text-[13.5px] font-semibold" style={{ color: 'var(--fg)' }} title={note}>{title} {count != null && <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{count}</span>}</h2>
+        {sub && <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{sub}</p>}
       </div>
       {children}
       {foot}
@@ -218,14 +223,25 @@ export function IntelStrip({ c }: { c: IntelCompany }) {
     facts.push({ label: 'Funding', value: [c.funding.totalUsd ? usd(c.funding.totalUsd) : null, last].filter(Boolean).join(' · '), title: `${c.funding.source.label}${c.funding.source.date ? `, ${monthYear(c.funding.source.date)}` : ''}; ${CONF[c.funding.confidence].toLowerCase()} confidence` })
   }
   if (c.revenueBand && (c.revenueBand.minUsd || c.revenueBand.maxUsd)) facts.push({ label: 'Revenue', value: [c.revenueBand.minUsd, c.revenueBand.maxUsd].filter((n): n is number => n != null).map(usd).join('–'), title: `${c.revenueBand.source.label}${c.revenueBand.source.date ? `, ${monthYear(c.revenueBand.source.date)}` : ''}` })
-  if (c.beds) facts.push({ label: 'Beds', value: `about ${num(c.beds)}`, title: `${c.sourceKind === 'seed' ? 'Seed data' : 'WNG Intelligence dataset'}, unverified` })
+  const bedsFrom = c.sourceKind === 'seed' ? 'seed data' : 'the WNG Intelligence dataset'
+  if (c.beds) facts.push({ label: 'Beds', value: `about ${num(c.beds)}`, title: `Beds from ${bedsFrom}${c.updatedAt ? `, ${monthYear(c.updatedAt)}` : ''}; not yet checked by anyone on the team` })
   if (c.status && c.status !== 'Active') facts.push({ label: 'Status', value: c.acquiredBy ? `${c.status} by ${c.acquiredBy}` : c.status })
-  const lusha = [c.teamFact?.source.kind === 'lusha' && 'team', c.funding?.source.kind === 'lusha' && 'funding', c.revenueBand && 'revenue'].filter(Boolean) as string[]
+  // Where the figures come from, said once at the end of the row: every
+  // figure from Lusha in one fragment, and any from elsewhere in its own.
+  const fundingShown = !!(c.funding && (c.funding.totalUsd || c.funding.lastRoundUsd))
+  const lusha = [c.teamFact?.source.kind === 'lusha' && 'team', fundingShown && c.funding?.source.kind === 'lusha' && 'funding', c.revenueBand && 'revenue'].filter(Boolean) as string[]
   if (!c.oneLiner && !facts.length && !c.categories.length) return null
-  const lushaNote = lusha.length ? `${lusha.map((w, i) => (i === 0 ? w[0].toUpperCase() + w.slice(1) : w)).join(lusha.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} from Lusha${c.teamFact?.source.date ? `, ${monthYear(c.teamFact.source.date)}` : ''}` : null
+  const notes: { text: string; title?: string }[] = []
+  if (lusha.length) notes.push({ text: `${lusha.map((w, i) => (i === 0 ? w[0].toUpperCase() + w.slice(1) : w)).join(lusha.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} from Lusha${c.teamFact?.source.date ? `, ${monthYear(c.teamFact.source.date)}` : ''}`, title: 'Team size is a LinkedIn-based estimate, not a headcount' })
+  if (fundingShown && c.funding && c.funding.source.kind !== 'lusha') notes.push({ text: `Funding from ${c.funding.source.label}${c.funding.source.date ? `, ${monthYear(c.funding.source.date)}` : ''}` })
+  if (c.beds) notes.push({ text: `Beds from ${bedsFrom}${c.updatedAt ? `, ${monthYear(c.updatedAt)}` : ''}` })
   return (
     <div className="px-4 sm:px-5 py-3 flex flex-col gap-1.5" style={{ borderTop: '1px solid var(--line)' }}>
-      {c.oneLiner && <p className="text-[13.5px]" style={{ color: 'var(--fg-2)' }}>{c.oneLiner}</p>}
+      {c.oneLiner && (
+        <p className="text-[13.5px]" style={{ color: 'var(--fg-2)' }}>
+          {c.oneLiner} <span className="text-[11.5px] whitespace-nowrap" style={{ color: 'var(--fg-4)' }} title="The one-line summary as the WNG Intelligence dataset holds it">from the WNG dataset</span>
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
         {c.categories.length > 0 && (
           <span className="inline-flex flex-wrap gap-1.5">
@@ -238,7 +254,7 @@ export function IntelStrip({ c }: { c: IntelCompany }) {
             <span style={{ color: 'var(--fg-2)' }}>{f.value}</span>
           </span>
         ))}
-        {lushaNote && <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }} title="Team size is a LinkedIn-based estimate, not a headcount">{lushaNote}</span>}
+        {notes.map((n) => <span key={n.text} className="text-[11.5px]" style={{ color: 'var(--fg-4)' }} title={n.title}>{n.text}</span>)}
       </div>
     </div>
   )
@@ -330,7 +346,8 @@ export function shortReasons(reasons: unknown[]): string {
   const out: string[] = []
   for (const r of reasons) {
     const raw = reasonText(r).replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim()
-    const t = (raw.charAt(0).toLowerCase() + raw.slice(1)).replace(/^same categories$/i, 'same category')
+    // Only a leading generic word is lower-cased; a proper noun keeps its case.
+    const t = (/^(Same|Similar|Both|Shared)\b/.test(raw) ? raw.charAt(0).toLowerCase() + raw.slice(1) : raw).replace(/^same categories$/i, 'same category')
     if (t && !out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t)
   }
   return out.slice(0, 3).join(' · ')
@@ -339,12 +356,14 @@ export function shortReasons(reasons: unknown[]): string {
 function Similar({ c, slug, title, note, className }: { c: IntelCompany; slug: string | null; title: string; note: string; className?: string }) {
   const [all, setAll] = useState(false)
   if (!c.similarCompanies.length) return null
-  const competitors = new Set(c.competitors.filter((k) => k.review === 'confirmed').map((k) => k.key))
+  const confirmed = new Map(c.competitors.filter((k) => k.review === 'confirmed').map((k) => [k.key, k]))
   const asOf = c.similarCompanies.find((s) => s.teamAsOf)?.teamAsOf
   const rows = all ? c.similarCompanies : c.similarCompanies.slice(0, SIDE_KEEP)
   const hidden = c.similarCompanies.length - rows.length
+  const sized = c.similarCompanies.some((s) => s.team != null)
   return (
-    <SideCard title={title} count={c.similarCompanies.length} note={`${note}${asOf ? ` · team sizes LinkedIn via Lusha, ${monthYear(asOf)}` : ''}`} className={className}
+    <SideCard title={title} count={c.similarCompanies.length} note={note} className={className}
+      sub={sized ? `Team sizes from Lusha${asOf ? `, ${monthYear(asOf)}` : ''} · LinkedIn-based estimates` : undefined}
       foot={hidden > 0 && (
         <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm w-full !justify-start !rounded-none !h-9 !px-4" style={{ borderTop: '1px solid var(--line)', color: 'var(--fg-3)' }} onClick={() => setAll(true)}>
           Show {hidden} more <ChevronDown className="w-3.5 h-3.5" />
@@ -357,14 +376,19 @@ function Similar({ c, slug, title, note, className }: { c: IntelCompany; slug: s
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 min-w-0">
                 <Link href={companyPath(slug, s.key, s.name)} className="text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={s.oneLiner ?? undefined}>{s.name}</Link>
-                {competitors.has(s.key) && <span className="shrink-0 px-1.5 py-px rounded-md text-[11px]" style={{ border: '1px solid var(--line)', color: 'var(--fg-3)' }} title="A confirmed competitor">Competitor</span>}
+                {confirmed.has(s.key) && (
+                  <span className="shrink-0 px-1.5 py-px rounded-md text-[11px] whitespace-nowrap" style={{ border: '1px solid var(--line)', color: 'var(--fg-3)' }}
+                    title={`Confirmed as a competitor${confirmed.get(s.key)?.reviewedBy ? ` by ${confirmed.get(s.key)!.reviewedBy}` : ''}${confirmed.get(s.key)?.reviewedAt ? `, ${fmtDate(confirmed.get(s.key)!.reviewedAt)}` : ''}`}>
+                    Confirmed competitor
+                  </span>
+                )}
               </span>
               {(s.team != null || s.country) && (
-                <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }} title={s.team != null ? `About ${num(s.team)}, LinkedIn via Lusha${s.teamAsOf ? `, ${monthYear(s.teamAsOf)}` : ''}` : undefined}>
+                <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }} title={s.team != null ? `About ${num(s.team)}, LinkedIn via Lusha${s.teamAsOf ? `, ${monthYear(s.teamAsOf)}` : ''}; an estimate, not a headcount` : undefined}>
                   {s.team != null ? `Team about ${num(s.team)}${s.country ? ' · ' : ''}` : ''}{s.country ?? ''}
                 </span>
               )}
-              {s.reasons.length > 0 && <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }} title={s.reasons.map(reasonText).join(' · ')}>{shortReasons(s.reasons)}</span>}
+              {s.reasons.length > 0 && <span className="text-[11.5px] line-clamp-2" style={{ color: 'var(--fg-4)' }} title={s.reasons.map(reasonText).join(' · ')}>{shortReasons(s.reasons)}</span>}
             </span>
           </li>
         ))}
@@ -402,17 +426,17 @@ function Competitors({ c, slug, className }: { c: IntelCompany; slug: string | n
                 <Initials name={k.name} size={26} />
                 <span className="min-w-0 flex-1">
                   <Link href={companyPath(slug, k.key, k.name)} className="block text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={k.oneLiner ?? undefined}>{k.name}</Link>
-                  <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }}>
+                  <span className="text-[11.5px] line-clamp-2" style={{ color: 'var(--fg-4)' }}>
                     {st === 'rejected' ? 'Not a competitor · noted'
                       : st === 'confirmed' ? <><Check className="inline w-3 h-3 align-[-2px] mr-0.5" style={{ color: 'var(--ok)' }} /> Confirmed by {k.reviewedBy ?? 'you'}{k.reviewedAt ? `, ${fmtDate(k.reviewedAt)}` : decided[k.key] ? ', just now' : ''}</>
-                      : <>{k.source.label}{k.source.date ? `, ${fmtDate(k.source.date)}` : ''}</>}
+                      : <Provenance source={k.source} />}
                   </span>
                 </span>
               </span>
               {st === 'suggested' && (
                 <span className="flex items-center gap-1 pl-[36px]">
-                  <button type="button" className="ws-btn ws-btn-sm !h-7 !px-2" disabled={busy === k.key} onClick={() => decide(k, 'confirmed')}>{busy === k.key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Confirm</button>
-                  <button type="button" className="ws-btn ws-btn-sm ws-btn-ghost !h-7 !px-2" disabled={busy === k.key} onClick={() => decide(k, 'rejected')}><X className="w-3.5 h-3.5" /> Not a competitor</button>
+                  <button type="button" className="ws-btn ws-btn-sm ws-tap !h-7 !px-2" disabled={busy === k.key} onClick={() => decide(k, 'confirmed')}>{busy === k.key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Confirm</button>
+                  <button type="button" className="ws-btn ws-btn-sm ws-btn-ghost ws-tap !h-7 !px-2" disabled={busy === k.key} onClick={() => decide(k, 'rejected')}><X className="w-3.5 h-3.5" /> Not a competitor</button>
                 </span>
               )}
             </li>
@@ -421,6 +445,20 @@ function Competitors({ c, slug, className }: { c: IntelCompany; slug: string | n
       </ul>
       {err && <p className="px-4 py-2 text-[12px]" style={{ color: 'var(--bad)', borderTop: '1px solid var(--line)' }}>{err}</p>}
     </SideCard>
+  )
+}
+
+// Where a suggestion came from, with the page as a link so it can be
+// checked: "Suggested by AI · aidoc.com ↗ · 3 Oct 2026".
+function Provenance({ source }: { source: Source }) {
+  const domain = domainOf(source.url)
+  const label = /^(suggested )?by ai/i.test(source.label) || source.kind === 'llm' ? 'Suggested by AI' : source.label.replace(/\s*\([^)]*\)/g, '')
+  return (
+    <>
+      {label}
+      {domain && source.url && <> · <a href={source.url} target="_blank" rel="noopener noreferrer" className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }} title={source.url}>{domain}<ExternalLink className="inline-block align-[-2px] ml-0.5 w-3 h-3" /></a></>}
+      {source.date && <span className="whitespace-nowrap"> · {fmtDate(source.date)}</span>}
+    </>
   )
 }
 
@@ -436,12 +474,16 @@ function Signals({ c, className }: { c: IntelCompany; className?: string }) {
       <ul className="flex flex-col pb-1">
         {rows.map((s, i) => {
           const date = s.date ?? s.source.date
-          const body = <span className="block text-[13px] truncate" style={{ color: 'var(--fg)' }} title={s.headline}>{s.headline}</span>
+          const domain = domainOf(s.source.url)
+          const body = <span className="text-[13px] line-clamp-2" style={{ color: 'var(--fg)' }} title={s.headline}>{s.headline}</span>
           return (
             <li key={s.id ?? i} className="px-4 py-1.5 min-w-0">
               <span className="flex items-baseline justify-between gap-3 text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
                 <span className="font-medium">{s.type}</span>
-                {date && <span className="shrink-0">{fmtDate(date)}</span>}
+                <span className="shrink-0 whitespace-nowrap">
+                  {date && fmtDate(date)}
+                  {s.source.url && <> · <a href={s.source.url} target="_blank" rel="noopener noreferrer" className="hover:underline underline-offset-4" title={s.source.label}>{domain ?? s.source.label}<ExternalLink className="inline-block align-[-2px] ml-0.5 w-3 h-3" /></a></>}
+                </span>
               </span>
               {s.source.url ? <a href={s.source.url} target="_blank" rel="noopener noreferrer" className="block min-w-0 hover:underline underline-offset-4" title={`${s.headline}\n${s.source.label}`}>{body}</a> : body}
             </li>
@@ -476,13 +518,23 @@ function Evidence({ d }: { d: Deployment }) {
     )
   }
   const e = d.evidence
+  // The source type alone in the cell ("Trust news"); the publisher's
+  // domain and the full date stay in the tooltip.
   const short = e.label.replace(/\s*\([^)]*\)/g, '').replace(/\s*,\s*via Lusha.*$/i, '')
   const age = evidenceAge(e.date)
-  const title = `${e.label}${e.date ? `, ${fmtDate(e.date)}` : ''}${age ? ` (${age})` : ''}${e.url ? `\n${e.url}` : ''}`
-  const text = <>{short}{e.date && <span style={{ color: 'var(--fg-4)' }}> · {fmtDate(e.date)}</span>}{age && <span style={{ color: 'var(--warn)' }}> · {age}</span>}</>
+  const title = `${e.label}${e.date ? `, ${fmtDate(e.date)}` : ''}${age ? ` (${age} old)` : ''}${e.url ? `\n${e.url}` : ''}`
+  // Two spans in a row: the label gives way first, the date never does.
+  const text = (
+    <>
+      <span className="truncate min-w-0">{short}</span>
+      {e.date && <span className="shrink-0 tabular whitespace-nowrap" style={{ color: 'var(--fg-4)' }}>&nbsp;· {monthYear(e.date)}</span>}
+      {e.url && <ExternalLink className="shrink-0 ml-1 w-3 h-3" style={{ color: 'var(--fg-4)' }} />}
+    </>
+  )
+  const cls = 'flex items-center text-[12px] min-w-0 max-w-full'
   return e.url
-    ? <a href={e.url} target="_blank" rel="noopener noreferrer" className="block text-[12px] truncate hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }} title={title}>{text}<ExternalLink className="inline-block align-[-2px] ml-1 w-3 h-3" style={{ color: 'var(--fg-4)' }} /></a>
-    : <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }} title={title}>{text}</span>
+    ? <a href={e.url} target="_blank" rel="noopener noreferrer" className={`${cls} hover:underline underline-offset-4`} style={{ color: 'var(--fg-3)' }} title={title}>{text}</a>
+    : <span className={cls} style={{ color: 'var(--fg-3)' }} title={title}>{text}</span>
 }
 
 // A proposed row with evidence can be verified or rejected here; a verdict
@@ -495,9 +547,9 @@ function Verdict({ d, onDone }: { d: Deployment; onDone: (v: 'verified' | 'rejec
     try { await review('deployment', { id: d.id, verdict }); onDone(verdict) } catch { /* the row keeps its state; the next load says what the database holds */ } finally { setBusy(null) }
   }
   return (
-    <span className="inline-flex items-center gap-0.5">
-      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1.5" disabled={!!busy} onClick={() => go('verified')} title="The evidence says this; mark it verified">{busy === 'verified' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Verify</button>
-      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1.5" disabled={!!busy} onClick={() => go('rejected')} title="The evidence does not support this; drop it" aria-label="Reject"><X className="w-3 h-3" /></button>
+    <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !h-7 !px-1.5" disabled={!!busy} onClick={() => go('verified')} title="The evidence says this; mark it verified">{busy === 'verified' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Verify</button>
+      <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap !h-7 !px-1.5" disabled={!!busy} onClick={() => go('rejected')} title="The evidence does not support this; drop it" aria-label="Reject"><X className="w-3 h-3" /></button>
     </span>
   )
 }
@@ -517,11 +569,12 @@ function DeploymentsTable({ rows: given, slug, side }: { rows: Deployment[]; slu
     const o = other(d)
     return (
       <tr key={d.id}>
-        <td className="!pl-5 !py-2"><Link href={companyPath(slug, o.key, o.name)} className="block font-medium truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={o.name}>{o.name}</Link></td>
-        <td className="!py-2"><span className="block text-[13px] truncate" style={{ color: 'var(--fg-2)' }} title={d.useCase}>{d.useCase}</span></td>
-        <td className="!py-2"><Status d={d} /></td>
-        <td className="!py-2"><Evidence d={d} /></td>
-        <td className="!pr-5 !py-2"><span className="flex items-center justify-between gap-2">{conf(d)}<Verdict d={d} onDone={done(d)} /></span></td>
+        <td className="!pl-5 !py-2 !pr-3"><Link href={companyPath(slug, o.key, o.name)} className="text-[13px] font-medium leading-snug line-clamp-2 hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={o.name}>{o.name}</Link></td>
+        <td className="!py-2 !pr-3"><span className="text-[13px] leading-snug line-clamp-2" style={{ color: 'var(--fg-2)' }} title={d.useCase}>{d.useCase}</span></td>
+        <td className="!py-2 !pr-3"><Status d={d} /></td>
+        <td className="!py-2 !pr-3"><Evidence d={d} /></td>
+        <td className="!py-2 !pr-2">{conf(d)}</td>
+        <td className="!pl-0 !pr-3 !py-2 text-right"><Verdict d={d} onDone={done(d)} /></td>
       </tr>
     )
   }
@@ -540,20 +593,24 @@ function DeploymentsTable({ rows: given, slug, side }: { rows: Deployment[]; slu
   }
   return (
     <>
-      {/* Desktop: a fixed table, long cells truncated with the whole in the tooltip. */}
-      <table className="ws-table ws-table-fixed hidden md:table">
-        <colgroup><col style={{ width: '22%' }} /><col /><col style={{ width: 108 }} /><col style={{ width: '23%' }} /><col style={{ width: 160 }} /></colgroup>
-        <thead>
-          <tr><th className="!pl-5 !py-2">{head}</th><th className="!py-2">Use case</th><th className="!py-2" title={STATUS_NOTE}>Status</th><th className="!py-2">Evidence</th><th className="!pr-5 !py-2">Confidence</th></tr>
-        </thead>
-        <tbody>
-          {sourced.map(tr)}
-          {unsourced.length > 0 && (
-            <tr><td colSpan={5} className="!pl-5 !py-1.5 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)', background: 'var(--surface-2)' }}>{alsoHeading}</td></tr>
-          )}
-          {unsourced.map(tr)}
-        </tbody>
-      </table>
+      {/* Desktop: fixed columns (the two that explain the deal get the room,
+          the actions their own column), long cells clamped with the whole in
+          the tooltip; the wrapper scrolls sideways before anything is cut. */}
+      <div className="hidden md:block overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+        <table className="ws-table ws-table-fixed" style={{ minWidth: 640 }}>
+          <colgroup><col style={{ width: '18%' }} /><col style={{ width: '21%' }} /><col style={{ width: 104 }} /><col style={{ width: '25%' }} /><col style={{ width: 90 }} /><col style={{ width: 94 }} /></colgroup>
+          <thead>
+            <tr><th className="!pl-5 !py-2 !pr-3">{head}</th><th className="!py-2 !pr-3">Use case</th><th className="!py-2 !pr-3" title={STATUS_NOTE}>Status</th><th className="!py-2 !pr-3">Evidence</th><th className="!py-2 !pr-2">Confidence</th><th className="!py-2 !pl-0 !pr-3"><span className="sr-only">Review</span></th></tr>
+          </thead>
+          <tbody>
+            {sourced.map(tr)}
+            {unsourced.length > 0 && (
+              <tr><td colSpan={6} className="!pl-5 !py-1.5 text-[11.5px] font-medium" style={{ color: 'var(--fg-4)', background: 'var(--surface-2)' }}>{alsoHeading}</td></tr>
+            )}
+            {unsourced.map(tr)}
+          </tbody>
+        </table>
+      </div>
       {/* Phone: each row stacked. */}
       <ul className="md:hidden flex flex-col">
         {sourced.map(li)}
@@ -596,15 +653,15 @@ function NotYetHere({ c, slug, className }: { c: IntelCompany; slug: string | nu
   const gaps = c.whitespace.filter((w) => !here.has(w.key) && w.evidence)
   if (!gaps.length) return null
   return (
-    <SideCard title="Not here yet" count={gaps.length} note="Vendors named in sourced announcements at similar trusts, none here" className={className}>
+    <SideCard title="Vendors at similar trusts" count={gaps.length} note="Vendors named in sourced announcements at similar trusts, and not at this one" sub="Not yet here; a prospecting cue" className={className}>
       <ul className="flex flex-col pb-1">
         {gaps.map((w) => (
           <li key={w.key} className="flex items-start gap-2.5 px-4 py-1.5 min-w-0">
             <Initials name={w.name} size={26} className="mt-0.5" />
             <span className="min-w-0 flex-1">
               <Link href={companyPath(slug, w.key, w.name)} className="block text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={w.oneLiner ?? w.useCase ?? undefined}>{w.name}</Link>
-              <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }} title={`At ${w.at}${w.useCase ? `: ${w.useCase}` : ''}`}>At {w.at}</span>
-              {w.evidence && <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }}><SourceLine source={w.evidence} className="!text-[11.5px]" showAge /></span>}
+              <span className="text-[12px] line-clamp-2" style={{ color: 'var(--fg-3)' }} title={`At ${w.at}${w.useCase ? `: ${w.useCase}` : ''}`}>At {w.at}</span>
+              {w.evidence && <span className="text-[11.5px] line-clamp-2" style={{ color: 'var(--fg-4)' }}><SourceLine source={w.evidence} className="!text-[11.5px]" showAge /></span>}
             </span>
           </li>
         ))}

@@ -290,6 +290,10 @@
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
   .tabular { font-variant-numeric: tabular-nums; }
+  /* A small button that stays small on a desk, but is a 40px tap on a phone. */
+  @media (max-width: 639px) {
+    .ws-tap { min-height: 40px !important; height: auto !important; padding: 0 12px !important; }
+  }
 }
 
 /* ── Components ─────────────────────────────────────────────────────────── */

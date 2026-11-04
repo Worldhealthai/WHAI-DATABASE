@@ -7,15 +7,16 @@
 // actions.
 //
 // Two columns on a desk (profileParts PROFILE_*): the main column is the
-// header with the ten-second strip, the stage, the contacts, what they do,
-// the hospitals named in announcements, enquiries and notes; the sticky
-// sidebar is the deal, the activity, and the companies around them. On a
-// phone it all stacks, the sidebar's cards after the contacts.
+// header with the ten-second strip, the stage with the events it is in,
+// the contacts, what they do, the hospitals named in announcements,
+// enquiries and notes; the sidebar (sticky while it fits) is the deal, the
+// activity, and the companies around them. On a phone it all stacks, the
+// sidebar's cards after the contacts.
 
 import { ArrowRightLeft, Globe, Linkedin, Loader2, Mail, Pencil, Phone, Trash2, UserPlus } from 'lucide-react'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { EventTabs, Fact, PROFILE_GRID, PROFILE_MAIN, PROFILE_SIDE, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money } from '@/components/crm/profileParts'
+import { EventTabs, Fact, PROFILE_GRID, PROFILE_MAIN, ProfileSide, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { FocusToggle } from './FocusToggle'
 import { focusOf, focusOfEvent, type Focus } from '@/lib/contactFocus'
@@ -122,18 +123,20 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
               </div>
             </div>
             {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
-            <EventTabs kind={kind} id={company.id} current={company.event ?? null} addNote="Each event gets its own record of the company, starting at Not contacted, with the contacts copied." />
           </header>
 
-          {/* This event's stage */}
-          <section className="ws-card p-4 sm:p-5 order-2">
-            <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
-              <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>
-                {company.event ? <>In {eventParts(company.event).title} <span className="font-normal" style={{ color: 'var(--fg-3)' }}>· {look?.series}</span></> : 'No event'}
-              </h2>
-              {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
+          {/* This event's stage, and the other events it is in: the stage lives in one place */}
+          <section className="ws-card overflow-hidden order-2">
+            <div className="p-4 sm:p-5">
+              <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
+                <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>
+                  {company.event ? <>In {eventParts(company.event).title} <span className="font-normal" style={{ color: 'var(--fg-3)' }}>· {look?.series}</span></> : 'No event'}
+                </h2>
+                {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
+              </div>
+              <StageBar kind={kind} status={company.status} accent={accent} disabled={stageSaving} onChange={onStageChange} at={company.updatedAt} />
             </div>
-            <StageBar kind={kind} status={company.status} accent={accent} disabled={stageSaving} onChange={onStageChange} />
+            <EventTabs kind={kind} id={company.id} current={company.event ?? null} addNote="Each event gets its own record of the company, starting at Not contacted, with the contacts copied." />
           </section>
 
           {/* Contacts: the primary first. A name opens the contact panel. */}
@@ -167,7 +170,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
           )}
         </div>
 
-        <aside className={PROFILE_SIDE}>
+        <ProfileSide>
           {/* The deal */}
           <section className="ws-card p-4 order-4">
             <h2 className="text-[13.5px] font-semibold mb-3" style={{ color: 'var(--fg)' }}>Deal</h2>
@@ -195,7 +198,7 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
 
           {/* The companies around them */}
           {intel && <IntelSidebar c={intel} slug={wsSlug} className="order-4" />}
-        </aside>
+        </ProfileSide>
       </div>
     </div>
   )
@@ -205,27 +208,29 @@ function ContactRow({ kind, companyName, event, status, c, isPrimary, actions }:
   const name = [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ') || c.contactEmail || 'Unnamed'
   const table = kind === 'partner' ? 'partners' : 'sponsors'
   const auto = [focusOfEvent(event)].filter((f): f is Focus => !!f)
+  const focus = focusOf(c.tags)
+  const focusWord = focus.length ? focus.join(' · ') : auto.join(' · ')
   return (
-    <li className="group flex items-center gap-3 px-4 sm:px-5 py-2.5 transition-colors hover:bg-[var(--surface-2)]" style={{ borderTop: '1px solid var(--line)' }}>
-      <div className="min-w-0 flex-1">
+    <li className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 sm:px-5 py-2.5 transition-colors hover:bg-[var(--surface-2)]" style={{ borderTop: '1px solid var(--line)' }}>
+      <div className="min-w-0">
         <ContactLink
           href={null}
           seed={{
             key: c.contactEmail ?? `${name}|${companyName ?? ''}`, name, email: c.contactEmail, phone: c.contactPhone, jobTitle: c.contactJobTitle, linkedinUrl: c.contactLinkedinUrl,
             company: companyName, type: 'Solution Provider',
             records: [{ relationship: 'Sponsor', table, id: c.companyId, status: status ?? null, event }],
-            focusRows: [{ table, id: c.id }], focus: focusOf(c.tags), focusAuto: auto, note: c.notes,
+            focusRows: [{ table, id: c.id }], focus, focusAuto: auto, note: c.notes,
             onEdit: () => actions.onEdit(c),
           }}
           className="flex items-center gap-3 min-w-0 w-full text-left"
         >
           <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--fg-2)' }}>{initials(name)}</span>
           <span className="min-w-0">
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 min-w-0">
               <span className="text-[13.5px] font-medium truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{name}</span>
-              {isPrimary && <span className="text-[10.5px] font-semibold uppercase tracking-wide" style={{ color: 'var(--fg-3)' }}>Primary</span>}
+              {isPrimary && <span className="shrink-0 px-1.5 py-px rounded-md text-[11.5px]" style={{ border: '1px solid var(--line)', color: 'var(--fg-4)' }} title="The company's primary contact">Primary</span>}
             </span>
-            {c.contactJobTitle && <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{c.contactJobTitle}</span>}
+            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[c.contactJobTitle, c.contactEmail].filter(Boolean).join(' · ') || '\u00a0'}</span>
           </span>
         </ContactLink>
         {/* Where else this person is: their speaker or delegate record. */}
@@ -234,16 +239,18 @@ function ContactRow({ kind, companyName, event, status, c, isPrimary, actions }:
             self={{ kind, id: c.id }}
             person={{ email: c.contactEmail, firstName: c.contactFirstName, lastName: c.contactLastName, organization: companyName }}
           />
-          {/* Which side of the business this person is for. */}
-          <div className="mt-1"><FocusToggle rows={[{ table, id: c.id }]} email={c.contactEmail} initial={focusOf(c.tags)} auto={auto} size="xs" /></div>
         </div>
       </div>
-      <div className="flex items-center gap-0.5 shrink-0">
-        {/* A pop-up to copy from, not a mailto:/tel: link. */}
-        {c.contactEmail && <CopyPopover label={`${name}'s email`} value={c.contactEmail} title={`Email: ${c.contactEmail}`}><Mail className="w-3.5 h-3.5" /></CopyPopover>}
-        {c.contactPhone && <CopyPopover label={`${name}'s phone`} value={c.contactPhone} title={`Phone: ${c.contactPhone}`}><Phone className="w-3.5 h-3.5" /></CopyPopover>}
-        {c.contactLinkedinUrl && <a href={c.contactLinkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm" title="LinkedIn" aria-label={`${name} on LinkedIn`}><Linkedin className="w-3.5 h-3.5" /></a>}
-        <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+      {/* Which side of the business they are for (one word; the toggle on
+          hover), and the actions, right-aligned and shown on hover. */}
+      <div className="flex items-center justify-end gap-2 min-w-[112px] min-h-8">
+        <span className="text-[11.5px] group-hover:hidden group-focus-within:hidden" style={{ color: 'var(--fg-4)' }}>{focusWord}</span>
+        <span className="hidden group-hover:inline-flex group-focus-within:inline-flex items-center gap-1">
+          <FocusToggle rows={[{ table, id: c.id }]} email={c.contactEmail} initial={focus} auto={auto} size="xs" />
+          {/* A pop-up to copy from, not a mailto:/tel: link. */}
+          {c.contactEmail && <CopyPopover label={`${name}'s email`} value={c.contactEmail} title={`Email: ${c.contactEmail}`}><Mail className="w-3.5 h-3.5" /></CopyPopover>}
+          {c.contactPhone && <CopyPopover label={`${name}'s phone`} value={c.contactPhone} title={`Phone: ${c.contactPhone}`}><Phone className="w-3.5 h-3.5" /></CopyPopover>}
+          {c.contactLinkedinUrl && <a href={c.contactLinkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm" title="LinkedIn" aria-label={`${name} on LinkedIn`}><Linkedin className="w-3.5 h-3.5" /></a>}
           <button type="button" onClick={() => actions.onEdit(c)} className="ws-btn ws-btn-ghost ws-btn-sm" title="Edit contact" aria-label="Edit contact"><Pencil className="w-3.5 h-3.5" /></button>
           <button type="button" onClick={() => actions.onMove(c, isPrimary)} className="ws-btn ws-btn-ghost ws-btn-sm" title="Move to another company" aria-label="Move to another company"><ArrowRightLeft className="w-3.5 h-3.5" /></button>
           {!isPrimary && <button type="button" onClick={() => actions.onDelete(c)} className="ws-btn ws-btn-ghost ws-btn-sm" title="Remove contact" aria-label="Remove contact" style={{ color: 'var(--bad)' }}><Trash2 className="w-3.5 h-3.5" /></button>}

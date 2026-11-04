@@ -8,12 +8,12 @@
 // Sales).
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Award, Building2, Globe, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2, Users } from 'lucide-react'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { Fact, PROFILE_GRID, PROFILE_MAIN, PROFILE_SIDE, eventParts, fmtDate, initials } from '@/components/crm/profileParts'
+import { Fact, PROFILE_GRID, PROFILE_MAIN, ProfileSide, eventParts, fmtDate, initials } from '@/components/crm/profileParts'
 import { stepsBack } from '@/components/layout/NavMemory'
 import { useWorkspace } from '@/lib/workspace'
 import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
@@ -73,11 +73,24 @@ function EventHistory({ a, className = '' }: { a: Account; className?: string })
   )
 }
 
+// "A name opens their details", said once: after the first profile seen
+// on this browser it stays quiet.
+const HINT_KEY = 'crm.hint.contactPanel'
+const seenHint = () => { try { return !!localStorage.getItem(HINT_KEY) } catch { return true } }
+function NameHint() {
+  // Read once on the client (the server shows nothing); marked seen after,
+  // without a re-render, so it stays for the page it first appeared on.
+  const seen = useSyncExternalStore(() => () => {}, seenHint, () => true)
+  useEffect(() => { try { localStorage.setItem(HINT_KEY, '1') } catch { /* private window */ } }, [])
+  if (seen) return null
+  return <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>A name opens their details</span>
+}
+
 // ── A company ────────────────────────────────────────────────────────────────
 
 // The page in two columns on a desk (PROFILE_* in profileParts): the main
 // column reads top to bottom (who they are, what they do, the hospitals or
-// vendors, the team, the events, the notes); the sidebar (sticky) holds the
+// vendors, the team, the events); the sidebar (sticky while it fits) holds the
 // companies around them: similar companies, competitors, signals. On a
 // phone everything stacks in the main column's order, with the sidebar's
 // cards after the team: that is what the order-* classes are for.
@@ -101,7 +114,6 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
   )
   const isProvider = intel ? intelIsProvider(intel) : a.firmographic === 'End User'
   const inSales = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
-  const notes = Array.from(new Set((a.members ?? []).map((m) => m.note).filter(Boolean)))
   // With the header action on the company, the per-person one is noise.
   const personAdd = add.event && a.firmographic === 'Solution Provider' ? undefined : add
   const members = a.members ?? []
@@ -152,7 +164,7 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
           <section className="ws-card overflow-hidden order-4">
             <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between">
               <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>{isProvider ? 'People' : 'Team'} <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{members.length}</span></h2>
-              <span className="text-[12px]" style={{ color: 'var(--fg-4)' }}>A name opens their details</span>
+              <NameHint />
             </div>
             <div className="[&_li]:!pl-5">
               <Members members={members} query="" company={a.name} add={personAdd} where="event" account={a} />
@@ -160,21 +172,15 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
             {intel && <IntelPeopleNamed c={intel} exclude={members.map((m) => m.name)} type={a.firmographic} />}
           </section>
 
+          {/* The lead lists' notes are per person: in the contact panel, not here. */}
           <EventHistory a={a} className="order-6" />
-
-          {notes.length > 0 && (
-            <section className="ws-card p-4 sm:p-5 order-7">
-              <h2 className="text-[14px] font-semibold mb-2" style={{ color: 'var(--fg)' }}>Notes <span className="text-[12px] font-normal" style={{ color: 'var(--fg-4)' }}>from the lead lists</span></h2>
-              <ul className="flex flex-col gap-1.5 text-[13px]" style={{ color: 'var(--fg-2)' }}>{notes.map((n) => <li key={n}>{n}</li>)}</ul>
-            </section>
-          )}
         </div>
 
         {/* The companies around them */}
         {intel && (
-          <aside className={PROFILE_SIDE}>
+          <ProfileSide>
             <IntelSidebar c={intel} slug={ws.slug} className="order-5" />
-          </aside>
+          </ProfileSide>
         )}
       </div>
     </div>

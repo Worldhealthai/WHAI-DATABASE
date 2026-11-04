@@ -40,7 +40,26 @@ export function eventParts(label: string) {
 // cards come after the team (order-5 on a company's page).
 export const PROFILE_GRID = 'flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_336px] lg:items-start'
 export const PROFILE_MAIN = 'contents lg:flex lg:flex-col lg:gap-4 lg:min-w-0'
-export const PROFILE_SIDE = 'contents lg:flex lg:flex-col lg:gap-4 lg:sticky lg:top-[128px]'
+const PROFILE_SIDE = 'contents lg:flex lg:flex-col lg:gap-4'
+const SIDE_TOP = 128
+
+// The sidebar: sticky only while it fits under the top bar, so nothing in
+// it is ever out of reach; taller than the window, it scrolls with the page.
+export function ProfileSide({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLElement>(null)
+  const [fits, setFits] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const check = () => setFits(el.offsetHeight <= window.innerHeight - SIDE_TOP - 16)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    window.addEventListener('resize', check)
+    return () => { ro.disconnect(); window.removeEventListener('resize', check) }
+  }, [])
+  return <aside ref={ref} className={`${PROFILE_SIDE} ${fits ? 'lg:sticky' : ''}`} style={fits ? { top: SIDE_TOP } : undefined}>{children}</aside>
+}
 
 export interface NavItem { id: string; name: string }
 export interface ProfileNav { prev: NavItem | null; next: NavItem | null; index: number; total: number }
@@ -113,7 +132,9 @@ function routeOf(width: number, n: number) {
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
-export function StageBar({ kind, status, accent, disabled, onChange }: { kind: RecordKind; status: string; accent: string; disabled: boolean; onChange: (s: string) => void }) {
+// `at` is when the record last moved, said next to a closed stage
+// ("Rejected · 4 Nov 2026"); closed, the stops dim and that is the state.
+export function StageBar({ kind, status, accent, disabled, onChange, at }: { kind: RecordKind; status: string; accent: string; disabled: boolean; onChange: (s: string) => void; at?: string | null }) {
   const stages = KINDS[kind].stages.filter((s) => !s.negative)
   const negative = KINDS[kind].stages.filter((s) => s.negative)
   const idx = stages.findIndex((s) => s.status === status)
@@ -190,7 +211,7 @@ export function StageBar({ kind, status, accent, disabled, onChange }: { kind: R
 
   return (
     <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
-      <div ref={boxRef} className="crm-journey flex-1 min-w-[260px]">
+      <div ref={boxRef} className="crm-journey flex-1 min-w-[260px]" style={closed ? { opacity: 0.55 } : undefined} aria-label={closed ? `Closed as ${status}` : undefined}>
         <svg height={ROUTE_H} aria-hidden="true">
           {route && (
             <>
@@ -246,11 +267,11 @@ export function StageBar({ kind, status, accent, disabled, onChange }: { kind: R
               type="button"
               disabled={disabled}
               onClick={() => onChange(here ? stages[0].status : s.status)}
-              className="ws-btn ws-btn-sm"
-              style={here ? { color: 'var(--bad)', borderColor: 'var(--bad)' } : { color: 'var(--fg-3)' }}
-              title={here ? `${s.label}: click to reopen` : `Mark as ${s.label.toLowerCase()}`}
+              className={here ? 'ws-btn ws-btn-sm' : 'ws-btn ws-btn-sm ws-btn-ghost'}
+              style={here ? { color: 'var(--bad)', borderColor: 'var(--bad)', fontWeight: 600 } : { color: 'var(--fg-4)' }}
+              title={here ? `${s.label}${at ? `, ${fmtDate(at)}` : ''}: click to reopen` : `Mark as ${s.label.toLowerCase()}`}
             >
-              {here ? <><X className="w-3.5 h-3.5" /> {s.label}</> : s.label}
+              {here ? <><X className="w-3.5 h-3.5" /> {s.label}{at && <span className="font-normal" style={{ color: 'var(--fg-3)' }}> · {fmtDate(at)}</span>}</> : `Mark ${s.label.toLowerCase()}`}
             </button>
           )
         })}
@@ -294,8 +315,8 @@ export function EventTabs({ kind, id, current, addNote }: { kind: RecordKind; id
 
   return (
     <div style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
-      <div className="px-5 py-3 flex items-center gap-2 flex-wrap">
-        <span className="text-[11.5px] font-medium mr-1 shrink-0" style={{ color: 'var(--fg-4)' }}>Events</span>
+      <div className="px-4 sm:px-5 py-3 flex items-center gap-2 flex-wrap">
+        <span className="text-[11.5px] font-medium mr-1 shrink-0" style={{ color: 'var(--fg-4)' }} title="Each event is its own record; the marked one is this page">Events</span>
         {editions.map((e) => {
           const { look, title } = eventParts(String(e.event))
           const active = !!current && String(e.event).toLowerCase() === current.toLowerCase() && e.id === id

@@ -264,29 +264,47 @@ type Where = 'none' | 'year' | 'event'
 const whereOf = (event: string | null | undefined, where: Where) =>
   !event || where === 'none' ? '' : where === 'year' ? ` ${event.match(/20\d{2}/)?.[0] ?? shortEvent(event)}` : ` · ${shortEvent(event)}`
 
+// Every row has the same three parts: the person (name · title, then the
+// email), their records one per line, and the side they are for. The side
+// shows as one word at rest; the Health / Pharma toggle and the way into a
+// pipeline appear on hover (and in the contact panel, always). The lead
+// list's note is in the panel, not here.
 export function Members({ members, query, company, add, where, account }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account }) {
   const { slug } = useWorkspace()
   return (
     <ul className="flex flex-col">
       {members.map((m) => {
         const hit = !!query && matches(m, query)
+        const focusWord = (m.focus ?? []).length ? (m.focus ?? []).join(' · ') : (m.focusAuto ?? []).join(' · ')
+        // Once added from here, "Added · Undo" stays in view.
+        const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
+          <li key={m.key} className="group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_120px] items-start gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
             {/* The name opens the contact panel; the link underneath is their page. */}
-            <ContactLink seed={{ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null }} href={recHref(slug, pageOf(m.records))} className="min-w-0 flex-1 basis-[320px]">
-              <span className="text-[13px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
-              <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{[m.jobTitle, m.email].filter(Boolean).length ? ` · ${[m.jobTitle, m.email].filter(Boolean).join(' · ')}` : ''}</span>
-              {m.note && <span className="block text-[11.5px] sm:truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={m.note}>{m.note}</span>}
+            <ContactLink seed={{ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null }} href={recHref(slug, pageOf(m.records))} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
+              <span className="block truncate text-[13px] leading-5">
+                <span className="font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
+                {m.jobTitle && <span style={{ color: 'var(--fg-3)' }}> · {m.jobTitle}</span>}
+              </span>
+              {m.email && m.name && <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-4)' }}>{m.email}</span>}
             </ContactLink>
-            <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
+            <span className="flex flex-col sm:items-end gap-y-0.5 text-[12px] min-w-0">
+              {m.records.length === 0 && <span style={{ color: 'var(--fg-4)' }}>—</span>}
               {m.records.map((r, i) => (
-                <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                  {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? `: ${r.status}` : ''}
+                <RecLink key={i} rec={r} className="block max-w-full sm:text-right hover:underline underline-offset-4 leading-5" style={{ color: 'var(--fg-3)' }}>
+                  {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? <span style={{ color: 'var(--fg-4)' }}> · {r.status}</span> : null}
                 </RecLink>
               ))}
             </span>
-            {where === 'event' && <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" />}
-            {add && <PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} />}
+            <span className="flex items-center sm:justify-end gap-2 min-h-5">
+              {where === 'event' ? (
+                <>
+                  <span className="text-[11.5px] group-hover:hidden group-focus-within:hidden" style={{ color: 'var(--fg-4)' }} title={focusWord ? 'Relevant for; hover to change' : undefined}>{focusWord}</span>
+                  <span className="hidden group-hover:inline-flex group-focus-within:inline-flex"><FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" /></span>
+                </>
+              ) : null}
+              {add && <span className={added ? 'inline-flex' : 'hidden group-hover:inline-flex group-focus-within:inline-flex'}><PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} /></span>}
+            </span>
           </li>
         )
       })}

@@ -27,6 +27,7 @@ import { isProvider } from '@/lib/intel'
 import { CopyPopover } from './CopyPopover'
 import { FocusToggle } from './FocusToggle'
 import { ContactDrawerContext, type ContactRecord, type ContactSeed } from './ContactLink'
+import { fmtDate } from './profileParts'
 
 const shortEvent = (e: string | null | undefined) => (e || '').replace(/^World Health AI/i, 'WHAI').replace(/^World Pharma AI/i, 'WPAI')
 const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact', Lead: 'Lead' }
@@ -115,7 +116,6 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
   const jobTitle = seed.jobTitle ?? d.jobTitle ?? null
   const company = seed.company ?? d.companyName ?? d.organization ?? null
   const linkedin = seed.linkedinUrl ?? d.linkedinUrl ?? null
-  const website = seed.website ?? d.website ?? null
   const where = [seed.city ?? d.city, seed.country ?? d.country].filter(Boolean).join(', ')
   const note = seed.note ?? d.notes ?? null
   const notes = d.notes && d.notes !== note ? d.notes : null
@@ -130,8 +130,11 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
   const coKey = companyKey(company)
   const coHref = company ? (sponsorRec && sponsorRec.table === 'sponsors' ? `/sponsors/${sponsorRec.id}` : coKey ? companyHref(slug, { key: coKey, name: company }) : null) : null
 
-  // Their company in one line, from the intelligence layer.
+  // Their company in one line, from the intelligence layer. The website is
+  // the company's own; the lead record's only when no company is linked.
   const intel = useIntel(coKey, company).data?.company ?? null
+  const website = intel?.website ?? seed.website ?? d.website ?? null
+  const websiteFromLead = !intel?.website && !!website
   const facts: string[] = []
   if (intel) {
     if (intel.teamFact) facts.push(`Team about ${num(intel.teamFact.value)}`)
@@ -164,7 +167,7 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
         aria-label={`${seed.name}: contact details`}
         onClickCapture={onClickCapture}
         className="absolute inset-y-0 right-0 w-full sm:w-[440px] flex flex-col outline-none anim-slide-in-right"
-        style={{ background: 'var(--surface)', borderLeft: '1px solid var(--line)', boxShadow: 'var(--shadow-lg)' }}
+        style={{ background: 'var(--surface)', borderLeft: '1px solid var(--line-2)', boxShadow: 'var(--shadow-lg)' }}
       >
         {/* Who */}
         <div className="flex items-start gap-3 px-5 pt-5 pb-4 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
@@ -182,7 +185,7 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
               <div className="mt-2"><FocusToggle rows={focusRows} email={email} initial={seed.focus ?? []} auto={seed.focusAuto ?? []} size="xs" /></div>
             )}
           </div>
-          <button type="button" onClick={onClose} className="ws-btn ws-btn-ghost ws-btn-sm -mr-2 -mt-1" aria-label="Close"><X className="w-4 h-4" /></button>
+          <button type="button" onClick={onClose} className="ws-btn ws-btn-ghost ws-btn-sm -mr-2 -mt-1 max-sm:!h-10 max-sm:!w-10 max-sm:!px-0 max-sm:justify-center" aria-label="Close"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -196,7 +199,7 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
                 {email2 && <>{label('Also')}<dd className="min-w-0 -ml-2"><CopyPopover align="left" label={`${seed.name}'s other email`} value={email2} title={`Email: ${email2}`}><Mail className="w-3.5 h-3.5" /> <span className="max-w-[300px] truncate text-[13px]">{email2}</span></CopyPopover></dd></>}
                 {phone && <>{label('Phone')}<dd className="min-w-0 -ml-2"><CopyPopover align="left" label={`${seed.name}'s phone`} value={phone} title={`Phone: ${phone}`}><Phone className="w-3.5 h-3.5" /> <span className="text-[13px]">{phone}</span></CopyPopover></dd></>}
                 {linkedin && <>{label('LinkedIn')}<dd className="min-w-0 -ml-2"><a href={linkedin} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Linkedin className="w-3.5 h-3.5" /> <span className="max-w-[300px] truncate text-[13px]">{linkedin.replace(/^https?:\/\/(www\.)?/, '')}</span></a></dd></>}
-                {website && <>{label('Website')}<dd className="min-w-0 -ml-2"><a href={/^https?:\/\//i.test(website) ? website : `https://${website}`} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Globe className="w-3.5 h-3.5" /> <span className="max-w-[300px] truncate text-[13px]">{website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span></a></dd></>}
+                {website && <>{label('Website')}<dd className="min-w-0 -ml-2 flex items-center gap-1.5 flex-wrap"><a href={/^https?:\/\//i.test(website) ? website : `https://${website}`} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Globe className="w-3.5 h-3.5" /> <span className="max-w-[300px] truncate text-[13px]">{website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span></a>{websiteFromLead && <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }} title="No company website on file; this is what their lead record carries">from their lead record</span>}</dd></>}
                 {where && <>{label('Location')}<dd className="text-[13px] pt-[5px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-2)' }}><MapPin className="w-3.5 h-3.5" style={{ color: 'var(--fg-4)' }} /> {where}</dd></>}
                 {detail.isLoading && !where && !linkedin && <><dt /><dd className="text-[12px] pt-[5px]" style={{ color: 'var(--fg-4)' }}>Loading the rest…</dd></>}
               </dl>
@@ -209,18 +212,25 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
             {all.length === 0 ? (
               <p className="text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{roles.isLoading ? 'Looking for their records…' : 'No record yet: a name from Lusha, not in the CRM.'}</p>
             ) : (
-              <ul className="flex flex-col gap-1">
+              <ul className="flex flex-col gap-0.5">
+                {/* The same template for every record: what · event · stage;
+                    for a lead, when it was added and from which list. */}
                 {all.map((r, i) => {
                   const to = recHref(slug, r)
+                  const list = r.table === 'leads' ? (note ?? '').split(' · ')[0] || null : null
+                  const added = r.table === 'leads' && d.createdAt ? fmtDate(d.createdAt) : null
                   const body = (
                     <>
-                      <span className="text-[12px] font-medium px-2 h-6 inline-flex items-center rounded-md shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)' }}>{DOING[r.relationship]}</span>
-                      <span className="text-[13px] truncate flex-1" style={{ color: 'var(--fg)' }}>{r.event ? shortEvent(r.event) : 'No event'}</span>
-                      {r.status && <span className="text-[12px] shrink-0" style={{ color: 'var(--fg-3)' }}>{r.status}</span>}
+                      <span className="w-[124px] max-sm:w-auto shrink-0"><span className="text-[12px] font-medium px-2 h-6 inline-flex items-center rounded-md max-w-full truncate" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)' }}>{DOING[r.relationship]}</span></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] truncate" style={{ color: 'var(--fg)' }}>{r.event ? shortEvent(r.event) : 'No event'}</span>
+                        {(added || list) && <span className="block text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{[added ? `added ${added}` : null, list].filter(Boolean).join(' · ')}</span>}
+                      </span>
+                      <span className="w-[120px] max-sm:w-auto max-sm:max-w-[120px] shrink-0 text-right text-[12px] truncate" style={{ color: r.status ? 'var(--fg-3)' : 'var(--fg-4)' }}>{r.status ?? '—'}</span>
                     </>
                   )
-                  const cls = 'flex items-center gap-3 px-3 py-1.5 -mx-3 rounded-lg'
-                  return <li key={`${r.table}-${r.id}-${i}`}>{to ? <Link href={to} className={`${cls} transition-colors hover:bg-[var(--surface-2)]`} title="Open the record">{body}</Link> : <span className={cls}>{body}</span>}</li>
+                  const cls = 'flex items-center gap-2 px-3 py-1.5 -mx-3 rounded-lg'
+                  return <li key={`${r.table}-${r.id}-${i}`}>{to ? <Link href={to} className={`${cls} transition-colors [@media(hover:hover)]:hover:bg-[var(--surface-2)]`} title="Open the record">{body}</Link> : <span className={cls}>{body}</span>}</li>
                 })}
               </ul>
             )}
@@ -243,10 +253,11 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
           {/* Their company, in one line */}
           {intel && facts.length > 0 && (
             <section className="px-5 py-4">
-              <h3 className="text-[11.5px] font-medium mb-1.5" style={{ color: 'var(--fg-4)' }}>{intel.name}</h3>
+              <h3 className="text-[11.5px] font-medium mb-1.5" style={{ color: 'var(--fg-4)' }}>Company</h3>
               <p className="text-[12.5px] leading-relaxed" style={{ color: 'var(--fg-3)' }}>
-                {intel.oneLiner && <span style={{ color: 'var(--fg-2)' }}>{intel.oneLiner} </span>}
-                {facts.join(' · ')}
+                <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>{coHref ? <Link href={coHref} className="hover:underline underline-offset-4">{intel.name}</Link> : intel.name}</span>
+                {intel.oneLiner && <span style={{ color: 'var(--fg-2)' }}> · {intel.oneLiner} <span className="text-[11.5px] whitespace-nowrap" style={{ color: 'var(--fg-4)' }} title="The one-line summary as the WNG Intelligence dataset holds it">from the WNG dataset</span></span>}
+                <span className="block mt-0.5">{facts.join(' · ')}</span>
               </p>
             </section>
           )}
@@ -254,7 +265,7 @@ function Drawer({ seed, onClose }: { seed: ContactSeed; onClose: () => void }) {
 
         <div className="flex items-center gap-2 px-5 py-3.5 shrink-0" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
           {seed.onEdit && <button type="button" className="ws-btn ws-btn-sm" onClick={() => { onClose(); seed.onEdit?.() }}><Pencil className="w-3.5 h-3.5" /> Edit contact</button>}
-          {coHref && <Link href={coHref} className="ws-btn ws-btn-sm ws-btn-ghost">Company profile</Link>}
+          {coHref && <Link href={coHref} className="ws-btn ws-btn-sm">Company profile <ArrowUpRight className="w-3.5 h-3.5" /></Link>}
           <span className="flex-1" />
           {href && <Link href={href} className="ws-btn ws-btn-sm ws-btn-primary">Open full profile <ArrowUpRight className="w-3.5 h-3.5" /></Link>}
         </div>
