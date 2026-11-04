@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Building2, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
+import { useSticky } from '@/lib/useSticky'
 import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
 import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
@@ -360,18 +361,21 @@ const COMPANY_GRID: Record<string, string> = {
 // Companies (the series, or the edition), or with `everything` the
 // Directory: every company in every event.
 export function CompaniesView({ everything = false }: { everything?: boolean }) {
-  const [picked, setScope] = useState<Scope>('series')
+  const { category, slug } = useWorkspace()
+  // Kept for the tab's session, so Back from a profile finds it as it was.
+  const sk = `${everything ? 'directory' : 'companies'}.${everything ? '' : slug}`
+  const [picked, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
   const scope: Scope = everything ? 'all' : picked
   const { data, isLoading, error } = useSegments(scope)
-  const { category } = useWorkspace()
   const event = category ? `${eventLook(category.name).series} ${eventLook(category.name).city}` : ''
-  const [type, setType] = useState<'all' | Firmographic>('all')
-  const [conflicts, setConflicts] = useState(false)
-  const [both, setBoth] = useState(false)
-  const [query, setQuery] = useState('')
-  const [page, setPage] = useState(1)
-  const [open, setOpen] = useState<Set<string>>(new Set())
-  const [pf, setPf] = useState<PersonFilter>({ titles: [], doing: '', focus: '' })
+  const [type, setType] = useSticky<'all' | Firmographic>(`${sk}.type`, 'all')
+  const [conflicts, setConflicts] = useSticky(`${sk}.conflicts`, false)
+  const [both, setBoth] = useSticky(`${sk}.both`, false)
+  const [query, setQuery] = useSticky(`${sk}.query`, '')
+  const [page, setPage] = useSticky(`${sk}.page`, 1)
+  const [openList, setOpenList] = useSticky<string[]>(`${sk}.open`, [])
+  const open = useMemo(() => new Set(openList), [openList])
+  const [pf, setPf] = useSticky<PersonFilter>(`${sk}.people`, { titles: [], doing: '', focus: '' })
   const setP = (patch: Partial<PersonFilter>) => { setPf((x) => ({ ...x, ...patch })); setPage(1) }
   const q = query.trim().toLowerCase()
   const filtering = personFilterOn(pf)
@@ -409,7 +413,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const add = usePipelineAdd()
   const showType = type === 'all'
   const grid = COMPANY_GRID[`${showType ? 't' : ''}${everything ? 'e' : ''}`]
-  const toggle = (k: string) => setOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  const toggle = (k: string) => setOpenList((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]))
 
   return (
     <WorkspacePage
@@ -506,12 +510,14 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
 // Every contact, once, with their company in small letters beside the name:
 // the same people as Companies, as one list.
 export function ContactsView() {
-  const [scope, setScope] = useState<Scope>('series')
+  const { slug } = useWorkspace()
+  const sk = `contacts.${slug}`
+  const [scope, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
   const { data, isLoading, error } = useSegments(scope)
-  const [type, setType] = useState<'all' | Firmographic>('all')
-  const [titles, setTitles] = useState<TitleToken[]>([])
-  const [query, setQuery] = useState('')
-  const [page, setPage] = useState(1)
+  const [type, setType] = useSticky<'all' | Firmographic>(`${sk}.type`, 'all')
+  const [titles, setTitles] = useSticky<TitleToken[]>(`${sk}.titles`, [])
+  const [query, setQuery] = useSticky(`${sk}.query`, '')
+  const [page, setPage] = useSticky(`${sk}.page`, 1)
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return (data?.people ?? []).filter((p) =>

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { QueryProvider } from '@/components/layout/QueryProvider'
 import { AppShell } from '@/components/shell/AppShell'
+import { NavMemory } from '@/components/layout/NavMemory'
 
 export const metadata: Metadata = {
   title: 'Nexus CRM',
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen antialiased">
         <QueryProvider>
+          <NavMemory />
           <AppShell>{children}</AppShell>
         </QueryProvider>
       </body>
