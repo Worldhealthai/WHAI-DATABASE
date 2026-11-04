@@ -330,7 +330,7 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
         onClick={() => setOpen(v => !v)}
         aria-label="Open Pulse AI"
         className={cn(
-          'fixed bottom-20 right-5 md:bottom-6 md:right-6 z-50',
+          'fixed bottom-5 right-5 md:bottom-6 md:right-6 z-50',
           'w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-all duration-200',
           open ? 'bg-[var(--surface-3)] text-slate-400' : 'text-[var(--fg)] shadow-lg shadow-cyan-900/40',
         )}
@@ -342,7 +342,7 @@ export function AIAssistant({ inline = false }: { inline?: boolean }) {
       {/* Floating panel — fixed size, ChatPanel fills it */}
       <div
         className={cn(
-          'fixed bottom-[84px] right-5 md:bottom-[76px] md:right-6 z-50',
+          'fixed bottom-[72px] right-5 md:bottom-[76px] md:right-6 z-50',
           'w-[390px] transition-all duration-300 origin-bottom-right',
           open ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none',
         )}

@@ -12,6 +12,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
@@ -20,11 +21,12 @@ import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/
 import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
-import { EmptyState, Initials, Segmented, formatMoney, timeAgo } from './ui'
+import { EmptyState, Field, Initials, Modal, Segmented, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 import { FocusToggle } from '@/components/crm/FocusToggle'
 import { effectiveFocus, type Focus } from '@/lib/contactFocus'
+import { useIntelCards, useIntelCardsFor } from './IntelPanel'
 
 interface Segments {
   accounts: Account[]
@@ -228,10 +230,10 @@ export function Members({ members, query, company, add, where, account }: { memb
         const hit = !!query && matches(m, query)
         return (
           <li key={m.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
-            <RecLink rec={pageOf(m.records)} className="min-w-0 flex-1">
+            <RecLink rec={pageOf(m.records)} className="min-w-0 flex-1 basis-[320px]">
               <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
               <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{[m.jobTitle, m.email].filter(Boolean).length ? ` · ${[m.jobTitle, m.email].filter(Boolean).join(' · ')}` : ''}</span>
-              {m.note && <span className="block text-[11.5px] truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={m.note}>{m.note}</span>}
+              {m.note && <span className="block text-[11.5px] sm:truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={m.note}>{m.note}</span>}
             </RecLink>
             <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
               {m.records.map((r, i) => (
@@ -410,19 +412,84 @@ const rolesOf = (records: { relationship: Relationship; event?: string | null; s
 
 // The company table's columns: Type only while both types are shown, Events
 // only in the Directory (inside an event every company is in it).
+// On desktop, four columns from the intelligence layer follow the sales
+// column: Team (size), HQ, Hospitals (sourced), Similar.
+// (Written out in full: Tailwind reads whole class names from the source.)
 const COMPANY_GRID: Record<string, string> = {
-  te: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px]',
-  t: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_160px_minmax(0,1.1fr)_70px_90px]',
-  e: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_70px_90px]',
-  '': 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.1fr)_70px_90px]',
+  te: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_150px_minmax(0,1.3fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
+  t: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_150px_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
+  e: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
+  '': 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
 }
 
 // ── Companies ────────────────────────────────────────────────────────────────
 
 // Companies (the series, or the edition), or with `everything` the
 // Directory: every company in every event.
+// A new company, from Companies or the Directory: its name, type, website
+// and country, and optionally its first contact. It joins no pipeline; it
+// opens on its own profile, from where it goes into Sales or Production.
+function AddCompanyModal({ onClose }: { onClose: () => void }) {
+  const { category, year, slug } = useWorkspace()
+  const router = useRouter()
+  const qc = useQueryClient()
+  const event = category && year ? editionLabel(category.name, year) : null
+  const [f, setF] = useState({ name: '', website: '', country: '', segment: 'Solution Provider' as Firmographic, firstName: '', lastName: '', jobTitle: '', email: '', phone: '' })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const [existing, setExisting] = useState<{ key: string; name: string } | null>(null)
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }))
+  const save = async () => {
+    setSaving(true); setErr(''); setExisting(null)
+    try {
+      const r = await fetch('/api/companies', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: f.name, website: f.website, country: f.country, segment: f.segment, event, contact: { firstName: f.firstName, lastName: f.lastName, jobTitle: f.jobTitle, email: f.email, phone: f.phone } }),
+      })
+      const j = await r.json().catch(() => null)
+      if (r.status === 409 && j?.existing) { setExisting(j.existing); throw new Error(j.error) }
+      if (!r.ok) throw new Error(j?.error || 'Could not add the company')
+      qc.invalidateQueries({ queryKey: ['ws-segments'] })
+      const href = companyHref(slug, { key: j.key, name: j.name })
+      onClose()
+      if (href) router.push(href)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not add the company')
+      setSaving(false)
+    }
+  }
+  const existingHref = existing ? companyHref(slug, existing) : null
+  return (
+    <Modal title="Add company" subtitle={event ? `In ${event}, on no pipeline yet` : undefined} onClose={onClose} width="max-w-2xl"
+      footer={<>
+        {err && <span className="text-[12px] mr-auto" style={{ color: 'var(--bad)' }}>{err}{existingHref && <> · <Link href={existingHref} className="underline underline-offset-4" onClick={onClose}>Open it</Link></>}</span>}
+        <button type="button" className="ws-btn ws-btn-ghost" onClick={onClose}>Cancel</button>
+        <button type="button" className="ws-btn ws-btn-primary" onClick={save} disabled={saving || !f.name.trim()}>{saving && <Loader2 className="w-4 h-4 animate-spin" />} Add company</button>
+      </>}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Company name" span><input className="ws-input" value={f.name} onChange={set('name')} autoFocus /></Field>
+        <Field label="Type" span>
+          <Segmented size="sm" value={f.segment} onChange={(v) => setF((p) => ({ ...p, segment: v as Firmographic }))}
+            options={[{ value: 'Solution Provider', label: 'Solution Provider' }, { value: 'End User', label: 'End User' }]} />
+        </Field>
+        <Field label="Website"><input className="ws-input" value={f.website} onChange={set('website')} placeholder="example.com" /></Field>
+        <Field label="Country"><input className="ws-input" value={f.country} onChange={set('country')} /></Field>
+      </div>
+      <p className="text-[12px] font-medium mt-5 mb-2" style={{ color: 'var(--fg-3)' }}>First contact <span className="font-normal" style={{ color: 'var(--fg-4)' }}>(optional)</span></p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="First name"><input className="ws-input" value={f.firstName} onChange={set('firstName')} /></Field>
+        <Field label="Last name"><input className="ws-input" value={f.lastName} onChange={set('lastName')} /></Field>
+        <Field label="Job title"><input className="ws-input" value={f.jobTitle} onChange={set('jobTitle')} /></Field>
+        <Field label="Email"><input className="ws-input" type="email" value={f.email} onChange={set('email')} /></Field>
+        <Field label="Phone"><input className="ws-input" type="tel" value={f.phone} onChange={set('phone')} /></Field>
+      </div>
+    </Modal>
+  )
+}
+
 export function CompaniesView({ everything = false }: { everything?: boolean }) {
   const { category, slug, year } = useWorkspace()
+  const [adding, setAdding] = useState(false)
   // Kept for the tab's session, so Back from a profile finds it as it was.
   const sk = `${everything ? 'directory' : 'companies'}.${everything ? '' : slug}`
   const [picked, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
@@ -438,6 +505,14 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const open = useMemo(() => new Set(openList), [openList])
   const [pf, setPf] = useSticky<PersonFilter>(`${sk}.people`, { titles: [], doing: '', focus: '' })
   const setP = (patch: Partial<PersonFilter>) => { setPf((x) => ({ ...x, ...patch })); setPage(1) }
+  // The intelligence layer's light rows (crm.v_intel_cards), for the
+  // columns and two filters: companies with hospitals named in sourced
+  // announcements, and a category. The rows are asked for by CRM key: the
+  // page in view, or every company once one of the two filters is on.
+  const [sourced, setSourced] = useSticky(`${sk}.sourced`, false)
+  const [intelCat, setIntelCat] = useSticky(`${sk}.category`, '')
+  const intelFiltering = sourced || !!intelCat
+  const intel = useIntelCards()
   const q = query.trim().toLowerCase()
   const filtering = personFilterOn(pf)
   // The people a company shows for the search and the people filters: all
@@ -446,11 +521,15 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
     const nameHit = !!q && a.name.toLowerCase().includes(q)
     return (a.members ?? []).filter((m) => personPasses(m, pf) && (!q || nameHit || matches(m, q)))
   }, [q, pf])
+  const cardFor = intel.cardFor
   const rows = useMemo(() => {
-    return (data?.accounts ?? []).filter((a) =>
-      (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) && (!both || (a.sides ?? []).length > 1) &&
-      (filtering ? peopleOf(a).length > 0 : !q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q))))
-  }, [data, type, conflicts, both, q, filtering, peopleOf])
+    return (data?.accounts ?? []).filter((a) => {
+      const card = sourced || intelCat ? cardFor(a.key, a.name) : null
+      return (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) && (!both || (a.sides ?? []).length > 1) &&
+        (!sourced || (card?.hospitals ?? 0) > 0) && (!intelCat || card?.categories.includes(intelCat)) &&
+        (filtering ? peopleOf(a).length > 0 : !q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q)))
+    })
+  }, [data, type, conflicts, both, sourced, intelCat, cardFor, q, filtering, peopleOf])
   // Every job title among the companies in view (by type and the other
   // people filter), with how many people hold it: what the title filter
   // offers.
@@ -470,7 +549,11 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
     return Array.from(m.values()).sort((x, y) => y.count - x.count || x.title.localeCompare(y.title))
   }, [data, type, conflicts, pf])
   const peopleCount = useMemo(() => (filtering || q ? rows.reduce((n, a) => n + peopleOf(a).length, 0) : null), [rows, filtering, q, peopleOf])
-  const shown = rows.slice((page - 1) * PAGE, page * PAGE)
+  const shown = useMemo(() => rows.slice((page - 1) * PAGE, page * PAGE), [rows, page])
+  // The cards the tab asks for: the page's keys, or every company's once
+  // one of the two intelligence filters is on.
+  const intelKeys = useMemo(() => (intelFiltering ? (data?.accounts ?? []) : shown).map((a) => a.key), [intelFiltering, data, shown])
+  const intelLoaded = useIntelCardsFor(intel, intelKeys)
   const add = usePipelineAdd()
   const exportCompanies = () => {
     const out: (string | number | null)[][] = []
@@ -500,10 +583,18 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
           <button type="button" className="ws-btn" disabled={!rows.length} onClick={exportCompanies} title="Download these companies and their people as a CSV">
             <Download className="w-4 h-4" /> Export
           </button>
+          <button type="button" className="ws-btn ws-btn-primary" onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add company</button>
+          {adding && <AddCompanyModal onClose={() => setAdding(false)} />}
         </>
       }
     >
       <Summary data={data} loading={isLoading} />
+      {/* How far the intelligence layer reaches on this page, so the gaps in its columns read as coverage. */}
+      {data && intelLoaded && (
+        <p className="-mt-2 mb-4 px-1 text-[12px]" style={{ color: 'var(--fg-4)' }}>
+          Intelligence on {shown.filter((a) => cardFor(a.key, a.name)).length} of {shown.length} companies on this page · Team is from LinkedIn via Lusha; Hospitals counts those named in sourced announcements, a lower bound
+        </p>
+      )}
       <div className="ws-card">
         <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length} people={peopleCount}>
           <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
@@ -515,6 +606,19 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
               In Health and Pharma
             </button>
           )}
+          {/* From the intelligence layer */}
+          <button type="button" className="ws-chip" data-active={sourced} onClick={() => { setSourced(!sourced); setPage(1) }} title="Companies with at least one hospital named in a sourced announcement">
+            <Building2 className="w-3.5 h-3.5" /> Has sourced hospitals
+          </button>
+          <label className="inline-flex items-center">
+            <span className="sr-only">Category</span>
+            <select className="ws-chip !pr-7 appearance-none cursor-pointer" data-active={!!intelCat} value={intelCat} onChange={(e) => { setIntelCat(e.target.value); setPage(1) }}
+              style={{ backgroundImage: 'none' }}>
+              <option value="">Any category</option>
+              {intel.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 -ml-6 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
+          </label>
         </Toolbar>
         {/* The people inside: by job title, and Health or Pharma */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
@@ -535,7 +639,9 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                 action under the name; the rest is on its record. */}
             <div className="md:min-w-[900px]">
               <div className={`grid ${grid} gap-3 px-4 py-2.5 text-[12px] font-medium`} style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
-                <span>Company</span>{showType && <span>Type</span>}{everything && <span className="hidden md:block">Events</span>}<span className="hidden md:block">{add.year} sales</span><span className="hidden md:block text-right">People</span><span className="hidden md:block text-right">Updated</span>
+                <span>Company</span>{showType && <span>Type</span>}{everything && <span className="hidden md:block">Events</span>}<span className="hidden md:block">{add.year} sales</span>
+                <span className="hidden md:block text-right" title="About, from LinkedIn via Lusha">Team</span><span className="hidden md:block pl-4">HQ</span><span className="hidden md:block text-right" title="Hospitals named in sourced announcements, a lower bound">Hospitals</span><span className="hidden md:block text-right">Similar</span>
+                <span className="hidden md:block text-right">People</span><span className="hidden md:block text-right">Updated</span>
               </div>
               {shown.map((a) => {
                 const found = q || filtering ? peopleOf(a) : []
@@ -569,6 +675,25 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         // Sales is for Solution Providers; an End User's people go to Production.
                         if (a.key === '__none' || !add.event || a.firmographic !== 'Solution Provider') return <span className="hidden md:block text-[13px]" style={{ color: 'var(--fg-4)' }}>—</span>
                         return <span className="col-span-2 md:col-span-1 pl-11 md:pl-0"><AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} /></span>
+                      })()}
+                      {(() => {
+                        // A company the intelligence layer has nothing on says so once, in
+                        // the Team cell; its other cells stay empty rather than a row of dashes.
+                        const c = cardFor(a.key, a.name)
+                        if (!c) return <><span className="hidden md:block col-span-4 text-[12px]" style={{ color: 'var(--fg-4)' }}>{intel.known.has(a.key) || intel.failed ? 'No intel yet' : ''}</span></>
+                        const dash = <span style={{ color: 'var(--fg-4)' }}>—</span>
+                        const city = c.hq ? c.hq.split(',')[0].trim() : null
+                        // Hospitals are a vendor's; a provider shows its sourced vendors instead; none on file, a dash.
+                        const vendorSide = c.roles.includes('vendor') || (!c.roles.includes('provider') && !c.providerType)
+                        const hospitals = vendorSide ? (c.hospitals > 0 ? c.hospitals : null) : (c.vendors > 0 ? c.vendors : null)
+                        return (
+                          <>
+                            <span className="hidden md:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }} title={c.team != null ? `About ${c.team.toLocaleString('en-GB')}, LinkedIn via Lusha${c.teamAsOf ? `, ${new Date(c.teamAsOf).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : ''}` : undefined}>{c.team != null ? c.team.toLocaleString('en-GB') : dash}</span>
+                            <span className="hidden md:block pl-4 text-[12.5px] truncate" style={{ color: 'var(--fg-3)' }} title={c.hq ?? undefined}>{city ?? dash}</span>
+                            <span className="hidden md:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }} title={hospitals ? `${hospitals} ${vendorSide ? 'hospitals' : 'vendors'} named in sourced announcements, a lower bound` : 'None on file'}>{hospitals ?? dash}</span>
+                            <span className="hidden md:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }}>{c.similar > 0 ? c.similar : dash}</span>
+                          </>
+                        )
                       })()}
                       <span className="hidden md:block text-right tabular text-[13.5px]">{a.people}</span>
                       <span className="hidden md:block text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>

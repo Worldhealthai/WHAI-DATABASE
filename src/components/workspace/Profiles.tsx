@@ -11,13 +11,16 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Award, Building2, Globe, Linkedin, Loader2, Mail, MapPin, Mic, Phone, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Award, Building2, Globe, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2, Users } from 'lucide-react'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Fact, eventParts, fmtDate, initials } from '@/components/crm/profileParts'
 import { stepsBack } from '@/components/layout/NavMemory'
 import { useWorkspace } from '@/lib/workspace'
-import { companyKey, type Account, type Person } from '@/lib/segments'
+import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
+import { Field, Modal, Segmented } from './ui'
 import { AddButton, Members, Sides, TypeBadge, companyHref, recHref, usePipelineAdd } from './Segments'
+import { IntelCompanyStrip, IntelHospitalSections, IntelStrip, IntelVendorSections, NoIntel, useIntel } from './IntelPanel'
+import { isProvider as intelIsProvider, providerTypeLabel } from '@/lib/intel'
 
 function useCompany(key: string | null, name: string | null) {
   return useQuery<{ account: Account; people: Person[] }>({
@@ -43,11 +46,42 @@ function BackLink({ fallback }: { fallback: string }) {
 
 const shortEvent = (e: string) => e.replace(/^World Health AI/i, 'WHAI').replace(/^World Pharma AI/i, 'WPAI')
 
+// The company's history at our events: each event it was in, and what its
+// people did there, derived from the team's records.
+const DOING: Record<Relationship, [string, string]> = { Speaker: ['speaking', 'speaking'], Delegate: ['attending', 'attending'], Sponsor: ['sponsor contact', 'sponsor contacts'], Lead: ['lead', 'leads'] }
+function EventHistory({ a }: { a: Account }) {
+  const events = [...(a.events ?? [])].sort((x, y) => (y.match(/20\d{2}/)?.[0] ?? '').localeCompare(x.match(/20\d{2}/)?.[0] ?? '') || x.localeCompare(y))
+  if (!events.length) return null
+  const rows = events.map((e) => {
+    const n = new Map<Relationship, number>()
+    for (const m of a.members ?? []) for (const r of m.records) if (r.event && r.event.toLowerCase() === e.toLowerCase()) n.set(r.relationship, (n.get(r.relationship) ?? 0) + 1)
+    const parts = (['Sponsor', 'Speaker', 'Delegate', 'Lead'] as Relationship[]).filter((k) => n.get(k)).map((k) => `${n.get(k)} ${DOING[k][n.get(k)! > 1 ? 1 : 0]}`)
+    return { e, parts }
+  })
+  return (
+    <section className="ws-card overflow-hidden scroll-mt-4" id="events">
+      <div className="px-4 sm:px-5 pt-4 pb-2"><h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Events <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{rows.length}</span></h2></div>
+      <ul className="flex flex-col">
+        {rows.map(({ e, parts }) => (
+          <li key={e} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 sm:px-5 py-2.5" style={{ borderTop: '1px solid var(--line)' }}>
+            <span className="text-[13.5px] font-medium flex-1 basis-[200px]" style={{ color: 'var(--fg)' }}>{shortEvent(e)}</span>
+            <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{parts.length ? parts.join(' · ') : 'In the CRM for this event'}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 // ── A company ────────────────────────────────────────────────────────────────
 
 export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: string; name: string }) {
   const ws = useWorkspace()
   const { data, isLoading, error } = useCompany(companyKeyParam, name)
+  // The intelligence layer (crm.intel_company), read alongside the company.
+  const intelQ = useIntel(companyKeyParam, name)
+  const intel = intelQ.data?.company ?? null
+  const isProvider = !!intel && intelIsProvider(intel)
   const add = usePipelineAdd()
   const a = data?.account
   const back = ws.href('companies')
@@ -61,51 +95,66 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
   )
   const inSales = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
   const notes = Array.from(new Set((a.members ?? []).map((m) => m.note).filter(Boolean)))
+  // With the header action on the company, the per-person one is noise.
+  const personAdd = add.event && a.firmographic === 'Solution Provider' ? undefined : add
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-24 sm:pb-6 space-y-4">
       <nav><BackLink fallback={back} /></nav>
       <header className="ws-card overflow-hidden">
         <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
           <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>{initials(a.name)}</div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11.5px] font-medium flex items-center gap-2" style={{ color: 'var(--fg-4)' }}><TypeBadge type={a.firmographic} conflict={a.conflict} /> <Sides sides={a.sides ?? []} /></p>
-            <h1 className="text-[22px] font-semibold leading-tight tracking-tight truncate mt-0.5" style={{ color: 'var(--fg)' }}>{a.name}</h1>
+            <p className="text-[11.5px] font-medium flex items-center gap-2 flex-wrap" style={{ color: 'var(--fg-4)' }}>
+              <TypeBadge type={a.firmographic} conflict={a.conflict} /> <Sides sides={a.sides ?? []} />
+              {intel?.providerType && <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{providerTypeLabel(intel.providerType)}</span>}
+            </p>
+            <h1 className="text-[22px] font-semibold leading-tight tracking-tight sm:truncate mt-0.5" style={{ color: 'var(--fg)' }}>{a.name}</h1>
             <p className="text-[13px] mt-1 flex flex-wrap items-center gap-x-3 gap-y-1" style={{ color: 'var(--fg-3)' }}>
-              <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {a.people} {a.people === 1 ? 'person' : 'people'}</span>
-              {a.country && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {a.country}</span>}
+              {/* The people here are the CRM's contacts, not the company's size (that is in the strip below). */}
+              <span className="inline-flex items-center gap-1" title="People at this company in the CRM"><Users className="w-3.5 h-3.5" /> {a.people} {a.people === 1 ? 'contact' : 'contacts'} on file</span>
+              {intel?.odsCode && <span className="inline-flex items-center gap-1 tabular" title="NHS ODS code, from the Intelligence dataset">ODS {intel.odsCode}</span>}
+              {/* Location lives in the strip once the intelligence layer has it. */}
+              {!intel && a.country && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {a.country}</span>}
               {a.website && <a href={a.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline underline-offset-4"><Globe className="w-3.5 h-3.5" /> {a.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</a>}
             </p>
           </div>
           {/* Sales is for Solution Providers; an End User's people go to Production, one by one below. */}
           {add.event && a.firmographic === 'Solution Provider' && (
-            <div className="shrink-0">
+            <div className="w-full sm:w-auto sm:shrink-0">
               {inSales
                 ? <Link href={recHref(ws.slug, inSales) ?? '#'} className="ws-btn ws-btn-sm">In Sales: {inSales.status ?? 'open'}</Link>
                 : <AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} />}
             </div>
           )}
         </div>
+        {/* The ten-second strip, or the quiet line when the layer has nothing. */}
+        {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
         {(a.events ?? []).length > 0 && (
           <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2 text-[12.5px]" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)', color: 'var(--fg-3)' }}>
             <span className="font-medium mr-1" style={{ color: 'var(--fg-4)' }}>Events</span>
-            {(a.events ?? []).map((e) => <span key={e} className="px-2 py-0.5 rounded-md" style={{ border: '1px solid var(--line)' }}>{shortEvent(e)}</span>)}
+            {(a.events ?? []).map((e) => <a key={e} href="#events" className="px-2 py-0.5 rounded-md hover:underline underline-offset-4" style={{ border: '1px solid var(--line)' }} title="See what they did there, below">{shortEvent(e)}</a>)}
           </div>
         )}
       </header>
 
+      {/* What the intelligence layer knows, with its sources */}
+      {intel && (isProvider ? <IntelHospitalSections c={intel} slug={ws.slug} /> : <IntelVendorSections c={intel} slug={ws.slug} />)}
+
       <section className="ws-card overflow-hidden">
         <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between">
-          <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>Team <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{(a.members ?? []).length}</span></h2>
+          <h2 className="text-[14px] font-semibold" style={{ color: 'var(--fg)' }}>{isProvider ? 'People' : 'Team'} <span className="font-normal" style={{ color: 'var(--fg-4)' }}>{(a.members ?? []).length}</span></h2>
         </div>
         <div className="[&_li]:!pl-5">
-          <Members members={a.members ?? []} query="" company={a.name} add={add} where="event" account={a} />
+          <Members members={a.members ?? []} query="" company={a.name} add={personAdd} where="event" account={a} />
         </div>
       </section>
 
+      <EventHistory a={a} />
+
       {notes.length > 0 && (
         <section className="ws-card p-4 sm:p-5">
-          <h2 className="text-[14px] font-semibold mb-2" style={{ color: 'var(--fg)' }}>Notes</h2>
+          <h2 className="text-[14px] font-semibold mb-2" style={{ color: 'var(--fg)' }}>Import tags</h2>
           <ul className="flex flex-col gap-1.5 text-[13px]" style={{ color: 'var(--fg-2)' }}>{notes.map((n) => <li key={n}>{n}</li>)}</ul>
         </section>
       )}
@@ -123,6 +172,7 @@ export function ContactProfile({ id }: { id: string }) {
   const qc = useQueryClient()
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState('')
+  const [editing, setEditing] = useState(false)
   const { data: lead, isLoading, error } = useQuery<Lead>({
     queryKey: ['lead', id],
     queryFn: async () => {
@@ -132,6 +182,8 @@ export function ContactProfile({ id }: { id: string }) {
     },
   })
   const company = useCompany(lead?.companyName ? companyKey(lead.companyName) : null, lead?.companyName ?? null)
+  // The company's own categories, in place of Lusha's industry.
+  const intelCo = useIntel(lead?.companyName ? companyKey(lead.companyName) : null, lead?.companyName ?? null).data?.company ?? null
   const back = ws.href('contacts')
 
   const move = async (to: 'speaker' | 'sponsor') => {
@@ -173,7 +225,7 @@ export function ContactProfile({ id }: { id: string }) {
   const firmHref = acct ? companyHref(ws.slug, acct) : null
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-24 sm:pb-6 space-y-4">
       <nav><BackLink fallback={back} /></nav>
 
       <header className="ws-card overflow-hidden">
@@ -195,10 +247,14 @@ export function ContactProfile({ id }: { id: string }) {
               {lead.linkedinUrl && <a href={lead.linkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Linkedin className="w-3.5 h-3.5" /> LinkedIn</a>}
             </div>
           </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => setEditing(true)} disabled={!!busy} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
           <button onClick={remove} disabled={!!busy} className="ws-btn ws-btn-sm ws-btn-ghost shrink-0" title="Delete this contact" aria-label="Delete this contact" style={{ color: 'var(--bad)' }}>
             {busy === 'remove' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
           </button>
+          </div>
         </div>
+        {editing && <EditContactModal lead={lead} onClose={() => setEditing(false)} onSaved={(next) => { qc.setQueryData(['lead', id], next); qc.invalidateQueries({ queryKey: ['ws-segments'] }); setEditing(false) }} />}
         <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-2" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
           <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>Not in a pipeline yet{edition ? ` · ${edition.title}` : ''}</span>
           {type === 'End User' ? (
@@ -214,6 +270,9 @@ export function ContactProfile({ id }: { id: string }) {
         </div>
       </header>
 
+      {/* Their company in ten seconds, each part a link to its page */}
+      <IntelCompanyStrip companyKey={acct?.key ?? (lead.companyName ? companyKey(lead.companyName) : null)} name={lead.companyName ?? null} slug={ws.slug} />
+
       <div className="flex flex-col gap-4">
         <section className="ws-card p-4 sm:p-5">
           <h2 className="text-[14px] font-semibold mb-3" style={{ color: 'var(--fg)' }}>About</h2>
@@ -221,7 +280,9 @@ export function ContactProfile({ id }: { id: string }) {
             <Fact label="Company" value={lead.companyName ? <span className="inline-flex items-center gap-1"><Building2 className="w-3.5 h-3.5" /> {lead.companyName}</span> : '—'} />
             <Fact label="Type" value={type || '—'} />
             <Fact label="Location" value={where ? <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {where}</span> : '—'} />
-            <Fact label="Industry" value={[lead.industry, lead.subIndustry].filter(Boolean).join(' · ') || '—'} />
+            {intelCo?.categories.length
+              ? <Fact label="Category" value={<span className="whitespace-normal">{intelCo.categories.join(' · ')}</span>} />
+              : <Fact label="Industry" value={[lead.industry, lead.subIndustry].filter(Boolean).join(' · ') || '—'} />}
             <Fact label="Website" value={lead.website ? <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline underline-offset-4"><Globe className="w-3.5 h-3.5" /> {lead.website.replace(/^https?:\/\/(www\.)?/, '')}</a> : '—'} />
             <Fact label="Added" value={fmtDate(lead.createdAt)} />
           </dl>
@@ -249,5 +310,57 @@ export function ContactProfile({ id }: { id: string }) {
         </section>
       </div>
     </div>
+  )
+}
+
+// Edit a contact's details (a person from a leads list): name, title,
+// company, emails, phone, LinkedIn, location, website, type and notes.
+const LEAD_FIELDS: { k: string; label: string; type?: string; span?: boolean }[] = [
+  { k: 'firstName', label: 'First name' }, { k: 'lastName', label: 'Last name' },
+  { k: 'jobTitle', label: 'Job title' }, { k: 'companyName', label: 'Company' },
+  { k: 'email', label: 'Email', type: 'email' }, { k: 'email2', label: 'Other email', type: 'email' },
+  { k: 'phone', label: 'Phone', type: 'tel' }, { k: 'linkedinUrl', label: 'LinkedIn URL', type: 'url' },
+  { k: 'city', label: 'City' }, { k: 'country', label: 'Country' },
+  { k: 'website', label: 'Company website', type: 'url', span: true },
+]
+
+function EditContactModal({ lead, onClose, onSaved }: { lead: Lead; onClose: () => void; onSaved: (next: Lead) => void }) {
+  const [f, setF] = useState<Record<string, string>>(() => Object.fromEntries([...LEAD_FIELDS.map((x) => x.k), 'notes', 'segment'].map((k) => [k, lead[k] ?? ''])))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const save = async () => {
+    setSaving(true); setErr('')
+    try {
+      const r = await fetch(`/api/leads/${lead.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || 'Could not save')
+      onSaved(j)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not save')
+      setSaving(false)
+    }
+  }
+  return (
+    <Modal title="Edit contact" subtitle={[lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.email || undefined} onClose={onClose} width="max-w-2xl"
+      footer={<>
+        {err && <span className="text-[12px] mr-auto" style={{ color: 'var(--bad)' }}>{err}</span>}
+        <button type="button" className="ws-btn ws-btn-ghost" onClick={onClose}>Cancel</button>
+        <button type="button" className="ws-btn ws-btn-primary" onClick={save} disabled={saving}>{saving && <Loader2 className="w-4 h-4 animate-spin" />} Save</button>
+      </>}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {LEAD_FIELDS.map((x) => (
+          <Field key={x.k} label={x.label} span={x.span}>
+            <input className="ws-input" type={x.type ?? 'text'} value={f[x.k]} onChange={(e) => setF((p) => ({ ...p, [x.k]: e.target.value }))} />
+          </Field>
+        ))}
+        <Field label="Type" span>
+          <Segmented size="sm" value={f.segment || 'End User'} onChange={(v) => setF((p) => ({ ...p, segment: v }))}
+            options={[{ value: 'End User', label: 'End User' }, { value: 'Solution Provider', label: 'Solution Provider' }]} />
+        </Field>
+        <Field label="Notes" span>
+          <textarea className="ws-input min-h-[90px] py-2" value={f.notes} onChange={(e) => setF((p) => ({ ...p, notes: e.target.value }))} />
+        </Field>
+      </div>
+    </Modal>
   )
 }
