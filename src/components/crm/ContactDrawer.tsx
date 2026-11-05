@@ -235,6 +235,7 @@ function DrawerBody({ seed, onClose, onStep, index, total, prevName, nextName }:
     const table = `${r.kind}s`
     if (!all.some((x) => x.table === table && x.id === r.id)) all.push({ relationship: ROLE_REL[r.kind], table, id: r.id, status: r.status, event: r.event })
   }
+  const pipeline = all.filter((r) => r.table !== 'leads')
   const sponsorRec = all.find((r) => r.relationship === 'Sponsor')
   const coKey = companyKey(company)
   const coHref = company ? (sponsorRec && sponsorRec.table === 'sponsors' ? `/sponsors/${sponsorRec.id}` : coKey ? companyHref(slug, { key: coKey, name: company }) : null) : null
@@ -318,13 +319,14 @@ function DrawerBody({ seed, onClose, onStep, index, total, prevName, nextName }:
 
       <div className="flex-1 overflow-y-auto overscroll-contain">
         {/* Their records, one line each with the stage's dot */}
+        {/* Only their pipeline records: a leads-list row says nothing the
+            panel above does not, so a person known only from a list has no
+            section here at all. */}
+        {pipeline.length > 0 && (
         <section className="pt-4 pb-3" style={{ borderBottom: '1px solid var(--line)' }}>
-          {sectionHead('In the CRM', all.length > 0 ? <span className="tabular">{all.length}</span> : null)}
-          {all.length === 0 ? (
-            <p className="px-5 text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{roles.isLoading ? 'Looking for their records…' : 'No record yet: a name from Lusha, not in the CRM.'}</p>
-          ) : (
+          {sectionHead('In the pipelines', <span className="tabular">{pipeline.length}</span>)}
             <ul className="flex flex-col">
-              {all.map((r, i) => {
+              {pipeline.map((r, i) => {
                 const to = recHref(slug, r)
                 const kind = kindOfTable(r.table)
                 const list = r.table === 'leads' ? (note ?? '').split(' · ')[0] || null : null
@@ -347,8 +349,8 @@ function DrawerBody({ seed, onClose, onStep, index, total, prevName, nextName }:
                 return <li key={`${r.table}-${r.id}-${i}`}>{to ? <Link href={to} className={`${cls} crm-row`} title="Open the record">{body}</Link> : <span className={cls}>{body}</span>}</li>
               })}
             </ul>
-          )}
         </section>
+        )}
 
         {/* How to reach them: a tap copies */}
         <section className="pt-4 pb-2" style={{ borderBottom: '1px solid var(--line)' }}>
