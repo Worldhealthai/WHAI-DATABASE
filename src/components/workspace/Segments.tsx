@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
+import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users, X } from 'lucide-react'
 import { useWorkspace, useWorkspaceFromUrl } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
 import { downloadCsv } from '@/lib/csv'
@@ -21,7 +21,8 @@ import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/
 import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
-import { EmptyState, Field, Initials, Modal, Segmented, formatMoney, timeAgo } from './ui'
+import { EmptyState, Field, Initials, ListSkeleton, Modal, Segmented, formatMoney, timeAgo } from './ui'
+import { StageDot, kindOfTable, stageLabel, stageTone } from '@/components/crm/profileParts'
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 import { FocusToggle } from '@/components/crm/FocusToggle'
@@ -177,31 +178,41 @@ export type PipelineAdd = ReturnType<typeof usePipelineAdd>
 // Solution Provider into Sales (as their company's contact). Not shown once
 // they are already in that pipeline this year. A lead goes on as themselves
 // (promote), leaving the leads list.
-export function PersonAdds({ add, who, company, type, primary }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null; type: Firmographic | null; primary?: boolean }) {
-  if (!add.event || !type) return null
+type Who = Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>
+// Whether PersonAdds has anything to offer for this person, so a row can
+// show something else in its place (their role, on a phone).
+export function hasPersonAdd(add: PipelineAdd, who: Who, company: string | null, type: Firmographic | null): boolean {
+  if (!add.event || !type) return false
+  if (type === 'End User') return add.done.has(`speaker:${who.key}`) || !who.records.some((r) => r.relationship === 'Speaker' && add.inYear(r))
+  const firm = company && company !== NO_COMPANY_NAME ? company : ''
+  return !!firm && !who.records.some((r) => r.relationship === 'Sponsor' && add.inYear(r))
+}
+export function PersonAdds({ add, who, company, type, primary }: { add: PipelineAdd; who: Who; company: string | null; type: Firmographic | null; primary?: boolean }) {
+  if (!hasPersonAdd(add, who, company, type)) return null
   const lead = who.records.find((r) => r.table === 'leads')
   const firm = company && company !== NO_COMPANY_NAME ? company : ''
   if (type === 'End User') {
     // Once added from here it keeps showing "Added · Undo", even after the
     // list reloads with them speaking.
-    if (!add.done.has(`speaker:${who.key}`) && who.records.some((r) => r.relationship === 'Speaker' && add.inYear(r))) return null
     return <AddButton primary={primary} label="Production pipeline" busy={add.busy === `speaker:${who.key}`} done={add.done.has(`speaker:${who.key}`)}
       onClick={() => (lead ? add.promote(who.key, lead.id, 'speaker') : add.addSpeaker(who as Member, firm))}
       onUndo={add.canUndo(`speaker:${who.key}`) ? () => add.undo(`speaker:${who.key}`) : undefined} />
   }
-  if (who.records.some((r) => r.relationship === 'Sponsor' && add.inYear(r)) || !firm) return null
   return <AddButton primary={primary} label="Sales pipeline" busy={add.busy === `sponsor:${who.key}`} done={add.done.has(`sponsor:${who.key}`)}
     onClick={() => (lead ? add.promote(who.key, lead.id, 'sponsor') : add.addContactToSales(who as Member, firm))} />
 }
 
 // `primary` is the page's one main action (the profile's band, the contact
-// panel): the accent button, a 40px tap on a phone.
-export function AddButton({ label, busy, done, onClick, onUndo, primary }: { label: string; busy: boolean; done: boolean; onClick: () => void; onUndo?: () => void; primary?: boolean }) {
+// panel): the accent button, a 40px tap on a phone. Otherwise, in a list,
+// an outline chip that takes the accent on hover (.crm-add), its label
+// shortened on a phone ("Production", "Sales").
+// `short` keeps the short label at every width (a column already headed "sales").
+export function AddButton({ label, busy, done, onClick, onUndo, primary, short: always }: { label: string; busy: boolean; done: boolean; onClick: () => void; onUndo?: () => void; primary?: boolean; short?: boolean }) {
   if (done) return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap ${primary ? 'text-[13px] font-medium min-h-8 max-sm:min-h-10' : 'text-[12px]'}`} style={{ color: 'var(--ok)' }}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap min-h-8 max-sm:min-h-10 ${primary ? 'text-[13px] font-medium' : 'text-[12px]'}`} style={{ color: 'var(--ok)' }}>
       <Check className="w-3.5 h-3.5" /> Added
       {onUndo && (
-        <button type="button" onClick={onUndo} disabled={busy} className="ml-1 underline underline-offset-4 disabled:opacity-60" style={{ color: 'var(--fg-3)' }} title="Take them back out of the pipeline">
+        <button type="button" onClick={onUndo} disabled={busy} className="ml-1 px-1.5 min-h-8 max-sm:min-h-10 underline underline-offset-4 disabled:opacity-60" style={{ color: 'var(--fg-3)' }} title="Take them back out of the pipeline">
           {busy ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Undo'}
         </button>
       )}
@@ -212,17 +223,48 @@ export function AddButton({ label, busy, done, onClick, onUndo, primary }: { lab
       {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} {label}
     </button>
   )
+  const short = label.replace(/ pipeline$/, '')
   return (
-    <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 whitespace-nowrap" style={{ color: 'var(--accent-ink)' }}>
-      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} {label}
+    <button type="button" onClick={onClick} disabled={busy} className="crm-add" title={`Add to the ${label.toLowerCase()}`}>
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+      {always ? short : <><span className="sm:hidden">{short}</span><span className="max-sm:hidden">{label}</span></>}
     </button>
   )
 }
 
 const NO_COMPANY_NAME = 'No company given'
 // How a person takes part, in the CRM's terms: speaking, attending, or a
-// contact of a sponsoring company.
-const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact', Lead: 'Lead' }
+// contact of a sponsoring company. Being on a leads list is not a role:
+// "Lead 2027" said no more than opening the contact (Ali, November 2026),
+// so lead records are left out wherever people are listed (`roles`).
+const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact', Lead: '' }
+export const roles = <T extends { relationship: Relationship }>(records: T[]): T[] => records.filter((r) => r.relationship !== 'Lead')
+
+// A role in a pipeline, as a chip: the stage's dot (green won, red lost,
+// grey in play), the role and the stage. Opens the record.
+type Rec = Member['records'][number]
+function RoleChip({ rec, where }: { rec: Rec; where: Where }) {
+  const kind = kindOfTable(rec.table)
+  const status = rec.status ? (kind ? stageLabel(kind, rec.status) : rec.status) : null
+  const text = `${DOING[rec.relationship]}${whereOf(rec.event, where)}`
+  return (
+    <RecLink rec={rec} className="crm-role max-w-full min-w-0">
+      <StageDot tone={stageTone(kind, rec.status)} />
+      <span className="truncate">{text}{status && <span style={{ color: 'var(--fg-3)' }}> · {status}</span>}</span>
+    </RecLink>
+  )
+}
+// A person's roles in one cell: the first as a chip, the rest counted.
+function RolesCell({ records, where }: { records: Rec[]; where: Where }) {
+  const rs = roles(records)
+  if (!rs.length) return null
+  return (
+    <span className="flex items-center gap-1.5 min-w-0" title={rs.length > 1 ? rs.map((r) => `${DOING[r.relationship]}${whereOf(r.event, where)}${r.status ? ` · ${r.status}` : ''}`).join('\n') : undefined}>
+      <RoleChip rec={rs[0]} where={where} />
+      {rs.length > 1 && <span className="text-[12px] tabular shrink-0" style={{ color: 'var(--fg-4)' }}>+{rs.length - 1}</span>}
+    </span>
+  )
+}
 
 // A record's page, as a link. A person opens on their first record in a
 // pipeline; someone known only from a leads list opens on their contact
@@ -284,7 +326,7 @@ export function Members({ members, query, company, add, where, account, flush, o
   const seedOf = (m: Member) => ({ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null, href: recHref(slug, pageOf(m.records)) })
   // The panel steps through the list it was opened from.
   const list = members.map(seedOf)
-  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[54px] pr-4'
+  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[52px] sm:pl-[100px] pr-4'
   return (
     <ul className="flex flex-col">
       {members.map((m, mi) => {
@@ -293,7 +335,7 @@ export function Members({ members, query, company, add, where, account, flush, o
         // Once added from here, "Added · Undo" stays in view.
         const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_120px] items-start gap-x-4 gap-y-1 py-2.5 ${pad}`} style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
+          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_140px] items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit ? 'var(--accent-soft)' : undefined }}>
             {/* The name opens the contact panel; the link underneath is their page. */}
             <ContactLink seed={list[mi]} list={list} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
               <span className="block truncate text-[13px] leading-5">
@@ -303,8 +345,7 @@ export function Members({ members, query, company, add, where, account, flush, o
               {m.email && m.name && <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-4)' }}>{m.email}</span>}
             </ContactLink>
             <span className="flex flex-col sm:items-end gap-y-0.5 text-[12px] min-w-0">
-              {m.records.length === 0 && <span style={{ color: 'var(--fg-4)' }}>—</span>}
-              {m.records.map((r, i) => (
+              {roles(m.records).map((r, i) => (
                 <RecLink key={i} rec={r} className="block max-w-full sm:text-right hover:underline underline-offset-4 leading-5" style={{ color: 'var(--fg-3)' }}>
                   {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? <span style={{ color: 'var(--fg-4)' }}> · {r.status}</span> : null}
                 </RecLink>
@@ -367,7 +408,7 @@ function AddContact({ account, flush, openRef }: { account: Account; flush?: boo
     <input className="ws-input h-8 text-[13px] min-w-0 flex-1 basis-[140px]" type={type} placeholder={ph} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} />
   )
   return (
-    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[54px] pr-4'}`} style={{ borderTop: '1px solid var(--line)' }}>
+    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[52px] sm:pl-[100px] pr-4'}`} style={{ borderTop: '1px solid var(--line-soft)' }}>
       {!open ? (
         <span className="flex flex-wrap items-center gap-3">
           <button type="button" className={`ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 ${flush ? '-ml-2 ws-tap' : ''}`} style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
@@ -442,38 +483,104 @@ function Completeness({ value }: { value: number }) {
   )
 }
 
-function Summary({ data, loading }: { data?: Segments; loading: boolean }) {
+// The four numbers at the top of Companies, each a way in: a tap shows
+// just those companies (and a second tap, all again).
+type TilePick = 'all' | Firmographic | 'check'
+function Summary({ data, loading, picked, onPick }: { data?: Segments; loading: boolean; picked: TilePick; onPick: (p: TilePick) => void }) {
   const t = data?.totals
-  const cells = [
-    { label: 'Companies', value: t?.accounts, hint: `${t?.people ?? 0} people` },
-    { label: 'Solution providers', value: t?.solutionProviders, hint: 'Sell to our audience' },
-    { label: 'End users', value: t?.endUsers, hint: 'Buy from them' },
-    { label: 'To check', value: t?.conflicts, hint: 'Their people disagree on the type' },
+  const share = (n?: number) => (t?.accounts ? Math.round(((n ?? 0) / t.accounts) * 100) : 0)
+  const cells: { key: TilePick; label: string; value?: number; hint: string; bar?: number; warn?: boolean }[] = [
+    { key: 'all', label: 'Companies', value: t?.accounts, hint: `${(t?.people ?? 0).toLocaleString('en-GB')} people` },
+    { key: 'Solution Provider', label: 'Solution providers', value: t?.solutionProviders, hint: `${share(t?.solutionProviders)}% · sell to our audience`, bar: share(t?.solutionProviders) },
+    { key: 'End User', label: 'End users', value: t?.endUsers, hint: `${share(t?.endUsers)}% · buy from them`, bar: share(t?.endUsers) },
+    { key: 'check', label: 'To check', value: t?.conflicts, hint: 'Their people disagree on the type', warn: (t?.conflicts ?? 0) > 0 },
   ]
   return (
-    <div className="ws-card grid grid-cols-2 xl:grid-cols-4 mb-4">
+    <div className="ws-card grid grid-cols-2 xl:grid-cols-4 mb-4 overflow-hidden">
       {cells.map((c, i) => (
-        <div key={c.label} className={`px-5 py-3.5 min-w-0 ${i % 2 ? 'border-l' : ''} ${i >= 2 ? 'border-t xl:border-t-0' : ''} ${i === 2 ? 'xl:border-l' : ''}`} style={{ borderColor: 'var(--line)' }}>
-          <p className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{c.label}</p>
-          {loading ? <div className="h-6 w-12 mt-1.5 rounded animate-pulse" style={{ background: 'var(--surface-3)' }} /> : (
-            <p className="text-[22px] leading-none mt-1.5 tabular font-semibold" style={{ color: 'var(--fg)' }}>{c.value ?? 0}</p>
+        <button key={c.key} type="button" className={`crm-tile px-4 sm:px-5 py-3.5 min-w-0 ${i % 2 ? 'border-l' : ''} ${i >= 2 ? 'border-t xl:border-t-0' : ''} ${i === 2 ? 'xl:border-l' : ''}`}
+          style={{ borderColor: 'var(--line)' }} data-active={picked === c.key && c.key !== 'all'} aria-pressed={picked === c.key}
+          onClick={() => onPick(picked === c.key ? 'all' : c.key)} title={c.key === 'all' ? 'Show every company' : `Show only ${c.label.toLowerCase()}`}>
+          <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
+            {c.label}
+            {c.warn && <AlertTriangle className="w-3.5 h-3.5" style={{ color: 'var(--warn)' }} aria-hidden />}
+          </span>
+          {loading ? <span className="block h-[22px] w-12 mt-1.5 rounded animate-pulse" style={{ background: 'var(--surface-3)' }} /> : (
+            <span className="block text-[22px] leading-none mt-1.5 tabular font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>{(c.value ?? 0).toLocaleString('en-GB')}</span>
           )}
-          <p className="text-[12px] mt-1.5 truncate" style={{ color: 'var(--fg-4)' }}>{c.hint}</p>
-        </div>
+          {c.bar != null ? (
+            <span className="flex items-center gap-2 mt-2">
+              <span className="h-1 flex-1 max-w-[88px] rounded-full overflow-hidden" style={{ background: 'var(--surface-3)' }}>
+                <span className="block h-full rounded-full" style={{ width: `${c.bar}%`, background: 'var(--fg-4)' }} />
+              </span>
+              <span className="text-[12px] truncate" style={{ color: 'var(--fg-4)' }}>{c.hint}</span>
+            </span>
+          ) : <span className="block text-[12px] mt-2 truncate" style={{ color: 'var(--fg-4)' }}>{c.hint}</span>}
+        </button>
       ))}
     </div>
   )
 }
 
+// The height of the top bar, for the list's head to stick just under it.
+function useTopBar(): number {
+  const [h, setH] = useState(0)
+  useEffect(() => {
+    const el = document.querySelector('header.crm-top')
+    if (!el) return
+    const ro = new ResizeObserver(() => setH(el.getBoundingClientRect().height))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return h
+}
+
+// The search, filters and column heads of a list, held under the top bar
+// while the rows scroll (a tablet or desk; a phone keeps its screen for the
+// rows). `stuck` gives it a soft shadow once it has caught.
+function ListHead({ children }: { children: React.ReactNode }) {
+  const top = useTopBar()
+  const ref = useRef<HTMLDivElement>(null)
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const check = () => setStuck(window.innerWidth >= 640 && el.getBoundingClientRect().top <= top + 0.5 && window.scrollY > 0)
+    window.addEventListener('scroll', check, { passive: true })
+    window.addEventListener('resize', check)
+    return () => { window.removeEventListener('scroll', check); window.removeEventListener('resize', check) }
+  }, [top])
+  return <div ref={ref} className="crm-listhead sm:sticky z-20" data-stuck={stuck} style={{ top }}>{children}</div>
+}
+
 function Toolbar({ children, query, setQuery, placeholder, count, people }: { children?: React.ReactNode; query: string; setQuery: (v: string) => void; placeholder: string; count: number; people?: number | null }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--line)' }}>
-      <label className="relative flex-1 min-w-[200px] max-w-[360px]">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--fg-4)' }} />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={placeholder} className="ws-input" style={{ paddingLeft: 34 }} />
+    <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 py-3">
+      <label className="relative flex-1 min-w-[200px] max-w-[380px] max-sm:max-w-none">
+        <span className="sr-only">Search</span>
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={placeholder} className="ws-input !rounded-full max-sm:!h-10" style={{ paddingLeft: 36, paddingRight: query ? 36 : 14 }} />
+        {query && (
+          <button type="button" onClick={() => setQuery('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 max-sm:w-8 max-sm:h-8 rounded-full inline-flex items-center justify-center hover:bg-[var(--surface-2)]" style={{ color: 'var(--fg-3)' }} aria-label="Clear the search">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </label>
       {children}
-      <span className="ml-auto text-[12.5px] tabular" style={{ color: 'var(--fg-4)' }}>{count.toLocaleString()} shown{people != null ? ` · ${people.toLocaleString()} ${people === 1 ? 'person' : 'people'}` : ''}</span>
+      <span className="ml-auto text-[12.5px] tabular whitespace-nowrap max-sm:w-full max-sm:ml-0 max-sm:order-last" style={{ color: 'var(--fg-4)' }}>
+        <span style={{ color: 'var(--fg-2)' }}>{count.toLocaleString('en-GB')}</span> shown{people != null ? ` · ${people.toLocaleString('en-GB')} ${people === 1 ? 'person' : 'people'}` : ''}
+      </span>
+    </div>
+  )
+}
+
+// The second line of a list's head: a labelled row of filters.
+function FilterRow({ label, children, onClear }: { label: string; children: React.ReactNode; onClear?: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 pb-3">
+      <span className="text-[12px] font-medium w-full sm:w-auto sm:mr-1" style={{ color: 'var(--fg-4)' }}>{label}</span>
+      {children}
+      {onClear && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={onClear}>Clear</button>}
     </div>
   )
 }
@@ -491,7 +598,7 @@ function TagFilter({ value, onChange }: { value: Relationship | ''; onChange: (v
 const PAGE = 50
 
 const rolesOf = (records: { relationship: Relationship; event?: string | null; status: string | null }[]) =>
-  records.map((r) => `${DOING[r.relationship]}${r.event ? ` (${shortEvent(r.event)})` : ''}${r.status ? `: ${r.status}` : ''}`).join('; ')
+  roles(records).map((r) => `${DOING[r.relationship]}${r.event ? ` (${shortEvent(r.event)})` : ''}${r.status ? `: ${r.status}` : ''}`).join('; ')
 
 // The company table's columns: Type only while both types are shown, Events
 // only in the Directory (inside an event every company is in it).
@@ -499,10 +606,10 @@ const rolesOf = (records: { relationship: Relationship; event?: string | null; s
 // column: Team (size), HQ, Hospitals (sourced), Similar.
 // (Written out in full: Tailwind reads whole class names from the source.)
 const COMPANY_GRID: Record<string, string> = {
-  te: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_150px_minmax(0,1.3fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
-  t: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_150px_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
-  e: 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
-  '': 'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
+  te: 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,2.4fr)_150px_minmax(0,1.3fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
+  t: 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,2.4fr)_150px_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
+  e: 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
+  '': 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_64px_minmax(0,1.1fr)_76px_64px_64px_80px]',
 }
 
 // ── Companies ────────────────────────────────────────────────────────────────
@@ -653,6 +760,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const showType = type === 'all'
   const grid = COMPANY_GRID[`${showType ? 't' : ''}${everything ? 'e' : ''}`]
   const toggle = (k: string) => setOpenList((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]))
+  const top = useRef<HTMLDivElement>(null)
 
   return (
     <WorkspacePage
@@ -671,76 +779,79 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
         </>
       }
     >
-      <Summary data={data} loading={isLoading} />
+      <Summary data={data} loading={isLoading} picked={conflicts ? 'check' : type}
+        onPick={(v) => { if (v === 'check') { setConflicts(true); setType('all') } else { setConflicts(false); setType(v) } setPage(1) }} />
       {/* How far the intelligence layer reaches on this page, so the gaps in its columns read as coverage. */}
       {data && intelLoaded && (
-        <p className="-mt-2 mb-4 px-1 text-[12px]" style={{ color: 'var(--fg-4)' }}>
+        <p className="-mt-1 mb-3 px-1 text-[12px] max-sm:hidden" style={{ color: 'var(--fg-4)' }}>
           Intelligence on {shown.filter((a) => cardFor(a.key, a.name)).length} of {shown.length} companies on this page · Team is from LinkedIn via Lusha; Hospitals counts those named in sourced announcements, a lower bound
         </p>
       )}
-      <div className="ws-card">
-        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length} people={peopleCount}>
-          <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
-          <button type="button" className="ws-chip" data-active={conflicts} onClick={() => { setConflicts(!conflicts); setPage(1) }}>
-            <AlertTriangle className="w-3.5 h-3.5" /> To check
-          </button>
-          {everything && (
-            <button type="button" className="ws-chip" data-active={both} onClick={() => { setBoth(!both); setPage(1) }} title="Companies in both the Health and the Pharma events">
-              In Health and Pharma
+      <div className="ws-card crm-listcard" ref={top}>
+        <ListHead>
+          <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search companies or people…" count={rows.length} people={peopleCount}>
+            <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
+            <button type="button" className="ws-chip" data-active={conflicts} onClick={() => { setConflicts(!conflicts); setPage(1) }}>
+              <AlertTriangle className="w-3.5 h-3.5" /> To check
             </button>
+            {everything && (
+              <button type="button" className="ws-chip" data-active={both} onClick={() => { setBoth(!both); setPage(1) }} title="Companies in both the Health and the Pharma events">
+                In Health and Pharma
+              </button>
+            )}
+            {/* From the intelligence layer */}
+            <button type="button" className="ws-chip" data-active={sourced} onClick={() => { setSourced(!sourced); setPage(1) }} title="Companies with at least one hospital named in a sourced announcement">
+              <Building2 className="w-3.5 h-3.5" /> Has sourced hospitals
+            </button>
+            <label className="inline-flex items-center">
+              <span className="sr-only">Category</span>
+              <select className="ws-chip !pr-7 appearance-none cursor-pointer" data-active={!!intelCat} value={intelCat} onChange={(e) => { setIntelCat(e.target.value); setPage(1) }}
+                style={{ backgroundImage: 'none' }}>
+                <option value="">Any category</option>
+                {intel.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 -ml-6 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
+            </label>
+          </Toolbar>
+          {/* The people inside: by job title, and Health or Pharma */}
+          <FilterRow label="People" onClear={filtering ? () => setP({ titles: [], doing: '', focus: '' }) : undefined}>
+            <TitleFilter titles={titleCounts} tokens={pf.titles} onChange={(titles) => setP({ titles })} />
+            {/* Health or Pharma: the Directory only; inside an event the event says it. */}
+            {everything && (
+              <Segmented size="sm" value={pf.focus || 'any'} onChange={(v) => setP({ focus: v === 'any' ? '' : (v as Focus) })}
+                options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
+            )}
+          </FilterRow>
+          {!error && !isLoading && rows.length > 0 && (
+            <div className={`crm-colhead hidden lg:grid ${grid} gap-3 px-4 h-9 items-center`}>
+              <span className="pl-[84px]">Company</span>{showType && <span>Type</span>}{everything && <span>Events</span>}<span>{add.year} sales</span>
+              <span className="text-right" title="About, from LinkedIn via Lusha">Team</span><span className="pl-4">HQ</span><span className="text-right" title="Hospitals named in sourced announcements, a lower bound">Hospitals</span><span className="text-right">Similar</span>
+              <span className="text-right">People</span><span className="text-right">Updated</span>
+            </div>
           )}
-          {/* From the intelligence layer */}
-          <button type="button" className="ws-chip" data-active={sourced} onClick={() => { setSourced(!sourced); setPage(1) }} title="Companies with at least one hospital named in a sourced announcement">
-            <Building2 className="w-3.5 h-3.5" /> Has sourced hospitals
-          </button>
-          <label className="inline-flex items-center">
-            <span className="sr-only">Category</span>
-            <select className="ws-chip !pr-7 appearance-none cursor-pointer" data-active={!!intelCat} value={intelCat} onChange={(e) => { setIntelCat(e.target.value); setPage(1) }}
-              style={{ backgroundImage: 'none' }}>
-              <option value="">Any category</option>
-              {intel.categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 -ml-6 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
-          </label>
-        </Toolbar>
-        {/* The people inside: by job title, and Health or Pharma */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
-          <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>People</span>
-          <TitleFilter titles={titleCounts} tokens={pf.titles} onChange={(titles) => setP({ titles })} />
-          {/* Health or Pharma: the Directory only; inside an event the event says it. */}
-          {everything && (
-            <Segmented size="sm" value={pf.focus || 'any'} onChange={(v) => setP({ focus: v === 'any' ? '' : (v as Focus) })}
-              options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
-          )}
-          {filtering && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => setP({ titles: [], doing: '', focus: '' })}>Clear</button>}
-        </div>
+        </ListHead>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the companies" body={(error as Error).message} /> :
-         isLoading ? <Skeleton /> :
-         rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body="Try another filter, or clear the search." /> : (
-          <div className="overflow-x-auto">
-            {/* On a phone a company is its name and type, with the sales
-                action under the name; the rest is on its record. */}
-            <div className="md:min-w-[900px]">
-              <div className={`grid ${grid} gap-3 px-4 py-2.5 text-[12px] font-medium`} style={{ color: 'var(--fg-4)', borderBottom: '1px solid var(--line)' }}>
-                <span>Company</span>{showType && <span>Type</span>}{everything && <span className="hidden md:block">Events</span>}<span className="hidden md:block">{add.year} sales</span>
-                <span className="hidden md:block text-right" title="About, from LinkedIn via Lusha">Team</span><span className="hidden md:block pl-4">HQ</span><span className="hidden md:block text-right" title="Hospitals named in sourced announcements, a lower bound">Hospitals</span><span className="hidden md:block text-right">Similar</span>
-                <span className="hidden md:block text-right">People</span><span className="hidden md:block text-right">Updated</span>
-              </div>
+         isLoading ? <ListSkeleton square /> :
+         rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body={q ? `Nothing for “${query.trim()}” with these filters.` : 'Nothing with these filters.'}
+           action={<button type="button" className="ws-btn ws-btn-sm" onClick={() => { setQuery(''); setType('all'); setConflicts(false); setBoth(false); setSourced(false); setIntelCat(''); setPf({ titles: [], doing: '', focus: '' }); setPage(1) }}>Clear search and filters</button>} /> : (
+          // On a phone (and a narrow tablet) a company is its name and type,
+          // with the sales action under the name; the rest is on its record.
+          <div className="crm-list" style={{ borderTop: '1px solid var(--line)' }}>
               {shown.map((a) => {
                 const found = q || filtering ? peopleOf(a) : []
                 const expanded = open.has(a.key) || found.length > 0
                 return (
-                  <div key={a.key} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <div className={`grid ${grid} gap-3 items-center px-4 py-2.5 transition-colors hover:bg-[var(--glass-hover)]`}>
+                  <div key={a.key}>
+                    <div className={`crm-lrow grid ${grid} gap-3 items-center px-3 sm:px-4 py-2 min-h-[56px]`} data-open={expanded}>
                       <span className="flex items-center gap-2 min-w-0">
-                        <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-1 shrink-0" aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
+                        <button type="button" onClick={() => toggle(a.key)} className="ws-btn ws-btn-ghost ws-btn-sm !h-8 !w-8 !px-0 max-sm:!h-10 max-sm:!w-10 shrink-0" style={{ color: 'var(--fg-3)' }} aria-expanded={expanded} aria-label={expanded ? `Hide ${a.name}'s people` : `Show ${a.name}'s people`}>
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
-                        <CompanyLink a={a} className="flex items-center gap-3 min-w-0">
-                          <Initials name={a.name} size={30} />
+                        <CompanyLink a={a} className="group/co flex items-center gap-3 min-w-0">
+                          <Initials name={a.name} size={32} />
                           <span className="min-w-0">
-                            <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
-                            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
+                            <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate group-hover/co:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
+                            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{showType && a.firmographic && <span className="lg:hidden" style={{ color: 'var(--fg-2)' }}>{a.firmographic}{a.conflict && <AlertTriangle className="w-3 h-3 inline -mt-0.5 ml-1" style={{ color: 'var(--warn)' }} aria-label="To check" />} · </span>}{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
                             {a.conflict && a.disagree?.length ? (
                               <span className="block text-[11.5px] truncate" style={{ color: 'var(--warn)' }} title={a.disagree.join('\n')}>
                                 {a.disagree[0]}{a.disagree.length > 1 ? ` +${a.disagree.length - 1} more` : ''}
@@ -749,21 +860,21 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                           </span>
                         </CompanyLink>
                       </span>
-                      {showType && <span><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>}
-                      {everything && <span className="hidden md:block min-w-0 truncate"><Events events={a.events ?? []} /></span>}
+                      {showType && <span className="hidden lg:block"><TypeBadge type={a.firmographic} conflict={a.conflict} /></span>}
+                      {everything && <span className="hidden lg:block min-w-0 truncate"><Events events={a.events ?? []} /></span>}
                       {(() => {
                         // This year's sponsor record, if the company has one.
                         const rec = (a.members ?? []).flatMap((m) => m.records).find((r) => r.relationship === 'Sponsor' && add.inYear(r))
-                        if (rec) return <Link href={`${PATH[rec.table]}/${rec.id}`} className="col-span-2 md:col-span-1 pl-11 md:pl-0 text-[13px] truncate hover:underline underline-offset-4" style={{ color: 'var(--fg-2)' }}>{rec.status ?? 'In the pipeline'}</Link>
+                        if (rec) return <span className="min-w-0 max-w-[140px] lg:max-w-none justify-self-end lg:justify-self-auto"><RoleChip rec={rec} where="none" /></span>
                         // Sales is for Solution Providers; an End User's people go to Production.
-                        if (a.key === '__none' || !add.event || a.firmographic !== 'Solution Provider') return <span className="hidden md:block text-[13px]" style={{ color: 'var(--fg-4)' }}>—</span>
-                        return <span className="col-span-2 md:col-span-1 pl-11 md:pl-0"><AddButton label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} /></span>
+                        if (a.key === '__none' || !add.event || a.firmographic !== 'Solution Provider') return <span className="hidden lg:block text-[13px]" style={{ color: 'var(--fg-4)' }}>—</span>
+                        return <span className="justify-self-end lg:justify-self-auto"><AddButton short label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} /></span>
                       })()}
                       {(() => {
                         // A company the intelligence layer has nothing on says so once, in
                         // the Team cell; its other cells stay empty rather than a row of dashes.
                         const c = cardFor(a.key, a.name)
-                        if (!c) return <><span className="hidden md:block col-span-4 text-[12px]" style={{ color: 'var(--fg-4)' }}>{intel.known.has(a.key) || intel.failed ? 'No intel yet' : ''}</span></>
+                        if (!c) return <><span className="hidden lg:block col-span-4 text-[12px]" style={{ color: 'var(--fg-4)' }}>{intel.known.has(a.key) || intel.failed ? 'No intel yet' : ''}</span></>
                         const dash = <span style={{ color: 'var(--fg-4)' }}>—</span>
                         const city = c.hq ? c.hq.split(',')[0].trim() : null
                         // Hospitals are a vendor's; a provider shows its sourced vendors instead; none on file, a dash.
@@ -771,30 +882,34 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                         const hospitals = vendorSide ? (c.hospitals > 0 ? c.hospitals : null) : (c.vendors > 0 ? c.vendors : null)
                         return (
                           <>
-                            <span className="hidden md:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }} title={c.team != null ? `About ${c.team.toLocaleString('en-GB')}, LinkedIn via Lusha${c.teamAsOf ? `, ${new Date(c.teamAsOf).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : ''}` : undefined}>{c.team != null ? c.team.toLocaleString('en-GB') : dash}</span>
-                            <span className="hidden md:block pl-4 text-[12.5px] truncate" style={{ color: 'var(--fg-3)' }} title={c.hq ?? undefined}>{city ?? dash}</span>
-                            <span className="hidden md:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }} title={hospitals ? `${hospitals} ${vendorSide ? 'hospitals' : 'vendors'} named in sourced announcements, a lower bound` : 'None on file'}>{hospitals ?? dash}</span>
-                            <span className="hidden md:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }}>{c.similar > 0 ? c.similar : dash}</span>
+                            <span className="hidden lg:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }} title={c.team != null ? `About ${c.team.toLocaleString('en-GB')}, LinkedIn via Lusha${c.teamAsOf ? `, ${new Date(c.teamAsOf).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : ''}` : undefined}>{c.team != null ? c.team.toLocaleString('en-GB') : dash}</span>
+                            <span className="hidden lg:block pl-4 text-[12.5px] truncate" style={{ color: 'var(--fg-3)' }} title={c.hq ?? undefined}>{city ?? dash}</span>
+                            <span className="hidden lg:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }} title={hospitals ? `${hospitals} ${vendorSide ? 'hospitals' : 'vendors'} named in sourced announcements, a lower bound` : 'None on file'}>{hospitals ?? dash}</span>
+                            <span className="hidden lg:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }}>{c.similar > 0 ? c.similar : dash}</span>
                           </>
                         )
                       })()}
-                      <span className="hidden md:block text-right tabular text-[13.5px]">{a.people}</span>
-                      <span className="hidden md:block text-right text-[12.5px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
+                      <span className="hidden lg:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }}>{a.people}</span>
+                      <span className="hidden lg:block text-right text-[12px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
                     </div>
-                    {expanded && <Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} where={everything ? 'event' : scope === 'series' ? 'year' : 'none'} account={a} />}
+                    {expanded && <div style={{ background: 'color-mix(in srgb, var(--surface-2) 35%, transparent)' }}><Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} where={everything ? 'event' : scope === 'series' ? 'year' : 'none'} account={a} /></div>}
                   </div>
                 )
               })}
-            </div>
           </div>
         )}
-        {rows.length > PAGE && <div className="px-4 py-3"><Pagination page={page} totalPages={Math.ceil(rows.length / PAGE)} total={rows.length} pageSize={PAGE} onPage={setPage} onPageSize={() => {}} /></div>}
+        {rows.length > PAGE && <div className="px-4 pb-3"><Pagination page={page} totalPages={Math.ceil(rows.length / PAGE)} total={rows.length} pageSize={PAGE} onPage={setPage} scrollTo={top} /></div>}
       </div>
     </WorkspacePage>
   )
 }
 
 // ── Contacts ─────────────────────────────────────────────────────────────────
+
+// Name | job title | email | role | the way on, on a desk. On a phone: the
+// person, then their role or the way on. With no way on to offer, the role
+// takes the last column (one of the two is always hidden).
+const CONTACT_GRID = 'grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.05fr)_minmax(0,1.2fr)_164px]'
 
 // Every contact, once, with their company in small letters beside the name:
 // the same people as Companies, as one list.
@@ -827,9 +942,12 @@ export function ContactsView() {
     }
     return Array.from(m.values()).sort((x, y) => y.count - x.count || x.title.localeCompare(y.title))
   }, [data, type])
-  const shown = rows.slice((page - 1) * PAGE, page * PAGE)
+  const shown = useMemo(() => rows.slice((page - 1) * PAGE, page * PAGE), [rows, page])
   const where: Where = scope === 'series' ? 'year' : 'none'
   const add = usePipelineAdd()
+  const top = useRef<HTMLDivElement>(null)
+  // The panel steps through the page it was opened from.
+  const seeds = useMemo(() => shown.map((p) => ({ ...p, type: p.firmographic, href: recHref(slug, pageOf(p.records)) })), [shown, slug])
 
   return (
     <WorkspacePage
@@ -847,46 +965,59 @@ export function ContactsView() {
         </>
       }
     >
-      <div className="ws-card overflow-hidden">
-        <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search names, companies, titles or emails…" count={rows.length}>
-          <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
-        </Toolbar>
-        {/* By job title: words (chief, director…) or exact titles, as on Companies */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
-          <span className="text-[12px] font-medium mr-1" style={{ color: 'var(--fg-4)' }}>Job title</span>
-          <TitleFilter titles={titleCounts} tokens={titles} onChange={(t) => { setTitles(t); setPage(1) }} />
-          {titles.length > 0 && <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ml-auto" onClick={() => { setTitles([]); setPage(1) }}>Clear</button>}
-        </div>
+      <div className="ws-card crm-listcard" ref={top}>
+        <ListHead>
+          <Toolbar query={query} setQuery={(v) => { setQuery(v); setPage(1) }} placeholder="Search names, companies, titles or emails…" count={rows.length}>
+            <Segmented size="sm" value={type} onChange={(v) => { setType(v); setPage(1) }} options={[{ value: 'all', label: 'All' }, { value: 'Solution Provider', label: 'Solution providers' }, { value: 'End User', label: 'End users' }]} />
+          </Toolbar>
+          {/* By job title: words (chief, director…) or exact titles, as on Companies */}
+          <FilterRow label="Job title" onClear={titles.length ? () => { setTitles([]); setPage(1) } : undefined}>
+            <TitleFilter titles={titleCounts} tokens={titles} onChange={(t) => { setTitles(t); setPage(1) }} />
+          </FilterRow>
+          {!error && !isLoading && rows.length > 0 && (
+            <div className={`crm-colhead hidden lg:grid ${CONTACT_GRID} items-center gap-x-4 px-4 h-9`}>
+              <span className="pl-11">Name</span><span>Job title</span><span>Email</span><span>Role</span><span className="sr-only">Pipeline</span>
+            </div>
+          )}
+        </ListHead>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the contacts" body={(error as Error).message} /> :
-         isLoading ? <Skeleton /> :
-         rows.length === 0 ? <EmptyState icon={Users} title="No one matches" body="Try another filter, or clear the search." /> : (
-          <ul className="flex flex-col">
-            {shown.map((p) => (
-              <li key={p.key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--line)' }}>
-                <ContactLink seed={{ ...p, type: p.firmographic }} href={recHref(slug, pageOf(p.records))} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
-                  <Initials name={p.name || p.email || '?'} size={30} />
-                  <span className="min-w-0">
-                    <span className="block truncate">
-                      <span className="text-[13.5px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
-                      {p.company && <span className="text-[11.5px] ml-2" style={{ color: 'var(--fg-4)' }}>{p.company}</span>}
+         isLoading ? <ListSkeleton /> :
+         rows.length === 0 ? <EmptyState icon={Users} title="No one matches" body={query.trim() ? `Nobody for “${query.trim()}” with these filters.` : 'Nobody with these filters.'}
+           action={<button type="button" className="ws-btn ws-btn-sm" onClick={() => { setQuery(''); setType('all'); setTitles([]); setPage(1) }}>Clear search and filters</button>} /> : (
+          // One row per person on a fixed grid. On a phone, a card in two
+          // lines (name, then company and title) with the way into the
+          // pipeline at the right; their role shows there when there is no
+          // way on to offer. The lead list's note appears on hover.
+          <ul className="crm-list" style={{ borderTop: '1px solid var(--line)' }}>
+            {shown.map((p) => {
+              const offer = hasPersonAdd(add, p, p.company, p.firmographic)
+              const company = p.company && p.company !== NO_COMPANY_NAME ? p.company : null
+              return (
+                <li key={p.key} className={`crm-lrow group grid ${CONTACT_GRID} items-center gap-x-3 lg:gap-x-4 px-3 sm:px-4 py-2 min-h-[60px] lg:min-h-[56px]`}>
+                  <ContactLink seed={{ ...p, type: p.firmographic }} list={seeds} href={recHref(slug, pageOf(p.records))} className="group/name flex items-center gap-3 min-w-0 min-h-10" title={p.note ? `${p.name || p.email}\n${p.note}` : undefined}>
+                    <Initials name={p.name || p.email || '?'} size={32} tint className="!rounded-full" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13.5px] font-medium leading-5 group-hover/name:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
+                      <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-3)' }}>
+                        {company ?? <span style={{ color: 'var(--fg-4)' }}>No company</span>}
+                        {p.jobTitle && <span className="lg:hidden" style={{ color: 'var(--fg-4)' }}> · {p.jobTitle}</span>}
+                      </span>
                     </span>
-                    <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.email].filter(Boolean).join(' · ') || '—'}</span>
-                    {p.note && <span className="block text-[11.5px] truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={p.note}>{p.note}</span>}
+                  </ContactLink>
+                  <span className="hidden lg:block relative min-w-0">
+                    <span className="block truncate text-[13px] leading-5" style={{ color: p.jobTitle ? 'var(--fg-2)' : 'var(--fg-4)' }} title={p.jobTitle || undefined}>{p.jobTitle || '—'}</span>
+                    {/* The lead list's note, under the title on hover, without moving it */}
+                    {p.note && <span className="absolute left-0 right-0 top-full truncate text-[11.5px] leading-4 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none" style={{ color: 'var(--fg-4)' }}>{p.note}</span>}
                   </span>
-                </ContactLink>
-                <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] pl-[42px] sm:pl-0">
-                  {p.records.map((r, i) => (
-                    <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                      {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? `: ${r.status}` : ''}
-                    </RecLink>
-                  ))}
-                </span>
-                <span className="pl-[42px] sm:pl-0"><PersonAdds add={add} who={p} company={p.company} type={p.firmographic} /></span>
-              </li>
-            ))}
+                  <span className="hidden lg:block truncate text-[12.5px]" style={{ color: 'var(--fg-3)' }} title={p.email || undefined}>{p.email || <span style={{ color: 'var(--fg-4)' }}>—</span>}</span>
+                  <span className={`${offer ? 'hidden lg:flex' : 'flex'} min-w-0 justify-end lg:justify-start max-w-[150px] lg:max-w-none`}><RolesCell records={p.records} where={where} /></span>
+                  <span className={`${offer ? 'flex' : 'hidden lg:flex'} justify-end`}><PersonAdds add={add} who={p} company={p.company} type={p.firmographic} /></span>
+                </li>
+              )
+            })}
           </ul>
         )}
-        {rows.length > PAGE && <div className="px-4 py-3"><Pagination page={page} totalPages={Math.ceil(rows.length / PAGE)} total={rows.length} pageSize={PAGE} onPage={setPage} onPageSize={() => {}} /></div>}
+        {rows.length > PAGE && <div className="px-4 pb-3"><Pagination page={page} totalPages={Math.ceil(rows.length / PAGE)} total={rows.length} pageSize={PAGE} onPage={setPage} scrollTo={top} /></div>}
       </div>
     </WorkspacePage>
   )
@@ -937,5 +1068,5 @@ export function HitListView() {
 }
 
 function Skeleton() {
-  return <div className="flex flex-col gap-2 p-4">{Array.from({ length: 8 }, (_, i) => <div key={i} className="h-11 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />)}</div>
+  return <ListSkeleton />
 }

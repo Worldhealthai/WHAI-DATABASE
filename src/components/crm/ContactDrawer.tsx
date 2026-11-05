@@ -31,7 +31,9 @@ import { ContactDrawerContext, type ContactRecord, type ContactSeed } from './Co
 import { StageDot, fmtDate, kindOfTable, stageLabel, stageTone } from './profileParts'
 
 const shortEvent = (e: string | null | undefined) => (e || '').replace(/^World Health AI/i, 'WHAI').replace(/^World Pharma AI/i, 'WPAI')
-const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact', Lead: 'Lead' }
+// A lead record carries no role word: the event, when it was added and the
+// list it came from say it (Ali, November 2026).
+const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'Attending', Sponsor: 'Company contact', Lead: '' }
 const ROLE_REL: Record<PersonRole['kind'], Relationship> = { speaker: 'Speaker', delegate: 'Delegate', sponsor: 'Sponsor', partner: 'Sponsor' }
 const num = (n: number) => n.toLocaleString('en-GB')
 
@@ -334,7 +336,7 @@ function DrawerBody({ seed, onClose, onStep, index, total, prevName, nextName }:
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline gap-1.5 min-w-0">
                         <span className="text-[13px] font-medium truncate" style={{ color: 'var(--fg)' }}>{r.event ? shortEvent(r.event) : 'No event'}</span>
-                        <span className="text-[12px] shrink-0" style={{ color: 'var(--fg-3)' }}>{DOING[r.relationship]}</span>
+                        {DOING[r.relationship] && <span className="text-[12px] shrink-0" style={{ color: 'var(--fg-3)' }}>{DOING[r.relationship]}</span>}
                       </span>
                       {(added || list) && <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-4)' }}>{[added ? `Added ${added}` : null, list].filter(Boolean).join(' · ')}</span>}
                     </span>
