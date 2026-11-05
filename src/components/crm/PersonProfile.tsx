@@ -6,15 +6,15 @@
 // activity. Shared by /speakers/[id] and /delegates/[id]; the pages keep
 // the data and actions.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { Building2, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2, Undo2 } from 'lucide-react'
+import { Building2, Download, Linkedin, Loader2, Mail, MapPin, Mic, Pencil, Phone, Trash2, Undo2 } from 'lucide-react'
 import { stepsBack } from '@/components/layout/NavMemory'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { EventTabs, Fact, ProfileNavBar, StageBar, eventParts, fmtDate, initials, money, type ProfileNav } from '@/components/crm/profileParts'
+import { CardHead, EventTabs, Fact, MiniHeader, MoveOn, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileNavBar, ProfileSide, StageBar, WhereLine, downloadVcard, eventParts, fmtDate, initials, money, nextStage, shortEventName, useBoard, type ProfileNav } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { partnerConsentLabel, type Delegate, type Speaker } from '@/types'
 import { TypeRoleButton, roleLabel } from './TypeRoleButton'
@@ -72,146 +72,164 @@ export function PersonProfile(props: Props) {
   const headshot = kind === 'speaker' ? props.person.headshotUrl : null
   const firstStage = def.stages[0].label
 
+  const board = useBoard(kind)
+  const headRef = useRef<HTMLElement>(null)
+  const next = nextStage(kind, person.status)
+  const closed = def.stages.some((s) => s.negative && s.status === person.status)
+  const edition = person.event ? eventParts(person.event) : null
+  const exportCard = () => downloadVcard({ name, jobTitle: person.jobTitle, company: person.organization, email: person.email, phone: person.phone, url: person.linkedinUrl })
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-4">
-      <ProfileNavBar kind={kind} nav={nav} />
+    <div className="crm-profile max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-24 sm:pb-8">
+      <div className="mb-3"><ProfileNavBar kind={kind} nav={nav} name={name} /></div>
+      <MiniHeader watch={headRef} name={name} action={next && !closed ? (
+        <button type="button" className="ws-btn ws-btn-sm ws-btn-primary ws-tap" disabled={stageSaving} onClick={() => onStageChange(next.status)}>Move to {next.label.toLowerCase()}</button>
+      ) : undefined} />
 
-      {/* The person, and the events they are in */}
-      <header className="ws-card overflow-hidden">
-        {/* On a phone the buttons take a row of their own under the name. */}
-        <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
-          {headshot ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={headshot} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" style={{ border: '1px solid var(--line)' }} />
-          ) : (
-            <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
-              {initials(name)}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{roleLabel(kind, person.subType)}{person.subType ? ` · ${person.subType}` : ''}</p>
-            <h1 className="text-[22px] font-semibold leading-tight tracking-tight truncate" style={{ color: 'var(--fg)' }}>{name}</h1>
-            {(person.jobTitle || person.organization) && (
-              <p className="text-[13.5px] mt-0.5 truncate" style={{ color: 'var(--fg-2)' }}>
-                {person.jobTitle}
-                {person.jobTitle && person.organization && <span style={{ color: 'var(--fg-4)' }}> · </span>}
-                {person.organization}
-              </p>
-            )}
-            <div className="flex items-center gap-1 mt-2 flex-wrap -ml-2">
-              {/* A pop-up to copy from, not a mailto:/tel: link. */}
-              {person.email && <CopyPopover label={`${name}'s email`} value={person.email} title={`Email: ${person.email}`}><Mail className="w-3.5 h-3.5" /> <span className="max-w-[220px] truncate">{person.email}</span></CopyPopover>}
-              {person.phone && <CopyPopover label={`${name}'s phone`} value={person.phone} title={`Phone: ${person.phone}`}><Phone className="w-3.5 h-3.5" /> {person.phone}</CopyPopover>}
-              {person.linkedinUrl && <a href={person.linkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm"><Linkedin className="w-3.5 h-3.5" /> LinkedIn</a>}
-            </div>
-            {/* Which side of the business they are for: Health, Pharma or both. */}
-            <div className="mt-2"><FocusToggle rows={[{ table: kind === 'speaker' ? 'speakers' : 'delegates', id: person.id }]} email={person.email} initial={focusOf(person.tags)} auto={[focusOfEvent(person.event)].filter((f): f is Focus => !!f)} /></div>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
-            <button onClick={onEdit} className="ws-btn ws-btn-sm"><Pencil className="w-3.5 h-3.5" /> Edit</button>
-            <TypeRoleButton kind={kind} id={person.id} name={name || 'this person'} subType={person.subType} />
-            {canUndo && (
-              <button onClick={undo} disabled={undoing} className="ws-btn ws-btn-sm" title={fromLeads ? 'Back onto the leads list' : 'Remove this speaker record'}>
-                {undoing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5" />} {fromLeads ? 'Undo: back to leads' : 'Remove from speaker pipeline'}
-              </button>
-            )}
-            <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost" title={`Delete this ${def.label.toLowerCase()}`} aria-label="Delete" style={{ color: 'var(--bad)' }}>
-              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div>
-        <EventTabs
-          kind={kind}
-          id={person.id}
-          current={person.event ?? null}
-          addNote={`Each event gets its own record of ${person.firstName || 'them'}, starting at ${firstStage}, with their details copied.`}
-        />
-      </header>
-
-      {/* This event's stage and details */}
-      <section className="ws-card p-5">
-        <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
-          <h2 className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>
-            {person.event ? <>In {eventParts(person.event).title} <span className="font-normal" style={{ color: 'var(--fg-3)' }}>· {look?.series}</span></> : 'No event'}
-          </h2>
-          {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
-        </div>
-        <StageBar kind={kind} status={person.status} accent={accent} disabled={stageSaving} onChange={onStageChange} />
-
-        {props.kind === 'speaker' && props.person.sessionTitle && (
-          <p className="flex items-start gap-2 mt-5 text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
-            <Mic className="w-4 h-4 mt-0.5 shrink-0" style={{ color: accent }} /> {props.person.sessionTitle}
-          </p>
-        )}
-        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4 mt-5 pt-5" style={{ borderTop: '1px solid var(--line)' }}>
-          {props.kind === 'speaker' ? (
-            <>
-              <Fact label="Session type" value={props.person.sessionType || '—'} />
-              <Fact label="Speaker type" value={props.person.subType || '—'} />
-              <Fact label="Contract" value={props.person.contractStatus || 'Not started'} />
-              <Fact label="Fee" value={money(props.person.fee, props.person.feeCurrency) ?? (props.person.feeStatus || 'Not set')} />
-              <Fact label="Travel" value={props.person.travelRequired ? 'Required' : 'No'} />
-              <Fact label="Hotel" value={props.person.hotelRequired ? 'Required' : 'No'} />
-              <Fact label="Shares with sponsors" value={yesNo(props.person.partnerConsent)} />
-              <Fact label="Added" value={fmtDate(person.createdAt)} />
-            </>
-          ) : (
-            <>
-              <Fact label="Company type" value={props.person.subType || '—'} />
-              <Fact label="Pass" value={props.person.ticketType || '—'} />
-              <Fact label="Source" value={props.person.source || '—'} />
-              <Fact label="Shares with sponsors" value={yesNo(props.person.partnerConsent)} />
-              <Fact label="Dietary" value={props.person.dietaryRequirements || '—'} />
-              <Fact label="Accessibility" value={props.person.accessibilityNeeds || '—'} />
-              <Fact label="Added" value={fmtDate(person.createdAt)} />
-              <Fact label="Updated" value={fmtDate(person.updatedAt)} />
-            </>
-          )}
-        </dl>
-      </section>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4">
-          <section className="ws-card p-5">
-            <h2 className="text-[15px] font-semibold mb-3" style={{ color: 'var(--fg)' }}>About</h2>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-              <Row icon={Building2} label="Organisation" value={person.organization} />
-              <Row icon={MapPin} label="Location" value={where} />
-            </dl>
-            {props.kind === 'speaker' && props.person.sessionDescription && <Text title="Session description" body={props.person.sessionDescription} />}
-            {person.bio && <Text title="Bio" body={person.bio} />}
-            {props.kind === 'speaker' && props.person.expertiseAreas && (
-              <div className="mt-4">
-                <p className="text-[11.5px] font-medium mb-1.5" style={{ color: 'var(--fg-4)' }}>Expertise</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {props.person.expertiseAreas.split(',').map((e) => e.trim()).filter(Boolean).map((e) => (
-                    <span key={e} className="ws-chip">{e}</span>
-                  ))}
+      <div className={PROFILE_GRID}>
+        <div className={PROFILE_MAIN}>
+          {/* Who they are, and where we are with them */}
+          <header ref={headRef} className="ws-card overflow-hidden order-1">
+            {/* On a phone the buttons take a row of their own under the name. */}
+            <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
+              {headshot ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={headshot} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" style={{ border: '1px solid var(--line)' }} />
+              ) : (
+                <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
+                  {initials(name)}
                 </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{roleLabel(kind, person.subType)}{person.subType ? ` · ${person.subType}` : ''}</p>
+                <h1 className="text-[22px] font-semibold leading-tight tracking-tight sm:truncate" style={{ color: 'var(--fg)' }}>{name}</h1>
+                {(person.jobTitle || person.organization) && (
+                  <p className="text-[13.5px] mt-0.5 sm:truncate" style={{ color: 'var(--fg-2)' }}>
+                    {person.jobTitle}
+                    {person.jobTitle && person.organization && <span style={{ color: 'var(--fg-4)' }}> · </span>}
+                    {person.organization}
+                  </p>
+                )}
+                <div className="flex items-center gap-1 mt-2 flex-wrap -ml-2">
+                  {/* A pop-up to copy from, not a mailto:/tel: link. */}
+                  {person.email && <CopyPopover label={`${name}'s email`} value={person.email} title={`Email: ${person.email}`}><Mail className="w-3.5 h-3.5" /> <span className="max-w-[220px] truncate">{person.email}</span></CopyPopover>}
+                  {person.phone && <CopyPopover label={`${name}'s phone`} value={person.phone} title={`Phone: ${person.phone}`}><Phone className="w-3.5 h-3.5" /> {person.phone}</CopyPopover>}
+                  {person.linkedinUrl && <a href={person.linkedinUrl} target="_blank" rel="noopener noreferrer" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap"><Linkedin className="w-3.5 h-3.5" /> LinkedIn</a>}
+                </div>
+                {/* Which side of the business they are for: Health, Pharma or both. */}
+                <div className="mt-2"><FocusToggle rows={[{ table: kind === 'speaker' ? 'speakers' : 'delegates', id: person.id }]} email={person.email} initial={focusOf(person.tags)} auto={[focusOfEvent(person.event)].filter((f): f is Focus => !!f)} /></div>
               </div>
-            )}
+              <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
+                <button onClick={onEdit} className="ws-btn ws-btn-sm ws-tap"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+                <TypeRoleButton kind={kind} id={person.id} name={name || 'this person'} subType={person.subType} />
+                <button onClick={exportCard} className="ws-btn ws-btn-sm ws-tap" title="Their details as a contact card (.vcf)"><Download className="w-3.5 h-3.5" /> Export</button>
+                <button onClick={onDelete} disabled={deleting} className="ws-btn ws-btn-sm ws-btn-ghost ws-tap max-sm:!w-9 max-sm:!px-0" title={`Delete this ${def.label.toLowerCase()}`} aria-label={`Delete this ${def.label.toLowerCase()}`} style={{ color: 'var(--bad)' }}>
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+            <NextStep
+              where={<WhereLine label={`In ${board.label}`} kind={kind} status={person.status} extra={<>
+                {edition && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{shortEventName(person.event ?? '')}</span>}
+                {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
+              </>} />}
+              action={<>
+                {/* Just added and still at the start: it can be taken back out. */}
+                {canUndo && (
+                  <button onClick={undo} disabled={undoing} className="ws-btn ws-btn-sm ws-btn-ghost ws-tap" title={fromLeads ? 'Back onto the leads list' : 'Remove this speaker record'}>
+                    {undoing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Undo2 className="w-3.5 h-3.5" />} {fromLeads ? 'Undo: back to leads' : 'Remove from pipeline'}
+                  </button>
+                )}
+                <MoveOn kind={kind} status={person.status} onChange={onStageChange} saving={stageSaving} boardHref={board.href} boardLabel={board.label} />
+              </>}
+              events={<EventTabs kind={kind} id={person.id} current={person.event ?? null} addNote={`Each event gets its own record of ${person.firstName || 'them'}, starting at ${firstStage}, with their details copied.`} />}
+            />
+          </header>
+
+          {/* This event's stage and details */}
+          <section className="ws-card overflow-hidden order-2">
+            <CardHead title="Stage and details" count={edition ? `${edition.title} · ${edition.look.series}` : 'No event'} />
+            <div className="px-4 sm:px-5 pb-5">
+              <StageBar kind={kind} status={person.status} accent={accent} disabled={stageSaving} onChange={onStageChange} />
+              {props.kind === 'speaker' && props.person.sessionTitle && (
+                <p className="flex items-start gap-2 mt-4 text-[14px] font-medium" style={{ color: 'var(--fg)' }}>
+                  <Mic className="w-4 h-4 mt-0.5 shrink-0" style={{ color: accent }} /> {props.person.sessionTitle}
+                </p>
+              )}
+              <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4 mt-4 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
+                {props.kind === 'speaker' ? (
+                  <>
+                    <Fact label="Session type" value={props.person.sessionType || '—'} />
+                    <Fact label="Speaker type" value={props.person.subType || '—'} />
+                    <Fact label="Contract" value={props.person.contractStatus || 'Not started'} />
+                    <Fact label="Fee" value={money(props.person.fee, props.person.feeCurrency) ?? (props.person.feeStatus || 'Not set')} />
+                    <Fact label="Travel" value={props.person.travelRequired ? 'Required' : 'No'} />
+                    <Fact label="Hotel" value={props.person.hotelRequired ? 'Required' : 'No'} />
+                    <Fact label="Shares with sponsors" value={yesNo(props.person.partnerConsent)} />
+                    <Fact label="Added" value={fmtDate(person.createdAt)} />
+                  </>
+                ) : (
+                  <>
+                    <Fact label="Company type" value={props.person.subType || '—'} />
+                    <Fact label="Pass" value={props.person.ticketType || '—'} />
+                    <Fact label="Source" value={props.person.source || '—'} />
+                    <Fact label="Shares with sponsors" value={yesNo(props.person.partnerConsent)} />
+                    <Fact label="Dietary" value={props.person.dietaryRequirements || '—'} />
+                    <Fact label="Accessibility" value={props.person.accessibilityNeeds || '—'} />
+                    <Fact label="Added" value={fmtDate(person.createdAt)} />
+                    <Fact label="Updated" value={fmtDate(person.updatedAt)} />
+                  </>
+                )}
+              </dl>
+            </div>
           </section>
 
-          <EnquiryCard kind={kind} id={person.id} />
+          <section className="ws-card overflow-hidden order-3">
+            <CardHead title="About" />
+            <div className="px-4 sm:px-5 pb-5">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                <Row icon={Building2} label="Organisation" value={person.organization} />
+                <Row icon={MapPin} label="Location" value={where} />
+              </dl>
+              {props.kind === 'speaker' && props.person.sessionDescription && <Text title="Session description" body={props.person.sessionDescription} />}
+              {person.bio && <Text title="Bio" body={person.bio} />}
+              {props.kind === 'speaker' && props.person.expertiseAreas && (
+                <div className="mt-4">
+                  <p className="text-[11.5px] font-medium mb-1.5" style={{ color: 'var(--fg-4)' }}>Expertise</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {props.person.expertiseAreas.split(',').map((e) => e.trim()).filter(Boolean).map((e) => (
+                      <span key={e} className="ws-chip">{e}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <div className="contents [&>section]:order-6"><EnquiryCard kind={kind} id={person.id} /></div>
 
           {person.notes && (
-            <section className="ws-card p-5">
-              <h2 className="text-[15px] font-semibold mb-2" style={{ color: 'var(--fg)' }}>Notes</h2>
-              <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-2)' }}>{person.notes}</p>
+            <section className="ws-card overflow-hidden order-7">
+              <CardHead title="Notes" />
+              <p className="px-4 sm:px-5 pb-4 text-[13.5px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg-2)' }}>{person.notes}</p>
             </section>
           )}
         </div>
 
-        <div className="space-y-4 self-start">
-          <PersonRolesCard
-            self={{ kind, id: person.id }}
-            person={{ email: person.email, firstName: person.firstName, lastName: person.lastName, organization: person.organization }}
-          />
-          <section className="ws-card p-5">
-          <h2 className="text-[15px] font-semibold mb-3" style={{ color: 'var(--fg)' }}>Activity</h2>
-          <ActivityFeed activities={person.activities ?? []} entityType={kind} entityId={person.id} onActivityAdded={refetch} />
+        <ProfileSide>
+          <div className="contents [&>*]:order-4">
+            <PersonRolesCard
+              self={{ kind, id: person.id }}
+              person={{ email: person.email, firstName: person.firstName, lastName: person.lastName, organization: person.organization }}
+            />
+          </div>
+          <section className="ws-card ws-card-quiet overflow-hidden order-5">
+            <CardHead side title="Activity" count={person.activities?.length || ''} />
+            <div className="px-4 pb-4">
+              <ActivityFeed activities={person.activities ?? []} entityType={kind} entityId={person.id} onActivityAdded={refetch} />
+            </div>
           </section>
-        </div>
+        </ProfileSide>
       </div>
     </div>
   )

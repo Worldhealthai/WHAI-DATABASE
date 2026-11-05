@@ -10,11 +10,11 @@
 // tabs as they are; nothing here changes a record.
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Building2, Download, Check, ChevronDown, ChevronRight, Loader2, Mail, Phone, Plus, Search, Target, Users } from 'lucide-react'
-import { useWorkspace } from '@/lib/workspace'
+import { useWorkspace, useWorkspaceFromUrl } from '@/lib/workspace'
 import { useSticky } from '@/lib/useSticky'
 import { downloadCsv } from '@/lib/csv'
 import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/segments'
@@ -25,6 +25,7 @@ import { EmptyState, Field, Initials, Modal, Segmented, formatMoney, timeAgo } f
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 import { FocusToggle } from '@/components/crm/FocusToggle'
+import { ContactLink } from '@/components/crm/ContactLink'
 import { effectiveFocus, type Focus } from '@/lib/contactFocus'
 import { useIntelCards, useIntelCardsFor } from './IntelPanel'
 
@@ -94,7 +95,9 @@ function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) =
 // lead, Not contacted), a person into Production (a speaker, Not
 // contacted). Someone already in the year's pipeline shows its stage.
 export function usePipelineAdd() {
-  const { category, year, labels } = useWorkspace()
+  // From the URL, or the last workspace open: the contact panel uses this on
+  // a sponsor's page too, outside any workspace.
+  const { category, year, labels } = useWorkspaceFromUrl()
   const qc = useQueryClient()
   const [busy, setBusy] = useState<string | null>(null)
   const [done, setDone] = useState<Set<string>>(new Set())
@@ -174,7 +177,7 @@ export type PipelineAdd = ReturnType<typeof usePipelineAdd>
 // Solution Provider into Sales (as their company's contact). Not shown once
 // they are already in that pipeline this year. A lead goes on as themselves
 // (promote), leaving the leads list.
-export function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null; type: Firmographic | null }) {
+export function PersonAdds({ add, who, company, type, primary }: { add: PipelineAdd; who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'>; company: string | null; type: Firmographic | null; primary?: boolean }) {
   if (!add.event || !type) return null
   const lead = who.records.find((r) => r.table === 'leads')
   const firm = company && company !== NO_COMPANY_NAME ? company : ''
@@ -182,18 +185,20 @@ export function PersonAdds({ add, who, company, type }: { add: PipelineAdd; who:
     // Once added from here it keeps showing "Added · Undo", even after the
     // list reloads with them speaking.
     if (!add.done.has(`speaker:${who.key}`) && who.records.some((r) => r.relationship === 'Speaker' && add.inYear(r))) return null
-    return <AddButton label="Production pipeline" busy={add.busy === `speaker:${who.key}`} done={add.done.has(`speaker:${who.key}`)}
+    return <AddButton primary={primary} label="Production pipeline" busy={add.busy === `speaker:${who.key}`} done={add.done.has(`speaker:${who.key}`)}
       onClick={() => (lead ? add.promote(who.key, lead.id, 'speaker') : add.addSpeaker(who as Member, firm))}
       onUndo={add.canUndo(`speaker:${who.key}`) ? () => add.undo(`speaker:${who.key}`) : undefined} />
   }
   if (who.records.some((r) => r.relationship === 'Sponsor' && add.inYear(r)) || !firm) return null
-  return <AddButton label="Sales pipeline" busy={add.busy === `sponsor:${who.key}`} done={add.done.has(`sponsor:${who.key}`)}
+  return <AddButton primary={primary} label="Sales pipeline" busy={add.busy === `sponsor:${who.key}`} done={add.done.has(`sponsor:${who.key}`)}
     onClick={() => (lead ? add.promote(who.key, lead.id, 'sponsor') : add.addContactToSales(who as Member, firm))} />
 }
 
-export function AddButton({ label, busy, done, onClick, onUndo }: { label: string; busy: boolean; done: boolean; onClick: () => void; onUndo?: () => void }) {
+// `primary` is the page's one main action (the profile's band, the contact
+// panel): the accent button, a 40px tap on a phone.
+export function AddButton({ label, busy, done, onClick, onUndo, primary }: { label: string; busy: boolean; done: boolean; onClick: () => void; onUndo?: () => void; primary?: boolean }) {
   if (done) return (
-    <span className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap" style={{ color: 'var(--ok)' }}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap ${primary ? 'text-[13px] font-medium min-h-8 max-sm:min-h-10' : 'text-[12px]'}`} style={{ color: 'var(--ok)' }}>
       <Check className="w-3.5 h-3.5" /> Added
       {onUndo && (
         <button type="button" onClick={onUndo} disabled={busy} className="ml-1 underline underline-offset-4 disabled:opacity-60" style={{ color: 'var(--fg-3)' }} title="Take them back out of the pipeline">
@@ -201,6 +206,11 @@ export function AddButton({ label, busy, done, onClick, onUndo }: { label: strin
         </button>
       )}
     </span>
+  )
+  if (primary) return (
+    <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-sm ws-btn-primary ws-tap whitespace-nowrap">
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} {label}
+    </button>
   )
   return (
     <button type="button" onClick={onClick} disabled={busy} className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 whitespace-nowrap" style={{ color: 'var(--accent-ink)' }}>
@@ -218,7 +228,7 @@ const DOING: Record<Relationship, string> = { Speaker: 'Speaking', Delegate: 'At
 // pipeline; someone known only from a leads list opens on their contact
 // page in the event (ContactProfile). A company with a sponsor record opens
 // on it; any other on its own page with its team (CompanyProfile).
-const pageOf = (records: { table: string; id: string }[]) => records.find((r) => PATH[r.table]) ?? records[0]
+export const pageOf = (records: { table: string; id: string }[]) => records.find((r) => PATH[r.table]) ?? records[0]
 export function recHref(slug: string | null, rec: { table: string; id: string }): string | null {
   if (PATH[rec.table]) return `${PATH[rec.table]}/${rec.id}`
   if (rec.table === 'leads' && slug) return `/event/${slug}/contacts/${rec.id}`
@@ -261,39 +271,68 @@ type Where = 'none' | 'year' | 'event'
 const whereOf = (event: string | null | undefined, where: Where) =>
   !event || where === 'none' ? '' : where === 'year' ? ` ${event.match(/20\d{2}/)?.[0] ?? shortEvent(event)}` : ` · ${shortEvent(event)}`
 
-export function Members({ members, query, company, add, where, account }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account }) {
+// Every row has the same three parts: the person (name · title, then the
+// email), their records one per line, and the side they are for. The side
+// shows as one word at rest; the Health / Pharma toggle and the way into a
+// pipeline appear on hover (and in the contact panel, always). The lead
+// list's note is in the panel, not here.
+// `flush` is for a profile's card: the rows start at the card's own edge
+// (no room kept for a company's initials) and wash on hover; `openAdd`
+// receives the opener of the Add contact row, for a button elsewhere.
+export function Members({ members, query, company, add, where, account, flush, openAdd }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account; flush?: boolean; openAdd?: React.RefObject<(() => void) | null> }) {
+  const { slug } = useWorkspace()
+  const seedOf = (m: Member) => ({ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null, href: recHref(slug, pageOf(m.records)) })
+  // The panel steps through the list it was opened from.
+  const list = members.map(seedOf)
+  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[54px] pr-4'
   return (
     <ul className="flex flex-col">
-      {members.map((m) => {
+      {members.map((m, mi) => {
         const hit = !!query && matches(m, query)
+        const focusWord = (m.focus ?? []).length ? (m.focus ?? []).join(' · ') : (m.focusAuto ?? []).join(' · ')
+        // Once added from here, "Added · Undo" stays in view.
+        const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
-            <RecLink rec={pageOf(m.records)} className="min-w-0 flex-1 basis-[320px]">
-              <span className="text-[13px] font-medium" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
-              <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>{[m.jobTitle, m.email].filter(Boolean).length ? ` · ${[m.jobTitle, m.email].filter(Boolean).join(' · ')}` : ''}</span>
-              {m.note && <span className="block text-[11.5px] sm:truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={m.note}>{m.note}</span>}
-            </RecLink>
-            <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
+          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_120px] items-start gap-x-4 gap-y-1 py-2.5 ${pad}`} style={{ borderTop: '1px solid var(--line)', background: hit ? 'var(--accent-soft)' : undefined }}>
+            {/* The name opens the contact panel; the link underneath is their page. */}
+            <ContactLink seed={list[mi]} list={list} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
+              <span className="block truncate text-[13px] leading-5">
+                <span className="font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
+                {m.jobTitle && <span style={{ color: 'var(--fg-3)' }}> · {m.jobTitle}</span>}
+              </span>
+              {m.email && m.name && <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-4)' }}>{m.email}</span>}
+            </ContactLink>
+            <span className="flex flex-col sm:items-end gap-y-0.5 text-[12px] min-w-0">
+              {m.records.length === 0 && <span style={{ color: 'var(--fg-4)' }}>—</span>}
               {m.records.map((r, i) => (
-                <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>
-                  {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? `: ${r.status}` : ''}
+                <RecLink key={i} rec={r} className="block max-w-full sm:text-right hover:underline underline-offset-4 leading-5" style={{ color: 'var(--fg-3)' }}>
+                  {DOING[r.relationship]}{whereOf(r.event, where)}{r.status ? <span style={{ color: 'var(--fg-4)' }}> · {r.status}</span> : null}
                 </RecLink>
               ))}
             </span>
-            {where === 'event' && <FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" />}
-            {add && <PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} />}
+            {/* On a phone the side and the way on are in the contact panel, a tap away. */}
+            <span className={`items-center sm:justify-end gap-2 min-h-5 ${added ? 'flex' : 'hidden sm:flex'}`}>
+              {where === 'event' ? (
+                <>
+                  <span className="text-[11.5px] group-hover:hidden group-focus-within:hidden" style={{ color: 'var(--fg-4)' }} title={focusWord ? 'Relevant for; hover to change' : undefined}>{focusWord}</span>
+                  <span className="hidden group-hover:inline-flex group-focus-within:inline-flex"><FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" /></span>
+                </>
+              ) : null}
+              {add && <span className={added ? 'inline-flex' : 'hidden group-hover:inline-flex group-focus-within:inline-flex'}><PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} /></span>}
+            </span>
           </li>
         )
       })}
-      {account && account.key !== '__none' && <AddContact account={account} />}
+      {account && account.key !== '__none' && <AddContact account={account} flush={flush} openRef={openAdd} />}
     </ul>
   )
 }
 
 // A new person at the company, for Health or Pharma (/api/directory-contact):
 // for a company in the Health directory, its Pharma contact, and back.
-function AddContact({ account }: { account: Account }) {
+function AddContact({ account, flush, openRef }: { account: Account; flush?: boolean; openRef?: React.RefObject<(() => void) | null> }) {
   const qc = useQueryClient()
+  const rowRef = useRef<HTMLLIElement>(null)
   const sides = account.sides ?? []
   // The side it is missing, else Pharma.
   const [open, setOpen] = useState(false)
@@ -318,14 +357,20 @@ function AddContact({ account }: { account: Account }) {
       setBusy(false)
     }
   }
+  // A button elsewhere on the page (the profile's header) opens the form here.
+  useEffect(() => {
+    if (!openRef) return
+    openRef.current = () => { setOpen(true); setMsg(null); requestAnimationFrame(() => { rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); rowRef.current?.querySelector('input')?.focus() }) }
+    return () => { openRef.current = null }
+  }, [openRef])
   const input = (k: keyof typeof f, ph: string, type = 'text') => (
     <input className="ws-input h-8 text-[13px] min-w-0 flex-1 basis-[140px]" type={type} placeholder={ph} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} />
   )
   return (
-    <li className="py-2 pl-[54px] pr-4" style={{ borderTop: '1px solid var(--line)' }}>
+    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[54px] pr-4'}`} style={{ borderTop: '1px solid var(--line)' }}>
       {!open ? (
         <span className="flex flex-wrap items-center gap-3">
-          <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2" style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
+          <button type="button" className={`ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 ${flush ? '-ml-2 ws-tap' : ''}`} style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
             <Plus className="w-3.5 h-3.5" /> Add contact
           </button>
           {msg && <span className="text-[12px]" style={{ color: msg.ok ? 'var(--ok)' : 'var(--bad)' }}>{msg.text}</span>}
@@ -818,17 +863,17 @@ export function ContactsView() {
           <ul className="flex flex-col">
             {shown.map((p) => (
               <li key={p.key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--line)' }}>
-                <RecLink rec={pageOf(p.records)} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
+                <ContactLink seed={{ ...p, type: p.firmographic }} href={recHref(slug, pageOf(p.records))} className="flex items-center gap-3 min-w-0 flex-1 basis-[260px]">
                   <Initials name={p.name || p.email || '?'} size={30} />
                   <span className="min-w-0">
                     <span className="block truncate">
-                      <span className="text-[13.5px] font-medium" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
+                      <span className="text-[13.5px] font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
                       {p.company && <span className="text-[11.5px] ml-2" style={{ color: 'var(--fg-4)' }}>{p.company}</span>}
                     </span>
                     <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.email].filter(Boolean).join(' · ') || '—'}</span>
                     {p.note && <span className="block text-[11.5px] truncate mt-0.5" style={{ color: 'var(--fg-4)' }} title={p.note}>{p.note}</span>}
                   </span>
-                </RecLink>
+                </ContactLink>
                 <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] pl-[42px] sm:pl-0">
                   {p.records.map((r, i) => (
                     <RecLink key={i} rec={r} className="hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>

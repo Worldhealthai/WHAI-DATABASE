@@ -52,15 +52,17 @@ interface ActivityFeedProps {
   onActivityAdded?: () => void
 }
 
+// The composer is one row of kinds until one is picked; the box and Save
+// come then, so an empty feed is a short card.
 export function ActivityFeed({ activities, entityType, entityId, onActivityAdded }: ActivityFeedProps) {
-  const [type, setType] = useState('note')
+  const [type, setType] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!content.trim()) return
+    if (!content.trim() || !type) return
     setSaving(true)
     try {
       await fetch('/api/activities', {
@@ -69,6 +71,7 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
         body: JSON.stringify({ entityType, entityId, type, content }),
       })
       setContent('')
+      setType(null)
       onActivityAdded?.()
     } finally {
       setSaving(false)
@@ -87,24 +90,21 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
   }
 
   return (
-    <div className="space-y-4">
-      {/* Log form — always visible, integrated */}
-      <form onSubmit={handleSubmit} className="space-y-2.5">
-        {/* Type tabs */}
-        <div className="flex flex-wrap gap-1.5">
+    <div className="space-y-3">
+      {/* The composer: the kinds as one switch; the box once one is picked. */}
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <div className="crm-seg" role="group" aria-label="Log an activity">
           {ACTIVITY_TYPE_OPTIONS.map((t) => {
             const Icon = ACTIVITY_ICONS[t]
             return (
               <button
                 key={t}
                 type="button"
-                onClick={() => setType(t)}
-                className={cn(
-                  'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
-                  type === t
-                    ? 'bg-[var(--teal-soft)] text-[var(--teal)] border-[var(--teal-line)]'
-                    : 'border-[var(--line)] text-slate-500 hover:text-slate-300 hover:border-slate-600'
-                )}
+                onClick={() => setType(type === t ? null : t)}
+                data-active={type === t}
+                aria-pressed={type === t}
+                className="crm-seg-item inline-flex items-center gap-1 h-7 px-2.5 text-[12px] font-medium"
+                title={`Log a ${ACTIVITY_TYPE_LABELS[t].toLowerCase()}`}
               >
                 <Icon className="w-3 h-3" />
                 {ACTIVITY_TYPE_LABELS[t]}
@@ -113,34 +113,31 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
           })}
         </div>
 
-        {/* Textarea */}
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={`Log a ${ACTIVITY_TYPE_LABELS[type]?.toLowerCase()}…`}
-          rows={3}
-          className="w-full px-3 py-2.5 bg-[var(--surface-2)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-600 outline-none focus:border-[var(--teal-line)] resize-none transition-colors"
-        />
-
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={!content.trim() || saving}
-            className="px-4 py-1.5 rounded-lg bg-[var(--teal)] text-[var(--on-accent)] text-xs font-semibold hover:bg-[var(--teal)] disabled:opacity-40 transition-colors"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+        {type && (
+          <>
+            <textarea
+              autoFocus
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder={`Log a ${ACTIVITY_TYPE_LABELS[type]?.toLowerCase()}…`}
+              rows={3}
+              className="ws-input w-full !h-auto py-2 text-[13px] resize-none"
+            />
+            <div className="flex justify-end gap-1.5">
+              <button type="button" onClick={() => { setType(null); setContent('') }} className="ws-btn ws-btn-ghost ws-btn-sm">Cancel</button>
+              {content.trim() && (
+                <button type="submit" disabled={saving} className="ws-btn ws-btn-primary ws-btn-sm">
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </form>
-
-      {/* Divider */}
-      <div className="border-t border-[var(--line)]" />
 
       {/* Timeline */}
       {activities.length === 0 ? (
-        <div className="text-center py-6 text-slate-600 text-sm">
-          No activity yet.
-        </div>
+        <p className="text-[13px]" style={{ color: 'var(--fg-4)' }}>No activity yet.</p>
       ) : (
         <div className="relative space-y-0">
           <div className="absolute left-[15px] top-5 bottom-1 w-px bg-[var(--surface-3)]" />

@@ -8,6 +8,7 @@ import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
 import { PersonProfile } from '@/components/crm/PersonProfile'
 import { changeStage } from '@/lib/recordKinds'
 import type { Delegate } from '@/types'
+import { ProfileSkeleton } from '@/components/crm/profileParts'
 
 async function fetchDelegate(id: string) {
   const res = await fetch(`/api/delegates/${id}`)
@@ -74,15 +75,7 @@ export default function DelegateDetailPage() {
     } finally { setStageSaving(false) }
   }
 
-  if (isLoading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-4">
-        <div className="h-8 w-32 rounded animate-pulse" style={{ background: 'var(--surface-2)' }} />
-        <div className="h-28 rounded-xl animate-pulse" style={{ background: 'var(--surface-2)' }} />
-        <div className="h-40 rounded-xl animate-pulse" style={{ background: 'var(--surface-2)' }} />
-      </div>
-    )
-  }
+  if (isLoading) return <ProfileSkeleton />
 
   if (error || !delegate) {
     return (

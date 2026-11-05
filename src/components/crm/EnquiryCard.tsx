@@ -96,7 +96,8 @@ export function EnquiryCard({ kind, id }: { kind: string; id: string }) {
         {unanswered > 0 && <span className="text-[12px] font-medium" style={{ color: 'var(--warn)' }}>{unanswered} without a reply</span>}
       </div>
       <ul>
-        {list.map((e, i) => <One key={`${e.kind}-${e.id}`} e={e} startOpen={i === 0} />)}
+        {/* Each one line (type · date · status) until clicked. */}
+        {list.map((e) => <One key={`${e.kind}-${e.id}`} e={e} startOpen={false} />)}
       </ul>
     </section>
   )
