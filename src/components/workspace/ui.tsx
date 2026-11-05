@@ -10,13 +10,30 @@ import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { KINDS, type RecordKind } from '@/lib/recordKinds'
 
-export function Initials({ name, size = 36, className = '' }: { name: string; size?: number; className?: string }) {
+// `tint` gives a person's initials one of four quiet tones, the same one
+// every time for the same name: enough to tell rows apart at a glance,
+// drawn from the CRM's own soft colours (no rainbow).
+const TINTS: [string, string][] = [
+  ['var(--ev-london-soft)', 'var(--ev-london-ink)'],
+  ['var(--ev-pharma-soft)', 'var(--ev-pharma-ink)'],
+  ['var(--mkt-soft)', 'var(--mkt-ink)'],
+  ['var(--surface-3)', 'var(--fg-2)'],
+]
+function tintOf(name: string): [string, string] {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return TINTS[h % TINTS.length]
+}
+
+export function Initials({ name, size = 36, className = '', tint = false }: { name: string; size?: number; className?: string; tint?: boolean }) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   const text = (parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? '?').slice(0, 2)).toUpperCase()
+  const [bg, fg] = tint ? tintOf(name.trim().toLowerCase()) : ['var(--surface-3)', 'var(--fg-2)']
   return (
     <span
       className={cn('inline-flex items-center justify-center rounded-lg shrink-0 font-semibold select-none', className)}
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.34), background: 'var(--surface-3)', color: 'var(--fg-2)' }}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.36), background: bg, color: fg, letterSpacing: '0.01em' }}
+      aria-hidden
     >
       {text}
     </span>
@@ -40,13 +57,32 @@ export function EmptyState({
   icon: Icon, title, body, action, className,
 }: { icon: LucideIcon; title: string; body?: string; action?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('flex flex-col items-center justify-center text-center px-6 py-14', className)}>
-      <span className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: 'var(--surface-2)', color: 'var(--fg-3)', border: '1px solid var(--line)' }}>
+    <div className={cn('flex flex-col items-center justify-center text-center px-6 py-16', className)}>
+      <span className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--surface-2)', color: 'var(--fg-3)', boxShadow: '0 0 0 6px color-mix(in srgb, var(--surface-2) 45%, transparent)' }}>
         <Icon className="w-5 h-5" />
       </span>
       <p className="text-[15px] font-semibold" style={{ color: 'var(--fg)' }}>{title}</p>
       {body && <p className="text-[13px] mt-1 max-w-sm" style={{ color: 'var(--fg-3)' }}>{body}</p>}
-      {action && <div className="mt-4">{action}</div>}
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  )
+}
+
+// A list loading: rows the shape of the ones to come (initials, two lines),
+// so the page does not jump when they arrive.
+export function ListSkeleton({ rows = 8, square = false }: { rows?: number; square?: boolean }) {
+  return (
+    <div className="crm-list" aria-busy="true" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 h-14">
+          <span className={`w-8 h-8 shrink-0 animate-pulse ${square ? 'rounded-lg' : 'rounded-full'}`} style={{ background: 'var(--surface-2)' }} />
+          <span className="flex-1 min-w-0 flex flex-col gap-1.5">
+            <span className="h-3 rounded animate-pulse" style={{ background: 'var(--surface-2)', width: `${38 + ((i * 17) % 30)}%` }} />
+            <span className="h-2.5 rounded animate-pulse" style={{ background: 'var(--surface-2)', width: `${22 + ((i * 11) % 20)}%`, opacity: 0.7 }} />
+          </span>
+          <span className="hidden sm:block h-6 w-28 rounded-full animate-pulse" style={{ background: 'var(--surface-2)', opacity: 0.6 }} />
+        </div>
+      ))}
     </div>
   )
 }

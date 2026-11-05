@@ -1084,3 +1084,81 @@
 @media (prefers-reduced-motion: reduce) {
   .crm-pill-glass[data-ready='true'] { transition: none; }
 }
+
+/* ── The list pages: Contacts, Companies, the Directory (November 2026) ──
+   Calmer rows on a fixed grid: softer separators than a card's edge, a
+   quiet wash on hover, a clear ring for the keyboard. */
+:root { --line-soft: color-mix(in srgb, var(--line) 70%, transparent); }
+.crm-list > * + * { border-top: 1px solid var(--line-soft); }
+.crm-list > :last-child { border-bottom-left-radius: 9px; border-bottom-right-radius: 9px; }
+.crm-lrow { transition: background 100ms ease; }
+@media (hover: hover) {
+  .crm-lrow:hover { background: color-mix(in srgb, var(--surface-2) 75%, transparent); }
+}
+.crm-lrow:focus-within { background: color-mix(in srgb, var(--surface-2) 75%, transparent); }
+.crm-lrow[data-open='true'] { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.crm-listcard :is(a, button, input, select, [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* The search and filters stay in view while the list scrolls (tablet and up). */
+.crm-listhead { background: var(--surface); border-top-left-radius: 9px; border-top-right-radius: 9px; }
+.crm-listhead[data-stuck='true'] { border-radius: 0; box-shadow: 0 6px 12px -10px rgba(15, 23, 42, 0.35); }
+.crm-colhead {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fg-3);
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+  border-top: 1px solid var(--line);
+}
+/* A role in a pipeline, as a chip: the stage's dot, the role and the stage. */
+.crm-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--fg-2);
+  transition: background 100ms ease;
+}
+a.crm-role:hover { background: var(--surface-3); }
+/* The way into a pipeline from a row: an outline chip at rest, the accent on hover. */
+.crm-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--fg-2);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.crm-add svg { color: var(--accent-ink); transition: color 120ms ease; }
+.crm-add:hover:not(:disabled), .crm-add:focus-visible { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.crm-add:hover:not(:disabled) svg, .crm-add:focus-visible svg { color: var(--on-accent); }
+.crm-add:disabled { opacity: 0.6; cursor: progress; }
+@media (max-width: 639px) {
+  .crm-add { height: 40px; padding: 0 14px 0 12px; font-size: 12.5px; }
+}
+/* Summary tiles that are also filters. */
+.crm-tile { text-align: left; transition: background 120ms ease; position: relative; }
+button.crm-tile:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.crm-tile[data-active='true']::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}

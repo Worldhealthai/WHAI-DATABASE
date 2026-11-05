@@ -9,63 +9,73 @@ interface PaginationProps {
   total: number
   pageSize: number
   onPage: (page: number) => void
-  onPageSize: (size: number) => void
+  // Without it the list has a fixed page size and no "Show" picker.
+  onPageSize?: (size: number) => void
+  // Scroll back to the top of the list on a page change.
+  scrollTo?: React.RefObject<HTMLElement | null>
 }
 
-export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSize }: PaginationProps) {
+// Quiet by design: the current page is marked, not lit; the accent is kept
+// for each page's one main action. Arrows are 40px taps on a phone.
+export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSize, scrollTo }: PaginationProps) {
   const start = (page - 1) * pageSize + 1
   const end = Math.min(page * pageSize, total)
 
   const pages = getPagesArray(page, totalPages)
+  const go = (p: number) => {
+    onPage(p)
+    const el = scrollTo?.current
+    if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: 'start' })
+  }
+  const arrow = 'inline-flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-colors hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent'
 
   return (
-    <div className="flex items-center justify-between pt-3 border-t border-border gap-2">
-      <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-400">
-        <span className="whitespace-nowrap">
-          {total === 0 ? '0' : `${start}–${end}`} of {total.toLocaleString()}
+    <div className="flex items-center justify-between pt-3 gap-2" style={{ borderTop: '1px solid var(--line)' }}>
+      <div className="flex items-center gap-2 sm:gap-3 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
+        <span className="whitespace-nowrap tabular">
+          {total === 0 ? '0' : <><span style={{ color: 'var(--fg-2)' }}>{start}–{end}</span> of {total.toLocaleString()}</>}
         </span>
-        <div className="hidden sm:flex items-center gap-1.5">
-          <span>Show</span>
-          <select
-            value={pageSize}
-            onChange={(e) => onPageSize(parseInt(e.target.value))}
-            className="bg-[var(--surface-2)] border border-[var(--line)] rounded px-1.5 py-0.5 text-[var(--fg)] outline-none focus:border-[var(--teal)]"
-          >
-            {[25, 50, 100].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
+        {onPageSize && (
+          <div className="hidden sm:flex items-center gap-1.5">
+            <span>Show</span>
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSize(parseInt(e.target.value))}
+              className="bg-[var(--surface-2)] border border-[var(--line)] rounded-md px-1.5 py-0.5 text-[var(--fg)] outline-none focus:border-[var(--accent)]"
+            >
+              {[25, 50, 100].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPage(page - 1)}
-          disabled={page <= 1}
-          className="p-1.5 sm:p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
+      <div className="flex items-center gap-1" style={{ color: 'var(--fg-2)' }}>
+        <button type="button" onClick={() => go(page - 1)} disabled={page <= 1} className={arrow} aria-label="Previous page">
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        {/* On mobile, show simplified page numbers */}
-        <span className="sm:hidden text-xs text-slate-400 px-2">
+        {/* On a phone, where we are, between two big arrows */}
+        <span className="sm:hidden text-[12.5px] tabular px-1" style={{ color: 'var(--fg-3)' }}>
           {page} / {totalPages}
         </span>
 
-        {/* Desktop page numbers */}
-        <div className="hidden sm:flex items-center gap-1">
+        <div className="hidden sm:flex items-center gap-0.5">
           {pages.map((p, i) =>
             p === '...' ? (
-              <span key={i} className="px-1 text-slate-500">…</span>
+              <span key={i} className="px-1" style={{ color: 'var(--fg-4)' }}>…</span>
             ) : (
               <button
+                type="button"
                 key={p}
-                onClick={() => onPage(p as number)}
+                onClick={() => go(p as number)}
+                aria-current={page === p ? 'page' : undefined}
                 className={cn(
-                  'w-7 h-7 rounded text-xs font-medium transition-colors',
+                  'min-w-8 h-8 px-1.5 rounded-full text-[12.5px] tabular transition-colors',
                   page === p
-                    ? 'bg-[var(--teal)] text-[var(--on-accent)]'
-                    : 'text-slate-400 hover:bg-[var(--surface-2)] hover:text-[var(--fg)]',
+                    ? 'bg-[var(--surface-3)] text-[var(--fg)] font-semibold'
+                    : 'text-[var(--fg-3)] hover:bg-[var(--surface-2)] hover:text-[var(--fg)]',
                 )}
               >
                 {p}
@@ -74,11 +84,7 @@ export function Pagination({ page, totalPages, total, pageSize, onPage, onPageSi
           )}
         </div>
 
-        <button
-          onClick={() => onPage(page + 1)}
-          disabled={page >= totalPages}
-          className="p-1.5 sm:p-1 rounded hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
+        <button type="button" onClick={() => go(page + 1)} disabled={page >= totalPages} className={arrow} aria-label="Next page">
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>

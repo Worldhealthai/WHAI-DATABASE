@@ -18,7 +18,7 @@ import { CardHead, Crumbs, EventsLine, Fact, MiniHeader, NextStep, PROFILE_GRID,
 import { useWorkspace } from '@/lib/workspace'
 import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
 import { Field, Modal, Segmented } from './ui'
-import { AddButton, Members, PersonAdds, Sides, TypeBadge, companyHref, recHref, usePipelineAdd } from './Segments'
+import { AddButton, Members, PersonAdds, Sides, TypeBadge, companyHref, recHref, roles, usePipelineAdd } from './Segments'
 import { IntelCompanyStrip, IntelDeployments, IntelDescription, IntelPeopleNamed, IntelSidebar, IntelStrip, NoIntel, useIntel } from './IntelPanel'
 import { isProvider as intelIsProvider, providerTypeLabel } from '@/lib/intel'
 
@@ -156,7 +156,7 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
     } finally { setMoving(false) }
   }
   const exportTeam = () => downloadCsv(`${a.name} team`, ['Name', 'Job title', 'Email', 'Phone', 'Records'],
-    members.map((m) => [m.name, m.jobTitle, m.email, m.phone, m.records.map((r) => [ROLE_WORD[r.relationship], r.event ? shortEvent(r.event) : null, r.status].filter(Boolean).join(' · ')).join('; ')]))
+    members.map((m) => [m.name, m.jobTitle, m.email, m.phone, roles(m.records).map((r) => [ROLE_WORD[r.relationship], r.event ? shortEvent(r.event) : null, r.status].filter(Boolean).join(' · ')).join('; ')]))
 
   const primary = !add.event ? null
     : solution ? (inSales
