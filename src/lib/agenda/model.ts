@@ -185,6 +185,28 @@ export function agendaStats(a: Agenda) {
     needModerators: need.moderators,
     needSpeakers: need.speakers,
     sessionsShort: talks.filter((s) => { const n = sessionNeeds(s); return n.moderators + n.speakers > 0 }).length,
+    ...panelSeats(a),
+  }
+}
+
+// The panels alone, each one moderator and four speakers (seatsFor), however
+// a session's own seats were changed: the "Seats filled" card. A named
+// person (confirmed or TBC) fills a seat; a second moderator or a fifth
+// speaker fills nothing extra; backups sit on the bench.
+export function panelSeats(a: Agenda) {
+  const panels = a.sessions.filter((s) => s.type === 'panel')
+  const per = seatsFor('panel')
+  const filledOf = (s: Session) => {
+    const named = s.speakers.filter((x) => x.name.trim() && !x.backup)
+    const mods = named.filter((x) => x.moderator).length
+    return Math.min(mods, per.moderators) + Math.min(named.length - mods, per.speakers)
+  }
+  const size = per.moderators + per.speakers
+  return {
+    panels: panels.length,
+    panelSeats: panels.length * size,
+    panelFilled: panels.reduce((n, s) => n + filledOf(s), 0),
+    panelsShort: panels.filter((s) => filledOf(s) < size).length,
   }
 }
 
