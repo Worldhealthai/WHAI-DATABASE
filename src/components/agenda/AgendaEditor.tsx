@@ -648,7 +648,7 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
           {/* Everything here excludes the breaks */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <Stat label="Sessions" value={st!.sessions} hint="Not counting breaks" />
-            <Stat label="Seats filled" value={<>{st!.filled}<span className="text-[16px] font-medium" style={{ color: 'var(--fg-4)' }}> / {st!.seats}</span></>} hint={st!.sessionsShort ? `${st!.sessionsShort} session${st!.sessionsShort === 1 ? '' : 's'} with empty seats` : 'Every seat has a name'} />
+            <Stat label="Panel seats filled" value={<>{st!.panelFilled}<span className="text-[16px] font-medium" style={{ color: 'var(--fg-4)' }}> / {st!.panelSeats}</span></>} hint={!st!.panels ? 'No panels yet' : st!.panelsShort ? `${st!.panelsShort} of ${st!.panels} panel${st!.panels === 1 ? '' : 's'} with empty seats · 1 moderator and 4 speakers each` : `All ${st!.panels} panel${st!.panels === 1 ? '' : 's'} full · 1 moderator and 4 speakers each`} />
             <Stat label="Confirmed" value={st!.confirmed} hint={st!.tbc ? `${st!.tbc} still TBC` : 'Everyone is confirmed'} />
             <Stat label="Still needed" value={st!.needModerators + st!.needSpeakers} hint={due || 'No empty seats'} />
           </div>
