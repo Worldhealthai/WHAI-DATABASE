@@ -36,13 +36,16 @@ export async function proxy(req: NextRequest) {
   // "Add to CRM" staging) — those callers have no browser session.
   if (req.nextUrl.pathname.startsWith('/api/')) {
     // Control Room and its agents read through a key of their own
-    // (AGENT_READ_TOKEN), so they never hold the shared secret. It opens two
-    // read-only things, GET only: the event status, and a post's finished
-    // design (so Control Room can show it). Nothing else.
+    // (AGENT_READ_TOKEN), so they never hold the shared secret. It opens,
+    // GET only: the event status, a post's finished design (so Control Room
+    // can show it), and contacts and companies (/api/agent/*). Nothing else,
+    // and nothing that changes data.
     const agentKey = (process.env.AGENT_READ_TOKEN || '').trim()
     const bearer = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
     const readable =
-      req.nextUrl.pathname === '/api/routine/event' || /^\/api\/marketing\/content\/[A-Za-z0-9_-]+\/image$/.test(req.nextUrl.pathname)
+      req.nextUrl.pathname === '/api/routine/event' ||
+      /^\/api\/marketing\/content\/[A-Za-z0-9_-]+\/image$/.test(req.nextUrl.pathname) ||
+      /^\/api\/agent\/(companies|contacts)(\/[^/]+)?$/.test(req.nextUrl.pathname)
     if (agentKey && bearer && bearer === agentKey && req.method === 'GET' && readable) {
       return NextResponse.next()
     }
