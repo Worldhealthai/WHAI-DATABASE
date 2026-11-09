@@ -27,6 +27,14 @@ async function briefingLink(to: BrandKey, slug: string, fallback: string | null)
   return fallback && fallback.includes('worldnexusgroup.com') ? fallback : `${BRANDS.nexus.url}/insights/${slug}`
 }
 
+// The posts this one was itself moved from, oldest first.
+function earlierIds(source: unknown): string[] {
+  const from = (source as { movedFrom?: { id?: unknown; earlier?: unknown } } | null)?.movedFrom
+  if (!from) return []
+  const before = Array.isArray(from.earlier) ? from.earlier.filter((x): x is string => typeof x === 'string') : []
+  return typeof from.id === 'string' ? [...before, from.id] : before
+}
+
 export async function movePost(id: string, to: BrandKey, opts: { keep?: boolean; note?: string | null } = {}): Promise<Transfer> {
   const post = await readPost(id)
   const from = brandFor(post.series)
@@ -58,7 +66,8 @@ export async function movePost(id: string, to: BrandKey, opts: { keep?: boolean;
     hashtags: post.hashtags,
     ...patch,
     link,
-    source: { ...kept, ...facts, style, ...photoFields(ctx, post.ref ?? post.kind, style), movedFrom: { edition: post.edition, id: post.id } },
+    // Where it came from, and every post before that, so old links to any of them still find it.
+    source: { ...kept, ...facts, style, ...photoFields(ctx, post.ref ?? post.kind, style), movedFrom: { edition: post.edition, id: post.id, earlier: earlierIds(post.source) } },
     brief: post.brief,
     status: 'draft',
     updatedAt: new Date().toISOString(),

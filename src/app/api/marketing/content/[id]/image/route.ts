@@ -3,6 +3,7 @@
 // one of the looks to see it in another: the look gallery's previews).
 // ?download=1 saves it. For a carousel, one of its 1080 by 1350 slides
 // (?slide=1, the first by default; ?style= draws the cover in a look).
+// A post that was moved to another page is found where it is now.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { renderCard } from '@/lib/contentCard'
@@ -28,9 +29,36 @@ async function withPhotos(post: Row, style: CardStyle): Promise<Row> {
   return { ...post, source: { ...source, photo: photos[0], photos } }
 }
 
+const COLUMNS = 'series, kind, kicker, headline, subline, source, edition'
+
+// A post moved to another page is filed there as a new post and the original
+// draft removed (lib/contentTransfer), so a link to the original (Control
+// Room keeps them) would lead nowhere. The new post remembers where it came
+// from (source.movedFrom: the post it was moved from, and any before that),
+// so the link follows it to wherever the post is now.
+async function findPost(id: string) {
+  const own = await supabase.from('marketing_content').select(COLUMNS).eq('id', id).maybeSingle()
+  if (own.error || own.data) return own
+  const moved = await supabase
+    .from('marketing_content')
+    .select(COLUMNS)
+    .eq('source->movedFrom->>id', id)
+    .order('updatedAt', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (moved.error || moved.data) return moved
+  return supabase
+    .from('marketing_content')
+    .select(COLUMNS)
+    .contains('source', { movedFrom: { earlier: [id] } })
+    .order('updatedAt', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { data, error } = await supabase.from('marketing_content').select('series, kind, kicker, headline, subline, source, edition').eq('id', id).maybeSingle()
+  const { data, error } = await findPost(id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'No such post' }, { status: 404 })
   let post = data as Row
