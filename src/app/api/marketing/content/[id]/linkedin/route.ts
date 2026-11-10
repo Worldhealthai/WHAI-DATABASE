@@ -9,6 +9,7 @@ import { renderCarouselPdf, slidesOf, type CarouselPost } from '@/lib/contentCar
 import { brandFor } from '@/lib/contentBrand'
 import { LinkedInError, littleText, mentionsOf, publish } from '@/lib/linkedin'
 import type { ContentPost } from '@/lib/contentStudio'
+import { upsertTracking } from '@/lib/marketingSource'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -61,6 +62,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       .select('*')
       .single()
     if (saveErr) return NextResponse.json({ error: `Posted to LinkedIn (${done.url}), but the CRM could not mark it: ${saveErr.message}` }, { status: 500 })
+    // A speaker's welcome post also ticks them off on the Speaker posts page.
+    if (post.kind === 'speaker' && post.ref) {
+      await upsertTracking('speaker', post.ref, post.edition, { postStatus: 'Posted', postUrl: done.url, postedAt: now }).catch((e) =>
+        console.error('Speaker post tracking not updated:', e))
+    }
     return NextResponse.json({ post: saved, url: done.url, page: done.page.name })
   } catch (e) {
     await supabase.from('marketing_content').update({ source: { ...post.source, linkedin: { state: 'failed', at: new Date().toISOString() } } }).eq('id', id)

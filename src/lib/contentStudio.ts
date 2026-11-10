@@ -483,13 +483,24 @@ export function tidy(s: string): string {
     .trim()
 }
 
+// One speaker's welcome post, by their line-up id.
+function speakerChoice(ctx: EditionContext, ref: string): Choice {
+  const s = ctx.speakers.find((x) => x.id === ref)
+  if (!s || !s.name) throw new ContentError('That speaker is not on this edition\'s line-up.', 404)
+  if (s.linkedin_consent !== true) throw new ContentError(`${s.name} has not agreed to a LinkedIn post, so there is nothing to draft.`, 400)
+  return { kind: 'speaker', ref: s.id, source: { name: s.name, role: s.role, org: s.org, bio: (s.bio || '').slice(0, 600), image: absoluteUrl(s.image) }, link: `${ctx.site}/speakers` }
+}
+
 // ── The whole run ───────────────────────────────────────────────────────────
 
 export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null; ref?: string | null; by?: string }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
   // A briefing picked by hand is written whatever it is about.
-  const chosen = opts.ref ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
-  const pick = chosen ? insightChoiceFor(ctx, chosen) : choose(ctx, opts.kind ?? null)
+  const chosen = opts.ref && opts.kind !== 'speaker' ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
+  // A speaker picked by hand (the Speaker posts page's "Draft post"): that
+  // speaker, as long as they agreed to a post.
+  const speaker = opts.ref && opts.kind === 'speaker' ? speakerChoice(ctx, opts.ref) : undefined
+  const pick = speaker ?? (chosen ? insightChoiceFor(ctx, chosen) : choose(ctx, opts.kind ?? null))
   // A briefing is written from its own text, from an angle that moves on
   // each time the same briefing comes round.
   let angle: string | null = null
