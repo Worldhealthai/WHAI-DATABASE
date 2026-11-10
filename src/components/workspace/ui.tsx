@@ -4,39 +4,22 @@
 // one accent, grey for everything that isn't a decision, colour only where
 // it carries meaning (a stage that is won or lost).
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { KINDS, type RecordKind } from '@/lib/recordKinds'
 
-// `tint` gives a person's initials one of four quiet tones, the same one
-// every time for the same name: enough to tell rows apart at a glance,
-// drawn from the CRM's own soft colours (no rainbow).
-const TINTS: [string, string][] = [
-  ['var(--ev-london-soft)', 'var(--ev-london-ink)'],
-  ['var(--ev-pharma-soft)', 'var(--ev-pharma-ink)'],
-  ['var(--mkt-soft)', 'var(--mkt-ink)'],
-  ['var(--surface-3)', 'var(--fg-2)'],
-]
-function tintOf(name: string): [string, string] {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return TINTS[h % TINTS.length]
-}
-
-export function Initials({ name, size = 36, className = '', tint = false }: { name: string; size?: number; className?: string; tint?: boolean }) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  const text = (parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? '?').slice(0, 2)).toUpperCase()
-  const [bg, fg] = tint ? tintOf(name.trim().toLowerCase()) : ['var(--surface-3)', 'var(--fg-2)']
+// A company's logo, on a white plate (logos are drawn for light paper). It
+// comes from the Intelligence dataset (Lusha's file for the company); with
+// none, or one that fails to load, nothing is shown.
+export function CompanyLogo({ src, size = 48, className = '' }: { src?: string | null; size?: number; className?: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) return null
   return (
-    <span
-      className={cn('inline-flex items-center justify-center rounded-lg shrink-0 font-semibold select-none', className)}
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.36), background: bg, color: fg, letterSpacing: '0.01em' }}
-      aria-hidden
-    >
-      {text}
-    </span>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)}
+      className={cn('rounded-xl object-contain shrink-0', className)} style={{ width: size, height: size, background: '#fff', border: '1px solid var(--line)' }} />
   )
 }
 
@@ -68,14 +51,13 @@ export function EmptyState({
   )
 }
 
-// A list loading: rows the shape of the ones to come (initials, two lines),
+// A list loading: rows the shape of the ones to come (two lines),
 // so the page does not jump when they arrive.
-export function ListSkeleton({ rows = 8, square = false }: { rows?: number; square?: boolean }) {
+export function ListSkeleton({ rows = 8 }: { rows?: number }) {
   return (
     <div className="crm-list" aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 h-14">
-          <span className={`w-8 h-8 shrink-0 animate-pulse ${square ? 'rounded-lg' : 'rounded-full'}`} style={{ background: 'var(--surface-2)' }} />
           <span className="flex-1 min-w-0 flex flex-col gap-1.5">
             <span className="h-3 rounded animate-pulse" style={{ background: 'var(--surface-2)', width: `${38 + ((i * 17) % 30)}%` }} />
             <span className="h-2.5 rounded animate-pulse" style={{ background: 'var(--surface-2)', width: `${22 + ((i * 11) % 20)}%`, opacity: 0.7 }} />

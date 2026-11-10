@@ -9,7 +9,7 @@ import { ArrowRight } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { KINDS, listParams, recordName, recordSubtitle, type RecordKind } from '@/lib/recordKinds'
 import { workspaceHref } from '@/lib/portals'
-import { Initials, Segmented, StagePill, formatMoney, timeAgo } from './ui'
+import { Segmented, StagePill, formatMoney, timeAgo } from './ui'
 import { WaveBand } from './WaveBand'
 import { WorkspacePage } from './WorkspacePage'
 import type { Account } from '@/lib/segments'
@@ -156,7 +156,6 @@ function Recent({ labels }: { labels: string[] }) {
             return (
               <li key={r.id}>
                 <Link href={`${def.detailPath}/${r.id}`} className="flex items-center gap-3 py-2 px-2 rounded-lg transition-colors hover:bg-[var(--surface-2)]">
-                  <Initials name={name || '?'} size={30} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
                     <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{recordSubtitle(kind, r) || '—'}</span>

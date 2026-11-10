@@ -17,10 +17,6 @@ import { stepsBack } from '@/components/layout/NavMemory'
 import { useUpcomingEventOptions } from '@/lib/useEventOptions'
 
 // "Leonard Warren" → "LW"; a one-word name gives its first two letters ("IQ").
-export const initials = (name: string) => {
-  const words = name.split(/\s+/).filter(Boolean)
-  return (words.length > 1 ? words.slice(0, 2).map((w) => w[0]).join('') : (words[0] ?? '').slice(0, 2)).toUpperCase() || '?'
-}
 export const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
 export const money = (amount: unknown, currency?: string | null) => {
   const n = Number(amount)

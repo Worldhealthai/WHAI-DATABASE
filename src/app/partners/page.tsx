@@ -57,7 +57,6 @@ function PartnerCard({ partner, onAdvance, onEdit, advancing, onDragStart, onDra
   isDragging: boolean
 }) {
   const next = nextStage(partner.status)
-  const initials = partner.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
 
   return (
     <Link
@@ -73,9 +72,6 @@ function PartnerCard({ partner, onAdvance, onEdit, advancing, onDragStart, onDra
       <div className="flex items-start justify-between gap-2 mb-2.5">
         <div className="flex items-center gap-1.5">
           <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
-            {initials}
-          </div>
         </div>
         <button
           onClick={(e) => { e.preventDefault(); onEdit(partner) }}
@@ -268,9 +264,6 @@ function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortD
   return sortDir === 'asc' ? <ChevronUp className="w-3 h-3 text-emerald-400" /> : <ChevronDown className="w-3 h-3 text-emerald-400" />
 }
 
-function companyInitials(name: string) {
-  return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
-}
 
 function Checkbox({ checked, indeterminate, onChange }: {
   checked: boolean; indeterminate?: boolean; onChange: () => void
@@ -627,9 +620,6 @@ export default function PartnersPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <Link href={`/partners/${s.id}`} className="flex items-center gap-3 group">
-                                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
-                                      {companyInitials(s.companyName)}
-                                    </div>
                                     <div className="min-w-0">
                                       <div className="font-medium text-[var(--fg)] group-hover:text-emerald-400 transition-colors">{s.companyName}</div>
                                       {(s.contactFirstName || s.contactLastName) && (
@@ -693,9 +683,6 @@ export default function PartnersPage() {
                         <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-emerald-500/5' : 'hover:bg-[var(--surface-2)]')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
                           <Link href={`/partners/${s.id}`} className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                              {companyInitials(s.companyName)}
-                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-[var(--fg)]">{s.companyName}</div>
                               {(s.contactFirstName || s.contactLastName) && (

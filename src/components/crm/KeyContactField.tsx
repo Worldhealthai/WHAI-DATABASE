@@ -21,14 +21,12 @@ export interface KeyContact {
 
 const EMPTY: KeyContact = { contactFirstName: '', contactLastName: '', contactEmail: '', contactPhone: '', contactJobTitle: '', contactLinkedinUrl: '' }
 const nameOf = (c: Partial<KeyContact>) => [c.contactFirstName, c.contactLastName].filter(Boolean).join(' ').trim()
-const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?'
 const inputCls = 'w-full px-3 py-2 bg-[var(--bg)] border border-[var(--line)] rounded-lg text-sm text-[var(--fg)] placeholder-slate-500 outline-none focus:border-[var(--teal)] transition-colors'
 
 function Card({ c, note, actions }: { c: Partial<KeyContact>; note?: string; actions?: React.ReactNode }) {
   const name = nameOf(c) || c.contactEmail || 'Unnamed'
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg" style={{ border: '1px solid var(--line)', background: 'var(--bg)' }}>
-      <span className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--fg-2)' }}>{initials(name)}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{name}</span>
         <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[c.contactJobTitle, c.contactEmail].filter(Boolean).join(' · ') || 'No title or email yet'}</span>
@@ -65,7 +63,6 @@ export function KeyContactField({ value, onChange, contacts, picked, onPick }: {
             className="w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors"
             style={{ border: `1px solid ${on ? 'var(--teal)' : 'var(--line)'}`, background: on ? 'var(--surface-2)' : 'var(--bg)' }}
           >
-            <span className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--fg-2)' }}>{initials(name)}</span>
             <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-medium truncate" style={{ color: 'var(--fg)' }}>{name}</span>
               <span className="block text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>{[c.contactJobTitle, c.contactEmail].filter(Boolean).join(' · ') || '—'}</span>

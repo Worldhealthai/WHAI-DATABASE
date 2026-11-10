@@ -14,7 +14,7 @@ import { stepsBack } from '@/components/layout/NavMemory'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { CardHead, EventTabs, Fact, MiniHeader, MoveOn, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileNavBar, ProfileSide, StageBar, WhereLine, downloadVcard, eventParts, fmtDate, initials, money, nextStage, shortEventName, useBoard, type ProfileNav } from '@/components/crm/profileParts'
+import { CardHead, EventTabs, Fact, MiniHeader, MoveOn, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileNavBar, ProfileSide, StageBar, WhereLine, downloadVcard, eventParts, fmtDate, money, nextStage, shortEventName, useBoard, type ProfileNav } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { partnerConsentLabel, type Delegate, type Speaker } from '@/types'
 import { TypeRoleButton, roleLabel } from './TypeRoleButton'
@@ -92,13 +92,9 @@ export function PersonProfile(props: Props) {
           <header ref={headRef} className="ws-card overflow-hidden order-1">
             {/* On a phone the buttons take a row of their own under the name. */}
             <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
-              {headshot ? (
+              {headshot && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={headshot} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" style={{ border: '1px solid var(--line)' }} />
-              ) : (
-                <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
-                  {initials(name)}
-                </div>
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{roleLabel(kind, person.subType)}{person.subType ? ` · ${person.subType}` : ''}</p>

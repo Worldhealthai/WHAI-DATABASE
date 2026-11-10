@@ -161,18 +161,11 @@ export function Notice({ message, tone = 'warn' }: { message: string; tone?: 'wa
   )
 }
 
-export function Avatar({ src, name, size = 36 }: { src?: string | null; name: string; size?: number }) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  const text = (parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? '?').slice(0, 2)).toUpperCase()
-  if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" width={size} height={size} className="rounded-lg object-cover shrink-0" style={{ width: size, height: size, background: 'var(--surface-3)' }} />
-  }
-  return (
-    <span className="inline-flex items-center justify-center rounded-lg shrink-0 font-semibold select-none" style={{ width: size, height: size, fontSize: Math.round(size * 0.34), background: 'var(--surface-3)', color: 'var(--fg-2)' }}>
-      {text}
-    </span>
-  )
+// A speaker's photo or a sponsor's logo; nothing when there is none.
+export function Avatar({ src, size = 36 }: { src?: string | null; name?: string; size?: number }) {
+  if (!src) return null
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" width={size} height={size} className="rounded-lg object-cover shrink-0" style={{ width: size, height: size, background: 'var(--surface-3)' }} />
 }
 
 // Where to change the underlying record: the admin panel owns it.

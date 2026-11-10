@@ -27,9 +27,6 @@ function getSuggestion(contact: any): 'delegate' | 'speaker' | 'sponsor' | null 
   return null
 }
 
-function initials(c: any) {
-  return `${c.firstName?.[0] ?? ''}${c.lastName?.[0] ?? ''}`.toUpperCase() || '?'
-}
 
 const ASSIGN_TYPES = [
   {
@@ -448,10 +445,6 @@ export default function UnassignedPage() {
                         />
                       </div>
 
-                      {/* Avatar */}
-                      <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] text-slate-300 flex items-center justify-center text-sm font-bold shrink-0">
-                        {initials(contact)}
-                      </div>
 
                       {/* Info + actions */}
                       <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-start gap-3">

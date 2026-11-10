@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowUpRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Globe, Linkedin, Mail, MapPin, Pencil, Phone, X } from 'lucide-react'
 import type { PersonRole } from '@/app/api/people/roles/route'
-import { Initials } from '@/components/workspace/ui'
 import { PersonAdds, companyHref, recHref, usePipelineAdd } from '@/components/workspace/Segments'
 import { useCategoryName, useIntel } from '@/components/workspace/IntelPanel'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
@@ -284,7 +283,6 @@ function DrawerBody({ seed, onClose, onStep, index, total, prevName, nextName }:
       {/* Who, and where we are with them */}
       <div className="shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
         <div className="flex items-start gap-3 px-5 pt-4 pb-3">
-          <Initials name={seed.name} size={44} className="!rounded-full mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-[15px] font-semibold leading-tight truncate" style={{ color: 'var(--fg)' }}>{seed.name}</p>
             {jobTitle && <p className="text-[13px] mt-0.5 line-clamp-2" style={{ color: 'var(--fg-2)' }}>{jobTitle}</p>}
