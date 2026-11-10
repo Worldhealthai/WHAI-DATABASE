@@ -55,7 +55,11 @@ export const SUBTYPE_OPTIONS = [
 
 // ── Delegate enums ────────────────────────────────────────────────────────────
 
+// 'Enquired' (November 2026): someone who asked about coming, or was moved
+// in from an enquiry, and has not booked. They become Registered when their
+// booking is approved in the admin panel.
 export const DELEGATE_STATUS_OPTIONS = [
+  'Enquired',
   'Registered',
   'Confirmed',
   'Cancelled',

@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 
 const DELEGATE_STATUS_COLORS: Record<string, string> = {
+  'Enquired':    'bg-slate-500/15 text-slate-400 border-slate-500/30',
   'Registered':  'bg-blue-500/15 text-blue-400 border-blue-500/30',
   'Confirmed':   'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
   'Attended':    'bg-green-500/15 text-green-400 border-green-500/30',

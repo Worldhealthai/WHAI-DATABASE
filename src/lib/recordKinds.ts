@@ -52,6 +52,8 @@ const SPEAKER_STAGES: Stage[] = [
 ]
 
 const DELEGATE_STAGES: Stage[] = [
+  // Asked about coming (an enquiry moved here); no booking yet.
+  { status: 'Enquired', label: 'Enquired', hex: 'var(--fg-4)' },
   { status: 'Registered', label: 'Registered', hex: 'var(--fg-4)' },
   { status: 'Confirmed', label: 'Invited', hex: 'var(--fg-4)' },
   { status: 'Cancelled', label: 'Cancelled', hex: 'var(--bad)', negative: true },

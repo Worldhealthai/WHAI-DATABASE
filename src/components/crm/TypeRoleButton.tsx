@@ -20,7 +20,7 @@ type SubType = 'Solution Provider' | 'End User'
 // The stages a re-filed record can start at.
 const START: Record<PersonKind, string[]> = {
   speaker: ['Not Contacted', 'Invited', 'Discussing', 'Speaking Confirmed'],
-  delegate: ['Registered', 'Confirmed'],
+  delegate: ['Registered', 'Confirmed', 'Enquired'],
 }
 const stageLabel = (kind: PersonKind, s: string) => KINDS[kind].stages.find((x) => x.status === s)?.label ?? s
 
