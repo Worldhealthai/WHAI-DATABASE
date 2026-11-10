@@ -348,6 +348,11 @@ export function Members({ members, query, company, add, where, account, flush, o
   const seedOf = (m: Member) => ({ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null, href: recHref(slug, pageOf(m.records)) })
   // The panel steps through the list it was opened from.
   const list = members.map(seedOf)
+  // Hovering a row brings out the Health/Pharma switch beside the pipeline
+  // button: with both on offer the last column has to hold the two side by
+  // side, or they spill over the roles. Below a desktop there is room for
+  // the button only, and the side is set in the contact panel.
+  const wide = where === 'event' && !!add
   const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[52px] sm:pl-[100px] pr-4'
   return (
     <ul className="flex flex-col">
@@ -357,7 +362,7 @@ export function Members({ members, query, company, add, where, account, flush, o
         // Once added from here, "Added · Undo" stays in view.
         const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_140px] items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit && !withCompany ? 'var(--accent-soft)' : undefined }}>
+          <li key={m.key} className={`group grid grid-cols-1 ${wide ? 'sm:grid-cols-[minmax(0,1fr)_200px_170px] lg:grid-cols-[minmax(0,1fr)_230px_330px]' : 'sm:grid-cols-[minmax(0,1fr)_250px_140px]'} items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit && !withCompany ? 'var(--accent-soft)' : undefined }}>
             {/* The name opens the contact panel; the link underneath is their page. */}
             <ContactLink seed={list[mi]} list={list} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
               <span className="block truncate text-[13px] leading-5">
@@ -380,10 +385,10 @@ export function Members({ members, query, company, add, where, account, flush, o
               {where === 'event' ? (
                 <>
                   <span className="text-[11.5px] group-hover:hidden group-focus-within:hidden" style={{ color: 'var(--fg-4)' }} title={focusWord ? 'Relevant for; hover to change' : undefined}>{focusWord}</span>
-                  <span className="hidden group-hover:inline-flex group-focus-within:inline-flex"><FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" /></span>
+                  <span className={`hidden shrink-0 ${add ? 'lg:group-hover:inline-flex lg:group-focus-within:inline-flex' : 'group-hover:inline-flex group-focus-within:inline-flex'}`}><FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" /></span>
                 </>
               ) : null}
-              {add && <span className={added ? 'inline-flex' : 'hidden group-hover:inline-flex group-focus-within:inline-flex'}><PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} /></span>}
+              {add && <span className={`shrink-0 ${added ? 'inline-flex' : 'hidden group-hover:inline-flex group-focus-within:inline-flex'}`}><PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} /></span>}
             </span>
           </li>
         )
