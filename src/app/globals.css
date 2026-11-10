@@ -930,6 +930,9 @@
 /* A chip that is a dropdown: its list in the theme's own surface and ink
    (the browser's default list is white, unreadable under the dark theme). */
 .ws-select-chip option, .ws-select-chip optgroup { background: var(--surface); color: var(--fg); }
+/* A tile in a profile's "In numbers" grid: hairlines between the tiles,
+   drawn outside each one and cut off at the card's edge. */
+.crm-stat { box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line); }
 
 
 /* ── The entrance (the version Ali preferred, October 2026) ─────────────

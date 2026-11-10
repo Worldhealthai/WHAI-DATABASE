@@ -14,7 +14,19 @@ export async function readIntelCompany(key: string | null, name: string | null):
     tried.add(want)
     const { data, error } = await supabase.rpc('intel_company', { p_key: want })
     if (error) throw new Error(error.message)
-    if (data) return data as IntelCompany
+    if (data) {
+      const company = data as IntelCompany
+      // Its news and its latest figures, read apart (migration 020). Where
+      // that is not installed the page falls back to the latest signals.
+      const more = await supabase.rpc('intel_signals', { p_key: want })
+      const doc = more.error ? null : (more.data as { news?: unknown; figures?: unknown; total?: unknown } | null)
+      if (doc && Array.isArray(doc.news) && Array.isArray(doc.figures)) {
+        company.news = doc.news as IntelCompany['news']
+        company.figures = doc.figures as IntelCompany['figures']
+        company.signalsTotal = Number(doc.total) || 0
+      }
+      return company
+    }
   }
   return null
 }

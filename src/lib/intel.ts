@@ -193,6 +193,12 @@ export interface IntelCompany {
   similarCompanies: SimilarCompany[]
   competitors: Competitor[]
   signals: Signal[]
+  // The profile's two kinds, read apart (crm.intel_signals): news, each with
+  // its article, and Lusha's own latest figures (hiring, headcount, web
+  // traffic, IT spend). Absent where that function is not installed.
+  news?: Signal[]
+  figures?: Signal[]
+  signalsTotal?: number
   people: IntelPerson[]
   facts: Fact[]
   whitespace: Whitespace[]

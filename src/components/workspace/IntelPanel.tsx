@@ -141,7 +141,7 @@ async function review(action: 'verify_description' | 'competitor' | 'deployment'
 // ── Small marks ──────────────────────────────────────────────────────────────
 
 export const usd = (n: number) => (n >= 1e9 ? `$${(n / 1e9).toFixed(1).replace(/\.0$/, '')}bn` : n >= 1e6 ? `$${Math.round(n / 1e6)}m` : `$${Math.round(n / 1e3)}k`)
-const monthYear = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '')
+export const monthYear = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '')
 export const companyPath = (slug: string | null, key: string, name: string) => (slug ? `/event/${slug}/companies/${encodeURIComponent(key)}?name=${encodeURIComponent(name)}` : '#')
 const num = (n: number) => n.toLocaleString('en-GB')
 
@@ -161,7 +161,7 @@ function evidenceAge(iso: string | null | undefined): string | null {
 }
 
 // "aidoc.com" from a page's address, for a link that says where it goes.
-const domainOf = (url: string | null | undefined) => { try { return url ? new URL(url).hostname.replace(/^www\./, '') : null } catch { return null } }
+export const domainOf = (url: string | null | undefined) => { try { return url ? new URL(url).hostname.replace(/^www\./, '') : null } catch { return null } }
 
 // How sure we are, and whether a person has checked it: "High ✓ verified",
 // or "High" alone while nobody has (the tooltip says so).
@@ -518,20 +518,20 @@ const SIGNAL_LABEL: Record<string, string> = {
   productActivityNews: 'Product news', marketIntelligenceNews: 'Market news', commercialActivityNews: 'Commercial news',
   peopleNews: 'People news', corporateStrategyNews: 'Strategy news', financialEventsNews: 'Funding news', riskNews: 'Risk news',
 }
-const isNews = (type: string) => /News$/.test(type)
+export const isNews = (type: string) => /News$/.test(type)
 // "Partnership", "Product Launch": what kind of news, when Lusha says.
-function signalLabel(s: Signal): string {
+export function signalLabel(s: Signal): string {
   const kind = typeof s.meta?.eventType === 'string' && s.meta.eventType !== 'null' ? s.meta.eventType : ''
   return kind || SIGNAL_LABEL[s.type] || s.type.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase())
 }
 // Lusha puts the article's title in brackets after its own line; the line
 // alone is the headline.
-const signalHeadline = (s: Signal) => s.headline.replace(/\s*\[[^\]]*\]?\s*$/, '').trim() || s.headline
+export const signalHeadline = (s: Signal) => s.headline.replace(/\s*\[[^\]]*\]?\s*$/, '').trim() || s.headline
 
 // Newest first, without the doubles: Lusha often sends a news item twice,
 // once with its article and once as a bare summary of the same day and
 // kind. The one with the article is kept.
-function tidySignals(all: Signal[]): Signal[] {
+export function tidySignals(all: Signal[]): Signal[] {
   const linked = new Set(all.filter((s) => s.source.url).map((s) => `${s.type}|${s.date ?? ''}`))
   const seen = new Set<string>()
   return all.filter((s) => {
@@ -772,14 +772,16 @@ function NotYetHere({ c, slug, className }: { c: IntelCompany; slug: string | nu
 // Similar companies, competitors, signals and (for a hospital) the vendors
 // not here yet, each a compact card. `className` goes on every card, for
 // where it sits when the page stacks on a phone.
-export function IntelSidebar({ c, slug, className }: { c: IntelCompany; slug: string | null; className?: string }) {
+// `signals` off where the page shows the news and the figures itself (the
+// company profile).
+export function IntelSidebar({ c, slug, className, signals = true }: { c: IntelCompany; slug: string | null; className?: string; signals?: boolean }) {
   const provider = isProvider(c)
   return (
     <>
       <Similar c={c} slug={slug} className={className} title={provider ? 'Similar trusts' : 'Similar companies'} note={provider ? 'By type, region, size and shared vendors' : 'Computed from categories, size, country and shared hospitals'} />
       <Competitors c={c} slug={slug} className={className} />
       {provider && <NotYetHere c={c} slug={slug} className={className} />}
-      <Signals c={c} className={className} />
+      {signals && <Signals c={c} className={className} />}
     </>
   )
 }

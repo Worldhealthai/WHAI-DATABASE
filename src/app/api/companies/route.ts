@@ -1,10 +1,11 @@
-// POST /api/companies { name, segment, event, website?, country?, notes?,
+// POST /api/companies { name, segment, side, website?, country?, notes?,
 // contact?: { firstName, lastName, jobTitle, email, phone } } — a new
 // company in the CRM, from the Companies tab or the Directory (November
-// 2026). It is not put on any pipeline: it is kept as a leads-list record
-// (crm.leads) for the edition, so it shows in Companies, Contacts and the
-// Directory with its own profile, and is moved into Sales or Production from
-// there. A company already in the CRM is not added twice.
+// 2026). It is not put on any pipeline or in any event: it is kept as a
+// leads-list record (crm.leads) on its side (Health or Pharma, as a tag), so
+// it shows in that side's Companies and Contacts and in the Directory with
+// its own profile, and is moved into Sales or Production from there. A
+// company already in the CRM is not added twice.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { companyKey } from '@/lib/segments'
@@ -18,11 +19,11 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i
 export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => null)
   const name = str(b?.name)
-  const event = str(b?.event)
+  const side = b?.side === 'Health' || b?.side === 'Pharma' ? (b.side as string) : null
   const segment = b?.segment === 'Solution Provider' || b?.segment === 'End User' ? b.segment : null
   if (!name) return NextResponse.json({ error: 'Give the company a name' }, { status: 400 })
   if (!segment) return NextResponse.json({ error: 'Choose Solution Provider or End User' }, { status: 400 })
-  if (!event) return NextResponse.json({ error: 'Open an event first' }, { status: 400 })
+  if (!side) return NextResponse.json({ error: 'Choose Health or Pharma' }, { status: 400 })
   const key = companyKey(name)
   if (!key) return NextResponse.json({ error: 'That name has no letters or numbers' }, { status: 400 })
   const c = b?.contact ?? {}
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     let website = str(b?.website)
     if (website && !/^https?:\/\//i.test(website)) website = `https://${website}`
     const { error } = await supabase.from('leads').insert({
-      companyName: name, segment, event, website, country: str(b?.country),
+      companyName: name, segment, tags: side, website, country: str(b?.country),
       firstName: str(c.firstName), lastName: str(c.lastName), jobTitle: str(c.jobTitle), email, phone: str(c.phone),
       source: 'Added in the CRM', notes: str(b?.notes),
     })
