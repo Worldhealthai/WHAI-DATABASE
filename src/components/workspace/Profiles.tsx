@@ -14,10 +14,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Building2, Download, Globe, Linkedin, Loader2, Mail, MapPin, Pencil, Phone, Plus, Trash2, UserPlus, Users } from 'lucide-react'
 import { downloadCsv } from '@/lib/csv'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { CardHead, Crumbs, EventsLine, Fact, MiniHeader, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileSide, ProfileSkeleton, WhereLine, downloadVcard, fmtDate, initials, kindOfTable, nextStage, stageLabel, stageTone, useCollapse, type EventItem } from '@/components/crm/profileParts'
+import { CardHead, Crumbs, EventsLine, Fact, MiniHeader, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileSide, ProfileSkeleton, WhereLine, downloadVcard, fmtDate, kindOfTable, nextStage, stageLabel, stageTone, useCollapse, type EventItem } from '@/components/crm/profileParts'
 import { useWorkspace } from '@/lib/workspace'
 import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
-import { Field, Modal, Segmented } from './ui'
+import { CompanyLogo, Field, Modal, Segmented } from './ui'
 import { AddButton, Members, PersonAdds, Sides, TypeBadge, companyHref, recHref, roles, usePipelineAdd } from './Segments'
 import { IntelCompanyStrip, IntelDeployments, IntelDescription, IntelPeopleNamed, IntelSidebar, NoIntel, useCategoryName, useIntel } from './IntelPanel'
 import { CompanyJourney, CompanyNews, CompanyStats, SectionNav, salesSteps, type JourneyStep, type SectionLink } from './CompanyInsight'
@@ -204,7 +204,7 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
           {/* Who they are, and where we are with them */}
           <header ref={headRef} className="ws-card overflow-hidden order-1">
             <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[15px] font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>{initials(a.name)}</div>
+              <CompanyLogo src={intel?.logoUrl} />
               <div className="flex-1 min-w-0">
                 <p className="text-[11.5px] font-medium flex items-center gap-2 flex-wrap" style={{ color: 'var(--fg-4)' }}>
                   <TypeBadge type={a.firmographic} conflict={a.conflict} /> <Sides sides={a.sides ?? []} />
@@ -360,7 +360,6 @@ export function ContactProfile({ id }: { id: string }) {
       <div className="flex flex-col gap-4">
       <header ref={headRef} className="ws-card overflow-hidden">
         <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>{initials(name)}</div>
           <div className="flex-1 min-w-0">
             <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>Contact · {type}</p>
             <h1 className="text-[22px] font-semibold leading-tight tracking-tight sm:truncate" style={{ color: 'var(--fg)' }}>{name}</h1>

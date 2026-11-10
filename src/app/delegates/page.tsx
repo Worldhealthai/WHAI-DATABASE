@@ -51,9 +51,6 @@ function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortD
     : <ChevronDown className="w-3 h-3 text-[var(--teal)]" />
 }
 
-function initials(d: Delegate) {
-  return `${d.firstName?.[0] ?? ''}${d.lastName?.[0] ?? ''}`.toUpperCase()
-}
 
 function Checkbox({ checked, indeterminate, onChange }: {
   checked: boolean; indeterminate?: boolean; onChange: () => void
@@ -480,9 +477,6 @@ export default function DelegatesPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <Link href={`/delegates/${d.id}`} className="flex items-center gap-3 group">
-                                  <div className="w-8 h-8 rounded-full bg-[var(--teal-soft)] text-[var(--teal)] flex items-center justify-center text-xs font-bold shrink-0">
-                                    {initials(d)}
-                                  </div>
                                   <div className="min-w-0">
                                     <div className="font-medium text-[var(--fg)] group-hover:text-[var(--teal)] transition-colors">
                                       {d.firstName} {d.lastName}
@@ -541,9 +535,6 @@ export default function DelegatesPage() {
                             <Checkbox checked={selected.has(d.id)} onChange={() => toggleOne(d.id)} />
                           </div>
                           <Link href={`/delegates/${d.id}`} className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="w-9 h-9 rounded-full bg-[var(--teal-soft)] text-[var(--teal)] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                              {initials(d)}
-                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-[var(--fg)]">{d.firstName} {d.lastName}</div>
                               {d.organization && <div className="text-xs text-slate-400">{d.organization}</div>}

@@ -20,7 +20,7 @@ import { Pagination } from '@/components/search/Pagination'
 import { SponsorFormModal } from '@/components/crm/SponsorFormModal'
 import { SpeakerFormModal } from '@/components/crm/SpeakerFormModal'
 import { DelegateFormModal } from '@/components/crm/DelegateFormModal'
-import { EmptyState, Initials, StageDot, StagePill, formatMoney, timeAgo } from './ui'
+import { EmptyState, StageDot, StagePill, formatMoney, timeAgo } from './ui'
 import { WorkspacePage } from './WorkspacePage'
 import { ViewSwitch } from './ViewSwitch'
 import { ImportToEventModal } from './ImportToEventModal'
@@ -134,7 +134,6 @@ function columnsFor(kind: RecordKind, onStage: (r: Row, to: string) => void, onV
         title={`Edit ${name || def.label.toLowerCase()}`}
         className="group/name flex items-center gap-3 min-w-0 max-w-full text-left -ml-1 pl-1 pr-2 py-0.5 rounded-lg transition-colors hover:bg-[var(--surface-3)]"
       >
-        <Initials name={name || '?'} size={30} />
         <span className="min-w-0">
           <span className="block font-medium truncate group-hover/name:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{name || 'Unnamed'}</span>
           <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{recordSubtitle(kind, r) || (r.email ?? r.contactEmail ?? '—')}</span>

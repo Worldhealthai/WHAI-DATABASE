@@ -26,7 +26,6 @@ import type { ContactSeed } from '@/components/crm/ContactLink'
 import { companyKey, type Firmographic } from '@/lib/segments'
 import type { Competitor, Confidence, Deployment, IntelCard, IntelCategory, IntelCompany, Signal, Source } from '@/lib/intel'
 import { isProvider, providerTypeLabel, reasonText } from '@/lib/intel'
-import { Initials } from './ui'
 
 // ── Reading ──────────────────────────────────────────────────────────────────
 
@@ -412,7 +411,6 @@ function Similar({ c, slug, title, note, className }: { c: IntelCompany; slug: s
       <ul className="flex flex-col pb-1.5">
         {rows.map((s) => (
           <li key={s.key} className="crm-row relative flex items-start gap-2.5 px-4 py-2 min-w-0">
-            <Initials name={s.name} size={26} className="mt-0.5" />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 min-w-0">
                 <Link href={companyPath(slug, s.key, s.name)} className="text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4 after:absolute after:inset-0" style={{ color: 'var(--fg)' }} title={s.oneLiner ?? undefined}>{s.name}</Link>
@@ -463,7 +461,6 @@ function Competitors({ c, slug, className }: { c: IntelCompany; slug: string | n
           return (
             <li key={k.key} className="flex flex-col gap-1.5 px-4 py-2" style={{ opacity: st === 'rejected' ? 0.55 : 1 }}>
               <span className="flex items-center gap-2.5 min-w-0">
-                <Initials name={k.name} size={26} />
                 <span className="min-w-0 flex-1">
                   <Link href={companyPath(slug, k.key, k.name)} className="block text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={k.oneLiner ?? undefined}>{k.name}</Link>
                   <span className="text-[11.5px] line-clamp-2" style={{ color: 'var(--fg-4)' }}>
@@ -761,7 +758,6 @@ function NotYetHere({ c, slug, className }: { c: IntelCompany; slug: string | nu
       <ul className="flex flex-col pb-1.5">
         {gaps.map((w) => (
           <li key={w.key} className="crm-row flex items-start gap-2.5 px-4 py-2 min-w-0">
-            <Initials name={w.name} size={26} className="mt-0.5" />
             <span className="min-w-0 flex-1">
               <Link href={companyPath(slug, w.key, w.name)} className="block text-[13px] font-medium leading-tight truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }} title={w.oneLiner ?? w.useCase ?? undefined}>{w.name}</Link>
               <span className="text-[12px] line-clamp-2" style={{ color: 'var(--fg-3)' }} title={`At ${w.at}${w.useCase ? `: ${w.useCase}` : ''}`}>At {w.at}</span>
@@ -811,7 +807,6 @@ export function IntelPeopleNamed({ c, exclude = [], type }: { c: IntelCompany; e
       <ul className="flex flex-col pb-1">
         {rows.map((p, i) => (
           <li key={`${p.name}-${i}`} className="crm-row flex items-center gap-2.5 px-4 sm:px-5 py-2">
-            <Initials name={p.name} size={26} />
             <ContactLink seed={seeds[i]} list={seeds} className="min-w-0 flex-1 text-left">
               <span className="block text-[13px] font-medium truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{p.name}</span>
               <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[p.jobTitle, p.country].filter(Boolean).join(' · ')}</span>
@@ -854,7 +849,6 @@ export function IntelCompanyStrip({ companyKey: key, name, slug }: { companyKey:
   const sourced = provider ? c.vendors : c.hospitals
   return (
     <Link href={href} className="ws-card px-4 sm:px-5 py-3 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-2 transition-colors hover:bg-[var(--glass-hover)]" title={`Open ${c.name}`}>
-      <span className="shrink-0"><Initials name={c.name} size={40} /></span>
       <span className="min-w-0 flex-1 flex flex-col gap-1.5">
         <span className="text-[13.5px] min-w-0">
           <span className="font-medium" style={{ color: 'var(--fg)' }}>{c.name}</span>

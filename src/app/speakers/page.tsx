@@ -267,9 +267,6 @@ function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortD
   return sortDir === 'asc' ? <ChevronUp className="w-3 h-3 text-purple-400" /> : <ChevronDown className="w-3 h-3 text-purple-400" />
 }
 
-function initials(s: Speaker) {
-  return `${s.firstName?.[0] ?? ''}${s.lastName?.[0] ?? ''}`.toUpperCase()
-}
 
 function Checkbox({ checked, indeterminate, onChange }: {
   checked: boolean; indeterminate?: boolean; onChange: () => void
@@ -729,9 +726,6 @@ export default function SpeakersPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <Link href={`/speakers/${s.id}`} onClick={saveListState} className="flex items-center gap-3 group">
-                                    <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
-                                      {initials(s)}
-                                    </div>
                                     <div className="min-w-0">
                                       <div className="font-medium text-[var(--fg)] group-hover:text-purple-400 transition-colors">{s.firstName} {s.lastName}</div>
                                       {s.email && <div className="text-xs text-slate-500 truncate">{s.email}</div>}
@@ -783,7 +777,6 @@ export default function SpeakersPage() {
                         <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-purple-500/5' : 'hover:bg-[var(--surface-2)]')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
                           <Link href={`/speakers/${s.id}`} onClick={saveListState} className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="w-9 h-9 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{initials(s)}</div>
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-[var(--fg)]">{s.firstName} {s.lastName}</div>
                               {s.organization && <div className="text-xs text-slate-400">{s.organization}</div>}
@@ -870,9 +863,6 @@ export default function SpeakersPage() {
                         </div>
                         {/* Avatar + name */}
                         <div className="flex flex-col items-center text-center gap-2">
-                          <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl font-bold shrink-0">
-                            {initials(s)}
-                          </div>
                           <div>
                             <span onClick={(e) => e.stopPropagation()}>
                               <Link href={`/speakers/${s.id}`} onClick={saveListState} className="font-semibold text-[var(--fg)] hover:text-purple-400 transition-colors text-sm leading-snug">

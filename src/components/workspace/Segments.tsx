@@ -21,7 +21,7 @@ import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/
 import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
-import { EmptyState, Field, Initials, ListSkeleton, Modal, Segmented, formatMoney, timeAgo } from './ui'
+import { EmptyState, Field, ListSkeleton, Modal, Segmented, formatMoney, timeAgo } from './ui'
 import { StageDot, kindOfTable, stageLabel, stageTone } from '@/components/crm/profileParts'
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
@@ -338,7 +338,7 @@ const whereOf = (event: string | null | undefined, where: Where) =>
 // pipeline appear on hover (and in the contact panel, always). The lead
 // list's note is in the panel, not here.
 // `flush` is for a profile's card: the rows start at the card's own edge
-// (no room kept for a company's initials) and wash on hover; `openAdd`
+// (no indent under the company's name) and wash on hover; `openAdd`
 // receives the opener of the Add contact row, for a button elsewhere.
 // `withCompany` is for a list of people picked out by a filter (Companies
 // with a job title chosen): each row is the person with their company named
@@ -348,7 +348,12 @@ export function Members({ members, query, company, add, where, account, flush, o
   const seedOf = (m: Member) => ({ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null, href: recHref(slug, pageOf(m.records)) })
   // The panel steps through the list it was opened from.
   const list = members.map(seedOf)
-  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[52px] sm:pl-[100px] pr-4'
+  // Hovering a row brings out the Health/Pharma switch beside the pipeline
+  // button: with both on offer the last column has to hold the two side by
+  // side, or they spill over the roles. Below a desktop there is room for
+  // the button only, and the side is set in the contact panel.
+  const wide = where === 'event' && !!add
+  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[52px] sm:pl-[56px] pr-4'
   return (
     <ul className="flex flex-col">
       {members.map((m, mi) => {
@@ -357,7 +362,7 @@ export function Members({ members, query, company, add, where, account, flush, o
         // Once added from here, "Added · Undo" stays in view.
         const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_140px] items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit && !withCompany ? 'var(--accent-soft)' : undefined }}>
+          <li key={m.key} className={`group grid grid-cols-1 ${wide ? 'sm:grid-cols-[minmax(0,1fr)_200px_170px] lg:grid-cols-[minmax(0,1fr)_230px_330px]' : 'sm:grid-cols-[minmax(0,1fr)_250px_140px]'} items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit && !withCompany ? 'var(--accent-soft)' : undefined }}>
             {/* The name opens the contact panel; the link underneath is their page. */}
             <ContactLink seed={list[mi]} list={list} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
               <span className="block truncate text-[13px] leading-5">
@@ -380,10 +385,10 @@ export function Members({ members, query, company, add, where, account, flush, o
               {where === 'event' ? (
                 <>
                   <span className="text-[11.5px] group-hover:hidden group-focus-within:hidden" style={{ color: 'var(--fg-4)' }} title={focusWord ? 'Relevant for; hover to change' : undefined}>{focusWord}</span>
-                  <span className="hidden group-hover:inline-flex group-focus-within:inline-flex"><FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" /></span>
+                  <span className={`hidden shrink-0 ${add ? 'lg:group-hover:inline-flex lg:group-focus-within:inline-flex' : 'group-hover:inline-flex group-focus-within:inline-flex'}`}><FocusToggle key={(m.focus ?? []).join()} rows={m.focusRows ?? []} email={m.email} initial={m.focus ?? []} auto={m.focusAuto ?? []} size="xs" /></span>
                 </>
               ) : null}
-              {add && <span className={added ? 'inline-flex' : 'hidden group-hover:inline-flex group-focus-within:inline-flex'}><PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} /></span>}
+              {add && <span className={`shrink-0 ${added ? 'inline-flex' : 'hidden group-hover:inline-flex group-focus-within:inline-flex'}`}><PersonAdds add={add} who={m} company={company} type={account?.firmographic ?? null} /></span>}
             </span>
           </li>
         )
@@ -432,7 +437,7 @@ function AddContact({ account, flush, openRef }: { account: Account; flush?: boo
     <input className="ws-input h-8 text-[13px] min-w-0 flex-1 basis-[140px]" type={type} placeholder={ph} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} />
   )
   return (
-    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[52px] sm:pl-[100px] pr-4'}`} style={{ borderTop: '1px solid var(--line-soft)' }}>
+    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[52px] sm:pl-[56px] pr-4'}`} style={{ borderTop: '1px solid var(--line-soft)' }}>
       {!open ? (
         <span className="flex flex-wrap items-center gap-3">
           <button type="button" className={`ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 ${flush ? '-ml-2 ws-tap' : ''}`} style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
@@ -882,14 +887,14 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
           </FilterRow>
           {!error && !isLoading && rows.length > 0 && !filtering && (
             <div className={`crm-colhead hidden lg:grid ${grid} gap-3 px-4 h-9 items-center`}>
-              <span className="pl-[84px]">Company</span>{showType && <span>Type</span>}{everything && <span>Events</span>}<span>{add.year} sales</span>
+              <span className="pl-10">Company</span>{showType && <span>Type</span>}{everything && <span>Events</span>}<span>{add.year} sales</span>
               <span className="text-right" title="About, from LinkedIn via Lusha">Team</span><span className="pl-4">HQ</span><span className="text-right" title="Hospitals named in sourced announcements, a lower bound">Hospitals</span><span className="text-right">Similar</span>
               <span className="text-right">People</span><span className="text-right">Updated</span>
             </div>
           )}
         </ListHead>
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the companies" body={(error as Error).message} /> :
-         isLoading ? <ListSkeleton square /> :
+         isLoading ? <ListSkeleton /> :
          rows.length === 0 ? <EmptyState icon={Building2} title="No companies match" body={q ? `Nothing for “${query.trim()}” with these filters.` : 'Nothing with these filters.'}
            action={<button type="button" className="ws-btn ws-btn-sm" onClick={() => { setQuery(''); setType('all'); setConflicts(false); setBoth(false); setSourced(false); setIntelCat(''); setPf({ titles: [], doing: '', focus: '' }); setPage(1) }}>Clear search and filters</button>} /> : (
           // On a phone (and a narrow tablet) a company is its name and type,
@@ -919,7 +924,6 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                         <CompanyLink a={a} className="group/co flex items-center gap-3 min-w-0">
-                          <Initials name={a.name} size={32} />
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate group-hover/co:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
                             <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{showType && a.firmographic && <span className="lg:hidden" style={{ color: 'var(--fg-2)' }}>{a.firmographic}{a.conflict && <AlertTriangle className="w-3 h-3 inline -mt-0.5 ml-1" style={{ color: 'var(--warn)' }} aria-label="To check" />} · </span>}{peopleHit ? `${found.length} matching ${found.length === 1 ? 'person' : 'people'} below` : a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
@@ -1048,7 +1052,7 @@ export function ContactsView() {
           </FilterRow>
           {!error && !isLoading && rows.length > 0 && (
             <div className={`crm-colhead hidden lg:grid ${CONTACT_GRID} items-center gap-x-4 px-4 h-9`}>
-              <span className="pl-11">Name</span><span>Job title</span><span>Email</span><span>Role</span><span className="sr-only">Pipeline</span>
+              <span>Name</span><span>Job title</span><span>Email</span><span>Role</span><span className="sr-only">Pipeline</span>
             </div>
           )}
         </ListHead>
@@ -1067,7 +1071,6 @@ export function ContactsView() {
               return (
                 <li key={p.key} className={`crm-lrow group grid ${CONTACT_GRID} items-center gap-x-3 lg:gap-x-4 px-3 sm:px-4 py-2 min-h-[60px] lg:min-h-[56px]`}>
                   <ContactLink seed={{ ...p, type: p.firmographic }} list={seeds} href={recHref(slug, pageOf(p.records))} className="group/name flex items-center gap-3 min-w-0 min-h-10" title={p.note ? `${p.name || p.email}\n${p.note}` : undefined}>
-                    <Initials name={p.name || p.email || '?'} size={32} tint className="!rounded-full" />
                     <span className="min-w-0">
                       <span className="block truncate text-[13.5px] font-medium leading-5 group-hover/name:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{p.name || p.email}</span>
                       <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-3)' }}>

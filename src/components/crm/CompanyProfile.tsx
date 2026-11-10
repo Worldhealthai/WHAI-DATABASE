@@ -18,7 +18,7 @@ import { ArrowRightLeft, Download, Globe, Linkedin, Loader2, Mail, Pencil, Phone
 import { downloadCsv } from '@/lib/csv'
 import { ActivityFeed } from '@/components/crm/ActivityFeed'
 import { CopyPopover } from '@/components/crm/CopyPopover'
-import { CardHead, EventTabs, Fact, MiniHeader, MoveOn, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileSide, ProfileNavBar, StageBar, WhereLine, eventParts, fmtDate, initials, money, nextStage, shortEventName, useBoard } from '@/components/crm/profileParts'
+import { CardHead, EventTabs, Fact, MiniHeader, MoveOn, NextStep, PROFILE_GRID, PROFILE_MAIN, ProfileSide, ProfileNavBar, StageBar, WhereLine, eventParts, fmtDate, money, nextStage, shortEventName, useBoard } from '@/components/crm/profileParts'
 import { KINDS } from '@/lib/recordKinds'
 import { FocusToggle } from './FocusToggle'
 import { focusOf, focusOfEvent, type Focus } from '@/lib/contactFocus'
@@ -109,13 +109,9 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
           {/* Who they are, the ten-second strip, and where we are with them */}
           <header ref={headRef} className="ws-card overflow-hidden order-1">
             <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
-              {company.logoUrl ? (
+              {company.logoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={company.logoUrl} alt="" className="w-12 h-12 rounded-xl object-contain shrink-0" style={{ background: '#fff', border: '1px solid var(--line)' }} />
-              ) : (
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[15px] font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>
-                  {initials(company.companyName)}
-                </div>
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{def.label}{company.tier ? ` · ${company.tier}` : ''}</p>
@@ -254,7 +250,6 @@ function ContactRow({ kind, companyName, event, c, isPrimary, actions, seed, lis
           list={list}
           className="flex items-center gap-3 min-w-0 w-full text-left"
         >
-          <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--fg-2)' }}>{initials(name)}</span>
           <span className="min-w-0">
             <span className="flex items-center gap-2 min-w-0">
               <span className="text-[13.5px] font-medium truncate hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{name}</span>

@@ -71,7 +71,6 @@ function SponsorCard({ sponsor, onAdvance, onEdit, advancing, onDragStart, onDra
   isDragging: boolean
 }) {
   const next = nextStage(sponsor.status)
-  const initials = sponsor.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
   const value = formatValue(sponsor.valueAmount, sponsor.valueCurrency ?? 'GBP')
 
   return (
@@ -88,9 +87,6 @@ function SponsorCard({ sponsor, onAdvance, onEdit, advancing, onDragStart, onDra
       <div className="flex items-start justify-between gap-2 mb-2.5">
         <div className="flex items-center gap-1.5">
           <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
-          <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
-            {initials}
-          </div>
         </div>
         <button
           onClick={(e) => { e.preventDefault(); onEdit(sponsor) }}
@@ -296,9 +292,6 @@ function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortD
   return sortDir === 'asc' ? <ChevronUp className="w-3 h-3 text-amber-400" /> : <ChevronDown className="w-3 h-3 text-amber-400" />
 }
 
-function companyInitials(s: Sponsor) {
-  return s.companyName.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
-}
 
 function Checkbox({ checked, indeterminate, onChange }: {
   checked: boolean; indeterminate?: boolean; onChange: () => void
@@ -794,9 +787,6 @@ export default function SponsorsPage() {
                         </div>
                         {/* Avatar + name */}
                         <div className="flex flex-col items-center text-center gap-2">
-                          <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold shrink-0">
-                            {companyInitials(s)}
-                          </div>
                           <div>
                             <span onClick={(e) => e.stopPropagation()}>
                               <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="font-semibold text-[var(--fg)] hover:text-amber-400 transition-colors text-sm leading-snug">
@@ -901,9 +891,6 @@ export default function SponsorsPage() {
                                 <td className="px-4 py-3">
                                   <span onClick={(e) => e.stopPropagation()}>
                                     <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="flex items-center gap-3 group">
-                                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">
-                                        {companyInitials(s)}
-                                      </div>
                                       <div className="min-w-0">
                                         <div className="font-medium text-[var(--fg)] group-hover:text-amber-400 transition-colors">{s.companyName}</div>
                                         {(s.contactFirstName || s.contactLastName) && (
@@ -966,9 +953,6 @@ export default function SponsorsPage() {
                         <div key={s.id} className={cn('flex items-start gap-3 px-4 py-3 transition-colors', selected.has(s.id) ? 'bg-amber-500/5' : 'hover:bg-[var(--surface-2)]')}>
                           <div className="pt-0.5"><Checkbox checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></div>
                           <Link href={`/sponsors/${s.id}`} onClick={saveListState} className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                              {companyInitials(s)}
-                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-[var(--fg)]">{s.companyName}</div>
                               {(s.contactFirstName || s.contactLastName) && (
