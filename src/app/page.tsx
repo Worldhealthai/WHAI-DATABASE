@@ -1,8 +1,8 @@
 'use client'
 
 // The entrance: the two series as glass panels over the sea-colour field,
-// each with its events inside as rows, so any event is one click away, and
-// its editions as chips that open that year directly. Every event has its
+// each with its events inside as rows, so any event is one click away (it
+// opens on its current edition; the year is changed inside). Every event has its
 // own colour (London blue, Boston reddish pink, Pharma teal green). The
 // event worked in last is a pill at the top.
 
@@ -12,7 +12,7 @@ import { ArrowRight, LogOut } from 'lucide-react'
 import { useEventCategories } from '@/lib/eventCategories'
 import {
   type EventLook, type EventSeries,
-  defaultYear, editionYears, eventLook, eventSlug, groupSeries, readLastWorkspace, workspaceHref,
+  defaultYear, eventLook, eventSlug, groupSeries, readLastWorkspace, workspaceHref,
 } from '@/lib/portals'
 import { Logo } from '@/components/shell/Sidebar'
 import { ThemeToggle } from '@/components/shell/ThemeToggle'
@@ -22,9 +22,8 @@ async function logout() {
 }
 
 // One series: a glass panel with its mark, then each event as a row (opens
-// its current edition) with the editions as chips (open that year).
+// its current edition).
 function SeriesPanel({ series }: { series: EventSeries }) {
-  const now = new Date().getFullYear()
   return (
     <section className="ent-panel" style={{ ['--acc' as string]: series.look.accent }}>
       <div className="flex items-center gap-4 px-6 pt-6 pb-5">
@@ -38,11 +37,10 @@ function SeriesPanel({ series }: { series: EventSeries }) {
         {series.events.map((c) => {
           const look = eventLook(c.name)
           const current = defaultYear('event', c)
-          const years = editionYears(c).slice().sort()
           const slug = eventSlug(c.name)
           return (
             <li key={c.name} className="ent-row" style={{ ['--acc' as string]: look.accent, ['--acc-soft' as string]: look.accentSoft }}>
-              <Link href={workspaceHref('event', slug, '', current)} className="group flex items-center gap-3 px-4 pt-3.5 pb-2">
+              <Link href={workspaceHref('event', slug, '', current)} className="group flex items-center gap-3 px-4 py-3.5">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: look.accent, boxShadow: `0 0 0 4px ${look.accentSoft}` }} />
                 <span className="min-w-0">
                   <span className="block text-[17px] font-semibold leading-tight" style={{ color: 'var(--fg)' }}>{look.city}</span>
@@ -53,19 +51,6 @@ function SeriesPanel({ series }: { series: EventSeries }) {
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </Link>
-              <div className="flex flex-wrap gap-1.5 px-4 pb-3.5 pl-[42px]">
-                {years.map((y) => (
-                  <Link
-                    key={y}
-                    href={workspaceHref('event', slug, '', y)}
-                    className="ent-year"
-                    data-current={y === current}
-                    title={Number(y) < now ? 'Past edition' : Number(y) === now ? 'This year' : 'Upcoming edition'}
-                  >
-                    {y}
-                  </Link>
-                ))}
-              </div>
             </li>
           )
         })}

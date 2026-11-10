@@ -27,7 +27,7 @@ import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
 import { FocusToggle } from '@/components/crm/FocusToggle'
 import { ContactLink } from '@/components/crm/ContactLink'
-import { effectiveFocus, type Focus } from '@/lib/contactFocus'
+import { effectiveFocus, focusOfEvent, type Focus } from '@/lib/contactFocus'
 import { useIntelCards, useIntelCardsFor } from './IntelPanel'
 
 interface Segments {
@@ -53,21 +53,36 @@ function useSeriesLabels(): string[] {
 // Contacts the people, the Hit list its list. Each gets only that, since
 // with the leads lists the whole is too big to send at once.
 type View = 'accounts' | 'people' | 'hit'
+// The side the open event is on: Health for World Health AI's, Pharma for
+// World Pharma AI's.
+function useSide(): Focus | null {
+  const { category } = useWorkspace()
+  return category ? focusOfEvent(category.name) : null
+}
+
+// 'series' is the open event's whole side (every Health company, or every
+// Pharma one: its series' events, the leads lists, and anyone tagged for
+// it); 'edition' only what is in the open edition (its pipelines and
+// registrations); 'all' every company there is. An event on neither side
+// (Other events) falls back to all its own editions.
 function useSegments(scope: Scope = 'edition', view: View = 'accounts') {
   const edition = useWorkspace().labels
   const series = useSeriesLabels()
+  const side = useSide()
+  const bySide = scope === 'series' && !!side
   const labels = scope === 'series' ? series : edition
   return useQuery<Segments>({
-    queryKey: ['ws-segments', scope === 'all' ? 'all' : labels, view],
+    queryKey: ['ws-segments', scope === 'all' ? 'all' : bySide ? `side:${side}` : labels, view],
     queryFn: async () => {
       const p = new URLSearchParams({ view })
       if (scope === 'all') p.set('scope', 'all')
+      else if (bySide) p.set('side', side!)
       else labels.forEach((l) => p.append('events', l))
       const r = await fetch(`/api/segments?${p}`)
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.error || 'segments')
       return r.json()
     },
-    enabled: scope === 'all' || labels.length > 0,
+    enabled: scope === 'all' || bySide || labels.length > 0,
     staleTime: 60_000,
   })
 }
@@ -85,11 +100,15 @@ function Events({ events }: { events: string[] }) {
   )
 }
 
-// Every edition of the open event, or just the open edition.
+// Everyone on the open event's side, or only who is in the open edition.
 function ScopeSwitch({ value, onChange }: { value: Scope; onChange: (v: Scope) => void }) {
   const { year, category } = useWorkspace()
   const look = category ? eventLook(category.name) : null
-  return <Segmented size="sm" value={value} onChange={onChange} options={[{ value: 'series', label: look ? `All ${look.short} ${look.city}` : 'All years' }, { value: 'edition', label: `${year} edition` }]} />
+  const side = useSide()
+  return <Segmented size="sm" value={value} onChange={onChange} options={[
+    { value: 'series', label: side ? `All ${side}` : look ? `All ${look.short} ${look.city}` : 'All years' },
+    { value: 'edition', label: look ? `In ${look.short} ${look.city} ${year}` : `${year} edition` },
+  ]} />
 }
 
 // Into this year's pipelines, from here: a company into Sales (a sponsor
@@ -321,7 +340,10 @@ const whereOf = (event: string | null | undefined, where: Where) =>
 // `flush` is for a profile's card: the rows start at the card's own edge
 // (no room kept for a company's initials) and wash on hover; `openAdd`
 // receives the opener of the Add contact row, for a button elsewhere.
-export function Members({ members, query, company, add, where, account, flush, openAdd }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account; flush?: boolean; openAdd?: React.RefObject<(() => void) | null> }) {
+// `withCompany` is for a list of people picked out by a filter (Companies
+// with a job title chosen): each row is the person with their company named
+// beside them, on one line, and there is no "Add contact" row.
+export function Members({ members, query, company, add, where, account, flush, openAdd, withCompany }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account; flush?: boolean; openAdd?: React.RefObject<(() => void) | null>; withCompany?: boolean }) {
   const { slug } = useWorkspace()
   const seedOf = (m: Member) => ({ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null, href: recHref(slug, pageOf(m.records)) })
   // The panel steps through the list it was opened from.
@@ -335,14 +357,16 @@ export function Members({ members, query, company, add, where, account, flush, o
         // Once added from here, "Added · Undo" stays in view.
         const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_140px] items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit ? 'var(--accent-soft)' : undefined }}>
+          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_140px] items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit && !withCompany ? 'var(--accent-soft)' : undefined }}>
             {/* The name opens the contact panel; the link underneath is their page. */}
             <ContactLink seed={list[mi]} list={list} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
               <span className="block truncate text-[13px] leading-5">
                 <span className="font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
                 {m.jobTitle && <span style={{ color: 'var(--fg-3)' }}> · {m.jobTitle}</span>}
               </span>
-              {m.email && m.name && <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-4)' }}>{m.email}</span>}
+              {withCompany
+                ? <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-3)' }}>{company}{m.email && m.name ? <span style={{ color: 'var(--fg-4)' }}> · {m.email}</span> : null}</span>
+                : m.email && m.name && <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-4)' }}>{m.email}</span>}
             </ContactLink>
             <span className="flex flex-col sm:items-end gap-y-0.5 text-[12px] min-w-0">
               {roles(m.records).map((r, i) => (
@@ -364,7 +388,7 @@ export function Members({ members, query, company, add, where, account, flush, o
           </li>
         )
       })}
-      {account && account.key !== '__none' && <AddContact account={account} flush={flush} openRef={openAdd} />}
+      {account && account.key !== '__none' && !withCompany && <AddContact account={account} flush={flush} openRef={openAdd} />}
     </ul>
   )
 }
@@ -623,7 +647,8 @@ function AddCompanyModal({ onClose }: { onClose: () => void }) {
   const { category, year, slug } = useWorkspace()
   const router = useRouter()
   const qc = useQueryClient()
-  const event = category && year ? editionLabel(category.name, year) : null
+  // Health or Pharma: the open event's side to start with.
+  const [side, setSide] = useState<Focus>((category && focusOfEvent(category.name)) || 'Health')
   const [f, setF] = useState({ name: '', website: '', country: '', segment: 'Solution Provider' as Firmographic, firstName: '', lastName: '', jobTitle: '', email: '', phone: '' })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -634,7 +659,7 @@ function AddCompanyModal({ onClose }: { onClose: () => void }) {
     try {
       const r = await fetch('/api/companies', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: f.name, website: f.website, country: f.country, segment: f.segment, event, contact: { firstName: f.firstName, lastName: f.lastName, jobTitle: f.jobTitle, email: f.email, phone: f.phone } }),
+        body: JSON.stringify({ name: f.name, website: f.website, country: f.country, segment: f.segment, side, contact: { firstName: f.firstName, lastName: f.lastName, jobTitle: f.jobTitle, email: f.email, phone: f.phone } }),
       })
       const j = await r.json().catch(() => null)
       if (r.status === 409 && j?.existing) { setExisting(j.existing); throw new Error(j.error) }
@@ -650,7 +675,7 @@ function AddCompanyModal({ onClose }: { onClose: () => void }) {
   }
   const existingHref = existing ? companyHref(slug, existing) : null
   return (
-    <Modal title="Add company" subtitle={event ? `In ${event}, on no pipeline yet` : undefined} onClose={onClose} width="max-w-2xl"
+    <Modal title="Add company" subtitle="It joins the directory, on no pipeline and in no event yet" onClose={onClose} width="max-w-2xl"
       footer={<>
         {err && <span className="text-[12px] mr-auto" style={{ color: 'var(--bad)' }}>{err}{existingHref && <> · <Link href={existingHref} className="underline underline-offset-4" onClick={onClose}>Open it</Link></>}</span>}
         <button type="button" className="ws-btn ws-btn-ghost" onClick={onClose}>Cancel</button>
@@ -658,9 +683,12 @@ function AddCompanyModal({ onClose }: { onClose: () => void }) {
       </>}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Company name" span><input className="ws-input" value={f.name} onChange={set('name')} autoFocus /></Field>
-        <Field label="Type" span>
+        <Field label="Type">
           <Segmented size="sm" value={f.segment} onChange={(v) => setF((p) => ({ ...p, segment: v as Firmographic }))}
             options={[{ value: 'Solution Provider', label: 'Solution Provider' }, { value: 'End User', label: 'End User' }]} />
+        </Field>
+        <Field label="Health or Pharma">
+          <Segmented size="sm" value={side} onChange={(v) => setSide(v as Focus)} options={[{ value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
         </Field>
         <Field label="Website"><input className="ws-input" value={f.website} onChange={set('website')} placeholder="example.com" /></Field>
         <Field label="Country"><input className="ws-input" value={f.country} onChange={set('country')} /></Field>
@@ -686,6 +714,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   const scope: Scope = everything ? 'all' : picked
   const { data, isLoading, error } = useSegments(scope)
   const event = category ? `${eventLook(category.name).series} ${eventLook(category.name).city}` : ''
+  const side = useSide()
   const [type, setType] = useSticky<'all' | Firmographic>(`${sk}.type`, 'all')
   const [conflicts, setConflicts] = useSticky(`${sk}.conflicts`, false)
   const [both, setBoth] = useSticky(`${sk}.both`, false)
@@ -701,7 +730,10 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   // page in view, or every company once one of the two filters is on.
   const [sourced, setSourced] = useSticky(`${sk}.sourced`, false)
   const [intelCat, setIntelCat] = useSticky(`${sk}.category`, '')
-  const intelFiltering = sourced || !!intelCat
+  // The category list is opened: every company's card is wanted, so the
+  // list can offer only the categories these companies carry.
+  const [catsWanted, setCatsWanted] = useState(false)
+  const intelFiltering = sourced || !!intelCat || catsWanted
   const intel = useIntelCards()
   const q = query.trim().toLowerCase()
   const filtering = personFilterOn(pf)
@@ -712,14 +744,30 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
     return (a.members ?? []).filter((m) => personPasses(m, pf) && (!q || nameHit || matches(m, q)))
   }, [q, pf])
   const cardFor = intel.cardFor
-  const rows = useMemo(() => {
+  // A company carries a category by its id, or (a few) by its name.
+  const catNames = intel.categories
+  const carries = useMemo(() => {
+    const nameOf = new Map(catNames.map((c) => [c.id, c.name]))
+    return (cats: string[], id: string) => cats.includes(id) || (nameOf.has(id) && cats.includes(nameOf.get(id)!))
+  }, [catNames])
+  // A category remembered from before the list went by id (its name), or
+  // one no company carries any more: put right, or dropped.
+  useEffect(() => {
+    if (!intelCat || !catNames.length || catNames.some((c) => c.id === intelCat)) return
+    setIntelCat(catNames.find((c) => c.name === intelCat)?.id ?? '')
+  }, [intelCat, catNames, setIntelCat])
+  // Everything but the category filter: what the category list counts over.
+  const rowsAnyCat = useMemo(() => {
     return (data?.accounts ?? []).filter((a) => {
-      const card = sourced || intelCat ? cardFor(a.key, a.name) : null
+      const card = sourced ? cardFor(a.key, a.name) : null
       return (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) && (!both || (a.sides ?? []).length > 1) &&
-        (!sourced || (card?.hospitals ?? 0) > 0) && (!intelCat || card?.categories.includes(intelCat)) &&
+        (!sourced || (card?.hospitals ?? 0) > 0) &&
         (filtering ? peopleOf(a).length > 0 : !q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q)))
     })
-  }, [data, type, conflicts, both, sourced, intelCat, cardFor, q, filtering, peopleOf])
+  }, [data, type, conflicts, both, sourced, cardFor, q, filtering, peopleOf])
+  const rows = useMemo(
+    () => (intelCat ? rowsAnyCat.filter((a) => carries(cardFor(a.key, a.name)?.categories ?? [], intelCat)) : rowsAnyCat),
+    [rowsAnyCat, intelCat, carries, cardFor])
   // Every job title among the companies in view (by type and the other
   // people filter), with how many people hold it: what the title filter
   // offers.
@@ -744,6 +792,15 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   // one of the two intelligence filters is on.
   const intelKeys = useMemo(() => (intelFiltering ? (data?.accounts ?? []) : shown).map((a) => a.key), [intelFiltering, data, shown])
   const intelLoaded = useIntelCardsFor(intel, intelKeys)
+  // The categories on offer: once every card is in, those that at least one
+  // company in the list (as the other filters leave it) carries, with how
+  // many; before that, every category in use. The one picked stays listed.
+  const catOptions = useMemo(() => {
+    const counted = intelFiltering && intelLoaded
+    return catNames
+      .map((c) => ({ ...c, n: counted ? rowsAnyCat.filter((a) => carries(cardFor(a.key, a.name)?.categories ?? [], c.id)).length : null as number | null }))
+      .filter((c) => c.n === null || c.n > 0 || c.id === intelCat)
+  }, [catNames, intelFiltering, intelLoaded, rowsAnyCat, carries, cardFor, intelCat])
   const add = usePipelineAdd()
   const exportCompanies = () => {
     const out: (string | number | null)[][] = []
@@ -754,7 +811,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
       if (!people.length) out.push([...base, '', '', '', '', '', ''])
       for (const m of people) out.push([...base, m.name, m.jobTitle, m.email, m.phone, rolesOf(m.records), m.note])
     }
-    downloadCsv(`${everything ? 'directory' : `companies ${event} ${scope === 'series' ? 'all years' : year}`}`,
+    downloadCsv(`${everything ? 'directory' : `companies ${scope === 'series' ? side ?? event : `${event} ${year}`}`}`,
       ['Company', 'Type', 'Events', `${year} sales`, 'Website', 'Country', 'Name', 'Job title', 'Email', 'Phone', 'Roles', 'Note'], out)
   }
   const showType = type === 'all'
@@ -765,9 +822,9 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   return (
     <WorkspacePage
       title={everything ? 'Directory' : 'Companies'}
-      description={everything ? 'Every company in the CRM, across every event, each once with its people. Search a person to find them under their company.' : scope === 'series'
-        ? `Every company at ${event || 'this event'}, once, across all its editions, with its people. Search a person to find them under their company.`
-        : 'Every company in this edition, once, with its people.'}
+      description={everything ? 'Every company in the CRM, Health and Pharma, each once with its people. Search a person to find them under their company.' : scope === 'series'
+        ? (side ? `Every ${side} company, each once with its people: nobody has to be assigned to this event. A company joins an edition when it goes into its Sales pipeline, or one of its people registers or speaks.` : `Every company at ${event || 'this event'}, once, across all its editions, with its people.`)
+        : `Only the companies in ${event} ${year}: in its pipelines, registered or speaking.`}
       actions={
         <>
           {!everything && <ScopeSwitch value={picked} onChange={(v) => { setScope(v); setPage(1) }} />}
@@ -805,10 +862,11 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
             </button>
             <label className="inline-flex items-center">
               <span className="sr-only">Category</span>
-              <select className="ws-chip !pr-7 appearance-none cursor-pointer" data-active={!!intelCat} value={intelCat} onChange={(e) => { setIntelCat(e.target.value); setPage(1) }}
+              <select className="ws-chip ws-select-chip !pr-7 appearance-none cursor-pointer" data-active={!!intelCat} value={intelCat} onChange={(e) => { setIntelCat(e.target.value); setPage(1) }}
+                onPointerDown={() => setCatsWanted(true)} onFocus={() => setCatsWanted(true)}
                 style={{ backgroundImage: 'none' }}>
                 <option value="">Any category</option>
-                {intel.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                {catOptions.map((c) => <option key={c.id} value={c.id}>{c.name}{c.n != null ? ` (${c.n})` : ''}</option>)}
               </select>
               <ChevronDown className="w-3.5 h-3.5 -ml-6 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
             </label>
@@ -822,7 +880,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                 options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
             )}
           </FilterRow>
-          {!error && !isLoading && rows.length > 0 && (
+          {!error && !isLoading && rows.length > 0 && !filtering && (
             <div className={`crm-colhead hidden lg:grid ${grid} gap-3 px-4 h-9 items-center`}>
               <span className="pl-[84px]">Company</span>{showType && <span>Type</span>}{everything && <span>Events</span>}<span>{add.year} sales</span>
               <span className="text-right" title="About, from LinkedIn via Lusha">Team</span><span className="pl-4">HQ</span><span className="text-right" title="Hospitals named in sourced announcements, a lower bound">Hospitals</span><span className="text-right">Similar</span>
@@ -840,6 +898,19 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
               {shown.map((a) => {
                 const found = q || filtering ? peopleOf(a) : []
                 const expanded = open.has(a.key) || found.length > 0
+                // A people filter is on (a job title, Health or Pharma): the
+                // people it picks out, each on one row with their company,
+                // and no company row above naming somebody else.
+                if (filtering) {
+                  return (
+                    <div key={a.key}>
+                      <Members members={found} query="" company={a.name} add={add} where={everything || scope === 'series' ? 'event' : 'none'} account={a} flush withCompany />
+                    </div>
+                  )
+                }
+                // A search that found people here, not the company's name:
+                // say how many, rather than name its main contact.
+                const peopleHit = !!q && found.length > 0 && !a.name.toLowerCase().includes(q)
                 return (
                   <div key={a.key}>
                     <div className={`crm-lrow grid ${grid} gap-3 items-center px-3 sm:px-4 py-2 min-h-[56px]`} data-open={expanded}>
@@ -851,7 +922,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                           <Initials name={a.name} size={32} />
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate group-hover/co:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
-                            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{showType && a.firmographic && <span className="lg:hidden" style={{ color: 'var(--fg-2)' }}>{a.firmographic}{a.conflict && <AlertTriangle className="w-3 h-3 inline -mt-0.5 ml-1" style={{ color: 'var(--warn)' }} aria-label="To check" />} · </span>}{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
+                            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{showType && a.firmographic && <span className="lg:hidden" style={{ color: 'var(--fg-2)' }}>{a.firmographic}{a.conflict && <AlertTriangle className="w-3 h-3 inline -mt-0.5 ml-1" style={{ color: 'var(--warn)' }} aria-label="To check" />} · </span>}{peopleHit ? `${found.length} matching ${found.length === 1 ? 'person' : 'people'} below` : a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
                             {a.conflict && a.disagree?.length ? (
                               <span className="block text-[11.5px] truncate" style={{ color: 'var(--warn)' }} title={a.disagree.join('\n')}>
                                 {a.disagree[0]}{a.disagree.length > 1 ? ` +${a.disagree.length - 1} more` : ''}
@@ -892,7 +963,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                       <span className="hidden lg:block text-right tabular text-[13px]" style={{ color: 'var(--fg-2)' }}>{a.people}</span>
                       <span className="hidden lg:block text-right text-[12px]" style={{ color: 'var(--fg-4)' }}>{timeAgo(a.updatedAt)}</span>
                     </div>
-                    {expanded && <div style={{ background: 'color-mix(in srgb, var(--surface-2) 35%, transparent)' }}><Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} where={everything ? 'event' : scope === 'series' ? 'year' : 'none'} account={a} /></div>}
+                    {expanded && <div style={{ background: 'color-mix(in srgb, var(--surface-2) 35%, transparent)' }}><Members members={found.length && (filtering || !open.has(a.key)) ? found : a.members ?? []} query={q} company={a.name} add={add} where={everything || scope === 'series' ? 'event' : 'none'} account={a} /></div>}
                   </div>
                 )
               })}
@@ -918,6 +989,7 @@ export function ContactsView() {
   const sk = `contacts.${slug}`
   const [scope, setScope] = useSticky<Scope>(`${sk}.scope`, 'series')
   const { data, isLoading, error } = useSegments(scope, 'people')
+  const side = useSide()
   const [type, setType] = useSticky<'all' | Firmographic>(`${sk}.type`, 'all')
   const [titles, setTitles] = useSticky<TitleToken[]>(`${sk}.titles`, [])
   const [query, setQuery] = useSticky(`${sk}.query`, '')
@@ -943,7 +1015,7 @@ export function ContactsView() {
     return Array.from(m.values()).sort((x, y) => y.count - x.count || x.title.localeCompare(y.title))
   }, [data, type])
   const shown = useMemo(() => rows.slice((page - 1) * PAGE, page * PAGE), [rows, page])
-  const where: Where = scope === 'series' ? 'year' : 'none'
+  const where: Where = scope === 'series' ? 'event' : 'none'
   const add = usePipelineAdd()
   const top = useRef<HTMLDivElement>(null)
   // The panel steps through the page it was opened from.
@@ -952,12 +1024,12 @@ export function ContactsView() {
   return (
     <WorkspacePage
       title="Contacts"
-      description={scope === 'series' ? 'Everyone at this event, across its editions, once, with their company beside their name.' : 'Everyone in this edition, once, with their company beside their name.'}
+      description={scope === 'series' ? `Everyone${side ? ` on the ${side} side` : ' at this event'}, once, with their company beside their name.` : 'Only the people in this edition: in its pipelines, registered or speaking.'}
       actions={
         <>
           <ScopeSwitch value={scope} onChange={(v) => { setScope(v); setPage(1) }} />
           <button type="button" className="ws-btn" disabled={!rows.length} title="Download these contacts as a CSV"
-            onClick={() => downloadCsv(`contacts ${slug ?? ''} ${scope === 'series' ? 'all years' : year ?? ''}`,
+            onClick={() => downloadCsv(`contacts ${scope === 'series' ? side ?? slug ?? '' : `${slug ?? ''} ${year ?? ''}`}`,
               ['Name', 'Company', 'Job title', 'Email', 'Phone', 'Type', 'Roles', 'Note'],
               rows.map((p) => [p.name, p.company, p.jobTitle, p.email, p.phone, p.firmographic, rolesOf(p.records), p.note]))}>
             <Download className="w-4 h-4" /> Export

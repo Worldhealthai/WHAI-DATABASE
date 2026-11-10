@@ -927,6 +927,12 @@
 
 /* Chips (filters) as pills, the chosen one glass */
 .ws-chip[data-active='true'] { background: var(--btn-glass-hover); border-color: var(--btn-rim); box-shadow: var(--btn-shadow); }
+/* A chip that is a dropdown: its list in the theme's own surface and ink
+   (the browser's default list is white, unreadable under the dark theme). */
+.ws-select-chip option, .ws-select-chip optgroup { background: var(--surface); color: var(--fg); }
+/* A tile in a profile's "In numbers" grid: hairlines between the tiles,
+   drawn outside each one and cut off at the card's edge. */
+.crm-stat { box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line); }
 
 
 /* ── The entrance (the version Ali preferred, October 2026) ─────────────
@@ -1004,22 +1010,6 @@
   transition: border-color 150ms ease, background 150ms ease;
 }
 .ent-row:hover { border-color: var(--acc); }
-.ent-year {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-3);
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  border: 1px solid var(--glass-rim);
-  transition: color 120ms ease, border-color 120ms ease;
-}
-.ent-year:hover { color: var(--fg); border-color: var(--acc); }
-.ent-year[data-current='true'] { color: var(--fg); font-weight: 600; background: var(--acc-soft); border-color: transparent; }
 .ent-continue {
   display: inline-flex;
   align-items: center;

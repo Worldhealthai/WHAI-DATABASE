@@ -3,10 +3,15 @@
 // Speaker welcome posts for one edition. The speakers are the event's
 // Speakers section in the Nexus admin panel, read live; consent comes
 // from their registration form. Status and link are edited in the row;
-// "Log post" records the post.
+// "Log post" records the post. "Draft post" writes the welcome post (card
+// and caption) for review; approving it posts it to LinkedIn
+// (SpeakerDraft). On a phone each speaker is a card rather than a row.
 
 import { useMemo, useState } from 'react'
-import { ExternalLink, Megaphone, Search, SearchX } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Eye, ExternalLink, Loader2, Megaphone, PenLine, Search, SearchX } from 'lucide-react'
+import type { ContentPost } from '@/lib/contentStudio'
+import { SpeakerDraftModal } from './SpeakerDraft'
 import { cn } from '@/lib/utils'
 import { EmptyState, Stat, timeAgo } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
@@ -68,6 +73,68 @@ export function SpeakerPosts() {
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [logging, setLogging] = useState<SpeakerRow | null>(null)
+  const qc = useQueryClient()
+
+  // The welcome posts already drafted (or posted) for this edition, newest
+  // first: the one a speaker's button opens.
+  const drafts = useQuery<ContentPost[]>({
+    queryKey: ['speaker-drafts', ed?.label ?? ''],
+    queryFn: async () => {
+      const r = await fetch(`/api/marketing/content?edition=${encodeURIComponent(ed!.label)}`, { cache: 'no-store' })
+      const j = await r.json().catch(() => ({}))
+      return Array.isArray(j?.data) ? (j.data as ContentPost[]).filter((p) => p.kind === 'speaker') : []
+    },
+    enabled: Boolean(ed),
+  })
+  const draftFor = useMemo(() => {
+    const m = new Map<string, ContentPost>()
+    for (const p of [...(drafts.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) if (p.ref && !m.has(p.ref)) m.set(p.ref, p)
+    return m
+  }, [drafts.data])
+  const [open, setOpen] = useState<{ speaker: SpeakerRow; post: ContentPost } | null>(null)
+  const [drafting, setDrafting] = useState<string | null>(null)
+  const [draftError, setDraftError] = useState('')
+
+  // Writes a fresh draft for a speaker (throwing away their unposted one),
+  // then opens it.
+  const draft = async (sp: SpeakerRow, replace?: ContentPost) => {
+    if (!ed) return
+    setDrafting(sp.id)
+    setDraftError('')
+    try {
+      if (replace && replace.status === 'draft') await fetch(`/api/marketing/content/${replace.id}`, { method: 'DELETE' })
+      const r = await fetch('/api/marketing/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ series: ed.series, city: ed.city, year: ed.year, label: ed.label, kind: 'speaker', ref: sp.id }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j?.post) { setDraftError(j?.error || 'The draft could not be written.'); return }
+      await qc.invalidateQueries({ queryKey: ['speaker-drafts'] })
+      setOpen({ speaker: sp, post: j.post })
+    } finally {
+      setDrafting(null)
+    }
+  }
+
+  // The button for a speaker: review the draft they have, or write one.
+  const DraftButton = ({ s, wide }: { s: SpeakerRow; wide?: boolean }) => {
+    const existing = draftFor.get(s.id)
+    const cls = `ws-btn ws-btn-sm ${wide ? 'flex-1 justify-center' : ''}`
+    if (existing) {
+      return (
+        <button className={cls} onClick={() => setOpen({ speaker: s, post: existing })} title={existing.status === 'posted' ? 'See the post' : 'Review the draft'}>
+          <Eye className="w-3.5 h-3.5" /> {existing.status === 'posted' ? 'See post' : 'Review draft'}
+        </button>
+      )
+    }
+    if (s.linkedin_consent !== true) return null
+    return (
+      <button className={cls} onClick={() => draft(s)} disabled={drafting !== null} title="Write the welcome post to review">
+        {drafting === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />} {drafting === s.id ? 'Drafting…' : 'Draft post'}
+      </button>
+    )
+  }
 
   const rows = data?.data ?? []
   const counts = useMemo(() => {
@@ -121,16 +188,16 @@ export function SpeakerPosts() {
 
           <div className="ws-card overflow-hidden">
             <div className="flex flex-wrap items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--line)' }}>
-              <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <div className="relative flex-1 min-w-[180px] md:max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search speakers…" className="ws-input pl-9" />
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 max-md:w-full max-md:flex-nowrap max-md:overflow-x-auto scrollbar-none">
                 {FILTERS.map((f) => (
                   <button key={f.key} className="ws-chip" data-active={filter === f.key} onClick={() => setFilter(f.key)}>{f.label}</button>
                 ))}
               </div>
-              <span className="ml-auto text-[12.5px] tabular whitespace-nowrap" style={{ color: 'var(--fg-3)' }}>{isLoading ? 'Loading…' : `${shown.length} of ${rows.length}`}</span>
+              <span className="ml-auto text-[12.5px] tabular whitespace-nowrap max-md:hidden" style={{ color: 'var(--fg-3)' }}>{isLoading ? 'Loading…' : `${shown.length} of ${rows.length}`}</span>
             </div>
 
             {!isLoading && shown.length === 0 ? (
@@ -140,13 +207,56 @@ export function SpeakerPosts() {
                 body={rows.length === 0 ? 'Speakers appear here as soon as they are in the event’s Speakers section in the admin panel.' : 'Try another filter.'}
               />
             ) : (
-              <table className="ws-table ws-table-fixed w-full">
+              <>
+              {/* Phone: a card per speaker. */}
+              <ul className="md:hidden divide-y" style={{ borderColor: 'var(--line)' }}>
+                {isLoading
+                  ? [0, 1, 2].map((i) => <li key={i} className="px-4 py-4"><div className="h-12 rounded animate-pulse" style={{ background: 'var(--surface-3)' }} /></li>)
+                  : shown.map((s) => {
+                      const st = speakerPostStatus(s)
+                      const consent = consentLabel(s.linkedin_consent)
+                      const missing = !s.image && !s.bio ? 'No photo or bio' : !s.image ? 'No photo' : !s.bio ? 'No bio' : ''
+                      return (
+                        <li key={s.id} className="px-4 py-4 grid gap-3" style={{ borderColor: 'var(--line)' }}>
+                          <div className="flex items-start gap-3 min-w-0">
+                            <Avatar src={s.image} name={s.name || '?'} size={44} />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-[15px] leading-snug" style={{ color: 'var(--fg)' }}>{s.name}</p>
+                              <p className="text-[13px] leading-snug mt-0.5" style={{ color: 'var(--fg-3)' }}>{[s.role, s.org].filter(Boolean).join(' · ') || s.email || '—'}</p>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                <Tone tone={consent.tone}>{consent.text}</Tone>
+                                <Tone tone={st === 'Posted' ? 'ok' : st === 'To do' ? 'accent' : 'muted'}>{st === 'To do' ? 'Post to do' : st}</Tone>
+                                {missing && <span className="text-[12px]" style={{ color: 'var(--warn)' }}>{missing}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          {s.tracking.postUrl && (
+                            <a href={s.tracking.postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[13px] truncate" style={{ color: 'var(--accent-ink)' }}>
+                              <ExternalLink className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{s.tracking.postUrl.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                            </a>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <DraftButton s={s} wide />
+                            <select
+                              value={st}
+                              onChange={(e) => track(s.id, { postStatus: e.target.value as PostStatus })}
+                              className="ws-input h-8 text-[13px] py-0 pr-7 flex-1"
+                              aria-label="Welcome post status"
+                            >
+                              {POST_STATUSES.map((o) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          </div>
+                        </li>
+                      )
+                    })}
+              </ul>
+              <table className="ws-table ws-table-fixed w-full max-md:hidden">
                 <colgroup>
                   <col />
                   <col style={{ width: 108 }} />
                   <col style={{ width: 150 }} />
                   <col style={{ width: 210 }} />
-                  <col style={{ width: 112 }} />
+                  <col style={{ width: 230 }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -194,20 +304,47 @@ export function SpeakerPosts() {
                             </td>
                             <td><PostCell s={s} onSave={(url) => track(s.id, { postUrl: url || null })} /></td>
                             <td className="text-right">
-                              {st !== 'Posted' && (
-                                <button className="ws-btn ws-btn-sm" onClick={() => setLogging(s)} title="Record the post as done">
-                                  <Megaphone className="w-3.5 h-3.5" /> Log post
-                                </button>
-                              )}
+                              <span className="inline-flex items-center gap-1.5">
+                                <DraftButton s={s} />
+                                {st !== 'Posted' && (
+                                  <button className="ws-btn ws-btn-sm" onClick={() => setLogging(s)} title="Record a post made outside the CRM as done">
+                                    <Megaphone className="w-3.5 h-3.5" /> Log
+                                  </button>
+                                )}
+                              </span>
                             </td>
                           </tr>
                         )
                       })}
                 </tbody>
               </table>
+              </>
             )}
           </div>
         </>
+      )}
+
+      {draftError && (
+        <div className="fixed inset-x-4 bottom-4 z-[80] ws-card px-4 py-3 text-[13.5px] md:left-auto md:right-6 md:max-w-sm" style={{ borderColor: 'var(--bad)' }} role="alert">
+          <p style={{ color: 'var(--bad)' }}>{draftError}</p>
+          <button className="text-[12.5px] mt-1 underline underline-offset-4" style={{ color: 'var(--fg-3)' }} onClick={() => setDraftError('')}>Dismiss</button>
+        </div>
+      )}
+
+      {open && (
+        <SpeakerDraftModal
+          name={open.speaker.name}
+          post={open.post}
+          busy={drafting === open.speaker.id}
+          onClose={() => setOpen(null)}
+          onRedraft={() => draft(open.speaker, open.post)}
+          onChanged={(p) => { setOpen({ speaker: open.speaker, post: p }); qc.invalidateQueries({ queryKey: ['speaker-drafts'] }) }}
+          onPosted={() => {
+            setOpen(null)
+            qc.invalidateQueries({ queryKey: ['speaker-drafts'] })
+            qc.invalidateQueries({ queryKey: ['marketing', 'speaker'] })
+          }}
+        />
       )}
 
       {logging && (

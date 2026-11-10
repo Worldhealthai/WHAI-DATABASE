@@ -1,22 +1,35 @@
-// Reads one edition's (or, for the directory, every event's) sponsors,
-// speakers and delegates (and the Nexus card
+// Reads one edition's, one side's (Health or Pharma) or, for the directory,
+// every event's sponsors, speakers, delegates and leads (and the Nexus card
 // payments, for the paid-delegate rule) into the two layers of
 // lib/segments. Read only.
+//
+// A company is not assigned to an event (November 2026): it is on a side,
+// Health or Pharma, and an event only comes into it when something happens
+// there: it goes into that edition's Sales pipeline, or one of its people
+// registers or speaks. So a leads-list record carries a side (its Health or
+// Pharma tag; until it has one, the side of the event it was loaded under)
+// and no event, and the three ways to read are:
+//   an edition's labels   the records of that edition (no leads lists)
+//   a side                everyone on that side: every event of its series,
+//                         the leads lists, and anyone tagged for it
+//   neither               everything
 import { supabase } from '@/lib/supabase'
 import { firmographicByRule, type SegmentContact } from '@/lib/segments'
-import { focusOf } from '@/lib/contactFocus'
+import { focusOf, focusOfEvent, type Focus } from '@/lib/contactFocus'
 
 type Row = Record<string, any>
 
 // events null: every event.
 // Pages of 1,000 (the API's cap), four at a time: the leads lists run to
 // thousands of rows.
-async function all(table: string, select: string, events: string[] | null, like?: [string, string]): Promise<Row[]> {
+type Narrow = { events?: string[] | null; like?: [string, string]; ilike?: [string, string] }
+async function all(table: string, select: string, narrow: Narrow = {}): Promise<Row[]> {
   const out: Row[] = []
   const page = async (from: number) => {
     let q = supabase.from(table).select(select)
-    if (events) q = q.in('event', events)
-    if (like) q = q.ilike(like[0], like[1])
+    if (narrow.events) q = q.in('event', narrow.events)
+    if (narrow.like) q = q.ilike(narrow.like[0], narrow.like[1])
+    if (narrow.ilike) q = q.ilike(narrow.ilike[0], narrow.ilike[1])
     const { data, error } = await q.order('id').range(from, from + 999)
     if (error) throw error
     return (data ?? []) as unknown as Row[]
@@ -26,6 +39,21 @@ async function all(table: string, select: string, events: string[] | null, like?
     for (const p of pages) out.push(...p)
     if (pages.some((p) => p.length < 1000)) return out
   }
+}
+
+// The series whose events are on a side.
+const SERIES_OF: Record<Focus, string> = { Health: 'World Health AI', Pharma: 'World Pharma AI' }
+
+// A table's rows on a side: those in one of its series' events, and those
+// tagged for it whatever their event (read apart and joined, each row once).
+// Which of them really are on the side is settled after, row by row.
+async function onSide(table: string, select: string, side: Focus, like?: [string, string]): Promise<Row[]> {
+  const [byEvent, byTag] = await Promise.all([
+    all(table, select, { like, ilike: ['event', `${SERIES_OF[side]}%`] }),
+    all(table, select, { like, ilike: ['tags', `%${side}%`] }),
+  ])
+  const seen = new Set<string>()
+  return [...byEvent, ...byTag].filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
 }
 
 // Emails with a paid Nexus booking. Only where the CRM runs on the Nexus
@@ -49,22 +77,43 @@ const s = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 // With `company`, only the records whose company name contains it (every
 // event): one company's page (/api/companies), sorted by companyKey after.
-export async function loadContacts(events: string[] | null, opts: { company?: string } = {}): Promise<SegmentContact[]> {
+// With `side` (and no events), everyone on that side.
+export async function loadContacts(events: string[] | null, opts: { company?: string; side?: Focus } = {}): Promise<SegmentContact[]> {
   if (events && !events.length) return []
+  const side = events ? undefined : opts.side
   const like = (col: string): [string, string] | undefined => (opts.company ? [col, `%${opts.company.replace(/[\\%_]/g, '\\$&')}%`] : undefined)
+  const read = (table: string, select: string, col: string) => (side ? onSide(table, select, side, like(col)) : all(table, select, { events, like: like(col) }))
   const [companies, speakers, delegates, leads] = await Promise.all([
-    all('sponsors', 'id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"', events, like('companyName')),
-    all('speakers', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, country, "updatedAt"', events, like('organization')),
-    all('delegates', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, "ticketType", country, "updatedAt"', events, like('organization')),
-    all('leads', 'id, event, "companyName", "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", segment, country, website, notes, "updatedAt"', events, like('companyName')),
+    read('sponsors', 'id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"', 'companyName'),
+    read('speakers', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, country, "updatedAt"', 'organization'),
+    read('delegates', 'id, event, organization, "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", status, "subType", tags, "ticketType", country, "updatedAt"', 'organization'),
+    // The leads lists belong to a side, not to an edition. Every lead
+    // carries its side as a tag (migration 019), so a side reads them by
+    // that alone: the lists run to thousands of rows.
+    events ? Promise.resolve([] as Row[]) : all('leads', 'id, event, "companyName", "firstName", "lastName", email, phone, "jobTitle", "linkedinUrl", segment, country, website, notes, tags, "updatedAt"',
+      { like: like('companyName'), ilike: side ? ['tags', `%${side}%`] : undefined }),
   ])
   // Sponsors: the company rows of the edition, each with its own contact,
   // then the extra contacts that hang off them (companyId), whatever event
   // they carry themselves.
   const sponsorCompanies = companies.filter((c) => !c.companyId && !['Media Partner', 'Association Partner'].includes(String(c.tier)))
+  // A side: a contact tagged for it can hang off a company of the other
+  // side (a Health company's Pharma contact), so its company row is read too.
+  if (side) {
+    const have = new Set(sponsorCompanies.map((c) => c.id))
+    const missing = Array.from(new Set(companies.filter((c) => c.companyId && !have.has(c.companyId)).map((c) => c.companyId as string)))
+    for (let i = 0; i < missing.length; i += 200) {
+      const { data, error } = await supabase
+        .from('sponsors')
+        .select('id, "companyId", "companyName", event, website, country, tier, "valueAmount", status, "contactFirstName", "contactLastName", "contactEmail", "contactPhone", "contactJobTitle", "contactLinkedinUrl", tags, "updatedAt"')
+        .in('id', missing.slice(i, i + 200))
+      if (error) throw error
+      sponsorCompanies.push(...((data ?? []) as Row[]).filter((c) => !c.companyId && !['Media Partner', 'Association Partner'].includes(String(c.tier))))
+    }
+  }
   const ids = sponsorCompanies.map((c) => c.id)
   // Every event: the contact rows are already in hand.
-  const fetchExtra = !!events || !!opts.company
+  const fetchExtra = !!events || !!opts.company || !!side
   const extra: Row[] = fetchExtra ? [] : companies.filter((c) => c.companyId)
   for (let i = 0; fetchExtra && i < ids.length; i += 200) {
     const { data, error } = await supabase
@@ -116,12 +165,18 @@ export async function loadContacts(events: string[] | null, opts: { company?: st
   // Leads lists (crm.leads): in Companies, Contacts and the Directory only,
   // labelled by the list (Solution Provider or End User), with their note.
   for (const r of leads) {
+    // Its side: its own Health or Pharma tag, else the side of the event the
+    // list was loaded under. No event of its own: a lead is in none.
+    const tagged = focusOf(r.tags)
+    const from = focusOfEvent(r.event)
     out.push({
-      relationship: 'Lead', table: 'leads', id: r.id, recordId: r.id, event: s(r.event), company: s(r.companyName), firstName: s(r.firstName), lastName: s(r.lastName),
+      relationship: 'Lead', table: 'leads', id: r.id, recordId: r.id, event: null, company: s(r.companyName), firstName: s(r.firstName), lastName: s(r.lastName),
       email: s(r.email)?.toLowerCase() ?? null, phone: s(r.phone), jobTitle: s(r.jobTitle), linkedinUrl: s(r.linkedinUrl), status: null,
       selfDeclared: null, paid: false, firmographic: r.segment === 'Solution Provider' ? 'Solution Provider' : 'End User',
-      website: s(r.website), country: s(r.country), note: s(r.notes), updatedAt: r.updatedAt ?? null,
+      website: s(r.website), country: s(r.country), note: s(r.notes), focus: tagged.length ? tagged : from ? [from] : [], updatedAt: r.updatedAt ?? null,
     })
   }
-  return out
+  if (!side) return out
+  // On the side: by their own tag where they have one, else by their event.
+  return out.filter((c) => ((c.focus ?? []).length ? c.focus! : [focusOfEvent(c.event)]).includes(side))
 }

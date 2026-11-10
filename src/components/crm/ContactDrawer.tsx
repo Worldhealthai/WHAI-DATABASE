@@ -21,7 +21,7 @@ import { ArrowUpRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Glob
 import type { PersonRole } from '@/app/api/people/roles/route'
 import { Initials } from '@/components/workspace/ui'
 import { PersonAdds, companyHref, recHref, usePipelineAdd } from '@/components/workspace/Segments'
-import { useIntel } from '@/components/workspace/IntelPanel'
+import { useCategoryName, useIntel } from '@/components/workspace/IntelPanel'
 import { useWorkspaceFromUrl } from '@/lib/workspace'
 import { companyKey, type Member, type Relationship } from '@/lib/segments'
 import { isProvider } from '@/lib/intel'
@@ -243,6 +243,7 @@ function DrawerBody({ seed, onClose, onStep, index, total, prevName, nextName }:
   // Their company in one line, from the intelligence layer. The website is
   // the company's own; the lead record's only when no company is linked.
   const intel = useIntel(coKey, company).data?.company ?? null
+  const catName = useCategoryName()
   const website = intel?.website ?? seed.website ?? d.website ?? null
   const websiteFromLead = !intel?.website && !!website
   const facts: string[] = []
@@ -251,7 +252,7 @@ function DrawerBody({ seed, onClose, onStep, index, total, prevName, nextName }:
     if (intel.hq) facts.push(intel.hq)
     const n = isProvider(intel) ? intel.vendors : intel.hospitals
     if (n > 0) facts.push(`${n} ${isProvider(intel) ? 'vendors' : 'hospitals'} in sourced announcements`)
-    if (intel.categories.length) facts.push(intel.categories.slice(0, 2).join(', '))
+    if (intel.categories.length) facts.push(intel.categories.slice(0, 2).map(catName).join(', '))
   }
 
   const who: Pick<Member, 'key' | 'name' | 'email' | 'phone' | 'jobTitle' | 'records'> = { key: seed.key ?? seed.email ?? seed.name, name: seed.name, email, phone, jobTitle, records: all }

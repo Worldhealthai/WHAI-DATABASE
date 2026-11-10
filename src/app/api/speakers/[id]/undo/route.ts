@@ -7,6 +7,7 @@
 // else simply loses this speaker record (their other records stay).
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { focusOfEvent } from '@/lib/contactFocus'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,12 +26,13 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const tags = String(s.tags || '').split(',').map((t: string) => t.trim()).filter(Boolean)
     let leadId: string | null = null
     if (tags.some((t: string) => t.toLowerCase() === 'lead list')) {
-      const source = tags.find((t: string) => t.toLowerCase() !== 'lead list') ?? null
+      const source = tags.find((t: string) => !/^(lead list|health|pharma)$/i.test(t)) ?? null
       const { data: lead, error: e } = await supabase.from('leads').insert({
         firstName: s.firstName, lastName: s.lastName, email: s.email, phone: s.phone, linkedinUrl: s.linkedinUrl,
         companyName: s.organization, jobTitle: s.jobTitle, country: s.country, city: s.city,
         segment: s.subType === 'Solution Provider' ? 'Solution Provider' : 'End User',
-        source, notes: s.notes, event: s.event,
+        // Back on the leads list of its side (Health or Pharma), in no event.
+        source, notes: s.notes, tags: focusOfEvent(s.event),
       }).select('id').single()
       if (e) throw e
       leadId = lead.id

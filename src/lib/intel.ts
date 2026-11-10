@@ -71,6 +71,10 @@ export interface Competitor {
   source: Source
 }
 
+// A category companies carry: its id (what a company holds), its name, and
+// how many companies in the intelligence layer carry it.
+export interface IntelCategory { id: string; name: string; companies: number }
+
 export interface Signal {
   id?: string
   type: string
@@ -189,6 +193,12 @@ export interface IntelCompany {
   similarCompanies: SimilarCompany[]
   competitors: Competitor[]
   signals: Signal[]
+  // The profile's two kinds, read apart (crm.intel_signals): news, each with
+  // its article, and Lusha's own latest figures (hiring, headcount, web
+  // traffic, IT spend). Absent where that function is not installed.
+  news?: Signal[]
+  figures?: Signal[]
+  signalsTotal?: number
   people: IntelPerson[]
   facts: Fact[]
   whitespace: Whitespace[]

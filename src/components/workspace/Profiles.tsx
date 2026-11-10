@@ -19,7 +19,9 @@ import { useWorkspace } from '@/lib/workspace'
 import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
 import { Field, Modal, Segmented } from './ui'
 import { AddButton, Members, PersonAdds, Sides, TypeBadge, companyHref, recHref, roles, usePipelineAdd } from './Segments'
-import { IntelCompanyStrip, IntelDeployments, IntelDescription, IntelPeopleNamed, IntelSidebar, IntelStrip, NoIntel, useIntel } from './IntelPanel'
+import { IntelCompanyStrip, IntelDeployments, IntelDescription, IntelPeopleNamed, IntelSidebar, NoIntel, useCategoryName, useIntel } from './IntelPanel'
+import { CompanyJourney, CompanyNews, CompanyStats, SectionNav, salesSteps, type JourneyStep, type SectionLink } from './CompanyInsight'
+import { KINDS } from '@/lib/recordKinds'
 import { isProvider as intelIsProvider, providerTypeLabel } from '@/lib/intel'
 
 function useCompany(key: string | null, name: string | null) {
@@ -51,7 +53,8 @@ function EventHistory({ a, className = '' }: { a: Account; className?: string })
   const rows = events.map((e) => {
     const n = new Map<Relationship, number>()
     for (const m of a.members ?? []) for (const r of m.records) if (r.event && r.event.toLowerCase() === e.toLowerCase()) n.set(r.relationship, (n.get(r.relationship) ?? 0) + 1)
-    const parts = (['Sponsor', 'Speaker', 'Delegate', 'Lead'] as Relationship[]).filter((k) => n.get(k)).map((k) => `${n.get(k)} ${DOING[k][n.get(k)! > 1 ? 1 : 0]}`)
+    // A leads list is not an event: only what happened there counts.
+    const parts = (['Sponsor', 'Speaker', 'Delegate'] as Relationship[]).filter((k) => n.get(k)).map((k) => `${n.get(k)} ${DOING[k][n.get(k)! > 1 ? 1 : 0]}`)
     return { e, parts }
   })
   return <EventHistoryCard rows={rows} className={className} />
@@ -119,6 +122,7 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
   const intelQ = useIntel(companyKeyParam, name)
   const intel = intelQ.data?.company ?? null
   const add = usePipelineAdd()
+  const catName = useCategoryName()
   const a = data?.account
   const back = ws.href('companies')
   const headRef = useRef<HTMLElement>(null)
@@ -164,17 +168,29 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
       : <AddButton primary label="Sales pipeline" busy={add.busy === `company:${a.key}`} done={add.done.has(`company:${a.key}`)} onClick={() => add.addCompany(a)} />)
     : candidate ? <PersonAdds add={add} who={candidate} company={a.name} type="End User" primary /> : null
 
-  const where = !add.event ? <WhereLine label="Not in a workspace" kind={null} />
-    : solution ? (inSales
-      ? <WhereLine label="In Sales" kind="sponsor" status={inSales.status} extra={<>
-          <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{edition}</span>
-          {recHref(ws.slug, inSales) && <Link href={recHref(ws.slug, inSales)!} className="text-[12.5px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>Open the record</Link>}
-        </>} />
-      : <WhereLine label="Not in Sales yet" kind={null} extra={<span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{edition}</span>} />)
-    : <WhereLine label="Production" kind={null} extra={<span className="text-[13px]" style={{ color: 'var(--fg-2)' }}>
-        <span className="font-semibold" style={{ color: 'var(--fg)' }}>{speaking.length} of {members.length}</span> {members.length === 1 ? 'person' : 'people'} in it for {edition}
-        {candidate && <span style={{ color: 'var(--fg-4)' }}> · next to add: {candidate.name}</span>}
-      </span>} />
+  // Where we are with them, as one row of steps: the directory, then the
+  // Sales stages (a Solution Provider) or Production (an End User).
+  const salesStages = KINDS.sponsor.stages
+  const lost = inSales && salesStages.find((x) => x.negative && x.status === inSales.status)
+  const steps: JourneyStep[] = solution
+    ? salesSteps()
+    : [{ key: '__directory', label: 'In the directory' }, { key: '__production', label: 'In Production', hint: members.length ? `${speaking.length} of ${members.length} ${members.length === 1 ? 'person' : 'people'}` : undefined }]
+  const at = solution ? (inSales && !lost ? Math.max(0, steps.findIndex((x) => x.key === inSales.status)) : 0) : speaking.length ? 1 : 0
+  const state = !add.event ? 'Open an event to move them on'
+    : solution ? (inSales ? `In Sales for ${edition}` : `Not in Sales for ${edition} yet`)
+    : speaking.length ? `In Production for ${edition}` : `Not in Production for ${edition} yet`
+  const events = companyEvents(a, ws.slug)
+  const deployments = intel ? (isProvider ? intel.providerDeployments : intel.vendorDeployments) : []
+  const newsCount = intel ? (intel.news ?? intel.signals).filter((x) => x.source.url).length : 0
+
+  // The page, top to bottom, as links: only what this company has.
+  const sections: SectionLink[] = [
+    ...(intel ? [{ id: 'numbers', label: 'In numbers' }, { id: 'about', label: 'What they do' }] : []),
+    ...(newsCount ? [{ id: 'news', label: 'News', count: newsCount }] : []),
+    ...(deployments.length ? [{ id: 'deployments', label: isProvider ? 'Vendors' : 'Hospitals', count: deployments.length }] : []),
+    { id: 'team', label: isProvider ? 'People' : 'Team', count: members.length },
+    ...((a.events ?? []).length ? [{ id: 'events', label: 'Events', count: (a.events ?? []).length }] : []),
+  ]
 
   return (
     <div className="crm-profile max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-24 sm:pb-8">
@@ -182,7 +198,7 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
       <MiniHeader watch={headRef} name={a.name} action={primary} />
       <div className={PROFILE_GRID}>
         <div className={PROFILE_MAIN}>
-          {/* Who they are, the ten-second strip, and where we are with them */}
+          {/* Who they are, and where we are with them */}
           <header ref={headRef} className="ws-card overflow-hidden order-1">
             <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[15px] font-semibold shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--fg-2)', border: '1px solid var(--line)' }}>{initials(a.name)}</div>
@@ -193,13 +209,18 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
                 </p>
                 <h1 className="text-[22px] font-semibold leading-tight tracking-tight sm:truncate mt-0.5" style={{ color: 'var(--fg)' }}>{a.name}</h1>
                 <p className="text-[13px] mt-1 flex flex-wrap items-center gap-x-3 gap-y-1" style={{ color: 'var(--fg-3)' }}>
-                  {/* The people here are the CRM's contacts, not the company's size (that is in the strip below). */}
-                  <span className="inline-flex items-center gap-1" title="People at this company in the CRM"><Users className="w-3.5 h-3.5" /> {a.people} {a.people === 1 ? 'contact' : 'contacts'} on file</span>
-                  {intel?.odsCode && <span className="inline-flex items-center gap-1 tabular" title="NHS ODS code, from the Intelligence dataset">ODS {intel.odsCode}</span>}
-                  {/* Location lives in the strip once the intelligence layer has it. */}
-                  {!intel?.hq && a.country && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {a.country}</span>}
                   {website && <a href={/^https?:\/\//i.test(website) ? website : `https://${website}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline underline-offset-4"><Globe className="w-3.5 h-3.5" /> {website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</a>}
+                  {(intel?.hq || a.country) && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {intel?.hq ?? a.country}</span>}
+                  <span className="inline-flex items-center gap-1" title="People at this company in the CRM"><Users className="w-3.5 h-3.5" /> {a.people} {a.people === 1 ? 'contact' : 'contacts'}</span>
+                  {intel?.odsCode && <span className="inline-flex items-center gap-1 tabular" title="NHS ODS code, from the Intelligence dataset">ODS {intel.odsCode}</span>}
                 </p>
+                {/* What they are in, in a word or two; the one-liner only while there is no fuller description below. */}
+                {intel && intel.categories.length > 0 && (
+                  <p className="flex flex-wrap gap-1.5 mt-2.5">
+                    {intel.categories.map((k) => <span key={k} className="px-2 py-0.5 rounded-md text-[12px]" style={{ border: '1px solid var(--line)', color: 'var(--fg-2)' }}>{catName(k)}</span>)}
+                  </p>
+                )}
+                {intel && !intel.description.value && intel.oneLiner && <p className="text-[13.5px] mt-2.5" style={{ color: 'var(--fg-2)' }}>{intel.oneLiner}</p>}
               </div>
               {/* The secondary actions; the primary one is in the band below. */}
               <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:shrink-0">
@@ -207,37 +228,48 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
                 <button type="button" onClick={exportTeam} disabled={!members.length} className="ws-btn ws-btn-sm ws-tap" title="The team as a spreadsheet (CSV)"><Download className="w-3.5 h-3.5" /> Export</button>
               </div>
             </div>
-            {/* The ten-second strip, or the quiet line when the layer has nothing. */}
-            {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
-            <NextStep
-              where={where}
-              action={<>
-                {add.event && <Link href={ws.href(solution ? 'pipeline' : 'production')} className="ws-btn ws-btn-sm ws-tap">{solution ? 'Sales' : 'Production'} board</Link>}
-                {primary}
-              </>}
-              events={<EventsLine items={companyEvents(a, ws.slug)} />}
-            />
+            {!intel && intelQ.isSuccess ? <NoIntel compact /> : null}
+            {/* Where we are with them: the steps, and the one thing to do next. */}
+            <div className="px-4 sm:px-5 py-3.5 flex flex-col gap-3" style={{ borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-x-4 gap-y-2.5">
+                <p className="min-w-0 flex-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <span className="font-semibold" style={{ color: 'var(--fg)' }}>{state}</span>
+                  {inSales && recHref(ws.slug, inSales) && <Link href={recHref(ws.slug, inSales)!} className="text-[12.5px] hover:underline underline-offset-4" style={{ color: 'var(--fg-3)' }}>Open the Sales record</Link>}
+                  {!solution && candidate && add.event && <span className="text-[12.5px]" style={{ color: 'var(--fg-4)' }}>next to add: {candidate.name}</span>}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap max-sm:[&>*]:flex-1 sm:shrink-0">
+                  {add.event && <Link href={ws.href(solution ? 'pipeline' : 'production')} className="ws-btn ws-btn-sm ws-tap">{solution ? 'Sales' : 'Production'} board</Link>}
+                  {primary}
+                </div>
+              </div>
+              <CompanyJourney steps={steps} at={at} closed={lost ? lost.label : null} busy={moving} onPick={inSales && !lost ? moveSales : undefined} />
+              <EventsLine items={events} />
+            </div>
           </header>
 
-          {/* What they do, with its sources; the hospitals or vendors with their evidence */}
-          {intel && <IntelDescription c={intel} className="order-2" />}
-          {intel && <IntelDeployments c={intel} slug={ws.slug} className="order-3" />}
+          <SectionNav items={sections} className="order-1" />
+
+          {/* The numbers, what they do, and the news */}
+          {intel && <CompanyStats c={intel} contacts={a.people} className="order-2" />}
+          {intel && <div id="about" className="order-3 scroll-mt-4"><IntelDescription c={intel} /></div>}
+          {intel && <CompanyNews c={intel} className="order-4" />}
+          {intel && deployments.length > 0 && <div id="deployments" className="order-5 scroll-mt-4"><IntelDeployments c={intel} slug={ws.slug} /></div>}
 
           {/* The team: the CRM's people, then anyone Lusha names besides */}
-          <section className="ws-card overflow-hidden order-4" id="team">
+          <section className="ws-card overflow-hidden order-6 scroll-mt-4" id="team">
             <CardHead title={isProvider ? 'People' : 'Team'} count={members.length} sub={<NameHint />} />
             <Members members={members} query="" company={a.name} add={personAdd} where="event" account={a} flush openAdd={openAdd} />
             {intel && <IntelPeopleNamed c={intel} exclude={members.map((m) => m.name)} type={a.firmographic} />}
           </section>
 
           {/* The lead lists' notes are per person: in the contact panel, not here. */}
-          <EventHistory a={a} className="order-6" />
+          <EventHistory a={a} className="order-8" />
         </div>
 
         {/* The companies around them */}
         {intel && (
           <ProfileSide>
-            <IntelSidebar c={intel} slug={ws.slug} className="order-5" />
+            <IntelSidebar c={intel} slug={ws.slug} className="order-7" signals={false} />
           </ProfileSide>
         )}
       </div>
@@ -268,6 +300,7 @@ export function ContactProfile({ id }: { id: string }) {
   const company = useCompany(lead?.companyName ? companyKey(lead.companyName) : null, lead?.companyName ?? null)
   // The company's own categories, in place of Lusha's industry.
   const intelCo = useIntel(lead?.companyName ? companyKey(lead.companyName) : null, lead?.companyName ?? null).data?.company ?? null
+  const catName = useCategoryName()
   const back = ws.href('contacts')
 
   const move = async (to: 'speaker' | 'sponsor') => {
@@ -372,7 +405,7 @@ export function ContactProfile({ id }: { id: string }) {
             <Fact label="Type" value={type || '—'} />
             <Fact label="Location" value={where ? <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {where}</span> : '—'} />
             {intelCo?.categories.length
-              ? <Fact label="Category" value={<span className="whitespace-normal">{intelCo.categories.join(' · ')}</span>} />
+              ? <Fact label="Category" value={<span className="whitespace-normal">{intelCo.categories.map(catName).join(' · ')}</span>} />
               : <Fact label="Industry" value={[lead.industry, lead.subIndustry].filter(Boolean).join(' · ') || '—'} />}
             <Fact label="Website" value={lead.website ? <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline underline-offset-4"><Globe className="w-3.5 h-3.5" /> {lead.website.replace(/^https?:\/\/(www\.)?/, '')}</a> : '—'} />
             <Fact label="Added" value={fmtDate(lead.createdAt)} />

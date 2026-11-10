@@ -17,14 +17,14 @@
 // sidebar, the Lusha-named people under the team.
 
 import Link from 'next/link'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronDown, ExternalLink, Linkedin, Loader2, Plus, Sparkles, X } from 'lucide-react'
 import { ContactLink } from '@/components/crm/ContactLink'
 import { CardHead, fmtDate, useCollapse } from '@/components/crm/profileParts'
 import type { ContactSeed } from '@/components/crm/ContactLink'
 import { companyKey, type Firmographic } from '@/lib/segments'
-import type { Competitor, Confidence, Deployment, IntelCard, IntelCompany, Source } from '@/lib/intel'
+import type { Competitor, Confidence, Deployment, IntelCard, IntelCategory, IntelCompany, Signal, Source } from '@/lib/intel'
 import { isProvider, providerTypeLabel, reasonText } from '@/lib/intel'
 import { Initials } from './ui'
 
@@ -52,8 +52,35 @@ export interface IntelCards {
   cardFor: (key: string, name: string) => IntelCard | null
   ask: (keys: string[]) => void
   failed: boolean
-  categories: string[]
+  categories: IntelCategory[]
   known: Map<string, IntelCard | null>
+}
+
+// The categories companies carry, each with its proper name. One request,
+// shared by everything that names a category.
+function useIntelCategories(): IntelCategory[] {
+  const q = useQuery<{ categories: IntelCategory[] }>({
+    queryKey: ['intel', 'categories'],
+    queryFn: async () => {
+      const r = await fetch('/api/intel/cards')
+      if (!r.ok) throw new Error('intel categories')
+      return r.json()
+    },
+    staleTime: 5 * 60_000,
+  })
+  const list = q.data?.categories
+  return useMemo(() => (Array.isArray(list) ? list.filter((c) => c && typeof c === 'object' && c.id) : []), [list])
+}
+
+// A category as people read it: "Drug Discovery" for the "drug-discovery" a
+// company holds. Until the names have loaded (or for one with no name), the
+// id with its hyphens taken out.
+export function useCategoryName(): (value: string) => string {
+  const cats = useIntelCategories()
+  return useMemo(() => {
+    const byId = new Map(cats.map((c) => [c.id, c.name]))
+    return (v: string) => byId.get(v) ?? (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(v) ? v.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()) : v)
+  }, [cats])
 }
 
 // The light rows for the companies in view, fetched in chunks of CRM keys as
@@ -63,15 +90,7 @@ export function useIntelCards(): IntelCards {
   const [cards, setCards] = useState<Map<string, IntelCard | null>>(() => new Map())
   const asked = useRef<Set<string>>(new Set())
   const [failed, setFailed] = useState(false)
-  const cats = useQuery<{ categories: string[] }>({
-    queryKey: ['intel', 'categories'],
-    queryFn: async () => {
-      const r = await fetch('/api/intel/cards')
-      if (!r.ok) throw new Error('intel categories')
-      return r.json()
-    },
-    staleTime: 5 * 60_000,
-  })
+  const cats = useIntelCategories()
   const ask = useCallback((keys: string[]) => {
     const fresh = Array.from(new Set(keys.filter((k) => k && k !== '__none' && !asked.current.has(k))))
     if (!fresh.length) return
@@ -101,7 +120,7 @@ export function useIntelCards(): IntelCards {
     void run()
   }, [])
   const cardFor = useCallback((key: string, name: string): IntelCard | null => cards.get(key) ?? cards.get(companyKey(name) ?? '') ?? null, [cards])
-  return { cardFor, ask, failed, categories: Array.isArray(cats.data?.categories) ? cats.data.categories : [], known: cards }
+  return { cardFor, ask, failed, categories: cats, known: cards }
 }
 
 // Asks for these keys' cards whenever they change; true once every one of
@@ -122,7 +141,7 @@ async function review(action: 'verify_description' | 'competitor' | 'deployment'
 // ── Small marks ──────────────────────────────────────────────────────────────
 
 export const usd = (n: number) => (n >= 1e9 ? `$${(n / 1e9).toFixed(1).replace(/\.0$/, '')}bn` : n >= 1e6 ? `$${Math.round(n / 1e6)}m` : `$${Math.round(n / 1e3)}k`)
-const monthYear = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '')
+export const monthYear = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '')
 export const companyPath = (slug: string | null, key: string, name: string) => (slug ? `/event/${slug}/companies/${encodeURIComponent(key)}?name=${encodeURIComponent(name)}` : '#')
 const num = (n: number) => n.toLocaleString('en-GB')
 
@@ -142,7 +161,7 @@ function evidenceAge(iso: string | null | undefined): string | null {
 }
 
 // "aidoc.com" from a page's address, for a link that says where it goes.
-const domainOf = (url: string | null | undefined) => { try { return url ? new URL(url).hostname.replace(/^www\./, '') : null } catch { return null } }
+export const domainOf = (url: string | null | undefined) => { try { return url ? new URL(url).hostname.replace(/^www\./, '') : null } catch { return null } }
 
 // How sure we are, and whether a person has checked it: "High ✓ verified",
 // or "High" alone while nobody has (the tooltip says so).
@@ -216,6 +235,7 @@ function SideCard({ title, count, note, sub, children, className = '', foot, sta
 // founded, funding, revenue, beds, status). Where a fact came from is in its
 // tooltip; the Lusha facts say so once, in small grey at the end of the row.
 export function IntelStrip({ c }: { c: IntelCompany }) {
+  const catName = useCategoryName()
   const provider = isProvider(c)
   const facts: { label: string; value: React.ReactNode; title?: string }[] = []
   if (c.teamFact) facts.push({ label: 'Team', value: `about ${num(c.teamFact.value)}`, title: `${c.teamFact.source.label}${c.teamFact.source.date ? `, ${monthYear(c.teamFact.source.date)}` : ''}${c.teamRange ? `; Lusha bucket ${c.teamRange}` : ''}; ${CONF[c.teamFact.confidence].toLowerCase()} confidence. A LinkedIn-based estimate, not a headcount.` })
@@ -233,32 +253,42 @@ export function IntelStrip({ c }: { c: IntelCompany }) {
   // figure from Lusha in one fragment, and any from elsewhere in its own.
   const fundingShown = !!(c.funding && (c.funding.totalUsd || c.funding.lastRoundUsd))
   const lusha = [c.teamFact?.source.kind === 'lusha' && 'team', fundingShown && c.funding?.source.kind === 'lusha' && 'funding', c.revenueBand && 'revenue'].filter(Boolean) as string[]
-  if (!c.oneLiner && !facts.length && !c.categories.length) return null
+  // The one-liner only when there is no fuller description under it: with
+  // one, the two said the same thing twice.
+  const oneLiner = c.description.value ? null : c.oneLiner
+  if (!oneLiner && !facts.length && !c.categories.length) return null
   const notes: { text: string; title?: string }[] = []
   if (lusha.length) notes.push({ text: `${lusha.map((w, i) => (i === 0 ? w[0].toUpperCase() + w.slice(1) : w)).join(lusha.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} from Lusha${c.teamFact?.source.date ? `, ${monthYear(c.teamFact.source.date)}` : ''}`, title: 'Team size is a LinkedIn-based estimate, not a headcount' })
   if (fundingShown && c.funding && c.funding.source.kind !== 'lusha') notes.push({ text: `Funding from ${c.funding.source.label}${c.funding.source.date ? `, ${monthYear(c.funding.source.date)}` : ''}` })
   if (c.beds) notes.push({ text: `Beds from ${bedsFrom}${c.updatedAt ? `, ${monthYear(c.updatedAt)}` : ''}` })
   return (
-    <div className="px-4 sm:px-5 py-3 flex flex-col gap-1.5" style={{ borderTop: '1px solid var(--line)' }}>
-      {c.oneLiner && (
+    <div className="px-4 sm:px-5 py-3.5 flex flex-col gap-3" style={{ borderTop: '1px solid var(--line)' }}>
+      {oneLiner && (
         <p className="text-[13.5px]" style={{ color: 'var(--fg-2)' }}>
-          {c.oneLiner} <span className="text-[11.5px] whitespace-nowrap" style={{ color: 'var(--fg-4)' }} title="The one-line summary as the WNG Intelligence dataset holds it">from the WNG dataset</span>
+          {oneLiner} <span className="text-[11.5px] whitespace-nowrap" style={{ color: 'var(--fg-4)' }} title="The one-line summary as the WNG Intelligence dataset holds it">from the WNG dataset</span>
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
-        {c.categories.length > 0 && (
-          <span className="inline-flex flex-wrap gap-1.5">
-            {c.categories.map((k) => <span key={k} className="px-2 py-0.5 rounded-md text-[12px]" style={{ border: '1px solid var(--line)', color: 'var(--fg-2)' }}>{k}</span>)}
-          </span>
-        )}
-        {facts.map((f) => (
-          <span key={f.label} className="inline-flex items-baseline gap-1" title={f.title}>
-            <span className="text-[11.5px] font-medium" style={{ color: 'var(--fg-4)' }}>{f.label}</span>
-            <span style={{ color: 'var(--fg-2)' }}>{f.value}</span>
-          </span>
-        ))}
-        {notes.map((n) => <span key={n.text} className="text-[11.5px]" style={{ color: 'var(--fg-4)' }} title={n.title}>{n.text}</span>)}
-      </div>
+      {c.categories.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {c.categories.map((k) => <span key={k} className="px-2 py-0.5 rounded-md text-[12px]" style={{ border: '1px solid var(--line)', color: 'var(--fg-2)' }}>{catName(k)}</span>)}
+        </div>
+      )}
+      {/* The facts in columns, each under its own small label. */}
+      {facts.length > 0 && (
+        <dl className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-x-8 gap-y-2.5 m-0">
+          {facts.map((f) => (
+            <div key={f.label} className="min-w-0" title={f.title}>
+              <dt className="text-[11px] font-medium" style={{ color: 'var(--fg-4)' }}>{f.label}</dt>
+              <dd className="m-0 text-[13px] leading-snug" style={{ color: 'var(--fg)' }}>{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {notes.length > 0 && (
+        <p className="text-[11.5px]" style={{ color: 'var(--fg-4)' }} title={notes.map((n) => n.title).filter(Boolean).join(' ') || undefined}>
+          {notes.map((n) => n.text).join(' · ')}
+        </p>
+      )}
     </div>
   )
 }
@@ -476,26 +506,85 @@ function Provenance({ source }: { source: Source }) {
 
 const SIGNALS_KEEP = 4
 
+// Lusha's own names for its signals, in plain words. A news signal links to
+// its article; the rest (hiring, headcount, web traffic, IT spend) are
+// Lusha's own figures, with no page behind them.
+const SIGNAL_LABEL: Record<string, string> = {
+  surgeInHiring: 'Hiring', surgeInHiringByDepartment: 'Hiring', surgeInHiringByLocation: 'Hiring',
+  headcountIncrease1m: 'Headcount', headcountIncrease3m: 'Headcount', headcountIncrease6m: 'Headcount', headcountIncrease12m: 'Headcount',
+  headcountDecrease1m: 'Headcount', headcountDecrease3m: 'Headcount', headcountDecrease6m: 'Headcount', headcountDecrease12m: 'Headcount',
+  websiteTrafficIncrease: 'Web traffic', websiteTrafficDecrease: 'Web traffic',
+  itSpendIncrease: 'IT spend', itSpendDecrease: 'IT spend',
+  productActivityNews: 'Product news', marketIntelligenceNews: 'Market news', commercialActivityNews: 'Commercial news',
+  peopleNews: 'People news', corporateStrategyNews: 'Strategy news', financialEventsNews: 'Funding news', riskNews: 'Risk news',
+}
+export const isNews = (type: string) => /News$/.test(type)
+// "Partnership", "Product Launch": what kind of news, when Lusha says.
+export function signalLabel(s: Signal): string {
+  const kind = typeof s.meta?.eventType === 'string' && s.meta.eventType !== 'null' ? s.meta.eventType : ''
+  return kind || SIGNAL_LABEL[s.type] || s.type.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase())
+}
+// Lusha puts the article's title in brackets after its own line; the line
+// alone is the headline.
+export const signalHeadline = (s: Signal) => s.headline.replace(/\s*\[[^\]]*\]?\s*$/, '').trim() || s.headline
+
+// Newest first, without the doubles: Lusha often sends a news item twice,
+// once with its article and once as a bare summary of the same day and
+// kind. The one with the article is kept.
+export function tidySignals(all: Signal[]): Signal[] {
+  const linked = new Set(all.filter((s) => s.source.url).map((s) => `${s.type}|${s.date ?? ''}`))
+  const seen = new Set<string>()
+  return all.filter((s) => {
+    if (!s.source.url && isNews(s.type) && linked.has(`${s.type}|${s.date ?? ''}`)) return false
+    const key = s.source.url ? `u|${s.source.url}` : `t|${s.type}|${s.date ?? ''}|${s.headline}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function Signals({ c, className }: { c: IntelCompany; className?: string }) {
-  if (!c.signals.length) return null
-  const rows = c.signals.slice(0, SIGNALS_KEEP)
+  const [all, setAll] = useState(false)
+  const list = useMemo(() => tidySignals(c.signals), [c.signals])
+  if (!list.length) return null
+  const rows = all ? list : list.slice(0, SIGNALS_KEEP)
+  const more = list.length - SIGNALS_KEEP
   return (
-    <SideCard title="Signals" count={c.signals.length > rows.length ? `latest ${rows.length} of ${c.signals.length}` : c.signals.length} note="From Lusha" className={className}>
+    <SideCard
+      title="Signals"
+      count={list.length > rows.length ? `latest ${rows.length} of ${list.length}` : list.length}
+      note="From Lusha. News opens its article; hiring, headcount, web traffic and IT spend are Lusha's own figures, with no article behind them."
+      className={className}
+      foot={more > 0 ? (
+        <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap mx-2 mb-2" style={{ color: 'var(--fg-3)' }} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+          {all ? 'Show fewer' : `Show all ${list.length}`} <ChevronDown className={`w-3.5 h-3.5 transition-transform ${all ? 'rotate-180' : ''}`} />
+        </button>
+      ) : undefined}
+    >
       <ul className="flex flex-col pb-1.5">
         {rows.map((s, i) => {
           const date = s.date ?? s.source.date
           const domain = domainOf(s.source.url)
-          const body = <span className="text-[13px] line-clamp-2" style={{ color: 'var(--fg)' }} title={s.headline}>{s.headline}</span>
-          return (
-            <li key={s.id ?? i} className="px-4 py-2 min-w-0" style={i > 0 ? { borderTop: '1px solid var(--line)' } : undefined}>
+          const headline = signalHeadline(s)
+          const inner = (
+            <>
               <span className="flex items-baseline justify-between gap-3 text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
-                <span className="font-medium">{s.type}</span>
-                <span className="shrink-0 whitespace-nowrap">
-                  {date && fmtDate(date)}
-                  {s.source.url && <> · <a href={s.source.url} target="_blank" rel="noopener noreferrer" className="hover:underline underline-offset-4" title={s.source.label}>{domain ?? s.source.label}<ExternalLink className="inline-block align-[-2px] ml-0.5 w-3 h-3" /></a></>}
-                </span>
+                <span className="font-medium truncate">{signalLabel(s)}</span>
+                <span className="shrink-0 whitespace-nowrap">{date && fmtDate(date)}</span>
               </span>
-              {s.source.url ? <a href={s.source.url} target="_blank" rel="noopener noreferrer" className="block min-w-0 hover:underline underline-offset-4" title={`${s.headline}\n${s.source.label}`}>{body}</a> : body}
+              <span className="block text-[13px] line-clamp-2 mt-0.5 group-hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{headline}</span>
+              <span className="block text-[11.5px] mt-0.5 truncate" style={{ color: 'var(--fg-4)' }}>
+                {s.source.url
+                  ? <>{domain ?? 'Open the article'}<ExternalLink className="inline-block align-[-2px] ml-1 w-3 h-3" /></>
+                  : 'Lusha figure · no article'}
+              </span>
+            </>
+          )
+          return (
+            <li key={s.id ?? i} className="min-w-0" style={i > 0 ? { borderTop: '1px solid var(--line)' } : undefined}>
+              {s.source.url
+                ? <a href={s.source.url} target="_blank" rel="noopener noreferrer" className="group block px-4 py-2 min-w-0 hover:bg-[var(--surface-2)] transition-colors" title={`${headline}\n${s.source.url}`}>{inner}</a>
+                : <div className="px-4 py-2 min-w-0" title={`${headline}\nA figure Lusha works out itself; there is no article to open.`}>{inner}</div>}
             </li>
           )
         })}
@@ -683,14 +772,16 @@ function NotYetHere({ c, slug, className }: { c: IntelCompany; slug: string | nu
 // Similar companies, competitors, signals and (for a hospital) the vendors
 // not here yet, each a compact card. `className` goes on every card, for
 // where it sits when the page stacks on a phone.
-export function IntelSidebar({ c, slug, className }: { c: IntelCompany; slug: string | null; className?: string }) {
+// `signals` off where the page shows the news and the figures itself (the
+// company profile).
+export function IntelSidebar({ c, slug, className, signals = true }: { c: IntelCompany; slug: string | null; className?: string; signals?: boolean }) {
   const provider = isProvider(c)
   return (
     <>
       <Similar c={c} slug={slug} className={className} title={provider ? 'Similar trusts' : 'Similar companies'} note={provider ? 'By type, region, size and shared vendors' : 'Computed from categories, size, country and shared hospitals'} />
       <Competitors c={c} slug={slug} className={className} />
       {provider && <NotYetHere c={c} slug={slug} className={className} />}
-      <Signals c={c} className={className} />
+      {signals && <Signals c={c} className={className} />}
     </>
   )
 }
