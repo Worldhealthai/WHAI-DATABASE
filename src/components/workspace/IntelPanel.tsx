@@ -543,9 +543,16 @@ export function tidySignals(all: Signal[]): Signal[] {
   })
 }
 
-function Signals({ c, className }: { c: IntelCompany; className?: string }) {
+// `figuresOnly` is for the company profile, which shows the news in its own
+// section: the list is then Lusha's figures alone (hiring by department and
+// country, headcount, web traffic, IT spend), so nothing is said twice.
+function Signals({ c, className, figuresOnly = false }: { c: IntelCompany; className?: string; figuresOnly?: boolean }) {
   const [all, setAll] = useState(false)
-  const list = useMemo(() => tidySignals(c.signals), [c.signals])
+  const list = useMemo(
+    () => (figuresOnly
+      ? tidySignals(c.activity ?? c.signals.filter((s) => !s.source.url && !isNews(s.type))).sort((x, y) => (y.date ?? '').localeCompare(x.date ?? ''))
+      : tidySignals(c.signals)),
+    [figuresOnly, c.activity, c.signals])
   if (!list.length) return null
   const rows = all ? list : list.slice(0, SIGNALS_KEEP)
   const more = list.length - SIGNALS_KEEP
@@ -553,7 +560,7 @@ function Signals({ c, className }: { c: IntelCompany; className?: string }) {
     <SideCard
       title="Signals"
       count={list.length > rows.length ? `latest ${rows.length} of ${list.length}` : list.length}
-      note="From Lusha. News opens its article; hiring, headcount, web traffic and IT spend are Lusha's own figures, with no article behind them."
+      note={figuresOnly ? "Lusha's own figures: hiring, headcount, web traffic and IT spend. They have no article behind them; the news is in its own section." : "From Lusha. News opens its article; hiring, headcount, web traffic and IT spend are Lusha's own figures, with no article behind them."}
       className={className}
       foot={more > 0 ? (
         <button type="button" className="ws-btn ws-btn-ghost ws-btn-sm ws-tap mx-2 mb-2" style={{ color: 'var(--fg-3)' }} onClick={() => setAll((v) => !v)} aria-expanded={all}>
@@ -772,16 +779,16 @@ function NotYetHere({ c, slug, className }: { c: IntelCompany; slug: string | nu
 // Similar companies, competitors, signals and (for a hospital) the vendors
 // not here yet, each a compact card. `className` goes on every card, for
 // where it sits when the page stacks on a phone.
-// `signals` off where the page shows the news and the figures itself (the
-// company profile).
-export function IntelSidebar({ c, slug, className, signals = true }: { c: IntelCompany; slug: string | null; className?: string; signals?: boolean }) {
+// `signals="figures"` where the page shows the news itself (the company
+// profile): the Signals list is then Lusha's figures alone.
+export function IntelSidebar({ c, slug, className, signals = true }: { c: IntelCompany; slug: string | null; className?: string; signals?: boolean | 'figures' }) {
   const provider = isProvider(c)
   return (
     <>
       <Similar c={c} slug={slug} className={className} title={provider ? 'Similar trusts' : 'Similar companies'} note={provider ? 'By type, region, size and shared vendors' : 'Computed from categories, size, country and shared hospitals'} />
       <Competitors c={c} slug={slug} className={className} />
       {provider && <NotYetHere c={c} slug={slug} className={className} />}
-      {signals && <Signals c={c} className={className} />}
+      {signals && <Signals c={c} className={className} figuresOnly={signals === 'figures'} />}
     </>
   )
 }

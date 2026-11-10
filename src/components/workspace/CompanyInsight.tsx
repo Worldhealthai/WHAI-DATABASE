@@ -147,7 +147,8 @@ interface Tile { label: string; value: React.ReactNode; hint?: React.ReactNode; 
 // The company in numbers: its size and how it is moving, its money, and
 // what we hold on it. Each tile says where its figure is from on hover; the
 // line under them says it once for all.
-export function CompanyStats({ c, contacts, className = '' }: { c: IntelCompany; contacts: number; className?: string }) {
+// `named` is how many more people Lusha names who are not in the CRM.
+export function CompanyStats({ c, contacts, named = 0, className = '' }: { c: IntelCompany; contacts: number; named?: number; className?: string }) {
   const provider = isProvider(c)
   const figures = useMemo(() => c.figures ?? c.signals.filter((s) => !s.source.url && !isNews(s.type)), [c.figures, c.signals])
   const of = (re: RegExp) => figures.find((s) => re.test(s.type))
@@ -202,7 +203,7 @@ export function CompanyStats({ c, contacts, className = '' }: { c: IntelCompany;
   if (sourced > 0) tiles.push({ label: provider ? 'Vendors' : 'Hospitals', value: num(sourced), hint: 'named in sourced announcements', title: 'A lower bound: only those with a source' })
   if (c.founded) tiles.push({ label: provider ? 'Formed' : 'Founded', value: String(c.founded), hint: c.hq ?? undefined })
   else if (c.hq) tiles.push({ label: 'Based in', value: provider && c.region ? c.region : c.hq })
-  tiles.push({ label: 'In the CRM', value: `${num(contacts)} ${contacts === 1 ? 'contact' : 'contacts'}`, hint: c.people.length ? `${c.people.length} more named by Lusha` : undefined })
+  tiles.push({ label: 'In the CRM', value: `${num(contacts)} ${contacts === 1 ? 'contact' : 'contacts'}`, hint: named > 0 ? `${named} more named by Lusha` : undefined })
   if (c.status && c.status !== 'Active') tiles.push({ label: 'Status', value: c.acquiredBy ? `${c.status} by ${c.acquiredBy}` : c.status })
 
   // Where the figures are from, once.

@@ -198,6 +198,8 @@ export interface IntelCompany {
   // traffic, IT spend). Absent where that function is not installed.
   news?: Signal[]
   figures?: Signal[]
+  // Lusha's figures as it sent them, the latest 30, for the Signals list.
+  activity?: Signal[]
   signalsTotal?: number
   people: IntelPerson[]
   facts: Fact[]
