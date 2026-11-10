@@ -18,7 +18,8 @@ export const ASSIGN_STAGES: Record<AssignAs, string[]> = {
   sponsor: ['Not Contacted', 'Emailed', 'In Discussion', 'Confirmed'],
   partner: ['Not Contacted', 'Emailed', 'In Discussion', 'Confirmed'],
   speaker: ['Not Contacted', 'Invited', 'Discussing', 'Speaking Confirmed'],
-  delegate: ['Registered', 'Confirmed'],
+  // A contact moved in from an inbox has enquired, not booked: that first.
+  delegate: ['Enquired', 'Registered', 'Confirmed'],
 }
 export function assignStage(assignAs: AssignAs, status: unknown): string {
   const options = ASSIGN_STAGES[assignAs]

@@ -93,7 +93,8 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
     <div className="space-y-3">
       {/* The composer: the kinds as one switch; the box once one is picked. */}
       <form onSubmit={handleSubmit} className="space-y-2">
-        <div className="crm-seg" role="group" aria-label="Log an activity">
+        {/* All five fit the narrow side column: they share its width, each as wide as its word needs. */}
+        <div className="crm-seg !flex w-full" role="group" aria-label="Log an activity">
           {ACTIVITY_TYPE_OPTIONS.map((t) => {
             const Icon = ACTIVITY_ICONS[t]
             return (
@@ -103,7 +104,7 @@ export function ActivityFeed({ activities, entityType, entityId, onActivityAdded
                 onClick={() => setType(type === t ? null : t)}
                 data-active={type === t}
                 aria-pressed={type === t}
-                className="crm-seg-item inline-flex items-center gap-1 h-7 px-2.5 text-[12px] font-medium"
+                className="crm-seg-item inline-flex flex-auto items-center justify-center gap-1 h-7 px-1 text-[12px] font-medium"
                 title={`Log a ${ACTIVITY_TYPE_LABELS[t].toLowerCase()}`}
               >
                 <Icon className="w-3 h-3" />

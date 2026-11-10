@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
     // is on the email and the edition sent; a call that names no edition
     // falls back to the email alone, as before.
     const byEmailAndEdition = () => {
-      let sel = supabase.from(table).select('id, event').ilike('email', escapeLike(email!))
+      let sel = supabase.from(table).select('id, event, status').ilike('email', escapeLike(email!))
       if (common.event) sel = sel.ilike('event', escapeLike(common.event))
       return sel
     }
@@ -412,7 +412,9 @@ export async function POST(req: NextRequest) {
         // Already in the CRM: still take the marketing details (a headshot
         // uploaded afterwards) and the consent answer, as far as it applies
         // to the edition this row is filed under.
-        const updates = { ...marketing, ...consentFor(existing[0].event) }
+        // Someone who had only enquired has now booked: they are Registered.
+        const booked = table === 'delegates' && existing[0].status === 'Enquired' ? { status: 'Registered' } : {}
+        const updates = { ...marketing, ...consentFor(existing[0].event), ...booked }
         if (Object.keys(updates).length) {
           const { error: mErr } = await writeWithFallback(updates, (r) => supabase.from(table).update(r).eq('id', existing[0].id))
           if (mErr && !isMissingMarketingColumn(mErr) && !isMissingConsentColumn(mErr)) console.warn('register: marketing/consent update failed:', mErr.message)

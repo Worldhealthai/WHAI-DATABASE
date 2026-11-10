@@ -33,9 +33,80 @@ export interface Enquiry {
   replies: { id: string; subject: string; body: string; to: string; at: string; brand: string | null }[]
   // Moved into the CRM through "Move to CRM" (rather than found by email).
   linked: boolean
+  // List mode (?edition=): the CRM record this person has, if any.
+  crm?: { kind: 'delegate' | 'speaker' | 'sponsor'; id: string; status: string | null } | null
+}
+
+// GET /api/enquiries?edition=pharma-london-2027 — everyone who enquired
+// about one edition (the admin inbox's enquiries and agenda requests filed
+// under it), newest first, each with the replies sent and the CRM record
+// the person has, for the Event area's Enquired page.
+async function listForEdition(edition: string) {
+  const pub = supabase.schema('public')
+  // Enquiries carry the edition's slug; agenda requests carry the id of its
+  // row in the admin's events table.
+  const [subsRes, eventRes] = await Promise.all([
+    pub.from('contact_submissions').select('*').eq('event_id', edition).order('created_at', { ascending: false }).limit(500),
+    pub.from('events').select('id').eq('slug', edition).maybeSingle(),
+  ])
+  if (subsRes.error) throw new Error(subsRes.error.message)
+  const subs = (subsRes.data ?? []) as Row[]
+  const eventId = eventRes.data?.id as string | undefined
+  const agendaRes = eventId
+    ? await pub.from('agenda_requests').select('*').eq('event_id', eventId).order('created_at', { ascending: false }).limit(500)
+    : null
+  const agenda = (agendaRes?.data ?? []) as Row[]
+  const replies = new Map<string, Row[]>()
+  for (let i = 0; i < subs.length; i += 200) {
+    const { data } = await pub.from('contact_replies').select('*').in('submission_id', subs.slice(i, i + 200).map((s) => s.id)).order('created_at', { ascending: true })
+    for (const r of data ?? []) replies.set(r.submission_id, [...(replies.get(r.submission_id) ?? []), r])
+  }
+  // Who of them is in the CRM, and where they have got to there.
+  const emails = Array.from(new Set([...subs, ...agenda].map((r) => String(r.email || '').trim().toLowerCase()).filter(Boolean)))
+  const crm = new Map<string, NonNullable<Enquiry['crm']>>()
+  for (let i = 0; i < emails.length; i += 100) {
+    const batch = emails.slice(i, i + 100)
+    const [sp, dl, co] = await Promise.all([
+      supabase.from('speakers').select('id, email, status, "updatedAt"').in('email', batch),
+      supabase.from('delegates').select('id, email, status, "updatedAt"').in('email', batch),
+      supabase.from('sponsors').select('id, "companyId", "contactEmail", status').in('contactEmail', batch),
+    ])
+    // A sponsor record first, then a speaker's, then a delegate's.
+    for (const r of dl.data ?? []) crm.set(String(r.email).toLowerCase(), { kind: 'delegate', id: r.id, status: r.status ?? null })
+    for (const r of sp.data ?? []) crm.set(String(r.email).toLowerCase(), { kind: 'speaker', id: r.id, status: r.status ?? null })
+    for (const r of co.data ?? []) crm.set(String(r.contactEmail).toLowerCase(), { kind: 'sponsor', id: r.companyId ?? r.id, status: r.companyId ? null : r.status ?? null })
+  }
+  const of = (email: unknown) => crm.get(String(email || '').trim().toLowerCase()) ?? null
+  const enquiries: Enquiry[] = [
+    ...subs.map((s) => ({
+      kind: 'enquiry' as const, id: s.id, receivedAt: s.created_at, type: s.inquiry_type ?? null, subject: s.subject ?? null, message: s.message ?? null,
+      event: s.event_label ?? null, site: s.source_site ?? s.event_series ?? null,
+      from: { name: s.name ?? null, email: s.email ?? null, organisation: s.organisation ?? s.company ?? null },
+      respondedAt: s.responded_at ?? null, teamNote: (s.admin_notes || '').trim() || null,
+      replies: (replies.get(s.id) ?? []).map((r) => ({ id: r.id, subject: r.subject, body: r.body, to: r.to_email, at: r.created_at, brand: r.brand ?? null })),
+      linked: Boolean(s.crm_staged_at), crm: of(s.email),
+    })),
+    ...agenda.map((a) => ({
+      kind: 'agenda' as const, id: a.id, receivedAt: a.created_at, type: 'Agenda request', subject: null, message: null,
+      event: a.event_label ?? null, site: a.source_site ?? a.event_series ?? null,
+      from: { name: `${a.first_name || ''} ${a.last_name || ''}`.trim() || null, email: a.email ?? null, organisation: a.company ?? null },
+      respondedAt: a.sent_at ?? a.reviewed_at ?? null, teamNote: (a.admin_notes || '').trim() || null, sentAt: a.sent_at ?? null, status: a.status ?? null,
+      replies: [], linked: Boolean(a.crm_staged_at), crm: of(a.email),
+    })),
+  ].sort((x, y) => String(y.receivedAt).localeCompare(String(x.receivedAt)))
+  return enquiries
 }
 
 export async function GET(req: NextRequest) {
+  const edition = (req.nextUrl.searchParams.get('edition') || '').trim().toLowerCase()
+  if (edition) {
+    if (!/^[a-z0-9-]{3,80}$/.test(edition)) return NextResponse.json({ error: 'edition is not a slug' }, { status: 400 })
+    try {
+      return NextResponse.json({ enquiries: await listForEdition(edition) })
+    } catch (error: any) {
+      return NextResponse.json({ error: String(error?.message || error).slice(0, 300) }, { status: 500 })
+    }
+  }
   const kind = req.nextUrl.searchParams.get('kind') || ''
   const id = req.nextUrl.searchParams.get('id') || ''
   const table = TABLE[kind]

@@ -182,6 +182,9 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
   const events = companyEvents(a, ws.slug)
   const deployments = intel ? (isProvider ? intel.providerDeployments : intel.vendorDeployments) : []
   const newsCount = intel ? (intel.news ?? intel.signals).filter((x) => x.source.url).length : 0
+  // The people Lusha names who are not in the CRM yet: listed under the team.
+  const known = new Set(members.map((m) => m.name.trim().toLowerCase()))
+  const lushaMore = intel ? intel.people.filter((x) => !known.has(x.name.trim().toLowerCase())).length : 0
 
   // The page, top to bottom, as links: only what this company has.
   const sections: SectionLink[] = [
@@ -250,14 +253,14 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
           <SectionNav items={sections} className="order-1" />
 
           {/* The numbers, what they do, and the news */}
-          {intel && <CompanyStats c={intel} contacts={a.people} className="order-2" />}
+          {intel && <CompanyStats c={intel} contacts={a.people} named={lushaMore} className="order-2" />}
           {intel && <div id="about" className="order-3 scroll-mt-4"><IntelDescription c={intel} /></div>}
           {intel && <CompanyNews c={intel} className="order-4" />}
           {intel && deployments.length > 0 && <div id="deployments" className="order-5 scroll-mt-4"><IntelDeployments c={intel} slug={ws.slug} /></div>}
 
           {/* The team: the CRM's people, then anyone Lusha names besides */}
           <section className="ws-card overflow-hidden order-6 scroll-mt-4" id="team">
-            <CardHead title={isProvider ? 'People' : 'Team'} count={members.length} sub={<NameHint />} />
+            <CardHead title={isProvider ? 'People' : 'Team'} count={<>{members.length}{lushaMore > 0 && <span> in the CRM · {lushaMore} more named by Lusha, below</span>}</>} sub={<NameHint />} />
             <Members members={members} query="" company={a.name} add={personAdd} where="event" account={a} flush openAdd={openAdd} />
             {intel && <IntelPeopleNamed c={intel} exclude={members.map((m) => m.name)} type={a.firmographic} />}
           </section>
@@ -269,7 +272,7 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
         {/* The companies around them */}
         {intel && (
           <ProfileSide>
-            <IntelSidebar c={intel} slug={ws.slug} className="order-7" signals={false} />
+            <IntelSidebar c={intel} slug={ws.slug} className="order-7" signals="figures" />
           </ProfileSide>
         )}
       </div>

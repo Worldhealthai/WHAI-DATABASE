@@ -61,6 +61,8 @@ export const PORTALS: Record<PortalKey, PortalDef> = {
       // The agenda on its own, so it is always in sight.
       { key: 'agenda', label: 'Agenda', icon: CalendarDays, path: 'agenda' },
       { key: 'registrations', label: 'Registrations', icon: ClipboardList, path: 'registrations', group: 'Event' },
+      // Everyone who enquired about the edition, with what was said both ways.
+      { key: 'enquired', label: 'Enquired', icon: Inbox, path: 'enquired', group: 'Event' },
       { key: 'marketing', label: 'Marketing overview', icon: Sparkles, path: 'marketing', group: 'Marketing' },
       { key: 'speaker-posts', label: 'Speaker posts', icon: Megaphone, path: 'speaker-posts', group: 'Marketing' },
       { key: 'sponsor-posts', label: 'Sponsor posts', icon: Building2, path: 'sponsor-posts', group: 'Marketing' },

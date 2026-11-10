@@ -15,7 +15,8 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ClipboardList, ExternalLink, Search } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace'
 import { Pagination } from '@/components/search/Pagination'
-import { EmptyState, Initials, Segmented, timeAgo } from './ui'
+import { EmptyState, Segmented, timeAgo } from './ui'
+import { KINDS } from '@/lib/recordKinds'
 import { WorkspacePage } from './WorkspacePage'
 
 export interface Booking {
@@ -97,6 +98,7 @@ export function RegistrationsView() {
 
   return (
     <WorkspacePage
+      wide
       title="Registrations"
       description={`Everyone who booked for the ${year} edition, as the admin panel lists them. Approve and reject in the admin panel; it updates here.`}
       actions={data?.admin ? <a href={data.admin} target="_blank" rel="noopener noreferrer" className="ws-btn"><ExternalLink className="w-4 h-4" /> Open the admin panel</a> : null}
@@ -122,38 +124,44 @@ export function RegistrationsView() {
         {error ? <EmptyState icon={AlertTriangle} title="Couldn’t load the registrations" body={(error as Error).message} /> :
          isLoading ? <div className="flex flex-col gap-2 p-4">{Array.from({ length: 8 }, (_, i) => <div key={i} className="h-11 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />)}</div> :
          rows.length === 0 ? <EmptyState icon={ClipboardList} title="No one here" body={query ? 'Try another search.' : 'Nobody in this queue for the edition.'} /> : (
+          // Every column in view at once: the table keeps to the card's width,
+          // the person's line shortens to fit (their full details on hover),
+          // and only a narrow screen scrolls it sideways.
           <div className="overflow-x-auto">
-            <table className="ws-table w-full min-w-[900px]">
+            <table className="ws-table ws-table-fixed w-full min-w-[760px]">
+              <colgroup>
+                <col />
+                <col style={{ width: '21%' }} />
+                <col style={{ width: 156 }} />
+                <col style={{ width: 132 }} />
+                <col style={{ width: 164 }} />
+                <col style={{ width: 92 }} />
+              </colgroup>
               <thead><tr><th>Person</th><th>Company</th><th>Type</th><th>Pass</th><th>Stage</th><th className="text-right">Booked</th></tr></thead>
               <tbody>
                 {shown.map((b) => {
                   const name = bookingName(b)
                   const href = b.crm ? `/${b.crm.kind}s/${b.crm.id}` : null
+                  const sub = [b.job_position, b.email].filter(Boolean).join(' · ') || '—'
+                  const who = (
+                    <>
+                      <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{name}</span>
+                      <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{sub}</span>
+                    </>
+                  )
+                  const stage = b.crm?.status ? KINDS[b.crm.kind].statusLabel(b.crm.status) : b.status === 'approved' ? 'Not filed yet' : '—'
                   return (
                     <tr key={b.id}>
-                      <td>
-                        {href ? (
-                          <Link href={href} className="flex items-center gap-3 min-w-0">
-                            <Initials name={name} size={30} />
-                            <span className="min-w-0">
-                              <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{name}</span>
-                              <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[b.job_position, b.email].filter(Boolean).join(' · ') || '—'}</span>
-                            </span>
-                          </Link>
-                        ) : (
-                          <span className="flex items-center gap-3 min-w-0">
-                            <Initials name={name} size={30} />
-                            <span className="min-w-0">
-                              <span className="block text-[13.5px] font-medium truncate" style={{ color: 'var(--fg)' }}>{name}</span>
-                              <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{[b.job_position, b.email].filter(Boolean).join(' · ') || '—'}</span>
-                            </span>
-                          </span>
-                        )}
+                      <td title={`${name}\n${sub}`}>
+                        {href ? <Link href={href} className="block min-w-0 hover:underline underline-offset-4">{who}</Link> : <span className="block min-w-0">{who}</span>}
                       </td>
-                      <td className="text-[13px] truncate max-w-[200px]" style={{ color: 'var(--fg-2)' }}>{b.company || '—'}</td>
-                      <td className="text-[13px] whitespace-nowrap" style={{ color: 'var(--fg-2)' }}>{bookingCompanyType(b) ?? '—'}<span style={{ color: 'var(--fg-4)' }}> · {isSpeakerBooking(b) ? 'Speaking' : 'Attending'}</span></td>
-                      <td className="text-[13px]" style={{ color: pass(b) ? 'var(--fg-2)' : 'var(--fg-4)' }}>{pass(b) ?? '—'}</td>
-                      <td className="text-[12.5px] whitespace-nowrap" style={{ color: b.crm ? 'var(--fg-2)' : 'var(--fg-4)' }}>{b.crm?.status ?? (b.status === 'approved' ? 'Not filed yet' : '—')}</td>
+                      <td className="text-[13px] truncate" style={{ color: 'var(--fg-2)' }} title={b.company ?? undefined}>{b.company || '—'}</td>
+                      <td>
+                        <span className="block text-[13px] truncate" style={{ color: 'var(--fg-2)' }}>{bookingCompanyType(b) ?? '—'}</span>
+                        <span className="block text-[12px]" style={{ color: 'var(--fg-4)' }}>{isSpeakerBooking(b) ? 'Speaking' : 'Attending'}</span>
+                      </td>
+                      <td className="text-[13px] truncate" style={{ color: pass(b) ? 'var(--fg-2)' : 'var(--fg-4)' }}>{pass(b) ?? '—'}</td>
+                      <td className="text-[12.5px] truncate" style={{ color: b.crm ? 'var(--fg-2)' : 'var(--fg-4)' }} title={stage}>{stage}</td>
                       <td className="text-right text-[12.5px] whitespace-nowrap" style={{ color: 'var(--fg-4)' }}>{timeAgo(b.created_at)}</td>
                     </tr>
                   )

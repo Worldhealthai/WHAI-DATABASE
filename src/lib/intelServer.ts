@@ -19,10 +19,11 @@ export async function readIntelCompany(key: string | null, name: string | null):
       // Its news and its latest figures, read apart (migration 020). Where
       // that is not installed the page falls back to the latest signals.
       const more = await supabase.rpc('intel_signals', { p_key: want })
-      const doc = more.error ? null : (more.data as { news?: unknown; figures?: unknown; total?: unknown } | null)
+      const doc = more.error ? null : (more.data as { news?: unknown; figures?: unknown; activity?: unknown; total?: unknown } | null)
       if (doc && Array.isArray(doc.news) && Array.isArray(doc.figures)) {
         company.news = doc.news as IntelCompany['news']
         company.figures = doc.figures as IntelCompany['figures']
+        if (Array.isArray(doc.activity)) company.activity = doc.activity as IntelCompany['activity']
         company.signalsTotal = Number(doc.total) || 0
       }
       return company
