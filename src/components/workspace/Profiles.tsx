@@ -19,7 +19,7 @@ import { useWorkspace } from '@/lib/workspace'
 import { companyKey, type Account, type Person, type Relationship } from '@/lib/segments'
 import { Field, Modal, Segmented } from './ui'
 import { AddButton, Members, PersonAdds, Sides, TypeBadge, companyHref, recHref, roles, usePipelineAdd } from './Segments'
-import { IntelCompanyStrip, IntelDeployments, IntelDescription, IntelPeopleNamed, IntelSidebar, IntelStrip, NoIntel, useIntel } from './IntelPanel'
+import { IntelCompanyStrip, IntelDeployments, IntelDescription, IntelPeopleNamed, IntelSidebar, IntelStrip, NoIntel, useCategoryName, useIntel } from './IntelPanel'
 import { isProvider as intelIsProvider, providerTypeLabel } from '@/lib/intel'
 
 function useCompany(key: string | null, name: string | null) {
@@ -268,6 +268,7 @@ export function ContactProfile({ id }: { id: string }) {
   const company = useCompany(lead?.companyName ? companyKey(lead.companyName) : null, lead?.companyName ?? null)
   // The company's own categories, in place of Lusha's industry.
   const intelCo = useIntel(lead?.companyName ? companyKey(lead.companyName) : null, lead?.companyName ?? null).data?.company ?? null
+  const catName = useCategoryName()
   const back = ws.href('contacts')
 
   const move = async (to: 'speaker' | 'sponsor') => {
@@ -372,7 +373,7 @@ export function ContactProfile({ id }: { id: string }) {
             <Fact label="Type" value={type || '—'} />
             <Fact label="Location" value={where ? <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {where}</span> : '—'} />
             {intelCo?.categories.length
-              ? <Fact label="Category" value={<span className="whitespace-normal">{intelCo.categories.join(' · ')}</span>} />
+              ? <Fact label="Category" value={<span className="whitespace-normal">{intelCo.categories.map(catName).join(' · ')}</span>} />
               : <Fact label="Industry" value={[lead.industry, lead.subIndustry].filter(Boolean).join(' · ') || '—'} />}
             <Fact label="Website" value={lead.website ? <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline underline-offset-4"><Globe className="w-3.5 h-3.5" /> {lead.website.replace(/^https?:\/\/(www\.)?/, '')}</a> : '—'} />
             <Fact label="Added" value={fmtDate(lead.createdAt)} />

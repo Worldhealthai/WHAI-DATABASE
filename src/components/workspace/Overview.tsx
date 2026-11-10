@@ -146,11 +146,11 @@ function Recent({ labels }: { labels: string[] }) {
         />
       </div>
       {isLoading ? (
-        <div className="flex flex-col gap-2 px-5 pb-5">{[0, 1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />)}</div>
+        <div className="grid lg:grid-cols-2 gap-x-4 gap-y-2 px-5 pb-5">{[0, 1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg animate-pulse" style={{ background: 'var(--surface-2)' }} />)}</div>
       ) : rows.length === 0 ? (
         <p className="text-[13px] px-5 pb-8 pt-4 text-center" style={{ color: 'var(--fg-4)' }}>No {def.plural.toLowerCase()} in this edition yet.</p>
       ) : (
-        <ul className="px-3 pb-2">
+        <ul className="px-3 pb-2 grid lg:grid-cols-2 gap-x-4">
           {rows.map((r) => {
             const name = recordName(kind, r)
             return (
@@ -230,15 +230,13 @@ export function Overview() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-4 mt-4 items-start">
-        <div className="flex flex-col gap-4 min-w-0">
-          <FollowUps labels={labels} />
-        </div>
-        <div className="flex flex-col gap-4 min-w-0">
-          <AgendaSummary />
-          <Recent labels={labels} />
-        </div>
+      {/* Who to chase beside the agenda, at one height; the newest records
+          under them across the page, two to a row. */}
+      <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-4 mt-4 items-stretch">
+        <div className="min-w-0 [&>*]:h-full"><FollowUps labels={labels} /></div>
+        <div className="min-w-0 [&>*]:h-full"><AgendaSummary /></div>
       </div>
+      <div className="mt-4"><Recent labels={labels} /></div>
     </WorkspacePage>
   )
 }

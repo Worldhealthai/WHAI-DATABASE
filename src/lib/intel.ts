@@ -71,6 +71,10 @@ export interface Competitor {
   source: Source
 }
 
+// A category companies carry: its id (what a company holds), its name, and
+// how many companies in the intelligence layer carry it.
+export interface IntelCategory { id: string; name: string; companies: number }
+
 export interface Signal {
   id?: string
   type: string

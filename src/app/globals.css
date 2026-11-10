@@ -927,6 +927,9 @@
 
 /* Chips (filters) as pills, the chosen one glass */
 .ws-chip[data-active='true'] { background: var(--btn-glass-hover); border-color: var(--btn-rim); box-shadow: var(--btn-shadow); }
+/* A chip that is a dropdown: its list in the theme's own surface and ink
+   (the browser's default list is white, unreadable under the dark theme). */
+.ws-select-chip option, .ws-select-chip optgroup { background: var(--surface); color: var(--fg); }
 
 
 /* ── The entrance (the version Ali preferred, October 2026) ─────────────

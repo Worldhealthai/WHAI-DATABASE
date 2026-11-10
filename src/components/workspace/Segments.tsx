@@ -321,7 +321,10 @@ const whereOf = (event: string | null | undefined, where: Where) =>
 // `flush` is for a profile's card: the rows start at the card's own edge
 // (no room kept for a company's initials) and wash on hover; `openAdd`
 // receives the opener of the Add contact row, for a button elsewhere.
-export function Members({ members, query, company, add, where, account, flush, openAdd }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account; flush?: boolean; openAdd?: React.RefObject<(() => void) | null> }) {
+// `withCompany` is for a list of people picked out by a filter (Companies
+// with a job title chosen): each row is the person with their company named
+// beside them, on one line, and there is no "Add contact" row.
+export function Members({ members, query, company, add, where, account, flush, openAdd, withCompany }: { members: Member[]; query: string; company: string; add?: PipelineAdd; where: Where; account?: Account; flush?: boolean; openAdd?: React.RefObject<(() => void) | null>; withCompany?: boolean }) {
   const { slug } = useWorkspace()
   const seedOf = (m: Member) => ({ ...m, company: company !== NO_COMPANY_NAME ? company : null, type: account?.firmographic ?? null, href: recHref(slug, pageOf(m.records)) })
   // The panel steps through the list it was opened from.
@@ -335,14 +338,16 @@ export function Members({ members, query, company, add, where, account, flush, o
         // Once added from here, "Added · Undo" stays in view.
         const added = !!add && (add.done.has(`speaker:${m.key}`) || add.done.has(`sponsor:${m.key}`))
         return (
-          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_140px] items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit ? 'var(--accent-soft)' : undefined }}>
+          <li key={m.key} className={`group grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_250px_140px] items-center gap-x-4 gap-y-1 py-2.5 min-h-[52px] ${pad}`} style={{ borderTop: '1px solid var(--line-soft)', background: hit && !withCompany ? 'var(--accent-soft)' : undefined }}>
             {/* The name opens the contact panel; the link underneath is their page. */}
             <ContactLink seed={list[mi]} list={list} className="min-w-0 block" title={[m.name || m.email, m.jobTitle].filter(Boolean).join(' · ')}>
               <span className="block truncate text-[13px] leading-5">
                 <span className="font-medium hover:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{m.name || m.email}</span>
                 {m.jobTitle && <span style={{ color: 'var(--fg-3)' }}> · {m.jobTitle}</span>}
               </span>
-              {m.email && m.name && <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-4)' }}>{m.email}</span>}
+              {withCompany
+                ? <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-3)' }}>{company}{m.email && m.name ? <span style={{ color: 'var(--fg-4)' }}> · {m.email}</span> : null}</span>
+                : m.email && m.name && <span className="block truncate text-[12px] leading-4" style={{ color: 'var(--fg-4)' }}>{m.email}</span>}
             </ContactLink>
             <span className="flex flex-col sm:items-end gap-y-0.5 text-[12px] min-w-0">
               {roles(m.records).map((r, i) => (
@@ -364,7 +369,7 @@ export function Members({ members, query, company, add, where, account, flush, o
           </li>
         )
       })}
-      {account && account.key !== '__none' && <AddContact account={account} flush={flush} openRef={openAdd} />}
+      {account && account.key !== '__none' && !withCompany && <AddContact account={account} flush={flush} openRef={openAdd} />}
     </ul>
   )
 }
@@ -701,7 +706,10 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   // page in view, or every company once one of the two filters is on.
   const [sourced, setSourced] = useSticky(`${sk}.sourced`, false)
   const [intelCat, setIntelCat] = useSticky(`${sk}.category`, '')
-  const intelFiltering = sourced || !!intelCat
+  // The category list is opened: every company's card is wanted, so the
+  // list can offer only the categories these companies carry.
+  const [catsWanted, setCatsWanted] = useState(false)
+  const intelFiltering = sourced || !!intelCat || catsWanted
   const intel = useIntelCards()
   const q = query.trim().toLowerCase()
   const filtering = personFilterOn(pf)
@@ -712,14 +720,30 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
     return (a.members ?? []).filter((m) => personPasses(m, pf) && (!q || nameHit || matches(m, q)))
   }, [q, pf])
   const cardFor = intel.cardFor
-  const rows = useMemo(() => {
+  // A company carries a category by its id, or (a few) by its name.
+  const catNames = intel.categories
+  const carries = useMemo(() => {
+    const nameOf = new Map(catNames.map((c) => [c.id, c.name]))
+    return (cats: string[], id: string) => cats.includes(id) || (nameOf.has(id) && cats.includes(nameOf.get(id)!))
+  }, [catNames])
+  // A category remembered from before the list went by id (its name), or
+  // one no company carries any more: put right, or dropped.
+  useEffect(() => {
+    if (!intelCat || !catNames.length || catNames.some((c) => c.id === intelCat)) return
+    setIntelCat(catNames.find((c) => c.name === intelCat)?.id ?? '')
+  }, [intelCat, catNames, setIntelCat])
+  // Everything but the category filter: what the category list counts over.
+  const rowsAnyCat = useMemo(() => {
     return (data?.accounts ?? []).filter((a) => {
-      const card = sourced || intelCat ? cardFor(a.key, a.name) : null
+      const card = sourced ? cardFor(a.key, a.name) : null
       return (type === 'all' || a.firmographic === type) && (!conflicts || a.conflict) && (!both || (a.sides ?? []).length > 1) &&
-        (!sourced || (card?.hospitals ?? 0) > 0) && (!intelCat || card?.categories.includes(intelCat)) &&
+        (!sourced || (card?.hospitals ?? 0) > 0) &&
         (filtering ? peopleOf(a).length > 0 : !q || a.name.toLowerCase().includes(q) || (a.members ?? []).some((m) => matches(m, q)))
     })
-  }, [data, type, conflicts, both, sourced, intelCat, cardFor, q, filtering, peopleOf])
+  }, [data, type, conflicts, both, sourced, cardFor, q, filtering, peopleOf])
+  const rows = useMemo(
+    () => (intelCat ? rowsAnyCat.filter((a) => carries(cardFor(a.key, a.name)?.categories ?? [], intelCat)) : rowsAnyCat),
+    [rowsAnyCat, intelCat, carries, cardFor])
   // Every job title among the companies in view (by type and the other
   // people filter), with how many people hold it: what the title filter
   // offers.
@@ -744,6 +768,15 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
   // one of the two intelligence filters is on.
   const intelKeys = useMemo(() => (intelFiltering ? (data?.accounts ?? []) : shown).map((a) => a.key), [intelFiltering, data, shown])
   const intelLoaded = useIntelCardsFor(intel, intelKeys)
+  // The categories on offer: once every card is in, those that at least one
+  // company in the list (as the other filters leave it) carries, with how
+  // many; before that, every category in use. The one picked stays listed.
+  const catOptions = useMemo(() => {
+    const counted = intelFiltering && intelLoaded
+    return catNames
+      .map((c) => ({ ...c, n: counted ? rowsAnyCat.filter((a) => carries(cardFor(a.key, a.name)?.categories ?? [], c.id)).length : null as number | null }))
+      .filter((c) => c.n === null || c.n > 0 || c.id === intelCat)
+  }, [catNames, intelFiltering, intelLoaded, rowsAnyCat, carries, cardFor, intelCat])
   const add = usePipelineAdd()
   const exportCompanies = () => {
     const out: (string | number | null)[][] = []
@@ -805,10 +838,11 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
             </button>
             <label className="inline-flex items-center">
               <span className="sr-only">Category</span>
-              <select className="ws-chip !pr-7 appearance-none cursor-pointer" data-active={!!intelCat} value={intelCat} onChange={(e) => { setIntelCat(e.target.value); setPage(1) }}
+              <select className="ws-chip ws-select-chip !pr-7 appearance-none cursor-pointer" data-active={!!intelCat} value={intelCat} onChange={(e) => { setIntelCat(e.target.value); setPage(1) }}
+                onPointerDown={() => setCatsWanted(true)} onFocus={() => setCatsWanted(true)}
                 style={{ backgroundImage: 'none' }}>
                 <option value="">Any category</option>
-                {intel.categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                {catOptions.map((c) => <option key={c.id} value={c.id}>{c.name}{c.n != null ? ` (${c.n})` : ''}</option>)}
               </select>
               <ChevronDown className="w-3.5 h-3.5 -ml-6 pointer-events-none" style={{ color: 'var(--fg-4)' }} />
             </label>
@@ -822,7 +856,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                 options={[{ value: 'any', label: 'Health or Pharma' }, { value: 'Health', label: 'Health' }, { value: 'Pharma', label: 'Pharma' }]} />
             )}
           </FilterRow>
-          {!error && !isLoading && rows.length > 0 && (
+          {!error && !isLoading && rows.length > 0 && !filtering && (
             <div className={`crm-colhead hidden lg:grid ${grid} gap-3 px-4 h-9 items-center`}>
               <span className="pl-[84px]">Company</span>{showType && <span>Type</span>}{everything && <span>Events</span>}<span>{add.year} sales</span>
               <span className="text-right" title="About, from LinkedIn via Lusha">Team</span><span className="pl-4">HQ</span><span className="text-right" title="Hospitals named in sourced announcements, a lower bound">Hospitals</span><span className="text-right">Similar</span>
@@ -840,6 +874,19 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
               {shown.map((a) => {
                 const found = q || filtering ? peopleOf(a) : []
                 const expanded = open.has(a.key) || found.length > 0
+                // A people filter is on (a job title, Health or Pharma): the
+                // people it picks out, each on one row with their company,
+                // and no company row above naming somebody else.
+                if (filtering) {
+                  return (
+                    <div key={a.key}>
+                      <Members members={found} query="" company={a.name} add={add} where={everything ? 'event' : scope === 'series' ? 'year' : 'none'} account={a} flush withCompany />
+                    </div>
+                  )
+                }
+                // A search that found people here, not the company's name:
+                // say how many, rather than name its main contact.
+                const peopleHit = !!q && found.length > 0 && !a.name.toLowerCase().includes(q)
                 return (
                   <div key={a.key}>
                     <div className={`crm-lrow grid ${grid} gap-3 items-center px-3 sm:px-4 py-2 min-h-[56px]`} data-open={expanded}>
@@ -851,7 +898,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                           <Initials name={a.name} size={32} />
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate group-hover/co:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
-                            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{showType && a.firmographic && <span className="lg:hidden" style={{ color: 'var(--fg-2)' }}>{a.firmographic}{a.conflict && <AlertTriangle className="w-3 h-3 inline -mt-0.5 ml-1" style={{ color: 'var(--warn)' }} aria-label="To check" />} · </span>}{a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
+                            <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{showType && a.firmographic && <span className="lg:hidden" style={{ color: 'var(--fg-2)' }}>{a.firmographic}{a.conflict && <AlertTriangle className="w-3 h-3 inline -mt-0.5 ml-1" style={{ color: 'var(--warn)' }} aria-label="To check" />} · </span>}{peopleHit ? `${found.length} matching ${found.length === 1 ? 'person' : 'people'} below` : a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
                             {a.conflict && a.disagree?.length ? (
                               <span className="block text-[11.5px] truncate" style={{ color: 'var(--warn)' }} title={a.disagree.join('\n')}>
                                 {a.disagree[0]}{a.disagree.length > 1 ? ` +${a.disagree.length - 1} more` : ''}

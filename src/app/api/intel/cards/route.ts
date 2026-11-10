@@ -1,11 +1,11 @@
 // GET /api/intel/cards?keys=a,b,c — the intelligence layer's light row for
 // each CRM companyKey asked for (crm.v_intel_cards), and the categories a
-// company can carry (crm.v_intel_categories) for the Companies tab's
-// dropdown. The tab asks for the keys on the page it shows, so a request
+// company carries (crm.v_intel_categories: id, name and how many companies)
+// for the Companies tab's dropdown. The tab asks for the keys on the page it shows, so a request
 // carries at most 200 keys. Without keys, only the categories come back.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { cardFromRow, type IntelCard } from '@/lib/intel'
+import { cardFromRow, type IntelCard, type IntelCategory } from '@/lib/intel'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const [cardsRes, catsRes] = await Promise.all([
       keys.length ? supabase.from('v_intel_cards').select('*').in('crm_key', keys) : Promise.resolve({ data: [], error: null }),
-      wantCategories ? supabase.from('v_intel_categories').select('name, vertical, companies').order('name') : Promise.resolve({ data: null, error: null }),
+      wantCategories ? supabase.from('v_intel_categories').select('id, name, companies').order('name') : Promise.resolve({ data: null, error: null }),
     ])
     if (cardsRes.error) throw new Error(cardsRes.error.message)
     if (catsRes.error) throw new Error(catsRes.error.message)
@@ -32,8 +32,12 @@ export async function GET(req: NextRequest) {
       seen.add(c.crmKey)
       cards.push(c)
     }
-    const body: { cards: IntelCard[]; categories?: string[] } = { cards }
-    if (catsRes.data) body.categories = (catsRes.data as { name: string }[]).map((c) => c.name)
+    const body: { cards: IntelCard[]; categories?: IntelCategory[] } = { cards }
+    if (catsRes.data) {
+      body.categories = (catsRes.data as { id: string; name: string; companies: number }[])
+        .filter((c) => c.id && Number(c.companies) > 0)
+        .map((c) => ({ id: c.id, name: c.name || c.id, companies: Number(c.companies) }))
+    }
     return NextResponse.json(body)
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not load the intelligence cards' }, { status: 500 })
