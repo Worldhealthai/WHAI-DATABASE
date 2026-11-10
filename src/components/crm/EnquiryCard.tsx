@@ -10,9 +10,9 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, CornerDownRight, Inbox } from 'lucide-react'
 import type { Enquiry } from '@/app/api/enquiries/route'
 
-const fmt = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+export const fmt = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
 const TYPE: Record<string, string> = { sponsorship: 'Sponsorship', speaker: 'Speaking', speaking: 'Speaking', delegate: 'Attending', partnership: 'Partnership', media: 'Media', general: 'General' }
-const typeLabel = (t: string | null) => (t ? TYPE[t.toLowerCase()] ?? t.charAt(0).toUpperCase() + t.slice(1) : 'Enquiry')
+export const typeLabel = (t: string | null) => (t ? TYPE[t.toLowerCase()] ?? t.charAt(0).toUpperCase() + t.slice(1) : 'Enquiry')
 
 export function useEnquiries(kind: string, id: string) {
   return useQuery<{ enquiries: Enquiry[] }>({
@@ -26,7 +26,7 @@ export function useEnquiries(kind: string, id: string) {
   })
 }
 
-function Answered({ e }: { e: Enquiry }) {
+export function Answered({ e }: { e: Enquiry }) {
   if (e.kind === 'agenda') {
     return e.sentAt
       ? <span style={{ color: 'var(--ok)' }}>Agenda sent {fmt(e.sentAt)}</span>
