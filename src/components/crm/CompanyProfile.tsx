@@ -139,7 +139,9 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
             </div>
             {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
             <NextStep
-              where={<WhereLine label={`In ${board.label}`} kind={kind} status={company.status} extra={<>
+              where={<WhereLine label={company.event ? `In ${board.label}` : 'In the directory, in no event yet'} kind={kind} status={company.status} extra={<>
+                {/* No event: the company is on a side only, until it goes into an edition's pipeline. */}
+                {!company.event && focusOf(company.tags).length > 0 && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{focusOf(company.tags).join(' and ')} side</span>}
                 {edition && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{shortEventName(company.event ?? '')}</span>}
                 {closed && company.updatedAt && <span className="text-[12px]" style={{ color: 'var(--fg-4)' }}>since {fmtDate(company.updatedAt)}</span>}
                 {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
