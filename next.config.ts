@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // The CRM is private: no page of it belongs in a search engine (Google
+  // listed crm.worldnexusgroup.com/login, November 2026). Every response
+  // says so in a header; robots.txt still lets crawlers in, because a page
+  // they may not fetch is one whose "noindex" they never read.
+  async headers() {
+    return [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }]
+  },
   // Sales, Production and Marketing became one workspace per event: old
   // links and bookmarks land on the same page there (the ?year= is kept).
   async redirects() {
