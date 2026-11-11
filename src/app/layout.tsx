@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   title: 'Nexus CRM',
   icons: { icon: '/wng-icon-192.png', apple: '/apple-icon.png' },
   description: 'World Nexus Group CRM — sales pipeline, sponsors, partners, speakers and delegates for every event.',
+  // Private: never in search results (with the X-Robots-Tag header, next.config).
+  robots: { index: false, follow: false },
 }
 
 export const viewport: Viewport = {
