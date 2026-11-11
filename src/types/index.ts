@@ -84,7 +84,8 @@ export const partnerConsentLabel = (v: boolean | null | undefined): string =>
   v === true ? 'Yes' : v === false ? 'No' : ''
 
 // The pass a Solution Provider holds: part of a sponsorship, a paid ticket,
-// or complimentary. End Users don't pay, so they have none. (Older records
+// or complimentary. An End User holds one only when they paid (a Ticket: the
+// World Health AI Private Provider Pass, November 2026). (Older records
 // may still carry Standard, VIP, Press and so on; they show as they are.)
 export const DELEGATE_TICKET_OPTIONS = [
   'Sponsor',
