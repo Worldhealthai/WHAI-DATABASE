@@ -204,7 +204,7 @@ export function CompanyProfile({ companyKeyParam, name }: { companyKeyParam: str
           {/* Who they are, and where we are with them */}
           <header ref={headRef} className="ws-card overflow-hidden order-1">
             <div className="p-4 sm:p-5 flex flex-wrap sm:flex-nowrap items-start gap-x-4 gap-y-3">
-              <CompanyLogo src={intel?.logoUrl} />
+              <CompanyLogo key={a.key} src={intel?.logoUrl} website={intel?.domain ?? website} />
               <div className="flex-1 min-w-0">
                 <p className="text-[11.5px] font-medium flex items-center gap-2 flex-wrap" style={{ color: 'var(--fg-4)' }}>
                   <TypeBadge type={a.firmographic} conflict={a.conflict} /> <Sides sides={a.sides ?? []} />

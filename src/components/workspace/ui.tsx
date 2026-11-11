@@ -11,14 +11,21 @@ import { cn } from '@/lib/utils'
 import { KINDS, type RecordKind } from '@/lib/recordKinds'
 
 // A company's logo, on a white plate (logos are drawn for light paper). It
-// comes from the Intelligence dataset (Lusha's file for the company); with
-// none, or one that fails to load, nothing is shown.
-export function CompanyLogo({ src, size = 48, className = '' }: { src?: string | null; size?: number; className?: string }) {
-  const [failed, setFailed] = useState(false)
-  if (!src || failed) return null
+// is the Intelligence dataset's file for the company (Lusha's) when that
+// loads; otherwise the icon of the company's own website, by its domain.
+// Clearbit's logo service, which some older rows point at, has closed, so
+// those go straight to the site icon. With neither, nothing is shown.
+export function CompanyLogo({ src, website, size = 48, className = '' }: { src?: string | null; website?: string | null; size?: number; className?: string }) {
+  const domain = (website || '').trim().toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0]
+  const icon = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain) ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null
+  const first = src && !/logo\.clearbit\.com/i.test(src) ? src : null
+  const sources = [first, icon].filter((x): x is string => !!x)
+  const [failed, setFailed] = useState(0)
+  const url = sources[failed]
+  if (!url) return null
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)}
+    <img key={url} src={url} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed((n) => n + 1)}
       className={cn('rounded-xl object-contain shrink-0', className)} style={{ width: size, height: size, background: '#fff', border: '1px solid var(--line)' }} />
   )
 }
