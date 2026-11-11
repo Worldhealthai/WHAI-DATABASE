@@ -137,6 +137,8 @@ export interface IntelCard {
   vendors: number             // vendors named in sourced announcements (provider side)
   similar: number
   descriptionKind: DescriptionKind | null
+  logoUrl: string | null
+  domain: string | null
 }
 
 // The document crm.intel_company returns.
@@ -254,5 +256,7 @@ export function cardFromRow(r: Record<string, unknown>): IntelCard {
     vendors: n('vendors') ?? 0,
     similar: n('similar') ?? 0,
     descriptionKind: (s('description_kind') as DescriptionKind | null) ?? null,
+    logoUrl: s('logo_url'),
+    domain: s('domain'),
   }
 }

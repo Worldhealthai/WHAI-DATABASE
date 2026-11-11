@@ -171,6 +171,10 @@ export function to24h(raw: string): string {
 export function agendaStats(a: Agenda) {
   const talks = a.sessions.filter((s) => s.type !== 'break')
   const slots = talks.flatMap((s) => s.speakers.filter((x) => x.name.trim() && !x.backup))
+  // The Confirmed card counts a person once, where they will sit: a speaker
+  // who picked several panels is down on each, and only their option 1 (or
+  // a seat with no option set) is a seat confirmed or still to confirm.
+  const first = slots.filter((x) => !x.option || x.option === 1)
   const backups = talks.reduce((n, s) => n + s.speakers.filter((x) => x.name.trim() && x.backup).length, 0)
   const seats = talks.reduce((n, s) => { const k = sessionSeats(s); return n + k.moderators + k.speakers }, 0)
   const need = talks.reduce((acc, s) => { const n = sessionNeeds(s); acc.moderators += n.moderators; acc.speakers += n.speakers; return acc }, { moderators: 0, speakers: 0 })
@@ -179,8 +183,8 @@ export function agendaStats(a: Agenda) {
     breaks: a.sessions.length - talks.length,
     seats,
     filled: slots.length,
-    confirmed: slots.filter((s) => s.status === 'confirmed').length,
-    tbc: slots.filter((s) => s.status !== 'confirmed').length,
+    confirmed: first.filter((s) => s.status === 'confirmed').length,
+    tbc: first.filter((s) => s.status !== 'confirmed').length,
     backups,
     needModerators: need.moderators,
     needSpeakers: need.speakers,

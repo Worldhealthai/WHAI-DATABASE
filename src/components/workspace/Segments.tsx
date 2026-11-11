@@ -21,7 +21,7 @@ import type { Account, Firmographic, Member, Person, Relationship } from '@/lib/
 import { editionLabel, editionYears, eventLook, labelsForEdition } from '@/lib/portals'
 import { CopyPopover } from '@/components/crm/CopyPopover'
 import { Pagination } from '@/components/search/Pagination'
-import { EmptyState, Field, ListSkeleton, Modal, Segmented, formatMoney, timeAgo } from './ui'
+import { CompanyLogo, EmptyState, Field, ListSkeleton, Modal, Segmented, formatMoney, timeAgo } from './ui'
 import { StageDot, kindOfTable, stageLabel, stageTone } from '@/components/crm/profileParts'
 import { WorkspacePage } from './WorkspacePage'
 import { TitleFilter, tokenMatches, type TitleToken } from './TitleFilter'
@@ -353,7 +353,7 @@ export function Members({ members, query, company, add, where, account, flush, o
   // side, or they spill over the roles. Below a desktop there is room for
   // the button only, and the side is set in the contact panel.
   const wide = where === 'event' && !!add
-  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[52px] sm:pl-[56px] pr-4'
+  const pad = flush ? 'px-4 sm:px-5 crm-row' : 'pl-[52px] sm:pl-[100px] pr-4'
   return (
     <ul className="flex flex-col">
       {members.map((m, mi) => {
@@ -437,7 +437,7 @@ function AddContact({ account, flush, openRef }: { account: Account; flush?: boo
     <input className="ws-input h-8 text-[13px] min-w-0 flex-1 basis-[140px]" type={type} placeholder={ph} value={f[k]} onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))} />
   )
   return (
-    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[52px] sm:pl-[56px] pr-4'}`} style={{ borderTop: '1px solid var(--line-soft)' }}>
+    <li ref={rowRef} className={`py-2 ${flush ? 'px-4 sm:px-5' : 'pl-[52px] sm:pl-[100px] pr-4'}`} style={{ borderTop: '1px solid var(--line-soft)' }}>
       {!open ? (
         <span className="flex flex-wrap items-center gap-3">
           <button type="button" className={`ws-btn ws-btn-ghost ws-btn-sm !h-7 !px-2 ${flush ? '-ml-2 ws-tap' : ''}`} style={{ color: 'var(--accent-ink)' }} onClick={() => { setOpen(true); setMsg(null) }}>
@@ -887,7 +887,7 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
           </FilterRow>
           {!error && !isLoading && rows.length > 0 && !filtering && (
             <div className={`crm-colhead hidden lg:grid ${grid} gap-3 px-4 h-9 items-center`}>
-              <span className="pl-10">Company</span>{showType && <span>Type</span>}{everything && <span>Events</span>}<span>{add.year} sales</span>
+              <span className="pl-10 sm:pl-[84px]">Company</span>{showType && <span>Type</span>}{everything && <span>Events</span>}<span>{add.year} sales</span>
               <span className="text-right" title="About, from LinkedIn via Lusha">Team</span><span className="pl-4">HQ</span><span className="text-right" title="Hospitals named in sourced announcements, a lower bound">Hospitals</span><span className="text-right">Similar</span>
               <span className="text-right">People</span><span className="text-right">Updated</span>
             </div>
@@ -924,6 +924,8 @@ export function CompaniesView({ everything = false }: { everything?: boolean }) 
                           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                         <CompanyLink a={a} className="group/co flex items-center gap-3 min-w-0">
+                          {/* The logo keeps its square, so names line up down the list. */}
+                          <span className="w-8 h-8 shrink-0 hidden sm:block"><CompanyLogo key={a.key} src={cardFor(a.key, a.name)?.logoUrl} website={cardFor(a.key, a.name)?.domain ?? a.website} size={32} className="!rounded-lg" /></span>
                           <span className="min-w-0">
                             <span className="flex items-center gap-2 min-w-0"><span className="text-[13.5px] font-medium truncate group-hover/co:underline underline-offset-4" style={{ color: 'var(--fg)' }}>{a.name}</span>{everything && <Sides sides={a.sides ?? []} />}</span>
                             <span className="block text-[12px] truncate" style={{ color: 'var(--fg-3)' }}>{showType && a.firmographic && <span className="lg:hidden" style={{ color: 'var(--fg-2)' }}>{a.firmographic}{a.conflict && <AlertTriangle className="w-3 h-3 inline -mt-0.5 ml-1" style={{ color: 'var(--warn)' }} aria-label="To check" />} · </span>}{peopleHit ? `${found.length} matching ${found.length === 1 ? 'person' : 'people'} below` : a.best ? [a.best.name, a.best.jobTitle].filter(Boolean).join(' · ') : 'No contact yet'}</span>
