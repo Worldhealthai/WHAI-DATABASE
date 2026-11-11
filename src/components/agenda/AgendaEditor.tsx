@@ -22,6 +22,7 @@ import {
 import { EmptyState, Segmented, Stat } from '@/components/workspace/ui'
 import { WorkspacePage } from '@/components/workspace/WorkspacePage'
 import { Notice, useEdition, useMarketing, type SpeakerRow } from '@/components/marketing/shared'
+import { ConfirmedSpeakers } from './ConfirmedSpeakers'
 
 type Mode = 'edit' | 'view'
 
@@ -660,6 +661,8 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
               </div>
             )
           })()}
+
+          {edition && <ConfirmedSpeakers agenda={agenda!} edition={edition} lineup={lineup} />}
 
           <div className="ws-card px-5 py-4 mb-4">
             {view === 'edit' ? (
