@@ -190,7 +190,41 @@ export function agendaStats(a: Agenda) {
     needSpeakers: need.speakers,
     sessionsShort: talks.filter((s) => { const n = sessionNeeds(s); return n.moderators + n.speakers > 0 }).length,
     ...panelSeats(a),
+    ...stageSeats(a),
   }
+}
+
+// The agenda page's cards: the seats on the panels (one moderator and four
+// speakers each) and the fireside chats (one moderator and two speakers),
+// whatever a session's own seats were changed to. A seat counts once its
+// person is confirmed; someone named but still TBC is counted apart, and
+// what is left has nobody yet. Backups, and a speaker's option 2 or 3,
+// count for nothing; nor does a second moderator or a speaker over the
+// format's number.
+export function stageSeats(a: Agenda) {
+  const out = { stagePanels: 0, stageFiresides: 0, modSeats: 0, speakerSeats: 0, modsConfirmed: 0, speakersConfirmed: 0, modsTbc: 0, speakersTbc: 0 }
+  for (const s of a.sessions) {
+    if (s.type !== 'panel' && s.type !== 'fireside') continue
+    const per = seatsFor(s.type)
+    if (s.type === 'panel') out.stagePanels++
+    else out.stageFiresides++
+    out.modSeats += per.moderators
+    out.speakerSeats += per.speakers
+    const named = s.speakers.filter((x) => x.name.trim() && !x.backup && (!x.option || x.option === 1))
+    const count = (mod: boolean, cap: number) => {
+      const role = named.filter((x) => !!x.moderator === mod)
+      const confirmed = Math.min(cap, role.filter((x) => x.status === 'confirmed').length)
+      return { confirmed, tbc: Math.min(cap - confirmed, role.filter((x) => x.status !== 'confirmed').length) }
+    }
+    const m = count(true, per.moderators)
+    const k = count(false, per.speakers)
+    out.modsConfirmed += m.confirmed; out.modsTbc += m.tbc
+    out.speakersConfirmed += k.confirmed; out.speakersTbc += k.tbc
+  }
+  const seats = out.modSeats + out.speakerSeats
+  const confirmed = out.modsConfirmed + out.speakersConfirmed
+  const tbcSeats = out.modsTbc + out.speakersTbc
+  return { ...out, stageSeats: seats, stageConfirmed: confirmed, stageTbc: tbcSeats, stageEmpty: seats - confirmed - tbcSeats }
 }
 
 // The panels alone, each one moderator and four speakers (seatsFor), however

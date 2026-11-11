@@ -645,13 +645,21 @@ export function AgendaEditor({ mode }: { mode: Mode }) {
         <>
           <datalist id="agenda-lineup">{lineup.map((l) => <option key={l.id} value={l.name} />)}</datalist>
 
-          {/* Everything here excludes the breaks */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <Stat label="Sessions" value={st!.sessions} hint="Not counting breaks" />
-            <Stat label="Panel seats filled" value={<>{st!.panelFilled}<span className="text-[16px] font-medium" style={{ color: 'var(--fg-4)' }}> / {st!.panelSeats}</span></>} hint={!st!.panels ? 'No panels yet' : st!.panelsShort ? `${st!.panelsShort} of ${st!.panels} panel${st!.panels === 1 ? '' : 's'} with empty seats · 1 moderator and 4 speakers each` : `All ${st!.panels} panel${st!.panels === 1 ? '' : 's'} full · 1 moderator and 4 speakers each`} />
-            <Stat label="Confirmed" value={st!.confirmed} hint={`${st!.tbc ? `${st!.tbc} still TBC` : 'Everyone is confirmed'} · option 1 only`} />
-            <Stat label="Still needed" value={st!.needModerators + st!.needSpeakers} hint={due || 'No empty seats'} />
-          </div>
+          {/* The panels and fireside chats: seats confirmed, by role, and who is still TBC */}
+          {(() => {
+            const x = st!
+            const of = (n: number, total: number) => <>{n}<span className="text-[16px] font-medium" style={{ color: 'var(--fg-4)' }}> / {total}</span></>
+            const formats = [x.stagePanels ? `${x.stagePanels} panel${x.stagePanels === 1 ? '' : 's'}` : '', x.stageFiresides ? `${x.stageFiresides} fireside${x.stageFiresides === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ')
+            const tbcBy = [x.modsTbc ? `${x.modsTbc} moderator${x.modsTbc === 1 ? '' : 's'}` : '', x.speakersTbc ? `${x.speakersTbc} speaker${x.speakersTbc === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ')
+            return (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <Stat label="Seats confirmed" value={of(x.stageConfirmed, x.stageSeats)} hint={formats ? `Across ${formats}` : 'No panels or firesides yet'} />
+                <Stat label="Moderators" value={of(x.modsConfirmed, x.modSeats)} hint="Confirmed · 1 a session" />
+                <Stat label="Speakers" value={of(x.speakersConfirmed, x.speakerSeats)} hint="Confirmed · 4 a panel, 2 a fireside" />
+                <Stat label="TBC" value={x.stageTbc} hint={`${tbcBy ? `${tbcBy} · ` : ''}${x.stageEmpty} seat${x.stageEmpty === 1 ? '' : 's'} still empty`} />
+              </div>
+            )
+          })()}
 
           <div className="ws-card px-5 py-4 mb-4">
             {view === 'edit' ? (
