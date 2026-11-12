@@ -30,6 +30,7 @@ export interface Booking {
   attendee_type: string | null
   inquiry_type: string | null
   payment_status: string | null
+  ticket_name?: string | null
   pass?: string | null
   created_at: string
   crm: { kind: 'speaker' | 'delegate'; id: string; status: string | null } | null
@@ -64,7 +65,7 @@ export function usePendingBookings() {
 }
 
 // The pass, as the CRM files it (lib/crm on the Nexus side).
-const pass = (b: Booking) => b.pass ?? (/^sponsor /i.test(b.inquiry_type || '') ? 'Sponsor' : bookingCompanyType(b) === 'Solution Provider' ? (b.payment_status === 'paid' ? 'Ticket' : 'Complimentary') : null)
+const pass = (b: Booking) => b.pass ?? (/^sponsor /i.test(b.inquiry_type || '') ? 'Sponsor' : b.payment_status === 'paid' ? 'Ticket' : bookingCompanyType(b) === 'Solution Provider' ? 'Complimentary' : null)
 
 type Queue = 'approved' | 'pending' | 'rejected' | 'cancelled'
 const QUEUES: { key: Queue; label: string }[] = [
@@ -160,7 +161,7 @@ export function RegistrationsView() {
                         <span className="block text-[13px] truncate" style={{ color: 'var(--fg-2)' }}>{bookingCompanyType(b) ?? '—'}</span>
                         <span className="block text-[12px]" style={{ color: 'var(--fg-4)' }}>{isSpeakerBooking(b) ? 'Speaking' : 'Attending'}</span>
                       </td>
-                      <td className="text-[13px] truncate" style={{ color: pass(b) ? 'var(--fg-2)' : 'var(--fg-4)' }}>{pass(b) ?? '—'}</td>
+                      <td className="text-[13px] truncate" style={{ color: pass(b) ? 'var(--fg-2)' : 'var(--fg-4)' }} title={b.ticket_name ?? undefined}>{pass(b) ?? '—'}</td>
                       <td className="text-[12.5px] truncate" style={{ color: b.crm ? 'var(--fg-2)' : 'var(--fg-4)' }} title={stage}>{stage}</td>
                       <td className="text-right text-[12.5px] whitespace-nowrap" style={{ color: 'var(--fg-4)' }}>{timeAgo(b.created_at)}</td>
                     </tr>

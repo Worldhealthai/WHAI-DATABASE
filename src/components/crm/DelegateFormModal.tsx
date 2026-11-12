@@ -74,8 +74,10 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
     setError('')
     try {
       const body: any = { ...form, event: plan.main }
-      // End Users hold no pass; a legacy value is kept until someone changes it.
-      if (!isProvider && DELEGATE_TICKET_OPTIONS.includes(body.ticketType)) body.ticketType = ''
+      // An End User holds a pass only when they paid (a Ticket, such as the
+      // World Health AI Private Provider Pass); Sponsor and Complimentary
+      // are Solution Providers' passes. A legacy value is kept until someone changes it.
+      if (!isProvider && ['Sponsor', 'Complimentary'].includes(body.ticketType)) body.ticketType = ''
       // Remove empty optional strings
       Object.keys(body).forEach((k) => { if (body[k] === '') body[k] = null })
 
@@ -197,12 +199,12 @@ export function DelegateFormModal({ delegate, onClose, onSaved }: Props) {
                   {SUBTYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </Field>
-              {/* Only Solution Providers hold a pass (End Users attend free). */}
-              {isProvider || (form.ticketType && !DELEGATE_TICKET_OPTIONS.includes(form.ticketType)) ? (
+              {/* Solution Providers hold a pass; an End User only one they paid for (a Ticket). */}
+              {isProvider || (form.ticketType && !['Sponsor', 'Complimentary'].includes(form.ticketType)) ? (
                 <Field label="Pass">
                   <select value={form.ticketType} onChange={(e) => set('ticketType', e.target.value)} className={inputCls}>
                     <option value="">Select pass</option>
-                    {DELEGATE_TICKET_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {(isProvider ? DELEGATE_TICKET_OPTIONS : ['Ticket']).map((t) => <option key={t} value={t}>{t}</option>)}
                     {form.ticketType && !DELEGATE_TICKET_OPTIONS.includes(form.ticketType) && <option value={form.ticketType}>{form.ticketType} (old)</option>}
                   </select>
                 </Field>
