@@ -493,7 +493,7 @@ function speakerChoice(ctx: EditionContext, ref: string): Choice {
 
 // ── The whole run ───────────────────────────────────────────────────────────
 
-export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null; ref?: string | null; by?: string }): Promise<ContentPost> {
+export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; brief?: string | null; forDate?: string | null; style?: CardStyle | 'rotate' | null; ref?: string | null; by?: string; avoid?: string | null }): Promise<ContentPost> {
   const ctx = await gatherContext(ed)
   // A briefing picked by hand is written whatever it is about.
   const chosen = opts.ref && opts.kind !== 'speaker' ? ctx.insights.find((i) => i.slug === opts.ref) : undefined
@@ -517,7 +517,9 @@ export async function draftPost(ed: Edition, opts: { kind?: ContentKind | null; 
   // A speaker's headshot stands in for one photo (the photo and frame styles).
   const photoCount = Math.max(ctx.photos.length, pick.kind === 'speaker' && pick.source.image ? 1 : 0)
   needsPhotos(opts.style, photoCount, pick.kind)
-  const style = nextStyle(ctx.recent, opts.style ?? null, photoCount, pick.kind)
+  // A redraft ("New draft") never comes back in the design just thrown away.
+  const recent = opts.avoid ? [{ source: { style: opts.avoid } }, ...ctx.recent] : ctx.recent
+  const style = nextStyle(recent, opts.style ?? null, photoCount, pick.kind)
   const photos = photoFields(ctx, pick.ref ?? pick.kind, style)
   const { text: _text, ...sourceKept } = pick.source as Record<string, unknown>
   const row = {
