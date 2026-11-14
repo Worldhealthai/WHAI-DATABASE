@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Eye, ExternalLink, Loader2, Megaphone, PenLine, Search, SearchX } from 'lucide-react'
+import { Eye, ExternalLink, Loader2, Megaphone, PenLine, Search, SearchX, Trash2 } from 'lucide-react'
 import type { ContentPost } from '@/lib/contentStudio'
 import { SpeakerDraftModal } from './SpeakerDraft'
 import { cn } from '@/lib/utils'
@@ -103,10 +103,12 @@ export function SpeakerPosts() {
     setDraftError('')
     try {
       if (replace && replace.status === 'draft') await fetch(`/api/marketing/content/${replace.id}`, { method: 'DELETE' })
+      // The design thrown away is not drawn again.
+      const avoid = replace ? (replace.source as { style?: string } | null)?.style ?? null : null
       const r = await fetch('/api/marketing/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ series: ed.series, city: ed.city, year: ed.year, label: ed.label, kind: 'speaker', ref: sp.id }),
+        body: JSON.stringify({ series: ed.series, city: ed.city, year: ed.year, label: ed.label, kind: 'speaker', ref: sp.id, avoid }),
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok || !j?.post) { setDraftError(j?.error || 'The draft could not be written.'); return }
@@ -117,15 +119,38 @@ export function SpeakerPosts() {
     }
   }
 
+  // Throws a speaker's unposted draft away; "Draft post" then writes a new one.
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const discard = async (post: ContentPost) => {
+    if (post.status !== 'draft' || !confirm('Delete this draft? You can draft a new one straight after.')) return false
+    setDeleting(post.id)
+    setDraftError('')
+    try {
+      const r = await fetch(`/api/marketing/content/${post.id}`, { method: 'DELETE' })
+      if (!r.ok) { setDraftError('The draft could not be deleted.'); return false }
+      await qc.invalidateQueries({ queryKey: ['speaker-drafts'] })
+      return true
+    } finally {
+      setDeleting(null)
+    }
+  }
+
   // The button for a speaker: review the draft they have, or write one.
   const DraftButton = ({ s, wide }: { s: SpeakerRow; wide?: boolean }) => {
     const existing = draftFor.get(s.id)
     const cls = `ws-btn ws-btn-sm ${wide ? 'flex-1 justify-center' : ''}`
     if (existing) {
       return (
-        <button className={cls} onClick={() => setOpen({ speaker: s, post: existing })} title={existing.status === 'posted' ? 'See the post' : 'Review the draft'}>
-          <Eye className="w-3.5 h-3.5" /> {existing.status === 'posted' ? 'See post' : 'Review draft'}
-        </button>
+        <>
+          <button className={cls} onClick={() => setOpen({ speaker: s, post: existing })} title={existing.status === 'posted' ? 'See the post' : 'Review the draft'}>
+            <Eye className="w-3.5 h-3.5" /> {existing.status === 'posted' ? 'See post' : 'Review draft'}
+          </button>
+          {existing.status === 'draft' && (
+            <button className="ws-btn ws-btn-sm ws-btn-ghost !px-2 shrink-0" onClick={() => discard(existing)} disabled={deleting !== null || drafting !== null} title="Delete this draft" aria-label={`Delete ${s.name}'s draft`} style={{ color: 'var(--fg-3)' }}>
+              {deleting === existing.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </>
       )
     }
     if (s.linkedin_consent !== true) return null
@@ -255,8 +280,8 @@ export function SpeakerPosts() {
                   <col />
                   <col style={{ width: 108 }} />
                   <col style={{ width: 150 }} />
-                  <col style={{ width: 210 }} />
-                  <col style={{ width: 230 }} />
+                  <col style={{ width: 170 }} />
+                  <col style={{ width: 270 }} />
                 </colgroup>
                 <thead>
                   <tr>
@@ -338,6 +363,7 @@ export function SpeakerPosts() {
           busy={drafting === open.speaker.id}
           onClose={() => setOpen(null)}
           onRedraft={() => draft(open.speaker, open.post)}
+          onDelete={async () => { if (await discard(open.post)) setOpen(null) }}
           onChanged={(p) => { setOpen({ speaker: open.speaker, post: p }); qc.invalidateQueries({ queryKey: ['speaker-drafts'] }) }}
           onPosted={() => {
             setOpen(null)
