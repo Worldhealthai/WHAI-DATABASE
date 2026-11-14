@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     const carousel = asked ? asked !== 'single' : body.format === 'carousel'
     const post = carousel
       ? await draftCarousel(ed, { brief, forDate, ref: body.ref ? String(body.ref) : null, style })
-      : await draftPost(ed, { kind: kind ?? (body.format === 'carousel' ? 'insight' : null), brief, forDate, style, ref: body.ref ? String(body.ref) : null })
+      : await draftPost(ed, { kind: kind ?? (body.format === 'carousel' ? 'insight' : null), brief, forDate, style, ref: body.ref ? String(body.ref) : null, avoid: isCardStyle(body.avoid) ? body.avoid : null })
     return NextResponse.json({ post }, { status: 201 })
   } catch (error: any) {
     if (error instanceof ContentError) return NextResponse.json({ error: error.message }, { status: error.status })

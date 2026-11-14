@@ -7,18 +7,19 @@
 // ticks the speaker off here (api/marketing/content/<id>/linkedin).
 
 import { useState } from 'react'
-import { Loader2, Send, Sparkles, RefreshCw } from 'lucide-react'
+import { Loader2, Send, Sparkles, RefreshCw, Trash2 } from 'lucide-react'
 import { Modal } from '@/components/workspace/ui'
 import type { ContentPost } from '@/lib/contentStudio'
 
 export function SpeakerDraftModal({
-  name, post, busy, onClose, onRedraft, onChanged, onPosted,
+  name, post, busy, onClose, onRedraft, onDelete, onChanged, onPosted,
 }: {
   name: string
   post: ContentPost
   busy: boolean
   onClose: () => void
   onRedraft: () => void
+  onDelete: () => void
   onChanged: (p: ContentPost) => void
   onPosted: (url: string) => void
 }) {
@@ -82,8 +83,11 @@ export function SpeakerDraftModal({
           </>
         ) : (
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button className="ws-btn justify-center" onClick={onRedraft} disabled={disabled} title="Throw this draft away and write a fresh one">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} New draft
+            <button className="ws-btn ws-btn-ghost justify-center sm:mr-auto" onClick={onDelete} disabled={disabled} title="Delete this draft" style={{ color: 'var(--bad)' }}>
+              <Trash2 className="w-4 h-4" /> Delete draft
+            </button>
+            <button className="ws-btn justify-center" onClick={onRedraft} disabled={disabled} title="Throw this draft away and write a fresh one in a different design">
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} New design
             </button>
             <button className="ws-btn ws-btn-primary justify-center" onClick={approve} disabled={disabled}>
               {working === 'post' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Approve and post to LinkedIn

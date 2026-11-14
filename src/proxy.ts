@@ -49,6 +49,13 @@ export async function proxy(req: NextRequest) {
     if (agentKey && bearer && bearer === agentKey && req.method === 'GET' && readable) {
       return NextResponse.next()
     }
+    // Control Room's "Add to CRM" writes through a second key of its own
+    // (AGENT_WRITE_TOKEN), which opens POST /api/agent/intake and nothing
+    // else: new sponsor and speaker leads, marked with the agent.
+    const writeKey = (process.env.AGENT_WRITE_TOKEN || '').trim()
+    if (writeKey && bearer && bearer === writeKey && req.method === 'POST' && req.nextUrl.pathname === '/api/agent/intake') {
+      return NextResponse.next()
+    }
     const secret = (process.env.WEBHOOK_SECRET || '').trim()
     const provided = (req.headers.get('x-webhook-secret') || '').trim()
     if (secret && provided && provided === secret) {

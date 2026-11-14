@@ -140,6 +140,8 @@ export function CompanyProfile({ kind, company, nav, onEdit, onDelete, deleting,
             {intel ? <IntelStrip c={intel} /> : intelQ.isSuccess ? <NoIntel compact /> : null}
             <NextStep
               where={<WhereLine label={company.event ? `In ${board.label}` : 'In the directory, in no event yet'} kind={kind} status={company.status} extra={<>
+                {/* A lead an agent found in Control Room says which one. */}
+                {(company as { agentName?: string | null }).agentName && <span className="text-[12px]" style={{ color: 'var(--fg-3)' }} title="Added from Control Room">Found by {(company as { agentName?: string | null }).agentName}</span>}
                 {/* No event: the company is on a side only, until it goes into an edition's pipeline. */}
                 {!company.event && focusOf(company.tags).length > 0 && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{focusOf(company.tags).join(' and ')} side</span>}
                 {edition && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{shortEventName(company.event ?? '')}</span>}
