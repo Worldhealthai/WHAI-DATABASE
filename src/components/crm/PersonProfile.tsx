@@ -126,6 +126,8 @@ export function PersonProfile(props: Props) {
             </div>
             <NextStep
               where={<WhereLine label={`In ${board.label}`} kind={kind} status={person.status} extra={<>
+                {/* A lead an agent found in Control Room says which one. */}
+                {(person as { agentName?: string | null }).agentName && <span className="text-[12px]" style={{ color: 'var(--fg-3)' }} title="Added from Control Room">Found by {(person as { agentName?: string | null }).agentName}</span>}
                 {edition && <span className="text-[12.5px]" style={{ color: 'var(--fg-3)' }}>{shortEventName(person.event ?? '')}</span>}
                 {stageSaving && <span className="text-[12px] inline-flex items-center gap-1.5" style={{ color: 'var(--fg-4)' }}><Loader2 className="w-3 h-3 animate-spin" /> Saving</span>}
               </>} />}

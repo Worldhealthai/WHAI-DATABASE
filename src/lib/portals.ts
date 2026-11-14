@@ -7,7 +7,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles, BarChart3,
+  Bot, KanbanSquare, LayoutDashboard, Mic, Upload, Inbox, Megaphone, Building2, CalendarDays, PenLine, Sparkles, BarChart3,
   Building, ClipboardList, Network, Users,
 } from 'lucide-react'
 import type { EventCategory } from '@/lib/eventCategories'
@@ -84,6 +84,8 @@ export const DIRECTORY_PATH = 'directory'
 export const TOOLS: PortalSection[] = [
   { key: 'import', label: 'Import', icon: Upload, path: '/import' },
   { key: 'unassigned', label: 'Triage inbox', icon: Inbox, path: '/unassigned' },
+  // Leads Control Room's agents added to the CRM, by agent.
+  { key: 'agents', label: "Agents' work", icon: Bot, path: '/agents' },
 ]
 
 export function isPortalKey(v: string | null | undefined): v is PortalKey {
